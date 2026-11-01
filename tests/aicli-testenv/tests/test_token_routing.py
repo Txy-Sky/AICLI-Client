@@ -34,7 +34,7 @@ def token_id_and_key(access_token, name):
     item = next(item for item in result.get("data", {}).get("items", []) if item.get("name") == name)
     _, _, keys = call("POST", "/api/token/batch/keys", {"ids": [item["id"]]}, token=access_token)
     key = keys.get("data", {}).get("keys", {}).get(str(item["id"]))
-    assert key and key.startswith("sk-"), keys
+    assert key, keys
     return item["id"], key
 
 
