@@ -131,8 +131,8 @@
   证据：
 - [ ] **H-03** macOS、Windows 测试机，可操作图形界面的人。依赖项：L。
   证据：
-- [ ] **H-04** 后台设置：确认 `auto` 在用户可用分组内，`MaxTokenAutoGroups` 不小于单个模型的分组数。判断依据见 A5-02。依赖项：L-05。
-  证据：
+- [x] **H-04** 后台设置：确认 `auto` 在用户可用分组内，`MaxTokenAutoGroups` 不小于单个模型的分组数。判断依据见 A5-02。依赖项：L-05。
+  证据：负责人告知已开启 `auto`；A5-02 只读复测确认 `auto_available=true`、`auto_max_count=15`，大于等于最大模型分组数 3；`docs/aicli-evidence/A5-02.txt`。
 - [ ] **H-05** 应用图标源文件。没有提供时沿用占位图标（B-08 生成）。依赖项：L-01。
   证据：
 - [ ] **H-06** 更新器：签名密钥对、更新清单的公开地址。没有提供时禁用更新器（B-05）。依赖项：L-02。
@@ -203,13 +203,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：40d1ca64 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME、直连执行 `python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json` 等实际启动命令见 `docs/aicli-evidence/A5-01-streaming.txt` | CI success：探测离线测试 21 passed；前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。线上验收未通过：持续输出时长不足且有一次补测读超时，120 秒语义未定；只读核对的 `gpt-image-2` 不支持所需 SSE 文本端点，未发送不匹配请求；不回填第 0.4 节、不开始 A5-02。历史网络失败保留在 A5-01.txt，直连恢复证据在 A5-01-direct-network.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
 
 ### A5-02 真实账号能力核对 `[需 H-01]`
-- [!] 被 H-04 阻塞：五个只读接口均返回 200，但账号可用分组不含 `auto`；`auto_max_count=15`，单模型最大可用分组数为 3，需负责人确认后台设置后才能继续依赖 A5-02 的项目。
+- [x] 完成：只读复测确认五个接口均返回 200，`auto` 已在可用分组内，`auto_max_count=15`，单模型最大可用分组数为 3。
 - 修改：`scripts/aicli-poc/account_probe.py`，只读。
 - 验收，把结论写入证据：
   - 只带 `Authorization: Bearer <令牌>`（不带 `New-Api-User`）调用 `/api/user/self`、`/api/user/self/groups`、`/api/token/auto-groups`、`/api/log/self?p=1&page_size=1`，都返回 200。
   - 记录 `/api/user/self/groups` 是否含 `auto`、`max_count`，以及每个模型在该账号可用的分组数最大值（`/api/pricing` 的 `enable_groups` 与可用分组取交集）。
   - 没有 `auto` 或 `max_count` 小于最大分组数 → 标 `[!]`，交 H-04 决定，不要绕过。
-- 证据：bf8e5f88 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_account_probe.py' -v; bash scripts/aicli-check.sh` | CI success（A5-02 离线测试通过；A3-01 基线通过：Rust 4443 passed、10 skipped；前端 266 个文件/3415 tests passed）+ 本机隔离 HOME 只读线上命令见 `docs/aicli-evidence/A5-02.txt`；五个接口均 HTTP 200，结论 `owner_decision_required` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41301708173
+- 证据：bf8e5f88 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_account_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME：`python3 /tmp/aicli-a5-run-with-env.py /home/txy/.local/bin/aicli-direct python3 -B -u scripts/aicli-poc/account_probe.py --output /tmp/aicli-A5-02-account-rerun.json` | CI success（A5-02 离线安全测试、A3-01 基线通过：Rust 4443 passed/10 skipped，前端 266 文件/3415 passed）；线上复测五个接口均 HTTP 200、`auto_available=true`、`max_count=15`、最大模型分组数 3、结论 `pass` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41301708173
 
 ### A6 测试环境（未修改的 new-api rc.34）
 
@@ -952,7 +952,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
 | A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
-| A5-02 | 账号可用分组不含 `auto`；`auto_max_count=15`，但单模型最大可用分组数为 3。 | 通过只读接口 `/api/user/self`、`/api/user/self/groups`、`/api/token/auto-groups`、`/api/log/self?p=1&page_size=1`、`/api/pricing` 核对，均 HTTP 200；未写入任何 Token。 | 负责人（H-04）确认 `auto` 是否应加入用户可用分组，并确认 `MaxTokenAutoGroups` 配置。 |
+| A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
 
 ## 13. 偏差记录
 
@@ -961,23 +961,23 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A5-01 | 第 2 节只允许方案 3.3 所列账户接口，未包括方案 3.2 中读取现有 Token 所需的 GET /api/token/ 和 POST /api/token/batch/keys。 | 经负责人明确授权，将这两个接口补充到第 2 节，仅允许读取测试账号已有 Token；完整流式探测已使用它们读取现有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。 | 系统访问令牌不能调用 /v1 模型接口；A5-01 流式探测需要安全读取已有 sk- Token，不能把系统访问令牌误用为模型密钥。 |
 | A5-01 | 本机线上探测，不在 CI 运行；原 TLS 路径在握手阶段被重置。 | 仓库外安装自写按进程启用的 `aicli-direct`，仅对 `api.aicli.qzz.io`、`aicli.qzz.io` 的首个 ClientHello 拆 TLS record，保留原握手字节、SNI、证书及主机名校验，清除该子进程代理环境变量。隔离 HOME 复验 60/60 及拒绝对照均通过；工具和源码未加入仓库、工作流或产品。 |
 | A5-01 | 清单要求用持续输出超过 180 秒判定 120 秒语义。 | 负责人于 2026-11-01 明确决定不再执行该测量；A5-01 以已有直连、鉴权、预算、CI 和失败结果作为记录，跳过语义结论，不回填超时。 | 当前继续后续只读账号能力核对；不得把跳过当成 120 秒结论。 |
-| A5-02 | 清单验收要求按 `/api/pricing` 的 `enable_groups` 与账号可用分组取交集，并在 `auto` 缺失或上限不足时交 H-04。 | 实际 `/api/user/self/groups` 返回的可用分组字段可直接取交集；报告统计 69 个模型，最大交集分组数为 3，`/api/token/auto-groups` 返回 `max_count=15`，但 `auto` 不在可用分组。 | 仅记录实际响应形状和清单要求的阻塞结论，不改变接口或数据结构。 |
+| A5-02 | 清单验收要求按 `/api/pricing` 的 `enable_groups` 与账号可用分组取交集，并在 `auto` 缺失或上限不足时交 H-04。 | 实际响应以 `data` 字段承载分组，报告统计 69 个模型；复测 `auto_available=true`、`max_count=15`、最大交集分组数为 3。 | 只记录实际响应形状，不改变接口或数据结构；复测结果通过验收。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；A5-02 实现 CI 通过提交为 bf8e5f88dfc990b29f572b80dd6735318fcc64ab（Actions run 41301708173）。
-完成/阻塞/跳过：3 / 1 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01；A5-01 按负责人决定跳过 180 秒语义测量；A5-02 因 H-04 阻塞，其余项目未开始，不冒充已验证或已跳过）。
+完成/阻塞/跳过：4 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6/K。
-A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 不在可用分组，`max_count=15`，单模型最大可用分组数为 3；等待 H-04 负责人决定。
+A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[!] A5-02，等待 H-04 确认 `auto` 可用分组和 `MaxTokenAutoGroups`；[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A5-02 之后的任务尚未开始。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6 及之后的任务尚未开始。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：H-04 请确认 `auto` 是否加入该账号可用分组，并确认 `MaxTokenAutoGroups` 至少覆盖单模型最大分组数 3；180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。A5-02 依赖 H-04，后续依赖项暂停，未代办任何 HUMAN 项。
+需要负责人提供的事项：目前无 A5-02/H-04 待决事项；180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
