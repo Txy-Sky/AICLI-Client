@@ -37,12 +37,14 @@ PROMPTS = {
         "Take the time needed for rigorous internal verification."
     ),
     "continuous": (
-        "Generate a very long English language streaming test. Write lines numbered "
-        "1 through 20000. Each line must contain its number followed by a new, "
-        "original sentence of at least twelve words describing an imaginary walk "
-        "through a different landscape. Start line 1 immediately. Keep emitting "
-        "consecutive lines; do not summarize, skip numbers, explain limitations, "
-        "write code, use tools, or conclude early. Continue until the output limit."
+        "Create a complete test dataset of exactly 900 numbered English lines. "
+        "Each line must contain its consecutive number and one original sentence "
+        "of 24 to 30 words describing an imaginary walk through a different "
+        "landscape. All 900 records are needed by a downstream parser. This is "
+        "within the configured 65536 output-token budget. Begin record 1 immediately "
+        "and keep emitting the actual individual records, one per line. Do not "
+        "provide code, a generator, a range, a sample, an explanation, ellipses, "
+        "a summary, or an offer to continue. Finish only after record 900."
     ),
 }
 
