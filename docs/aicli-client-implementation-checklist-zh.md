@@ -229,7 +229,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：e45c2cde | Checklist acceptance (Linux), job `A6-02 mock upstream protocol and injection tests`: `python3 -m pip install --user pytest`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py` | CI run success；协议流式/非流式与行为注入 pytest 通过，A3-01 基线同 run 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41311104301
 
 #### A6-03 实测：受管 Token 路由（方案 PoC B 前半）
-- [ ] 完成
+- [!] 阻塞：本地 rc.34 测试用户 alice 账户额度为 0，模型请求返回 HTTP 403 `insufficient_user_quota`。A6-01/A6-03 已通过 HTTP 管理接口创建 alice 和渠道；现有文档未说明如何通过受支持的 HTTP API 为隔离测试用户设置小额额度。未猜测接口或字段，路由验收尚未通过。
 - 修改：`tests/aicli-testenv/tests/test_token_routing.py`。用 alice 的系统访问令牌调用 `POST /api/token/` 创建 Token：T1 `Group=auto, AutoGroups=[g-cheap,g-mid]`；T2 `Group=auto, AutoGroups=[g-mid,g-cheap]`；T3 `Group=auto, AutoGroups=[g-cheap,g-pro]`。
 - 验收（断言 `logs` 表的 `group`、`quota`）：
   - T1 请求 `mock-model-a` → 分组 `g-cheap`；T2 → `g-mid`；quota 比例约为 1:2。
@@ -953,6 +953,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 |---|---|---|---|
 | A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
+| A6-03 | 隔离环境创建的 alice 用户无账户额度，导致模型请求返回 HTTP 403 `insufficient_user_quota`。 | 给测试种子增加 `ModelRatio` 后重跑；模型计价错误消失，但请求仍因用户额度为 0 被拒绝。未尝试未知管理接口或直接访问数据库。 | 请提供或确认 rc.34 中通过 HTTP 管理 API 为隔离测试用户设置小额额度的准确端点、字段和请求格式；确认后继续 A6-03。 |
 
 ## 13. 偏差记录
 
@@ -966,18 +967,18 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；A6-02 实现 CI 通过提交为 e45c2cde06cc241afeb448607fc8537a77bcfb0b（Actions run 41311104301）。
-完成/阻塞/跳过：6 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-02 实现 CI 通过提交为 e45c2cde06cc241afeb448607fc8537a77bcfb0b（Actions run 41311104301）。
+完成/阻塞/跳过：6 / 1 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02；A5-01 按负责人决定跳过 180 秒语义测量；A6-03 因隔离测试用户账户额度为 0 且缺少经确认的额度设置 HTTP API 而阻塞；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6-02/K。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-02 及之后的任务尚未开始。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。[!] A6-03，隔离测试用户额度为 0，需要负责人提供/确认 rc.34 HTTP 额度设置 API。A6-04 及之后的任务尚未开始。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：目前无 A5-02/H-04 待决事项；180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：确认 rc.34 中通过 HTTP 管理 API 为隔离测试用户设置小额额度的准确端点、字段和请求格式，以解除 A6-03 阻塞；A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；无密钥进入代码、日志、证据、提交或 Actions。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
