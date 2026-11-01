@@ -170,7 +170,7 @@ GET https://{三条线路}/api/pricing
 - 证据：67dc7e45 | Checklist acceptance (Linux): `node -v; pnpm --version; rustc -V; cargo fmt --version; cargo clippy --version; cargo nextest --version; docker --version; docker compose version; docker info --format '{{.ServerVersion}}'; go version; python3 --version; pkg-config --modversion openssl gtk+-3.0 librsvg-2.0 ayatana-appindicator3-0.1 webkit2gtk-4.1 libsoup-3.0` | CI success（57s）；Node 22.12.0、pnpm 10.12.3、Rust 1.95.0（含 rustfmt/clippy）、nextest 0.9.146、Docker 28.0.4、Compose 2.38.2、Go 1.25.14、Python 3.12.15；Linux 依赖及测试 HOME 隔离断言通过；完整输出见 `docs/aicli-evidence/A2-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287034200
 
 ### A3-01 客户端基线全绿
-- [ ] 完成
+- [x] 完成
 - 修改：新增 `scripts/aicli-check.sh`，依次运行下列命令，任一失败即退出：
   ```bash
   pnpm install --frozen-lockfile
@@ -183,7 +183,7 @@ GET https://{三条线路}/api/pricing
   cargo nextest run --manifest-path src-tauri/Cargo.toml
   ```
 - 验收：退出码 0。把通过的 Rust、前端测试数量写入证据，作为后续"不退化"的基数。**如果基线本身有失败**，把失败用例写入第 12 节并标 `[!]`，不要修。
-- 证据：
+- 证据：efbd24ef | Checklist acceptance (Linux): `bash scripts/aicli-check.sh（依次执行 pnpm install --frozen-lockfile; pnpm typecheck; pnpm format:check; pnpm test:unit; pnpm build:renderer; cargo fmt --check --manifest-path src-tauri/Cargo.toml; cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo nextest run --manifest-path src-tauri/Cargo.toml）` | CI success（16m03s），脚本退出码 0；前端 266 个文件、3415 tests passed；Rust 4443 passed、10 skipped（原有基线，未修改测试或新增 ignore）；完整日志见 `docs/aicli-evidence/A3-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-01 实测 120 秒语义和三条线路 `[需 H-01]`
 - [ ] 完成
