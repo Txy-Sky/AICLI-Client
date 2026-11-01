@@ -1,0 +1,728 @@
+A5-01 local direct-network recovery (2026-11-01, Asia/Shanghai)
+Supplementary network evidence only: A5-01 remains unaccepted.
+Code baseline: efbd24ef5eca6ab00548f49de30812ffa2b29ca3.
+
+Scope:
+Only unauthenticated GET /api/status requests to the three checklist domains.
+No account API, Token API, token mutation/generation/revocation or model API used.
+No credential was read by the verifier, logged, stored in files, or sent to Actions.
+No model quota consumed; idle/continuous-output cases remain unrun.
+No timeout-table or C4-05 decision; no new [x] checklist marks.
+
+Mechanism:
+An opt-in local LD_PRELOAD helper splits the first complete ClientHello for exactly
+api.aicli.qzz.io and aicli.qzz.io into two TLS records, inside the SNI host string.
+Original handshake bytes and correct SNI are preserved. The original TLS library
+still verifies certificate/hostname. aicliapi.com framing is unchanged.
+The original process makes outbound TCP connections; no proxy/listener is started.
+HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and lowercase forms are unset in the child;
+NO_PROXY=* and no_proxy=* are set. urllib also uses ProxyHandler({}).
+Certificate checks and public-key checks remain enabled.
+No DNS/hosts/firewall/router/Clash/shell-startup/global-preload setting changed.
+Only Linux dynamic-linked curl/OpenSSL/Python paths validated; native Windows,
+Rust/static binaries and writev/sendmsg paths are unvalidated.
+This is local development tooling, not a product fix, CI dependency or proof of
+infrastructure repair. The behavior is consistent with TLS inspection along the
+path, but its operator/location and the infrastructure root cause remain unproved.
+
+Local installation, outside repository:
+/home/txy/.local/share/aicli-direct-network/{tls_records.c,tls_records.so,aicli-direct,verify.py,README.md}
+/home/txy/.local/bin/aicli-direct is an absolute symlink to the wrapper above;
+readlink -f resolves its installed source directory. Source/report hashes follow.
+
+Actual compilation command (exit 0):
+gcc -Wall -Wextra -Werror -O2 -fPIC -shared -o /tmp/aicli-direct-network/tls_records.so /tmp/aicli-direct-network/tls_records.c
+
+Actual isolated verification launcher (exit 0):
+python3 - <<'PY'
+from pathlib import Path
+import os, subprocess, tempfile
+network=Path.home()/'.local/share/aicli-direct-network'
+entry=Path.home()/'.local/bin/aicli-direct'
+with tempfile.TemporaryDirectory(prefix='aicli-network-home-') as test_home:
+    test_env=dict(os.environ,HOME=test_home,CC_SWITCH_TEST_HOME=test_home)
+    result=subprocess.run([str(entry),'python3','-u',str(network/'verify.py'),'--attempts','10','--output',str(network/'verification-isolated.json')],env=test_env,check=False)
+    print('Isolated verification exit='+str(result.returncode),flush=True)
+    raise SystemExit(result.returncode)
+PY
+
+Result:
+curl: main/global/apac each 10/10, HTTP 200, ssl_verify_result=0, success=true.
+urllib: main/global/apac each 10/10, HTTP 200, CERT_REQUIRED + check_hostname,
+success=true. User-Agent=AICLI-Client/line-probe. Default Python UA previously
+received HTTP 403 on main even without this helper; that is not a TLS failure.
+Incorrect pinned public key rejected: curl exit 90.
+Incorrect certificate hostname rejected: openssl exit 1, hostname mismatch.
+No retries or relaxed criteria were used in these 60 checks.
+
+Additional same-node control using owner's APAC node 4:
+Plain direct curl exit 35, HTTP 000. Helper: exit 0, HTTP 200, verify=0.
+Forcing global hostname onto that APAC node returned a self-signed certificate;
+correctly rejected with exit 60, verify=18. This APAC node is not used as a valid
+global endpoint. The 60-request matrix uses each hostname's own DNS results.
+Raw supplemental results retained locally in same-node-controls.json.
+
+Remaining requirement:
+AICLI_TEST_ACCESS_TOKEN absent in current process and Windows Process/User/Machine
+environments (presence checks only; no values logged). The owner previously
+supplied a token in conversation; it was not copied back into a command or file.
+Supply it securely in the subsequent execution environment to resume the still
+unimplemented full A5-01 streaming probe. The request for another network path
+in the historical A5-01.txt failure evidence is superseded by this recovery.
+No A5 implementation commit or CI acceptance is claimed by this docs-only update.
+
+Source/report SHA256:
+tls_records.c 13253ec5226482808e20294e46d939393b0d83640e48bae0046ebd2321f468e0
+aicli-direct 4ffe981d3e06b0391e4244b9eb1d8b7076dde5533376558a0560356ec65fdff3
+verify.py 9e7fc91fe40122e37d112767ef3daf33e9b0d2d12322a8250792d0ea21c93f0f
+verification-isolated.json 70d0ac6545ce3566bb677af425abd2b6e52477448ef90290aa96cef281dd4249
+
+Actual final verification JSON (status metadata only, no response bodies):
+{
+  "proxy_environment_present": false,
+  "no_proxy": "*",
+  "requests": [
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 1,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 2.292
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 2,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.749
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 3,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.812
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 4,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.132
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 5,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.632
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 6,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.752
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 7,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.204
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 8,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.941
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 9,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.859
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "curl",
+      "attempt": 10,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.706
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 1,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.554
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 2,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.895
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 3,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.973
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 4,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.319
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 5,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 2.06
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 6,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.76
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 7,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.015
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 8,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.978
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 9,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.626
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "curl",
+      "attempt": 10,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.676
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 1,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.738
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 2,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.602
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 3,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.614
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 4,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.119
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 5,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.132
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 6,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.704
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 7,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.653
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 8,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.959
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 9,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.223
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "curl",
+      "attempt": 10,
+      "exit_code": 0,
+      "http_status": 200,
+      "certificate_verify_result": 0,
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.636
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 1,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.887
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 2,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.95
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 3,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 2.21
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 4,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.913
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 5,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.962
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 6,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 2.06
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 7,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.761
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 8,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 2.94
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 9,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.934
+    },
+    {
+      "host": "aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 10,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.75
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 1,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.135
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 2,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.217
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 3,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.343
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 4,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.914
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 5,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.665
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 6,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.649
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 7,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.998
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 8,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.969
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 9,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.957
+    },
+    {
+      "host": "aicliapi.com",
+      "client": "urllib",
+      "attempt": 10,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 3.161
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 1,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.765
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 2,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.919
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 3,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.242
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 4,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.028
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 5,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.932
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 6,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.833
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 7,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.828
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 8,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.967
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 9,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 0.798
+    },
+    {
+      "host": "api.aicli.qzz.io",
+      "client": "urllib",
+      "attempt": 10,
+      "http_status": 200,
+      "certificate_verification": "required_with_hostname",
+      "application_success": true,
+      "passed": true,
+      "seconds": 1.569
+    }
+  ],
+  "rejection_controls": [
+    {
+      "check": "incorrect_public_key_pin_rejected",
+      "exit_code": 90,
+      "passed": true
+    },
+    {
+      "check": "incorrect_certificate_hostname_rejected",
+      "exit_code": 1,
+      "passed": true
+    }
+  ]
+}

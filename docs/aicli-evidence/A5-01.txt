@@ -1,4 +1,6 @@
-A5-01: BLOCKED (local network preflight; not an accepted streaming probe)
+Latest update (2026-11-01): direct TLS health checks recovered with an opt-in local helper. See A5-01-direct-network.txt for isolated-HOME 60/60 results and remaining credential/streaming requirements. Historical failures below are preserved; A5-01 remains unaccepted.
+
+A5-01: BLOCKED (historical local network preflight; not an accepted streaming probe)
 Code baseline: efbd24ef5eca6ab00548f49de30812ffa2b29ca3; subsequent changes before this diagnostic were documentation only.
 Local interpreter: Python 3.12.3. All HTTPS requests used ssl.create_default_context(); certificate/hostname validation was never disabled.
 Only unauthenticated GET /api/status was called. No model request, token-list/key request, token mutation or system-access-token generation/revocation was sent.
