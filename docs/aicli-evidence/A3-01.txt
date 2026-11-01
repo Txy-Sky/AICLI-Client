@@ -6,7 +6,7 @@ Command: bash scripts/aicli-check.sh
 Result: success; frontend 266 files / 3415 tests passed; Rust 4443 passed / 10 skipped.
 The 10 Rust skips are the unmodified baseline; no tests/assertions were changed and no ignore attributes were added.
 CI used isolated HOME and CC_SWITCH_TEST_HOME; no account credentials were injected.
-Transcript below has ANSI formatting removed; credential-pattern scan found no matches.
+Transcript below has ANSI formatting and trailing whitespace removed; credential-pattern scan found no matches.
 
 
 ==> pnpm install --frozen-lockfile
@@ -5488,7 +5488,7 @@ warn - The class `duration-[120ms]` is ambiguous and matches multiple utilities.
 warn - If this is content and not a class, replace it with `duration-&lsqb;120ms&rsqb;` to silence this warning.
 ✓ 3491 modules transformed.
 rendering chunks...
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /home/runner/work/AICLI-Client/AICLI-Client/src/lib/api/subscription.ts is dynamically imported by /home/runner/work/AICLI-Client/AICLI-Client/src/components/UsageScriptModal.tsx, /home/runner/work/AICLI-Client/AICLI-Client/src/components/UsageScriptModal.tsx, /home/runner/work/AICLI-Client/AICLI-Client/src/components/UsageScriptModal.tsx but also statically imported by /home/runner/work/AICLI-Client/AICLI-Client/src/lib/api/index.ts, /home/runner/work/AICLI-Client/AICLI-Client/src/lib/query/subscription.ts, dynamic import will not move module into another chunk.
 
 computing gzip size...
