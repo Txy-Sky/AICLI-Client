@@ -45,9 +45,13 @@ def request_model(key, model):
         headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
-        body = json.loads(response.read())
-        return dict(response.headers), body
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.loads(response.read())
+            return dict(response.headers), body
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:1000]
+        raise AssertionError(f"model request returned HTTP {error.code}: {detail}") from None
 
 
 def log_for(access_token, request_id):
