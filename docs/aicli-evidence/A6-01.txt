@@ -1,0 +1,19 @@
+# A6-01 compose rc.34 environment and idempotent seed
+
+Implementation commit: `4945b896`.
+
+Actions evidence:
+
+`Checklist acceptance (Linux)` job, step `A6-01 compose rc.34 environment and idempotent seed`:
+
+```text
+docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+curl --fail --silent --show-error http://127.0.0.1:13000/api/status
+python3 tests/aicli-testenv/seed.py
+python3 tests/aicli-testenv/seed.py
+bash scripts/aicli-check.sh
+```
+
+Result: CI succeeded. The rc.34 status response matched `v1.0.0-rc.34`; the seed completed twice; A3-01 in the same run also passed with Rust `4443 passed, 10 skipped` and frontend `266` test files / `3415 passed`.
+
+Actions run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41307378844

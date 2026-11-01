@@ -214,13 +214,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ### A6 测试环境（未修改的 new-api rc.34）
 
 #### A6-01 编写 compose 环境
-- [ ] 完成
+- [x] 完成
 - 修改：新增 `tests/aicli-testenv/`：
   - `docker-compose.yml`：`new-api` 固定为 `calciumion/new-api@sha256:d9956dc8bde83cb1378932802670350b3c4c1ee7611d2e0d7c63af111da2b989`（线上在用的 rc.34 镜像）；`mysql:5.7.44`；`redis`；`mock-upstream`；端口全部绑定 `127.0.0.1`。
   - `seed.py`：通过 new-api 管理 API 创建管理员、两个测试用户（`alice`、`bob`）、三个分组（`g-cheap` 倍率 0.5、`g-mid` 倍率 1、`g-pro` 倍率 2），把 `auto` 加入可用分组，`MaxTokenAutoGroups=10`，并给每个分组配一个指向 `mock-upstream` 的渠道（`g-cheap`、`g-mid` 都含 `mock-model-a`，`g-pro` 只含 `mock-model-b`）。
   - `.env.example`：只放变量名和假值。
 - 验收：`docker compose up -d` 后 `curl -s 127.0.0.1:<port>/api/status` 版本为 `v1.0.0-rc.34`；`seed.py` 重复运行结果不变。
-- 证据：
+- 证据：4945b896 | Checklist acceptance (Linux), job `A6-01 compose rc.34 environment and idempotent seed`: `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `curl --fail --silent --show-error http://127.0.0.1:13000/api/status`; `python3 tests/aicli-testenv/seed.py`（连续运行两次）；`bash scripts/aicli-check.sh` | CI run success；rc.34 `/api/status` 版本断言通过，seed 重复运行通过，A3-01 基线通过（Rust 4443 passed/10 skipped，前端 266 文件/3415 passed） | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41307378844
 
 #### A6-02 编写 mock-upstream
 - [ ] 完成
@@ -966,13 +966,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；A5-02 实现 CI 通过提交为 bf8e5f88dfc990b29f572b80dd6735318fcc64ab（Actions run 41301708173）。
-完成/阻塞/跳过：4 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；A6-01 实现 CI 通过提交为 4945b896b46d168d4f253f53c23d0bf459efd3e（Actions run 41307378844）。
+完成/阻塞/跳过：5 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
-tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6/K。
+tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6-02/K。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6 及之后的任务尚未开始。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-02 及之后的任务尚未开始。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
