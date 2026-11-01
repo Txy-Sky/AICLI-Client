@@ -164,10 +164,10 @@ GET https://{三条线路}/api/pricing
 - 证据：`git log -1 -- docs/aicli-client-implementation-checklist-zh.md`
 
 ### A2-01 安装工具链
-- [ ] 完成
+- [x] 完成
 - 修改：不改仓库。按 `.node-version`（22.12.0）、`rust-toolchain.toml`（1.95，含 rustfmt、clippy）安装 Node、pnpm、Rust、`cargo-nextest`；按 `.github/workflows/ci.yml:143-151` 安装 Linux 依赖；安装 Docker 和 Docker Compose、Go 1.25+（只用于 E-02、E-03 的对照工具）、Python 3.12。
 - 验收：`node -v` 为 22.12.0；`rustc -V` 含 1.95；`docker compose version`、`go version`、`python3 --version` 都能输出版本。
-- 证据：
+- 证据：67dc7e45 | Checklist acceptance (Linux): `node -v; pnpm --version; rustc -V; cargo fmt --version; cargo clippy --version; cargo nextest --version; docker --version; docker compose version; docker info --format '{{.ServerVersion}}'; go version; python3 --version; pkg-config --modversion openssl gtk+-3.0 librsvg-2.0 ayatana-appindicator3-0.1 webkit2gtk-4.1 libsoup-3.0` | CI success（57s）；Node 22.12.0、pnpm 10.12.3、Rust 1.95.0（含 rustfmt/clippy）、nextest 0.9.146、Docker 28.0.4、Compose 2.38.2、Go 1.25.14、Python 3.12.15；Linux 依赖及测试 HOME 隔离断言通过；完整输出见 `docs/aicli-evidence/A2-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287034200
 
 ### A3-01 客户端基线全绿
 - [ ] 完成
