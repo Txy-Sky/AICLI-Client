@@ -188,7 +188,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：efbd24ef | Checklist acceptance (Linux): `bash scripts/aicli-check.sh（依次执行 pnpm install --frozen-lockfile; pnpm typecheck; pnpm format:check; pnpm test:unit; pnpm build:renderer; cargo fmt --check --manifest-path src-tauri/Cargo.toml; cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo nextest run --manifest-path src-tauri/Cargo.toml）` | CI success（16m03s），脚本退出码 0；前端 266 个文件、3415 tests passed；Rust 4443 passed、10 skipped（原有基线，未修改测试或新增 ignore）；完整日志见 `docs/aicli-evidence/A3-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-01 实测 120 秒语义和三条线路 `[需 H-01]`
-- [!] 阻塞：本机直连和测试令牌鉴权已恢复，预算受控的完整脚本已实现，最终实现提交 `40d1ca64` 的 Linux CI 已通过。前三轮持续输出均提前正常结束，未超过 180 秒；第四轮补测还出现 global 空闲场景的 300 秒读超时，无法判定 120 秒语义。没有回填超时或开始下一项；详见 `docs/aicli-evidence/A5-01-streaming.txt`。
+- [!] 阻塞：本机直连和测试令牌鉴权已恢复，预算受控的完整脚本已实现，最终实现提交 `40d1ca64` 的 Linux CI 已通过。前三轮持续输出均提前正常结束，未超过 180 秒；第四轮补测还出现 global 空闲场景的 300 秒读超时，无法判定 120 秒语义。负责人建议的 `gpt-image-2` 只支持 `openai`/`image-generation`、属于 `quota_type=1`，不满足本项 `openai-response` 连续文本流和预算模型，因此未发送不匹配请求。没有回填超时或开始下一项；详见 `docs/aicli-evidence/A5-01-streaming.txt`。
 - 修改：新增 `scripts/aicli-poc/line_probe.py`，读 `AICLI_TEST_ACCESS_TOKEN`。
 - 步骤：
   1. 三条线路各请求 `/api/status`，记录 TLS 结果、HTTP 状态、延迟，连续 10 次。
@@ -200,7 +200,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 持续输出在约 120 秒被断开 → 120 秒是**总时长上限**。把 `main`、`global` 的流式总时长定为 `110s`，并在 C4-05 启用"流式请求默认首选 `apac`"。
   - 结果不明确 → 标 `[!]`，不要猜。
 - 把决定值回填到第 0.4 节的线路表。
-- 证据：40d1ca64 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME、直连执行 `python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json` 等实际启动命令见 `docs/aicli-evidence/A5-01-streaming.txt` | CI success：探测离线测试 21 passed；前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。线上验收未通过：持续输出时长不足且有一次补测读超时，120 秒语义未定；不回填第 0.4 节、不开始 A5-02。历史网络失败保留在 A5-01.txt，直连恢复证据在 A5-01-direct-network.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
+- 证据：40d1ca64 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME、直连执行 `python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json` 等实际启动命令见 `docs/aicli-evidence/A5-01-streaming.txt` | CI success：探测离线测试 21 passed；前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。线上验收未通过：持续输出时长不足且有一次补测读超时，120 秒语义未定；只读核对的 `gpt-image-2` 不支持所需 SSE 文本端点，未发送不匹配请求；不回填第 0.4 节、不开始 A5-02。历史网络失败保留在 A5-01.txt，直连恢复证据在 A5-01-direct-network.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
 
 ### A5-02 真实账号能力核对 `[需 H-01]`
 - [ ] 完成
@@ -951,7 +951,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| A5-01 | 本机直连和测试令牌鉴权已恢复；前三轮持续输出不足 180 秒，第四轮补测出现一次 global 空闲场景读超时，120 秒语义未定。 | 已实现预算受控的 line_probe.py，只读现有 Token，逐次核对额度及账单。最终实现 40d1ca64 的 CI 全绿（离线 21、前端 3415、Rust 4443 passed/原有 10 skipped）。前三轮共 90/90 健康检查、18/18 模型请求 HTTP 200 并正常结束，实扣均低于单次 5% 上限；第四轮 global 以 HTTP 200 开始、随后 300 秒无新字节而触发本机读超时，未用它推断 CDN 上限。完整结果见 docs/aicli-evidence/A5-01-streaming.txt。 | 当前不缺令牌或接口授权。请负责人提供已验证能持续输出超过 180 秒的模型及参数，或安排稳定且持续运行的直连测试机复测；不得放宽验收或猜超时，按 0.6 不启动下一项。本机工具只验证了 WSL/Linux curl、OpenSSL 和 Python，不代表 Windows 原生客户端或产品运行时已修复。 |
+| A5-01 | 本机直连和测试令牌鉴权已恢复；前三轮持续输出不足 180 秒，第四轮补测出现一次 global 空闲场景读超时，120 秒语义未定。 | 已实现预算受控的 line_probe.py，只读现有 Token，逐次核对额度及账单。最终实现 40d1ca64 的 CI 全绿（离线 21、前端 3415、Rust 4443 passed/原有 10 skipped）。前三轮共 90/90 健康检查、18/18 模型请求 HTTP 200 并正常结束，实扣均低于单次 5% 上限；第四轮 global 以 HTTP 200 开始、随后 300 秒无新字节而触发本机读超时，未用它推断 CDN 上限。只读核对负责人建议的 `gpt-image-2`：账户有 `image` 分组和 1 个现有 image Token，但该模型仅支持 `openai`/`image-generation` 且 `quota_type=1`，不构造 A5-01 的 SSE 文本请求。完整结果见 docs/aicli-evidence/A5-01-streaming.txt。 | 当前不缺令牌或接口授权，但 `gpt-image-2` 不能满足本项流式文本验收。请负责人提供已验证能持续输出超过 180 秒、支持 `openai-response` SSE 的模型及参数，或安排稳定且持续运行的直连测试机复测；不得放宽验收或猜超时，按 0.6 不启动下一项。本机工具只验证了 WSL/Linux curl、OpenSSL 和 Python，不代表 Windows 原生客户端或产品运行时已修复。 |
 
 ## 13. 偏差记录
 
@@ -974,7 +974,7 @@ Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：未定；已真实执行三线路空闲/持续输出场景，但结果不足以定案。未回填第 0.4 节的流式总时长，也未决定 C4-05；正常完成的短响应和一次本机读超时均未冒充 CDN 总时长证据。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：已验证可持续输出超过 180 秒的模型及参数，或稳定且持续运行的直连测试机，以完成 A5-01 真实长流验收。测试令牌已安全注入本机子进程环境且鉴权成功，不需要重新提供；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。随后仍从 A5-01 继续，不先做 A5-02；H-02～H-08 在各自依赖阶段核对，未代办任何 HUMAN 项。
+需要负责人提供的事项：已验证可持续输出超过 180 秒、支持 `openai-response` SSE 的模型及参数，或稳定且持续运行的直连测试机，以完成 A5-01 真实长流验收。`gpt-image-2` 已核对但不符合该接口和计费条件，未发送模型请求。测试令牌已安全注入本机子进程环境且鉴权成功，不需要重新提供；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。随后仍从 A5-01 继续，不先做 A5-02；H-02～H-08 在各自依赖阶段核对，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。

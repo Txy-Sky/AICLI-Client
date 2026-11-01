@@ -253,3 +253,15 @@ The earlier main/global idle cases lasting 128.707s, 128.550s (APAC), 133.264s a
 A subsequent read-only pricing check found only gpt-5.6-terra and codex-auto-review usable with ordinary token pricing under the current existing Token. Other Responses candidates declare tiered_expr and were refused by the budget guard; no requests were sent to them.
 Required next input: a verified model/request configuration that sustains actual text output >180s within the same per-request <=5% budget, or a stable continuously running direct-connect test machine. The access token and existing-Token read authorization are already available.
 Checklist status remains [!]. main/global stream-total values and C4-05 remain undecided. A5-02 and subsequent items were not started.
+
+Owner-suggested image-group check (read-only; no model request sent):
+Actual command (exit 0):
+`python3 /tmp/aicli-a5-run-with-env.py /home/txy/.local/bin/aicli-direct python3 -B /tmp/aicli-image-metadata.py`
+The temporary script fetched `/api/user/self`, `/api/user/self/groups`, `/api/pricing`,
+and the first page of `/api/token/` metadata. Result:
+`{"quota":12116269,"groups":["claude-aws","claude-code","claude-kiro","deepseek","gemini-cli","gpt","gpt-max","gpt-pro","image","muse","vedio","vip","xAI"],"model":[{"model_name":"gpt-image-2","enable_groups":["image"],"supported_endpoint_types":["openai","image-generation"],"billing_mode":null,"quota_type":1,"model_ratio":0,"completion_ratio":0}],"image_token_count":1}`
+The account has `image` and one existing image-group Token. The model does not support
+the probe's required `openai-response` SSE text endpoint, and its non-token pricing is
+outside the probe's conservative budget formula. No `gpt-image-2` request was
+constructed or sent; image-generation output cannot establish the checklist's
+continuous text-stream condition.
