@@ -82,7 +82,8 @@ def main():
     except RuntimeError:
         call("POST", "/api/setup", {"username": ADMIN, "password": ADMIN_PASSWORD, "confirmPassword": ADMIN_PASSWORD, "SelfUseModeEnabled": False, "DemoSiteEnabled": False})
         admin_token = login(ADMIN, ADMIN_PASSWORD)
-    ensure_user(admin_token, "alice")
+    alice_id = ensure_user(admin_token, "alice")
+    call("POST", "/api/user/manage", {"id": alice_id, "action": "add_quota", "mode": "override", "value": 1000000}, token=admin_token)
     ensure_user(admin_token, "bob")
     ensure_option(admin_token, "GroupRatio", json.dumps({"g-cheap": 0.5, "g-mid": 1, "g-pro": 2, "auto": 1}))
     ensure_option(admin_token, "ModelRatio", json.dumps({"mock-model-a": 1, "mock-model-b": 1}))
