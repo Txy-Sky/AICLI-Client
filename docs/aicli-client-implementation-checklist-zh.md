@@ -153,6 +153,8 @@ GET https://{三条线路}/api/pricing
 只有 C5-GATE 允许在该账号下创建 Token，名称必须符合第 0.4 节，测试后由该流程删除
 ```
 
+A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于读取测试账号已有 Token（负责人于 2026-11-01 明确授权）；不得创建、修改或删除 Token，不得生成或撤销系统访问令牌。
+
 ---
 
 ## A. 阶段 A：环境和基线
@@ -186,7 +188,7 @@ GET https://{三条线路}/api/pricing
 - 证据：efbd24ef | Checklist acceptance (Linux): `bash scripts/aicli-check.sh（依次执行 pnpm install --frozen-lockfile; pnpm typecheck; pnpm format:check; pnpm test:unit; pnpm build:renderer; cargo fmt --check --manifest-path src-tauri/Cargo.toml; cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo nextest run --manifest-path src-tauri/Cargo.toml）` | CI success（16m03s），脚本退出码 0；前端 266 个文件、3415 tests passed；Rust 4443 passed、10 skipped（原有基线，未修改测试或新增 ignore）；完整日志见 `docs/aicli-evidence/A3-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-01 实测 120 秒语义和三条线路 `[需 H-01]`
-- [ ] 完成
+- [!] 阻塞：本机无法完成亚太线路 TLS/连通性预检；尚未实现完整流式探测，120 秒语义未定。
 - 修改：新增 `scripts/aicli-poc/line_probe.py`，读 `AICLI_TEST_ACCESS_TOKEN`。
 - 步骤：
   1. 三条线路各请求 `/api/status`，记录 TLS 结果、HTTP 状态、延迟，连续 10 次。
@@ -198,7 +200,7 @@ GET https://{三条线路}/api/pricing
   - 持续输出在约 120 秒被断开 → 120 秒是**总时长上限**。把 `main`、`global` 的流式总时长定为 `110s`，并在 C4-05 启用"流式请求默认首选 `apac`"。
   - 结果不明确 → 标 `[!]`，不要猜。
 - 把决定值回填到第 0.4 节的线路表。
-- 证据：
+- 证据：efbd24ef（仅已通过 CI 的代码基线；未产生 A5 实现提交） | 本机 Python 3.12.3：两次 `python3 - <<'PY'` 诊断，完整实际命令及 32 次请求结果见 `docs/aicli-evidence/A5-01.txt` | BLOCKED：main/global 各 10/10 TLS 验证通过且 HTTP 200；apac 经代理 10/10 SSLEOFError，直连补测 ConnectionResetError，经代理补测仍为 SSLEOFError；未发模型请求，未判定 120 秒语义，未回填超时；按 0.6 不开始下一项 | 无 A5 Actions run（本机线上诊断）；基线 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-02 真实账号能力核对 `[需 H-01]`
 - [ ] 完成
@@ -949,28 +951,29 @@ GET https://{三条线路}/api/pricing
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| | | | |
+| A5-01 | 当前开发机访问 apac 在 HTTP 响应前失败；空闲/持续输出场景均未执行，120 秒语义未定，完整脚本未实现。 | 三线路各 10 次 GET /api/status：main/global 各 10 次 TLS 验证通过且 HTTP 200；apac 10 次 SSLEOFError；另用有效 TLS 校验分别直连/经代理复测，结果为 ConnectionResetError/SSLEOFError。详见 docs/aicli-evidence/A5-01.txt；未禁用 TLS 校验，未发模型请求或 Token 操作。 | 负责人提供本机可有效校验 TLS 并访问 apac 的网络路径，或安排另一台获准本机测试的机器；恢复后继续 A5-01。第 0.6 节要求当前项通过前不得启动 A5-02 或后续阶段。 |
 
 ## 13. 偏差记录
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
-| | | | |
+| A5-01 | 第 2 节只允许方案 3.3 所列账户接口，未包括方案 3.2 中读取现有 Token 所需的 GET /api/token/ 和 POST /api/token/batch/keys。 | 经负责人明确授权，将这两个接口补充到第 2 节，仅允许读取测试账号已有 Token；不创建、修改、删除 Token，不生成或撤销系统访问令牌。本次 TLS 诊断尚未调用这两个接口。 | 系统访问令牌不能调用 /v1 模型接口；A5-01 后续流式探测需要安全读取已有 sk- Token，不能把系统访问令牌误用为模型密钥。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：
-scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：
-tests/aicli-testenv/e2e.sh 结果：
-A5-02 的 auto、max_count 结论：
-一个账号实际创建的 aicli: Token 数量：
-未完成项（[!] 和 [-] 全部列出）：
-Tier 2 支持结论：
-compat 表结论：
-A5-01 的 120 秒结论及采用的超时：
-A6-05 的流中重试结论：
-需要负责人决定的事项：
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；最后通过 CI 的实现提交为 efbd24ef5eca6ab00548f49de30812ffa2b29ca3。
+完成/阻塞/跳过：3 / 1 / 0（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01；阻塞为 A5-01；其余项目未开始，不冒充已验证或已跳过）。
+scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过。这是首个 A3-01 基数，未减少测试或增加 ignore。
+tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6/K。
+A5-02 的 auto、max_count 结论：未核对；按 0.6 等待 A5-01 通过。
+一个账号实际创建的 aicli: Token 数量：0；本次未对账号执行任何 Token 操作。
+未完成项（[!] 和 [-] 全部列出）：[!] A5-01，本机 apac TLS/连通性预检失败；无 [-] 项。A5-02 及之后的任务因串行规则尚未开始，不能视为已完成。
+Tier 2 支持结论：未测试。
+compat 表结论：未测试、未修改。
+A5-01 的 120 秒结论及采用的超时：未定；没有执行空闲/持续输出场景，没有回填第 0.4 节的流式总时长，也没有决定 C4-05。
+A6-05 的流中重试结论：未测试。
+需要负责人决定的事项：提供能通过 TLS 校验访问 https://api.aicli.qzz.io 的本机网络路径或另一台获准测试的机器。A5-01 读取现有 Token 的两个接口已获授权，并已记录在第 2、13 节；不再等待该权限决定。恢复后从 A5-01 继续；H-02～H-08 在各自依赖阶段核对，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。

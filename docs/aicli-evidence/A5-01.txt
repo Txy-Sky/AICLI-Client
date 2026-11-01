@@ -1,0 +1,385 @@
+A5-01: BLOCKED (local network preflight; not an accepted streaming probe)
+Code baseline: efbd24ef5eca6ab00548f49de30812ffa2b29ca3; subsequent changes before this diagnostic were documentation only.
+Local interpreter: Python 3.12.3. All HTTPS requests used ssl.create_default_context(); certificate/hostname validation was never disabled.
+Only unauthenticated GET /api/status was called. No model request, token-list/key request, token mutation or system-access-token generation/revocation was sent.
+The owner authorized GET /api/token/ and POST /api/token/batch/keys to read existing tokens for A5-01; these endpoints have not yet been used.
+No real credential was passed to a command, written to a file, or injected into Actions for this diagnostic.
+No model quota was consumed by these health checks. Account capacity and the 120-second semantics were not evaluated.
+HTTP_PROXY and HTTPS_PROXY were set in the first probe. Their values are intentionally not recorded. A direct-connect diagnostic was then run with TLS verification enabled.
+
+main: 10 requests; TLS verified=10; HTTP 200=10; median latency=650.37 ms
+global: 10 requests; TLS verified=10; HTTP 200=10; median latency=784.51 ms
+apac: 10 requests; TLS verified=0; HTTP 200=0; median latency=7445.87 ms
+
+Blocking conclusion: apac was unreachable from this development machine before any HTTP response (10 SSLEOFError results via the environment proxy, one additional SSLEOFError diagnostic, and ConnectionResetError on direct connection). This does not establish a production-wide outage or a certificate-validation fault.
+Idle and sustained-output scenarios were not executed. scripts/aicli-poc/line_probe.py has not been implemented. The main/global stream_total_s values remain undecided, and no C4-05 choice was made.
+Next requirement: owner-provided working access to https://api.aicli.qzz.io from the local test machine, or another approved local machine. Then implement and run the full A5-01 probe with per-request budget <=5%.
+A5-02 and later items were not started because section 0.6 forbids starting the next item until the current one passes.
+
+Actual command 1 (executed locally):
+python3 - <<'PY'
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
+import json, ssl, time, urllib.error, urllib.request
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+lines=[('main','https://aicliapi.com'),('global','https://aicli.qzz.io'),('apac','https://api.aicli.qzz.io')]
+
+def probe(line):
+    line_id,base=line
+    rows=[]
+    for attempt in range(1,11):
+        context=ssl.create_default_context()
+        opener=urllib.request.build_opener(urllib.request.HTTPSHandler(context=context),NoRedirect())
+        req=urllib.request.Request(base+'/api/status',headers={'User-Agent':'AICLI-Client-A5-01-status-probe'})
+        started=time.perf_counter()
+        row={'line':line_id,'attempt':attempt,'at':datetime.now(timezone.utc).isoformat(),'tls':'not_completed','http_status':None}
+        try:
+            with opener.open(req,timeout=15) as response:
+                response.read(1)
+                row.update(tls='verified',http_status=response.status)
+        except urllib.error.HTTPError as error:
+            row.update(tls='verified',http_status=error.code,error='http_status')
+            error.close()
+        except urllib.error.URLError as error:
+            row['error']=type(error.reason).__name__
+            if isinstance(error.reason,ssl.SSLError):
+                row['tls']='failed'
+        except (OSError,TimeoutError) as error:
+            row['error']=type(error).__name__
+        row['latency_ms']=round((time.perf_counter()-started)*1000,2)
+        rows.append(row)
+    return rows
+
+started=datetime.now(timezone.utc).isoformat()
+with ThreadPoolExecutor(max_workers=3) as pool:
+    rows=[row for group in pool.map(probe,lines) for row in group]
+assert len(rows)==30
+result={'item':'A5-01','scope':'unauthenticated GET /api/status only; no model or token APIs called','started_at':started,'finished_at':datetime.now(timezone.utc).isoformat(),'samples':rows}
+Path('/tmp/aicli-A5-01-status.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+for line_id,_ in lines:
+    group=[row for row in rows if row['line']==line_id]
+    print(json.dumps({'line':line_id,'requests':len(group),'verified_tls':sum(row['tls']=='verified' for row in group),'http_statuses':[row['http_status'] for row in group],'latency_ms':[row['latency_ms'] for row in group]},ensure_ascii=False),flush=True)
+print('Status probe complete. Streaming timeout semantics were not tested.',flush=True)
+PY
+
+Actual result JSON:
+{
+  "item": "A5-01",
+  "scope": "unauthenticated GET /api/status only; no model or token APIs called",
+  "started_at": "2026-11-01T08:25:11.730526+00:00",
+  "finished_at": "2026-11-01T08:26:29.021177+00:00",
+  "samples": [
+    {
+      "line": "main",
+      "attempt": 1,
+      "at": "2026-11-01T08:25:11.803514+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 644.18
+    },
+    {
+      "line": "main",
+      "attempt": 2,
+      "at": "2026-11-01T08:25:12.468235+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 452.6
+    },
+    {
+      "line": "main",
+      "attempt": 3,
+      "at": "2026-11-01T08:25:12.946640+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 656.55
+    },
+    {
+      "line": "main",
+      "attempt": 4,
+      "at": "2026-11-01T08:25:13.619813+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 941.57
+    },
+    {
+      "line": "main",
+      "attempt": 5,
+      "at": "2026-11-01T08:25:14.581109+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 884.0
+    },
+    {
+      "line": "main",
+      "attempt": 6,
+      "at": "2026-11-01T08:25:15.483633+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 764.42
+    },
+    {
+      "line": "main",
+      "attempt": 7,
+      "at": "2026-11-01T08:25:16.262316+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 845.18
+    },
+    {
+      "line": "main",
+      "attempt": 8,
+      "at": "2026-11-01T08:25:17.125067+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 433.65
+    },
+    {
+      "line": "main",
+      "attempt": 9,
+      "at": "2026-11-01T08:25:17.602112+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 391.9
+    },
+    {
+      "line": "main",
+      "attempt": 10,
+      "at": "2026-11-01T08:25:18.013255+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 607.97
+    },
+    {
+      "line": "global",
+      "attempt": 1,
+      "at": "2026-11-01T08:25:11.802103+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 4144.09
+    },
+    {
+      "line": "global",
+      "attempt": 2,
+      "at": "2026-11-01T08:25:15.965033+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 1747.28
+    },
+    {
+      "line": "global",
+      "attempt": 3,
+      "at": "2026-11-01T08:25:17.735782+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 831.97
+    },
+    {
+      "line": "global",
+      "attempt": 4,
+      "at": "2026-11-01T08:25:18.589368+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 1220.42
+    },
+    {
+      "line": "global",
+      "attempt": 5,
+      "at": "2026-11-01T08:25:19.826777+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 432.05
+    },
+    {
+      "line": "global",
+      "attempt": 6,
+      "at": "2026-11-01T08:25:20.274468+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 734.65
+    },
+    {
+      "line": "global",
+      "attempt": 7,
+      "at": "2026-11-01T08:25:21.027454+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 1749.82
+    },
+    {
+      "line": "global",
+      "attempt": 8,
+      "at": "2026-11-01T08:25:22.793710+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 737.05
+    },
+    {
+      "line": "global",
+      "attempt": 9,
+      "at": "2026-11-01T08:25:23.568617+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 398.93
+    },
+    {
+      "line": "global",
+      "attempt": 10,
+      "at": "2026-11-01T08:25:23.981183+00:00",
+      "tls": "verified",
+      "http_status": 200,
+      "latency_ms": 483.23
+    },
+    {
+      "line": "apac",
+      "attempt": 1,
+      "at": "2026-11-01T08:25:11.800353+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 8352.44
+    },
+    {
+      "line": "apac",
+      "attempt": 2,
+      "at": "2026-11-01T08:25:20.168813+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7456.35
+    },
+    {
+      "line": "apac",
+      "attempt": 3,
+      "at": "2026-11-01T08:25:27.646957+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7400.84
+    },
+    {
+      "line": "apac",
+      "attempt": 4,
+      "at": "2026-11-01T08:25:35.071190+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7296.82
+    },
+    {
+      "line": "apac",
+      "attempt": 5,
+      "at": "2026-11-01T08:25:42.391407+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 8436.58
+    },
+    {
+      "line": "apac",
+      "attempt": 6,
+      "at": "2026-11-01T08:25:50.843479+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 8416.06
+    },
+    {
+      "line": "apac",
+      "attempt": 7,
+      "at": "2026-11-01T08:25:59.290190+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7227.81
+    },
+    {
+      "line": "apac",
+      "attempt": 8,
+      "at": "2026-11-01T08:26:06.538515+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7353.92
+    },
+    {
+      "line": "apac",
+      "attempt": 9,
+      "at": "2026-11-01T08:26:13.918890+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7651.1
+    },
+    {
+      "line": "apac",
+      "attempt": 10,
+      "at": "2026-11-01T08:26:21.584030+00:00",
+      "tls": "failed",
+      "http_status": null,
+      "error": "SSLEOFError",
+      "latency_ms": 7435.39
+    }
+  ]
+}
+
+Actual command 2 (executed locally):
+python3 - <<'PY'
+from datetime import datetime,timezone
+from pathlib import Path
+import json,ssl,time,urllib.error,urllib.request
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,req,fp,code,msg,headers,newurl):
+        return None
+rows=[]
+for mode in ['direct','environment_proxy']:
+    context=ssl.create_default_context()
+    handlers=[urllib.request.HTTPSHandler(context=context),NoRedirect()]
+    if mode=='direct':
+        handlers.append(urllib.request.ProxyHandler({}))
+    opener=urllib.request.build_opener(*handlers)
+    row={'mode':mode,'at':datetime.now(timezone.utc).isoformat(),'tls':'not_completed','http_status':None}
+    started=time.perf_counter()
+    try:
+        request=urllib.request.Request('https://api.aicli.qzz.io/api/status',headers={'User-Agent':'AICLI-Client-A5-01-status-probe'})
+        with opener.open(request,timeout=20) as response:
+            response.read(1)
+            row.update(tls='verified',http_status=response.status)
+    except urllib.error.HTTPError as error:
+        row.update(tls='verified',http_status=error.code,error='http_status')
+        error.close()
+    except urllib.error.URLError as error:
+        row['error']=type(error.reason).__name__
+        if isinstance(error.reason,ssl.SSLError):
+            row['tls']='failed'
+    except (OSError,TimeoutError) as error:
+        row['error']=type(error).__name__
+    row['latency_ms']=round((time.perf_counter()-started)*1000,2)
+    rows.append(row)
+    print(json.dumps(row),flush=True)
+Path('/tmp/aicli-A5-01-apac-diagnostic.json').write_text(json.dumps(rows,indent=2)+'\n')
+PY
+
+Actual result JSON:
+[
+  {
+    "mode": "direct",
+    "at": "2026-11-01T08:28:36.694522+00:00",
+    "tls": "not_completed",
+    "http_status": null,
+    "error": "ConnectionResetError",
+    "latency_ms": 578.25
+  },
+  {
+    "mode": "environment_proxy",
+    "at": "2026-11-01T08:28:37.301267+00:00",
+    "tls": "failed",
+    "http_status": null,
+    "error": "SSLEOFError",
+    "latency_ms": 7428.31
+  }
+]
