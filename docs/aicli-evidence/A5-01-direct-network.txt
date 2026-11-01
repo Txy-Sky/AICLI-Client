@@ -62,7 +62,7 @@ correctly rejected with exit 60, verify=18. This APAC node is not used as a vali
 global endpoint. The 60-request matrix uses each hostname's own DNS results.
 Raw supplemental results retained locally in same-node-controls.json.
 
-Remaining requirement:
+Historical requirements when the network-only diagnostic was recorded:
 AICLI_TEST_ACCESS_TOKEN absent in current process and Windows Process/User/Machine
 environments (presence checks only; no values logged). The owner previously
 supplied a token in conversation; it was not copied back into a command or file.
@@ -70,6 +70,13 @@ Supply it securely in the subsequent execution environment to resume the still
 unimplemented full A5-01 streaming probe. The request for another network path
 in the historical A5-01.txt failure evidence is superseded by this recovery.
 No A5 implementation commit or CI acceptance is claimed by this docs-only update.
+
+Subsequent update (2026-11-01): the supplied credential was injected only into
+the local child environment; account authentication and existing Token reads
+succeeded. line_probe.py is implemented and four budgeted streaming trials
+completed, but none established the required >180s continuous output. The
+historical missing-environment requirement above is resolved; it must not be
+reported as the current blocker. Streaming acceptance remains separate.
 
 Source/report SHA256:
 tls_records.c 13253ec5226482808e20294e46d939393b0d83640e48bae0046ebd2321f468e0

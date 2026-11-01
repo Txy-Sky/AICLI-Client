@@ -1,4 +1,4 @@
-Latest update (2026-11-01): direct TLS health checks recovered with an opt-in local helper. See A5-01-direct-network.txt for isolated-HOME 60/60 results and remaining credential/streaming requirements. Historical failures below are preserved; A5-01 remains unaccepted.
+Latest update (2026-11-01): direct TLS health checks and account authentication recovered. The budgeted line_probe.py is implemented; four local trials are recorded in `A5-01-streaming.txt`. Continuous output never exceeded 86.230 seconds; one later trial also had a local idle read timeout and an APAC HTTP 502. The final implementation CI passed, but A5-01 remains unaccepted because the 120-second semantics are not established. Historical failures below are preserved and do not describe the current credential or network state.
 
 A5-01: BLOCKED (historical local network preflight; not an accepted streaming probe)
 Code baseline: efbd24ef5eca6ab00548f49de30812ffa2b29ca3; subsequent changes before this diagnostic were documentation only.

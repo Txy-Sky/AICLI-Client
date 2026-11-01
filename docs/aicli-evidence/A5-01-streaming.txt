@@ -1,0 +1,255 @@
+A5-01 authenticated direct streaming evidence (2026-11-01)
+NOT ACCEPTED: all four local trials ended with exit 2. The first three are inconclusive; the fourth includes an idle read timeout and a model HTTP 502. No timeout value is chosen.
+Final implementation: 40d1ca6496c76703691dfc287372327ca06695a1
+Final implementation CI success: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
+Previous implementation CI success: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41295839849
+
+Actual third-trial command (exit 2, decision=inconclusive):
+set -o pipefail
+python3 /tmp/aicli-a5-run-with-env.py /home/txy/.local/bin/aicli-direct python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json 2>&1 | tee /tmp/aicli-A5-01-online-bounded.log
+
+Actual fourth-trial command (exit 2, blocked=model_probe_failed; not an accepted result):
+set -o pipefail
+python3 /tmp/aicli-a5-run-with-env.py /home/txy/.local/bin/aicli-direct python3 -B -u scripts/aicli-poc/line_probe.py --model gpt-5.6-terra --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded-terra.json 2>&1 | tee /tmp/aicli-A5-01-online-bounded-terra.log
+
+Credential and isolation:
+The external local launcher injects the supplied access token only into the child environment; it is never included in the command or this evidence.
+It creates a temporary HOME=CC_SWITCH_TEST_HOME and isolated XDG paths, removing them after the child exits. The probe rejects a non-isolated HOME.
+All HTTPS uses verified certificates and hostnames; redirects are refused. The local aicli-direct wrapper clears proxy variables; urllib also uses ProxyHandler({}).
+The opt-in TLS-record helper and its platform limits are documented in A5-01-direct-network.txt; it is outside the repository, CI and product.
+Only existing Token list/batch-key reads were used. Keys remain in memory; no Token creation/update/deletion or system-access-token generation/revocation was performed.
+No account name, raw response body, generated text or real credential is included.
+
+Measurement and budget:
+Byte gaps are application-visible one-byte read timing, not packet-capture timing. SSE text timing excludes heartbeat-only events.
+Ordinary token pricing only: reserve 65536 input tokens for a fixed prompt <=4096 bytes; output <=65536 tokens; bound=(65536+max_output_tokens*completion_ratio)*model_ratio*group_ratio*1.1.
+Fresh quota, pricing and group ratios are checked before each chargeable call; bound must be <=5% of remaining quota. Unknown/tiered pricing is refused.
+Each bill is matched by X-Oneapi-Request-Id via read-only /api/log/self and checked against that request's five-percent limit.
+No client read delay or artificial traffic was used to lengthen a stream; total client cutoff=600s, intentional continuous-output stop only after actual text span>185s.
+c73def02 requested 20000 long lines. 40d1ca64 bounds the stimulus to 900 numbered lines of 24-30 words within the same 65536-token output cap. Budget and acceptance thresholds were not relaxed.
+
+
+CI on the exact final implementation (40d1ca6496c76703691dfc287372327ca06695a1):
+Run: 41297271375; job: Checklist acceptance (Linux); conclusion: success.
+Job started_at=2026-11-01T10:23:24Z; completed_at=2026-11-01T10:37:32Z.
+Actual offline command: python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v
+Result: 21 tests passed.
+Actual baseline entry: bash scripts/aicli-check.sh
+Commands executed by that script, in order:
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm format:check
+pnpm test:unit
+pnpm build:renderer
+cargo fmt --check --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+cargo nextest run --manifest-path src-tauri/Cargo.toml
+Result: exit 0; frontend 266 files / 3415 passed; Rust 4443 passed / 10 pre-existing skipped.
+Baseline counts match A3-01; no assertions were removed or ignored.
+CI uses HOME=CC_SWITCH_TEST_HOME under RUNNER_TEMP and isolated XDG paths; no online probe or credential is sent to Actions.
+Actual log retrieval: gh run view 41297271375 --repo Txy-Sky/AICLI-Client --log
+Extracted log evidence:
+Checklist acceptance (Linux)	A5-01 offline probe safety and timing tests	2026-11-01T10:24:31.1840882Z Ran 21 tests in 0.058s
+Checklist acceptance (Linux)	A3-01 run the baseline acceptance commands	2026-11-01T10:28:42.8760220Z  Test Files  266 passed (266)
+Checklist acceptance (Linux)	A3-01 run the baseline acceptance commands	2026-11-01T10:28:42.8775142Z       Tests  3415 passed (3415)
+Checklist acceptance (Linux)	A3-01 run the baseline acceptance commands	2026-11-01T10:37:26.8576540Z      Summary [  80.277s] 4443 tests run: 4443 passed, 10 skipped
+
+Completed-trial observations (first two precede the prompt correction; retain all failed acceptance attempts):
+
+Trial 1: implementation=c73def022f47538801567b3cc40365d8f9cdb729; started_at=2026-11-01T10:05:23.391454+00:00; model=gpt-5.6-terra; decision=inconclusive; exit=2
+Local source report: /tmp/aicli-A5-01-online.json; SHA256=8ae49877634cf3728ec82128126faaa14e16e68d8c7c0768e970cf90541f6e2a
+Billed quota total: 107303
+{"line": "main", "health_passed": 10, "attempts": 10, "median_latency_ms": 1124.75}
+{"line": "global", "health_passed": 10, "attempts": 10, "median_latency_ms": 925.03}
+{"line": "apac", "health_passed": 10, "attempts": 10, "median_latency_ms": 8187.86}
+Full metadata-only report (no SSE bodies):
+{"item": "A5-01", "started_at": "2026-11-01T10:05:23.391454+00:00", "direct": true, "decision": "inconclusive", "existing_token_only": true}
+Health rows:
+{"line": "main", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 696.36, "passed": true}
+{"line": "main", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1565.92, "passed": true}
+{"line": "main", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 4531.09, "passed": true}
+{"line": "main", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1931.89, "passed": true}
+{"line": "main", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 807.93, "passed": true}
+{"line": "main", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1004.33, "passed": true}
+{"line": "main", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1245.17, "passed": true}
+{"line": "main", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 983.76, "passed": true}
+{"line": "main", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1493.76, "passed": true}
+{"line": "main", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 842.68, "passed": true}
+{"line": "global", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1006.92, "passed": true}
+{"line": "global", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2262.26, "passed": true}
+{"line": "global", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 993.48, "passed": true}
+{"line": "global", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 595.02, "passed": true}
+{"line": "global", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 809.7, "passed": true}
+{"line": "global", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 680.41, "passed": true}
+{"line": "global", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1486.62, "passed": true}
+{"line": "global", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1875.58, "passed": true}
+{"line": "global", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 724.1, "passed": true}
+{"line": "global", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 856.57, "passed": true}
+{"line": "apac", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8200.0, "passed": true}
+{"line": "apac", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8836.32, "passed": true}
+{"line": "apac", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8147.95, "passed": true}
+{"line": "apac", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 9032.79, "passed": true}
+{"line": "apac", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8144.34, "passed": true}
+{"line": "apac", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8182.36, "passed": true}
+{"line": "apac", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 5658.89, "passed": true}
+{"line": "apac", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 8193.36, "passed": true}
+{"line": "apac", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 9672.62, "passed": true}
+{"line": "apac", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 6499.54, "passed": true}
+Stream rows:
+{"line": "main", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011006562253664748268d9d6rnHhceYp", "http_status": 200, "tls": "verified", "duration_s": 95.835, "first_byte_s": 2.215, "max_adjacent_byte_gap_s": 7.637, "silence_before_end_s": 0.015, "text_span_s": 91.5, "max_text_gap_s": 91.188, "body_bytes": 244197, "text_events": 62, "text_chars": 113, "comment_lines": 0, "data_events": 103, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 7251, "total_tokens": 8363}, "budget": {"account_quota_before": 12499839, "five_percent_quota": 624991, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 40406, "within_five_percent": true}}
+{"line": "global", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011008381264237768268d9d68lM0qk9Z", "http_status": 200, "tls": "verified", "duration_s": 35.775, "first_byte_s": 1.712, "max_adjacent_byte_gap_s": 7.103, "silence_before_end_s": 0.0, "text_span_s": 33.884, "max_text_gap_s": 33.4, "body_bytes": 108960, "text_events": 68, "text_chars": 129, "comment_lines": 0, "data_events": 91, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 2661, "total_tokens": 3773}, "budget": {"account_quota_before": 12459433, "five_percent_quota": 622971, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 14472, "within_five_percent": true}}
+{"line": "apac", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011009198072077188268d9d6v8pkUjIG", "http_status": 200, "tls": "verified", "duration_s": 47.832, "first_byte_s": 9.704, "max_adjacent_byte_gap_s": 9.233, "silence_before_end_s": 0.0, "text_span_s": 28.818, "max_text_gap_s": 25.869, "body_bytes": 88793, "text_events": 68, "text_chars": 129, "comment_lines": 0, "data_events": 89, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 2143, "total_tokens": 3255}, "budget": {"account_quota_before": 12444961, "five_percent_quota": 622248, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 11675, "within_five_percent": true}}
+{"line": "main", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011010111468599108268d9d63MFKOk3F", "http_status": 200, "tls": "verified", "duration_s": 64.771, "first_byte_s": 2.348, "max_adjacent_byte_gap_s": 0.954, "silence_before_end_s": 0.0, "text_span_s": 61.75, "max_text_gap_s": 1.141, "body_bytes": 1330274, "text_events": 4680, "text_chars": 23354, "comment_lines": 0, "data_events": 4695, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 4721, "total_tokens": 5849}, "budget": {"account_quota_before": 12433286, "five_percent_quota": 621664, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 25687, "within_five_percent": true}}
+{"line": "global", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011011206429147808268d9d67QdhUdre", "http_status": 200, "tls": "verified", "duration_s": 28.49, "first_byte_s": 1.845, "max_adjacent_byte_gap_s": 0.75, "silence_before_end_s": 0.0, "text_span_s": 26.12, "max_text_gap_s": 1.551, "body_bytes": 500615, "text_events": 1747, "text_chars": 8301, "comment_lines": 0, "data_events": 1762, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 1785, "total_tokens": 2913}, "budget": {"account_quota_before": 12407599, "five_percent_quota": 620379, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 9743, "within_five_percent": true}}
+{"line": "apac", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011011570770201118268d9d6xT751vEu", "http_status": 200, "tls": "verified", "duration_s": 50.666, "first_byte_s": 5.091, "max_adjacent_byte_gap_s": 5.247, "silence_before_end_s": 0.001, "text_span_s": 41.63, "max_text_gap_s": 5.247, "body_bytes": 271239, "text_events": 930, "text_chars": 4539, "comment_lines": 0, "data_events": 945, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 966, "total_tokens": 2094}, "budget": {"account_quota_before": 12397856, "five_percent_quota": 619892, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 5320, "within_five_percent": true}}
+
+Trial 2: implementation=c73def022f47538801567b3cc40365d8f9cdb729; started_at=2026-11-01T10:13:53.696197+00:00; model=codex-auto-review; decision=inconclusive; exit=2
+Local source report: /tmp/aicli-A5-01-online-review.json; SHA256=7d1dc10c7c5dbe109634f51a4be69c2805ae8b8edec0815c7e3672894b517b21
+Billed quota total: 93990
+{"line": "main", "health_passed": 10, "attempts": 10, "median_latency_ms": 1228.53}
+{"line": "global", "health_passed": 10, "attempts": 10, "median_latency_ms": 927.44}
+{"line": "apac", "health_passed": 10, "attempts": 10, "median_latency_ms": 1236.43}
+Full metadata-only report (no SSE bodies):
+{"item": "A5-01", "started_at": "2026-11-01T10:13:53.696197+00:00", "direct": true, "decision": "inconclusive", "existing_token_only": true}
+Health rows:
+{"line": "main", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1317.92, "passed": true}
+{"line": "main", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1140.55, "passed": true}
+{"line": "main", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 899.33, "passed": true}
+{"line": "main", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1501.73, "passed": true}
+{"line": "main", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1729.85, "passed": true}
+{"line": "main", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 897.1, "passed": true}
+{"line": "main", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1316.52, "passed": true}
+{"line": "main", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2634.52, "passed": true}
+{"line": "main", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 664.04, "passed": true}
+{"line": "main", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1003.81, "passed": true}
+{"line": "global", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 992.67, "passed": true}
+{"line": "global", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1183.36, "passed": true}
+{"line": "global", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 947.4, "passed": true}
+{"line": "global", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 960.9, "passed": true}
+{"line": "global", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 730.21, "passed": true}
+{"line": "global", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 872.52, "passed": true}
+{"line": "global", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 659.9, "passed": true}
+{"line": "global", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 907.48, "passed": true}
+{"line": "global", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 902.22, "passed": true}
+{"line": "global", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1420.88, "passed": true}
+{"line": "apac", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1066.23, "passed": true}
+{"line": "apac", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1307.32, "passed": true}
+{"line": "apac", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1257.03, "passed": true}
+{"line": "apac", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 478.0, "passed": true}
+{"line": "apac", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 923.19, "passed": true}
+{"line": "apac", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1295.57, "passed": true}
+{"line": "apac", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1813.24, "passed": true}
+{"line": "apac", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1394.29, "passed": true}
+{"line": "apac", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1215.83, "passed": true}
+{"line": "apac", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 847.07, "passed": true}
+Stream rows:
+{"line": "main", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011014172124610568268d9d6lH5MKMHU", "http_status": 200, "tls": "verified", "duration_s": 128.707, "first_byte_s": 1.795, "max_adjacent_byte_gap_s": 21.647, "silence_before_end_s": 0.009, "text_span_s": 120.528, "max_text_gap_s": 118.594, "body_bytes": 383741, "text_events": 92, "text_chars": 171, "comment_lines": 0, "data_events": 149, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 11406, "total_tokens": 12518}, "budget": {"account_quota_before": 12392536, "five_percent_quota": 619626, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 26289, "within_five_percent": true}}
+{"line": "global", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011016308370056978268d9d6zMVCvpFX", "http_status": 200, "tls": "verified", "duration_s": 93.329, "first_byte_s": 1.823, "max_adjacent_byte_gap_s": 6.427, "silence_before_end_s": 0.0, "text_span_s": 87.691, "max_text_gap_s": 86.296, "body_bytes": 272554, "text_events": 89, "text_chars": 162, "comment_lines": 0, "data_events": 132, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 7862, "total_tokens": 8974}, "budget": {"account_quota_before": 12366247, "five_percent_quota": 618312, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 18190, "within_five_percent": true}}
+{"line": "apac", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011018101899549468268d9d6xLDjUtZf", "http_status": 200, "tls": "verified", "duration_s": 128.55, "first_byte_s": 2.338, "max_adjacent_byte_gap_s": 7.181, "silence_before_end_s": 0.0, "text_span_s": 116.453, "max_text_gap_s": 114.254, "body_bytes": 387213, "text_events": 105, "text_chars": 258, "comment_lines": 0, "data_events": 160, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 10986, "total_tokens": 12098}, "budget": {"account_quota_before": 12348057, "five_percent_quota": 617402, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 25219, "within_five_percent": true}}
+{"line": "main", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011020267277586568268d9d6pyJWgM9p", "http_status": 200, "tls": "verified", "duration_s": 40.534, "first_byte_s": 2.322, "max_adjacent_byte_gap_s": 1.65, "silence_before_end_s": 0.0, "text_span_s": 37.02, "max_text_gap_s": 2.517, "body_bytes": 943415, "text_events": 3298, "text_chars": 16458, "comment_lines": 0, "data_events": 3313, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 3478, "total_tokens": 4606}, "budget": {"account_quota_before": 12322838, "five_percent_quota": 616141, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 8343, "within_five_percent": true}}
+{"line": "global", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011021129825722108268d9d6iQSSjjVA", "http_status": 200, "tls": "verified", "duration_s": 30.383, "first_byte_s": 2.093, "max_adjacent_byte_gap_s": 1.46, "silence_before_end_s": 0.0, "text_span_s": 28.086, "max_text_gap_s": 2.376, "body_bytes": 715918, "text_events": 2491, "text_chars": 12729, "comment_lines": 0, "data_events": 2506, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 2632, "total_tokens": 3760}, "budget": {"account_quota_before": 12314495, "five_percent_quota": 615724, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 6430, "within_five_percent": true}}
+{"line": "apac", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011021504508420108268d9d6jU8G5xJY", "http_status": 200, "tls": "verified", "duration_s": 95.539, "first_byte_s": 3.831, "max_adjacent_byte_gap_s": 2.493, "silence_before_end_s": 0.0, "text_span_s": 86.23, "max_text_gap_s": 3.159, "body_bytes": 1105519, "text_events": 3870, "text_chars": 19713, "comment_lines": 0, "data_events": 3885, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1128, "output_tokens": 4005, "total_tokens": 5133}, "budget": {"account_quota_before": 12308065, "five_percent_quota": 615403, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 9519, "within_five_percent": true}}
+
+Trial 3: implementation=40d1ca6496c76703691dfc287372327ca06695a1; started_at=2026-11-01T10:23:49.405687+00:00; model=codex-auto-review; decision=inconclusive; exit=2
+Local source report: /tmp/aicli-A5-01-online-bounded.json; SHA256=7ae6bf0a5c5b82b8f1b7c92c5fb194b918def7461e97ff575db95ff25ee34786
+Billed quota total: 86374
+{"line": "main", "health_passed": 10, "attempts": 10, "median_latency_ms": 1241.75}
+{"line": "global", "health_passed": 10, "attempts": 10, "median_latency_ms": 933.02}
+{"line": "apac", "health_passed": 10, "attempts": 10, "median_latency_ms": 721.63}
+Full metadata-only report (no SSE bodies):
+{"item": "A5-01", "started_at": "2026-11-01T10:23:49.405687+00:00", "direct": true, "decision": "inconclusive", "existing_token_only": true}
+Health rows:
+{"line": "main", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 778.94, "passed": true}
+{"line": "main", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1242.05, "passed": true}
+{"line": "main", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1271.4, "passed": true}
+{"line": "main", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1770.9, "passed": true}
+{"line": "main", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2618.58, "passed": true}
+{"line": "main", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1563.58, "passed": true}
+{"line": "main", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 892.73, "passed": true}
+{"line": "main", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 994.33, "passed": true}
+{"line": "main", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1241.45, "passed": true}
+{"line": "main", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 905.95, "passed": true}
+{"line": "global", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1080.29, "passed": true}
+{"line": "global", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 978.04, "passed": true}
+{"line": "global", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1850.35, "passed": true}
+{"line": "global", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 728.1, "passed": true}
+{"line": "global", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 702.4, "passed": true}
+{"line": "global", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 712.95, "passed": true}
+{"line": "global", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 881.01, "passed": true}
+{"line": "global", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 967.08, "passed": true}
+{"line": "global", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 898.96, "passed": true}
+{"line": "global", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 973.51, "passed": true}
+{"line": "apac", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 859.5, "passed": true}
+{"line": "apac", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1203.46, "passed": true}
+{"line": "apac", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 551.07, "passed": true}
+{"line": "apac", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 501.8, "passed": true}
+{"line": "apac", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1296.77, "passed": true}
+{"line": "apac", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 444.38, "passed": true}
+{"line": "apac", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1068.46, "passed": true}
+{"line": "apac", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 583.77, "passed": true}
+{"line": "apac", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 457.3, "passed": true}
+{"line": "apac", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1821.65, "passed": true}
+Stream rows:
+{"line": "main", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011024111361702888268d9d6StlaOOjd", "http_status": 200, "tls": "verified", "duration_s": 133.264, "first_byte_s": 1.604, "max_adjacent_byte_gap_s": 9.529, "silence_before_end_s": 0.0, "text_span_s": 127.358, "max_text_gap_s": 126.674, "body_bytes": 405117, "text_events": 66, "text_chars": 126, "comment_lines": 0, "data_events": 125, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 11983, "total_tokens": 13095}, "budget": {"account_quota_before": 12298546, "five_percent_quota": 614927, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 27462, "within_five_percent": true}}
+{"line": "global", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011026305651455728268d9d6HUwcN3uD", "http_status": 200, "tls": "verified", "duration_s": 129.913, "first_byte_s": 1.853, "max_adjacent_byte_gap_s": 8.045, "silence_before_end_s": 0.0, "text_span_s": 124.516, "max_text_gap_s": 123.833, "body_bytes": 390369, "text_events": 79, "text_chars": 178, "comment_lines": 0, "data_events": 136, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 11478, "total_tokens": 12590}, "budget": {"account_quota_before": 12271084, "five_percent_quota": 613554, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 26326, "within_five_percent": true}}
+{"line": "apac", "scenario": "idle", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011028480395079188268d9d69K77WZLd", "http_status": 200, "tls": "verified", "duration_s": 116.193, "first_byte_s": 1.796, "max_adjacent_byte_gap_s": 6.396, "silence_before_end_s": 0.01, "text_span_s": 112.718, "max_text_gap_s": 112.244, "body_bytes": 372742, "text_events": 84, "text_chars": 166, "comment_lines": 0, "data_events": 139, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 10965, "total_tokens": 12077}, "budget": {"account_quota_before": 12244758, "five_percent_quota": 612237, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 25172, "within_five_percent": true}}
+{"line": "main", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011030505105958688268d9d69adIw94D", "http_status": 200, "tls": "verified", "duration_s": 20.919, "first_byte_s": 3.072, "max_adjacent_byte_gap_s": 5.939, "silence_before_end_s": 0.0, "text_span_s": 17.41, "max_text_gap_s": 17.002, "body_bytes": 58906, "text_events": 24, "text_chars": 129, "comment_lines": 0, "data_events": 43, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1162, "output_tokens": 1364, "total_tokens": 2526}, "budget": {"account_quota_before": 12219586, "five_percent_quota": 610979, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 3606, "within_five_percent": true}}
+{"line": "global", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011031141094977058268d9d6Qvs5YW5A", "http_status": 200, "tls": "verified", "duration_s": 6.855, "first_byte_s": 1.895, "max_adjacent_byte_gap_s": 2.826, "silence_before_end_s": 0.0, "text_span_s": 4.478, "max_text_gap_s": 4.474, "body_bytes": 21528, "text_events": 17, "text_chars": 82, "comment_lines": 0, "data_events": 32, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1162, "output_tokens": 306, "total_tokens": 1468}, "budget": {"account_quota_before": 12215980, "five_percent_quota": 610799, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 1211, "within_five_percent": true}}
+{"line": "apac", "scenario": "continuous", "model": "codex-auto-review", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011031266685597488268d9d60vatiBHk", "http_status": 200, "tls": "verified", "duration_s": 13.854, "first_byte_s": 2.059, "max_adjacent_byte_gap_s": 4.84, "silence_before_end_s": 0.0, "text_span_s": 11.571, "max_text_gap_s": 11.37, "body_bytes": 41931, "text_events": 17, "text_chars": 85, "comment_lines": 0, "data_events": 34, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1162, "output_tokens": 922, "total_tokens": 2084}, "budget": {"account_quota_before": 12214769, "five_percent_quota": 610738, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "0.5", "completion_ratio": "5", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 194642}, "billing": {"found": true, "quota": 2597, "within_five_percent": true}}
+
+Trial 4: implementation=40d1ca6496c76703691dfc287372327ca06695a1; started_at=2026-11-01T10:32:36.145505+00:00; model=gpt-5.6-terra; decision=inconclusive; blocked=model_probe_failed; exit=2
+Local source report: /tmp/aicli-A5-01-online-bounded-terra.json; SHA256=e606801c5101c1a92906c72bf9edc3b8dcf2d7fc7d90999b9dcb7253213909d8
+Matched billed quota total: 95903; final HTTP 502 has no request ID or matched bill.
+{"line": "main", "health_passed": 10, "attempts": 10, "median_latency_ms": 1133.76}
+{"line": "global", "health_passed": 10, "attempts": 10, "median_latency_ms": 1083.87}
+{"line": "apac", "health_passed": 10, "attempts": 10, "median_latency_ms": 2121.55}
+Full metadata-only report (no SSE bodies):
+{"item": "A5-01", "started_at": "2026-11-01T10:32:36.145505+00:00", "direct": true, "decision": "inconclusive", "existing_token_only": true, "blocked": "model_probe_failed"}
+Health rows:
+{"line": "main", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1575.71, "passed": true}
+{"line": "main", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 735.93, "passed": true}
+{"line": "main", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 724.16, "passed": true}
+{"line": "main", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 3643.49, "passed": true}
+{"line": "main", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1333.6, "passed": true}
+{"line": "main", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 847.63, "passed": true}
+{"line": "main", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 656.42, "passed": true}
+{"line": "main", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1590.61, "passed": true}
+{"line": "main", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1226.01, "passed": true}
+{"line": "main", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1041.52, "passed": true}
+{"line": "global", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1046.21, "passed": true}
+{"line": "global", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1609.92, "passed": true}
+{"line": "global", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2352.3, "passed": true}
+{"line": "global", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1152.65, "passed": true}
+{"line": "global", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1910.44, "passed": true}
+{"line": "global", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 671.0, "passed": true}
+{"line": "global", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 658.72, "passed": true}
+{"line": "global", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1121.53, "passed": true}
+{"line": "global", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 968.53, "passed": true}
+{"line": "global", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 861.27, "passed": true}
+{"line": "apac", "attempt": 1, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 859.66, "passed": true}
+{"line": "apac", "attempt": 2, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 807.67, "passed": true}
+{"line": "apac", "attempt": 3, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 4131.65, "passed": true}
+{"line": "apac", "attempt": 4, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2279.38, "passed": true}
+{"line": "apac", "attempt": 5, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 3193.35, "passed": true}
+{"line": "apac", "attempt": 6, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2607.89, "passed": true}
+{"line": "apac", "attempt": 7, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 1550.63, "passed": true}
+{"line": "apac", "attempt": 8, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 731.46, "passed": true}
+{"line": "apac", "attempt": 9, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2211.27, "passed": true}
+{"line": "apac", "attempt": 10, "tls": "verified", "http_status": 200, "application_success": true, "latency_ms": 2031.84, "passed": true}
+Stream rows:
+{"line": "main", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011033089448450168268d9d6KiwkhUXR", "http_status": 200, "tls": "verified", "duration_s": 32.468, "first_byte_s": 1.812, "max_adjacent_byte_gap_s": 7.117, "silence_before_end_s": 0.0, "text_span_s": 30.151, "max_text_gap_s": 29.521, "body_bytes": 92313, "text_events": 70, "text_chars": 118, "comment_lines": 0, "data_events": 91, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 2145, "total_tokens": 3257}, "budget": {"account_quota_before": 12212172, "five_percent_quota": 610608, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 11686, "within_five_percent": true}}
+{"line": "global", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "transport_error", "request_id": "202611011033476767788548268d9d67qr63CHB", "http_status": 200, "tls": "verified", "error": "TimeoutError", "duration_s": 327.239, "first_byte_s": 2.078, "max_adjacent_byte_gap_s": 8.074, "silence_before_end_s": 300.159, "text_span_s": 0.0, "max_text_gap_s": 0.0, "body_bytes": 40667, "text_events": 1, "text_chars": 1, "comment_lines": 0, "data_events": 17, "terminal_event": false, "api_error": false, "usage": {}, "budget": {"account_quota_before": 12200486, "five_percent_quota": 610024, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 20066, "within_five_percent": true}}
+{"line": "apac", "scenario": "idle", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011052434120304738268d9d6M3l4avBK", "http_status": 200, "tls": "verified", "duration_s": 83.047, "first_byte_s": 2.811, "max_adjacent_byte_gap_s": 6.918, "silence_before_end_s": 0.001, "text_span_s": 79.637, "max_text_gap_s": 79.104, "body_bytes": 226183, "text_events": 59, "text_chars": 120, "comment_lines": 0, "data_events": 98, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1112, "output_tokens": 6630, "total_tokens": 7742}, "budget": {"account_quota_before": 12180420, "five_percent_quota": 609021, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 35905, "within_five_percent": true}}
+{"line": "main", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011054124683154388268d9d6i3ZN1sYR", "http_status": 200, "tls": "verified", "duration_s": 4.788, "first_byte_s": 1.752, "max_adjacent_byte_gap_s": 1.378, "silence_before_end_s": 0.0, "text_span_s": 2.888, "max_text_gap_s": 2.55, "body_bytes": 20372, "text_events": 25, "text_chars": 107, "comment_lines": 0, "data_events": 40, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1162, "output_tokens": 198, "total_tokens": 1360}, "budget": {"account_quota_before": 12144515, "five_percent_quota": 607225, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 2376, "within_five_percent": true}}
+{"line": "global", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "eof", "request_id": "202611011054238089121468268d9d62GWgQRT0", "http_status": 200, "tls": "verified", "duration_s": 33.001, "first_byte_s": 1.807, "max_adjacent_byte_gap_s": 5.137, "silence_before_end_s": 0.0, "text_span_s": 31.068, "max_text_gap_s": 16.272, "body_bytes": 952090, "text_events": 3159, "text_chars": 15605, "comment_lines": 0, "data_events": 3180, "terminal_event": true, "api_error": false, "usage": {"input_tokens": 1162, "output_tokens": 4771, "total_tokens": 5933}, "budget": {"account_quota_before": 12142139, "five_percent_quota": 607106, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": true, "quota": 25870, "within_five_percent": true}}
+{"line": "apac", "scenario": "continuous", "model": "gpt-5.6-terra", "byte_timing": "application-visible one-byte reads; not packet capture", "stop": "http_error", "request_id": null, "http_status": 502, "error": "HTTPError", "duration_s": 0.554, "first_byte_s": null, "max_adjacent_byte_gap_s": 0.0, "silence_before_end_s": null, "text_span_s": 0, "max_text_gap_s": 0.0, "body_bytes": 0, "text_events": 0, "text_chars": 0, "comment_lines": 0, "data_events": 0, "terminal_event": false, "api_error": false, "usage": {}, "budget": {"account_quota_before": 12116269, "five_percent_quota": 605813, "reserved_input_tokens": 65536, "max_output_tokens": 65536, "model_ratio": "1", "completion_ratio": "6", "group_ratio": "0.9", "margin": "1.1", "upper_quota": 454165}, "billing": {"found": false}}
+
+Interpretation and limits:
+Four trials: 120/120 status requests passed; 24 model attempts, 23 HTTP 200 and one HTTP 502. 22 streams ended with normal terminal events; one global idle stream hit the local read timeout after 300.159 seconds without bytes.
+The maximum observed continuous text span across all trials is 86.230s; none satisfies >180s. Short responses with terminal events are model completion, not transport interruption.
+The fourth-trial APAC HTTP 502 has no request ID, no SSE body and no individually correlated bill; do not call its actual charge confirmed.
+The fourth-trial local read timeout is not evidence of a CDN 120s total limit.
+The earlier main/global idle cases lasting 128.707s, 128.550s (APAC), 133.264s and 129.913s demonstrate individual responses beyond 120s, but do not replace the required sustained-output acceptance.
+A subsequent read-only pricing check found only gpt-5.6-terra and codex-auto-review usable with ordinary token pricing under the current existing Token. Other Responses candidates declare tiered_expr and were refused by the budget guard; no requests were sent to them.
+Required next input: a verified model/request configuration that sustains actual text output >180s within the same per-request <=5% budget, or a stable continuously running direct-connect test machine. The access token and existing-Token read authorization are already available.
+Checklist status remains [!]. main/global stream-total values and C4-05 remain undecided. A5-02 and subsequent items were not started.
