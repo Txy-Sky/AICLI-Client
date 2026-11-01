@@ -87,7 +87,8 @@ jobs:
           A6_RESULT=1
           docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > "$RUNNER_TEMP/aicli-status.json"; then
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > "$RUNNER_TEMP/aicli-status.json.tmp"; then
+              mv "$RUNNER_TEMP/aicli-status.json.tmp" "$RUNNER_TEMP/aicli-status.json"
               break
             fi
             sleep 2
