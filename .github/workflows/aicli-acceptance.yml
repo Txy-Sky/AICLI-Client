@@ -144,6 +144,7 @@ jobs:
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 tests/aicli-testenv/seed.py
+          sleep 8
           AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
