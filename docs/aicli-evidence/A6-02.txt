@@ -1,0 +1,16 @@
+# A6-02 mock-upstream protocol and injection tests
+
+Implementation commit: `e45c2cde`.
+
+Actions evidence:
+
+`Checklist acceptance (Linux)` job, step `A6-02 mock upstream protocol and injection tests`:
+
+```text
+python3 -m pip install --user pytest
+PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py
+```
+
+Result: CI run succeeded. The test suite covered non-streaming and streaming chat completions, responses, messages, and Gemini endpoints, plus `delay_first_byte`, `idle_gap`, `fail_status`, `fail_after_n_chunks`, `stream_error_event`, model suffix injection, and request recording.
+
+Actions run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41311104301
