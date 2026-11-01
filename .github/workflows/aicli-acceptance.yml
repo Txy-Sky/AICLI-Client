@@ -59,6 +59,12 @@ jobs:
             printf 'A2-01: PASS\n'
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A2-01.txt"
 
+      - name: A5-01 offline probe safety and timing tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A5-01-offline.txt"
+
       - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
