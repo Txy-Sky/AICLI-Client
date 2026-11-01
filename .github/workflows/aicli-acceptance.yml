@@ -120,6 +120,29 @@ jobs:
           python3 -m pip install --user pytest
           PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-02.txt"
 
+      - name: A6-03 managed token routing integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="aicli-a603-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > /dev/null; then break; fi
+            sleep 2
+          done
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
+
       - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
