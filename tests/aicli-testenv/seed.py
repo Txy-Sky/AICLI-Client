@@ -85,6 +85,7 @@ def main():
     ensure_user(admin_token, "alice")
     ensure_user(admin_token, "bob")
     ensure_option(admin_token, "GroupRatio", json.dumps({"g-cheap": 0.5, "g-mid": 1, "g-pro": 2, "auto": 1}))
+    ensure_option(admin_token, "ModelRatio", json.dumps({"mock-model-a": 1, "mock-model-b": 1}))
     ensure_option(admin_token, "UserUsableGroups", json.dumps({"auto": "自动分组", "g-cheap": "低成本", "g-mid": "标准", "g-pro": "高性能"}, ensure_ascii=False))
     ensure_option(admin_token, "MaxTokenAutoGroups", "10")
     ensure_option(admin_token, "LogConsumeEnabled", "true")
