@@ -252,7 +252,7 @@ The fourth-trial local read timeout is not evidence of a CDN 120s total limit.
 The earlier main/global idle cases lasting 128.707s, 128.550s (APAC), 133.264s and 129.913s demonstrate individual responses beyond 120s, but do not replace the required sustained-output acceptance.
 A subsequent read-only pricing check found only gpt-5.6-terra and codex-auto-review usable with ordinary token pricing under the current existing Token. Other Responses candidates declare tiered_expr and were refused by the budget guard; no requests were sent to them.
 Required next input: a verified model/request configuration that sustains actual text output >180s within the same per-request <=5% budget, or a stable continuously running direct-connect test machine. The access token and existing-Token read authorization are already available.
-Checklist status remains [!]. main/global stream-total values and C4-05 remain undecided. A5-02 and subsequent items were not started.
+Checklist status before the owner's latest decision was [!]. On 2026-11-01 the owner explicitly decided to skip the >180s semantic measurement. The item is recorded as `[-]`; no main/global stream-total value or C4-05 decision was inferred. A5-02 may now proceed.
 
 Owner-suggested image-group check (read-only; no model request sent):
 Actual command (exit 0):

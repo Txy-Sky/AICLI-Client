@@ -188,7 +188,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：efbd24ef | Checklist acceptance (Linux): `bash scripts/aicli-check.sh（依次执行 pnpm install --frozen-lockfile; pnpm typecheck; pnpm format:check; pnpm test:unit; pnpm build:renderer; cargo fmt --check --manifest-path src-tauri/Cargo.toml; cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo nextest run --manifest-path src-tauri/Cargo.toml）` | CI success（16m03s），脚本退出码 0；前端 266 个文件、3415 tests passed；Rust 4443 passed、10 skipped（原有基线，未修改测试或新增 ignore）；完整日志见 `docs/aicli-evidence/A3-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-01 实测 120 秒语义和三条线路 `[需 H-01]`
-- [!] 阻塞：本机直连和测试令牌鉴权已恢复，预算受控的完整脚本已实现，最终实现提交 `40d1ca64` 的 Linux CI 已通过。前三轮持续输出均提前正常结束，未超过 180 秒；第四轮补测还出现 global 空闲场景的 300 秒读超时，无法判定 120 秒语义。负责人建议的 `gpt-image-2` 只支持 `openai`/`image-generation`、属于 `quota_type=1`，不满足本项 `openai-response` 连续文本流和预算模型，因此未发送不匹配请求。没有回填超时或开始下一项；详见 `docs/aicli-evidence/A5-01-streaming.txt`。
+- [-] 按负责人决定跳过 180 秒持续输出语义测量：直连、鉴权、预算守卫、离线测试和 CI 均已有证据；长流结果不用于推断线路总时长，也不回填第 0.4 节的流式总时长。`gpt-image-2` 只支持 `openai`/`image-generation`、属于 `quota_type=1`，未发送不匹配请求。详见 `docs/aicli-evidence/A5-01-streaming.txt`。
 - 修改：新增 `scripts/aicli-poc/line_probe.py`，读 `AICLI_TEST_ACCESS_TOKEN`。
 - 步骤：
   1. 三条线路各请求 `/api/status`，记录 TLS 结果、HTTP 状态、延迟，连续 10 次。
@@ -951,30 +951,31 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| A5-01 | 本机直连和测试令牌鉴权已恢复；前三轮持续输出不足 180 秒，第四轮补测出现一次 global 空闲场景读超时，120 秒语义未定。 | 已实现预算受控的 line_probe.py，只读现有 Token，逐次核对额度及账单。最终实现 40d1ca64 的 CI 全绿（离线 21、前端 3415、Rust 4443 passed/原有 10 skipped）。前三轮共 90/90 健康检查、18/18 模型请求 HTTP 200 并正常结束，实扣均低于单次 5% 上限；第四轮 global 以 HTTP 200 开始、随后 300 秒无新字节而触发本机读超时，未用它推断 CDN 上限。只读核对负责人建议的 `gpt-image-2`：账户有 `image` 分组和 1 个现有 image Token，但该模型仅支持 `openai`/`image-generation` 且 `quota_type=1`，不构造 A5-01 的 SSE 文本请求。完整结果见 docs/aicli-evidence/A5-01-streaming.txt。 | 当前不缺令牌或接口授权，但 `gpt-image-2` 不能满足本项流式文本验收。请负责人提供已验证能持续输出超过 180 秒、支持 `openai-response` SSE 的模型及参数，或安排稳定且持续运行的直连测试机复测；不得放宽验收或猜超时，按 0.6 不启动下一项。本机工具只验证了 WSL/Linux curl、OpenSSL 和 Python，不代表 Windows 原生客户端或产品运行时已修复。 |
+| A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
 
 ## 13. 偏差记录
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
 | A5-01 | 第 2 节只允许方案 3.3 所列账户接口，未包括方案 3.2 中读取现有 Token 所需的 GET /api/token/ 和 POST /api/token/batch/keys。 | 经负责人明确授权，将这两个接口补充到第 2 节，仅允许读取测试账号已有 Token；完整流式探测已使用它们读取现有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。 | 系统访问令牌不能调用 /v1 模型接口；A5-01 流式探测需要安全读取已有 sk- Token，不能把系统访问令牌误用为模型密钥。 |
-| A5-01 | 本机线上探测，不在 CI 运行；原 TLS 路径在握手阶段被重置。 | 仓库外安装自写按进程启用的 `aicli-direct`，仅对 `api.aicli.qzz.io`、`aicli.qzz.io` 的首个 ClientHello 拆 TLS record，保留原握手字节、SNI、证书及主机名校验，清除该子进程代理环境变量。隔离 HOME 复验 60/60 及拒绝对照均通过；工具和源码未加入仓库、工作流或产品。 | 负责人要求解决本机直连；此方式恢复本机开发探测，不改变产品行为或第 0.4 节超时，也不证明中间设备来源或 Windows 原生客户端已恢复。 |
+| A5-01 | 本机线上探测，不在 CI 运行；原 TLS 路径在握手阶段被重置。 | 仓库外安装自写按进程启用的 `aicli-direct`，仅对 `api.aicli.qzz.io`、`aicli.qzz.io` 的首个 ClientHello 拆 TLS record，保留原握手字节、SNI、证书及主机名校验，清除该子进程代理环境变量。隔离 HOME 复验 60/60 及拒绝对照均通过；工具和源码未加入仓库、工作流或产品。 |
+| A5-01 | 清单要求用持续输出超过 180 秒判定 120 秒语义。 | 负责人于 2026-11-01 明确决定不再执行该测量；A5-01 以已有直连、鉴权、预算、CI 和失败结果作为记录，跳过语义结论，不回填超时。 | 当前继续后续只读账号能力核对；不得把跳过当成 120 秒结论。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新证据提交由 git log -1 --format=%H -- docs/aicli-client-implementation-checklist-zh.md 读取；最后通过 CI 的实现提交为 40d1ca6496c76703691dfc287372327ca06695a1（Actions run 41297271375）。
-完成/阻塞/跳过：3 / 1 / 0（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01；阻塞为 A5-01；其余项目未开始，不冒充已验证或已跳过）。
+完成/阻塞/跳过：3 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6/K。
 A5-02 的 auto、max_count 结论：未核对；按 0.6 等待 A5-01 通过。
 一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[!] A5-01，直连、令牌鉴权、脚本实现和 CI 均已完成，但真实持续输出未满足超过 180 秒的验收，补测另有一次空闲场景读超时，不能判定 120 秒语义；无 [-] 项。A5-02 及之后的任务因串行规则尚未开始，不能视为已完成。
+未完成项（[!] 和 [-] 全部列出）：无阻塞项；[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A5-02 及之后的任务尚未完成。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
-A5-01 的 120 秒结论及采用的超时：未定；已真实执行三线路空闲/持续输出场景，但结果不足以定案。未回填第 0.4 节的流式总时长，也未决定 C4-05；正常完成的短响应和一次本机读超时均未冒充 CDN 总时长证据。
+A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：已验证可持续输出超过 180 秒、支持 `openai-response` SSE 的模型及参数，或稳定且持续运行的直连测试机，以完成 A5-01 真实长流验收。`gpt-image-2` 已核对但不符合该接口和计费条件，未发送模型请求。测试令牌已安全注入本机子进程环境且鉴权成功，不需要重新提供；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。随后仍从 A5-01 继续，不先做 A5-02；H-02～H-08 在各自依赖阶段核对，未代办任何 HUMAN 项。
+需要负责人提供的事项：暂无 A5-01 前置条件；180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；现有 Token 读取接口授权也已具备。无密钥进入代码、日志、证据、提交或 Actions。继续执行 A5-02；H-02～H-08 在各自依赖阶段核对，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
