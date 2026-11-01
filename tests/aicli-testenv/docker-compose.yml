@@ -49,7 +49,9 @@ services:
 
   mock-upstream:
     image: python:3.12-alpine
-    command: ["python", "-m", "http.server", "8080", "--bind", "0.0.0.0"]
+    command: ["python", "/app/server.py", "--port", "8080"]
+    volumes:
+      - ./mock_upstream:/app:ro
 
 volumes:
   new_api_data:

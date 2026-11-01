@@ -113,6 +113,13 @@ jobs:
           printf 'A6-01: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/A6-01.txt"
           A6_RESULT=0
 
+      - name: A6-02 mock upstream protocol and injection tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user pytest
+          PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-02.txt"
+
       - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
