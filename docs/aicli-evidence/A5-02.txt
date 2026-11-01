@@ -1,0 +1,31 @@
+# A5-02 真实账号能力核对
+
+## 本机只读验收
+
+命令（令牌仅由隔离子进程从 `AICLI_TEST_ACCESS_TOKEN` 读取，未写入命令、文件或日志）：
+
+```text
+set -o pipefail
+python3 /tmp/aicli-a5-run-with-env.py /home/txy/.local/bin/aicli-direct \
+  python3 -B -u scripts/aicli-poc/account_probe.py \
+  --output /tmp/aicli-A5-02-account.json 2>&1 | tee /tmp/aicli-A5-02-account.log
+```
+
+结果：命令退出码 `2`，符合负责人决定阻塞的预期。报告结论为
+`owner_decision_required`。以下只读请求均返回 HTTP 200：
+
+```text
+/api/user/self
+/api/user/self/groups
+/api/token/auto-groups
+/api/log/self?p=1&page_size=1
+/api/pricing
+```
+
+报告统计结果：可用分组不含 `auto`；`auto_max_count=15`；69 个模型被统计；单模型最大可用分组数为 3。探测只使用 `Authorization: Bearer <令牌>`，没有 `New-Api-User`，没有创建、修改或删除 Token，也没有生成或撤销系统访问令牌。
+
+报告路径：`/tmp/aicli-A5-02-account.json`；运行日志：`/tmp/aicli-A5-02-account.log`。
+
+## CI
+
+实现提交的 CI 证据待 Actions run `41301708173` 完成后补入清单；离线 account probe 安全测试已通过。
