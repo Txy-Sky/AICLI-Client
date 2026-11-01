@@ -59,6 +59,12 @@ jobs:
             printf 'A2-01: PASS\n'
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A2-01.txt"
 
+      - name: A3-01 run the baseline acceptance commands
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/aicli-check.sh 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A3-01.txt"
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
