@@ -77,9 +77,14 @@ jobs:
           set -euo pipefail
           project="aicli-a6-${GITHUB_RUN_ID}"
           cleanup() {
+            if [ "${A6_RESULT:-0}" -ne 0 ]; then
+              docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml ps || true
+              docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml logs --no-color new-api mysql || true
+            fi
             docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
           }
           trap cleanup EXIT
+          A6_RESULT=1
           docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > "$RUNNER_TEMP/aicli-status.json"; then
@@ -106,6 +111,7 @@ jobs:
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 tests/aicli-testenv/seed.py
           printf 'A6-01: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/A6-01.txt"
+          A6_RESULT=0
 
       - name: A3-01 run the baseline acceptance commands
         shell: bash
