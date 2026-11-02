@@ -234,6 +234,25 @@ jobs:
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-04.txt"
 
+      - name: A6-05 affinity rules and streaming retry observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="aicli-a605-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_PROJECT="$project" \
+            PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_affinity_retry.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-05.txt"
+
       - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
