@@ -1,5 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 
+export const UPDATER_ENABLED = false;
+
 export type UpdateChannel = "stable" | "beta";
 
 export interface UpdateInfo {
@@ -27,6 +29,8 @@ export async function checkForUpdate(
 ): Promise<
   { status: "up-to-date" } | { status: "available"; info: UpdateInfo }
 > {
+  if (!UPDATER_ENABLED) return { status: "up-to-date" };
+
   // 动态引入，避免在未安装插件时导致打包期问题
   const { check } = await import("@tauri-apps/plugin-updater");
 

@@ -262,6 +262,10 @@ pub(crate) fn error_for_log(error: &str) -> String {
         .join("\n")
 }
 
+pub(crate) const fn updater_enabled() -> bool {
+    false
+}
+
 fn runtime_log_level_allows(level: log::Level, max_level: log::LevelFilter) -> bool {
     max_level.to_level().is_some_and(|maximum| level <= maximum)
 }
@@ -585,7 +589,7 @@ pub fn run() {
 
             // 注册 Updater 插件（桌面端）；放在 logger 之后，确保失败可诊断。
             #[cfg(desktop)]
-            {
+            if updater_enabled() {
                 if let Err(e) = app
                     .handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())

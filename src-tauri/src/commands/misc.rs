@@ -76,6 +76,9 @@ pub async fn copy_text_to_clipboard(text: String) -> Result<bool, String> {
 /// 检查更新
 #[tauri::command]
 pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {
+    if !crate::updater_enabled() {
+        return Err("AICLI Client updater is disabled".to_string());
+    }
     handle
         .opener()
         .open_url(
@@ -111,6 +114,9 @@ pub async fn open_portable_update_download(
     handle: AppHandle,
     version: String,
 ) -> Result<bool, String> {
+    if !crate::updater_enabled() {
+        return Err("AICLI Client updater is disabled".to_string());
+    }
     let url = portable_zip_url(&version, cfg!(target_arch = "aarch64"))
         .unwrap_or_else(|| "https://github.com/farion1231/cc-switch/releases/latest".to_string());
     handle

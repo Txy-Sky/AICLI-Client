@@ -287,13 +287,11 @@ jobs:
           set -euo pipefail
           cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-cargo.txt"
           pnpm typecheck 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-typecheck.txt"
-          expected=$(cat <<'EOF'
-          src-tauri/tauri.conf.json:67:        "https://dl.ccswitch.io/latest.json",
-          EOF
-          )
-          actual=$(grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json || true)
-          diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual")
-          printf '%s\n' "$actual" | tee "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
+          scan_status=0
+          grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json > "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt" || scan_status=$?
+          cat "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
+          test "$scan_status" -eq 1
+          test ! -s "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
           test "$(grep -n 'AICLI Client' src-tauri/tauri.conf.json src-tauri/tauri.windows.conf.json | wc -l)" -gt 0
           test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
           test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
@@ -310,6 +308,44 @@ jobs:
           cp src-tauri/target/debug/examples/aicli-deeplink-probe "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"
           xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client" 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-handler.txt"
           printf 'B-04: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-04.txt"
+
+      - name: B-05 verify updater disabled and release workflow guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy_pattern=$(printf '%s%s\\|%s%s' 'farion' '1231' 'ccswitch' '.io')
+          scan_status=0
+          grep -n "$legacy_pattern" src-tauri/tauri.conf.json .github/workflows/* > "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt" || scan_status=$?
+          cat "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
+          test "$scan_status" -eq 1
+          test ! -s "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
+          python3 -m pip install --user pyyaml
+          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-05.txt"
+          import json
+          from pathlib import Path
+          import yaml
+
+          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
+          assert config["bundle"]["createUpdaterArtifacts"] is False
+          assert config["plugins"]["updater"] == {"pubkey": "", "endpoints": []}
+          for name in ("schema-version", "sync-r2", "stale", "labeler", "claude", "wsl2-nightly"):
+              assert not Path(f".github/workflows/{name}.yml").exists()
+          release = Path(".github/workflows/release.yml").read_text()
+          assert "cc-switch" not in release and "CC-Switch" not in release
+          workflow = yaml.safe_load(release)
+          guarded = {"Prepare Tauri signing key", "Import Apple signing certificate",
+                     "Bundle, sign and notarize (macOS)", "Prepare macOS Assets",
+                     "Notarize macOS DMG", "Verify macOS code signing and notarization",
+                     "Clean up Apple signing keychain"}
+          seen = set()
+          for job in workflow["jobs"].values():
+              for step in job.get("steps", []):
+                  if step.get("name") in guarded:
+                      assert "vars.AICLI_RELEASE_SIGNING == 'true'" in step.get("if", ""), step["name"]
+                      seen.add(step["name"])
+          assert seen == guarded
+          print("B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed")
+          PY
 
       - name: Save acceptance evidence
         if: always()

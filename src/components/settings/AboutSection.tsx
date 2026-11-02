@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { getVersion } from "@tauri-apps/api/app";
 import { settingsApi } from "@/lib/api";
+import { UPDATER_ENABLED } from "@/lib/updater";
 import { useUpdate } from "@/contexts/UpdateContext";
 import { Badge } from "@/components/ui/badge";
 import { WhatsNewDialog } from "@/components/WhatsNewDialog";
@@ -222,37 +223,39 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             )}
           </div>
         </div>
-        <Button
-          type="button"
-          variant={hasUpdate ? "solid" : "neutral"}
-          size="regular"
-          onClick={handleCheckUpdate}
-          disabled={isChecking || isDownloading}
-        >
-          {isDownloading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t("settings.updating")}
-            </>
-          ) : hasUpdate ? (
-            <>
-              <Download className="h-3.5 w-3.5" />
-              {t("settings.updateTo", {
-                version: updateInfo?.availableVersion ?? "",
-              })}
-            </>
-          ) : isChecking ? (
-            <>
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              {t("settings.checking")}
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("settings.checkForUpdates")}
-            </>
-          )}
-        </Button>
+        {UPDATER_ENABLED && (
+          <Button
+            type="button"
+            variant={hasUpdate ? "solid" : "neutral"}
+            size="regular"
+            onClick={handleCheckUpdate}
+            disabled={isChecking || isDownloading}
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t("settings.updating")}
+              </>
+            ) : hasUpdate ? (
+              <>
+                <Download className="h-3.5 w-3.5" />
+                {t("settings.updateTo", {
+                  version: updateInfo?.availableVersion ?? "",
+                })}
+              </>
+            ) : isChecking ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                {t("settings.checking")}
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("settings.checkForUpdates")}
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {hasUpdate && updateInfo && (
