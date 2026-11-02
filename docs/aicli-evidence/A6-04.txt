@@ -1,0 +1,63 @@
+A6-04 system access token boundaries — 2026-11-02
+
+Implementation: cf9147a5adf786b9ab5d88ed275f009ef8c110ed
+Workflow: AICLI Acceptance
+Job: Checklist acceptance (Linux), 125035746811
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41369181694
+Result: success; all job steps passed (18m50s).
+
+Executed commands (GitHub-hosted Linux runner, isolated HOME):
+  python3 -m unittest discover -s tests/aicli-testenv/tests -p 'test_access_token_safety.py' -v
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+  python3 tests/aicli-testenv/seed.py
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api
+  python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py
+  bash scripts/aicli-check.sh
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+
+The workflow supplies AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 and local
+test-admin credentials. HOME is RUNNER_TEMP/aicli-test-home, as checked by A2-01.
+No online account token is read or passed to this test. Proxies and redirects
+are disabled in LocalApi. Only literal 127.0.0.1 and localhost origins pass
+validation; the safety test rejects seven other/malformed target forms before
+pytest or any network code runs (1 unittest OK).
+
+The test creates three fresh disposable users via the admin HTTP API. For each,
+it logs in, obtains a password Security Proof scoped to access_token.generate,
+and uses that proof to obtain a real system access token. Browser login tokens
+are used only for this setup, not for the access-token acceptance calls. The two
+sensitive denial tests use separate users; neither uses alice, bob or production.
+No Cookie, New-Api-User or Security Proof accompanies the tested PAT operations.
+
+Actual safe output from the A6-04 step:
+2026-11-02T00:51:53.9758564Z Ran 1 test in 0.396s
+2026-11-02T00:52:10.0658251Z A6-04 {"method": "POST", "path": "/api/user/token", "status": 403, "success": false, "message": "安全验证状态无效", "code": "SECURITY_PROOF_INVALID", "original_token_valid": true, "user_exists": true}
+2026-11-02T00:52:10.1657017Z A6-04 {"method": "DELETE", "path": "/api/user/self", "status": 403, "success": false, "message": "安全验证状态无效", "code": "SECURITY_PROOF_INVALID", "original_token_valid": true, "user_exists": true}
+2026-11-02T00:52:10.2899494Z A6-04 batch_keys_has_sk_prefix=false
+2026-11-02T00:52:10.3082082Z A6-04 deleted_token_status=401 attempts=1 delay_seconds=0.001169
+2026-11-02T00:52:10.3197837Z 3 passed in 0.49s
+
+Both operations returned success:false; after each, the original PAT successfully
+read the same user ID from GET /api/user/self and the admin API found that user.
+No unexpected success occurred. No assertion was removed, weakened or ignored.
+
+Remaining checklist assertions passed using a real local PAT: successful GETs
+for user/self, user/self/groups, token/, token/auto-groups, pricing,
+log/self?request_id= and log/self/stat; model token create/list/batch keys/delete;
+the aicli:test auto_groups order is g-cheap then g-mid; create returns no id/key.
+A PAT is rejected by /v1/models (401), and an sk- key by user/self (401).
+A valid model request succeeds and its request ID is queryable in the log API.
+batch/keys returns a key without sk-; the test adds the prefix for model calls.
+Deletion invalidation was observed on the first check, 0.001169 seconds after
+the successful delete response; this is an observed local value, not a universal
+cache-latency guarantee. Retry assertions remain bounded to 20 checks.
+
+Baseline from the same final implementation commit:
+  Frontend: 266 test files, 3415 passed.
+  Rust: 4443 passed, 10 existing skipped.
+  Typecheck, formatting, renderer build, rustfmt, clippy and nextest all passed.
+
+Existing A6-03 coverage gap discovered during review is documented in checklist
+section 12. Its historical green CI does not prove the missing quota-ratio or
+real-PAT assertions. The A6-03 completion mark was withdrawn, without changing
+that test's implementation in this item.

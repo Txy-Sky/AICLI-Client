@@ -231,7 +231,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：e45c2cde | Checklist acceptance (Linux), job `A6-02 mock upstream protocol and injection tests`: `python3 -m pip install --user pytest`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py` | CI run success；协议流式/非流式与行为注入 pytest 通过，A3-01 基线同 run 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41311104301
 
 #### A6-03 实测：受管 Token 路由（方案 PoC B 前半）
-- [x] 完成
+- [ ] 待补验：复核发现旧测试只检查分组和正额度，未断言 T1/T2 的 quota 比例约为 1:2；且使用登录接口返回的短期凭证，未取得真正的系统访问令牌。历史 CI 通过记录保留，但不足以证明本项全部验收完成。本轮只记录缺口，不修改该项测试。
 - 修改：`tests/aicli-testenv/tests/test_token_routing.py`。用 alice 的系统访问令牌调用 `POST /api/token/` 创建 Token：T1 `Group=auto, AutoGroups=[g-cheap,g-mid]`；T2 `Group=auto, AutoGroups=[g-mid,g-cheap]`；T3 `Group=auto, AutoGroups=[g-cheap,g-pro]`。
 - 验收（断言 `logs` 表的 `group`、`quota`）：
   - T1 请求 `mock-model-a` → 分组 `g-cheap`；T2 → `g-mid`；quota 比例约为 1:2。
@@ -240,7 +240,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：c66defc2 | job `Checklist acceptance (Linux)`，命令：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py`; `bash scripts/aicli-check.sh` | CI success；A6-01 种子两次 PASS，A6-03 路由断言 1 passed，基线 Rust 4443 passed/10 skipped、前端 3415 passed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41317794458
 
 #### A6-04 实测：系统访问令牌的能力边界
-- [ ] 待 CI 验收：负责人已明确本地测试授权范围，原范围冲突解除；尚未运行完整验收，不标记完成。
+- [x] 完成：负责人已明确本地测试授权范围；两个敏感接口均被拒绝，原令牌仍可用且用户仍存在。仅使用隔离容器中新建的一次性用户。
 - 修改：同目录 `test_access_token.py`。
 - 验收（只带 `Authorization`，不带 `New-Api-User`）：
   - 返回成功：`GET /api/user/self`、`/api/user/self/groups`、`/api/token/`、`/api/token/auto-groups`、`/api/pricing`、`/api/log/self?request_id=`、`/api/log/self/stat`；`POST /api/token/`；`POST /api/token/batch/keys`；`DELETE /api/token/:id`。
@@ -248,7 +248,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 必须失败：访问令牌调用 `/v1/models` 返回 401；`sk-` 调用 `/api/user/self` 返回 401；访问令牌调用 `POST /api/user/token`、`DELETE /api/user/self` 被拒绝（需要 Security Proof）。
   - `POST /api/token/` 带 `{"name":"aicli:test","group":"auto","auto_groups":["g-cheap","g-mid"],"cross_group_retry":true,"unlimited_quota":true,"expired_time":-1}`，从列表读回的 `auto_groups` 顺序一致。
   - 测试结束时删除的 Token 立即不可用（带重试断言，把延迟写入证据）。
-- 证据：
+- 证据：cf9147a5 | job `Checklist acceptance (Linux)`，step `A6-04 system access token boundaries in local disposable users`：`python3 -m unittest discover -s tests/aicli-testenv/tests -p 'test_access_token_safety.py' -v`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py`; `bash scripts/aicli-check.sh` | CI success；地址防护 1 test OK、接口验收 3 passed；POST `/api/user/token` 和 DELETE `/api/user/self` 均 HTTP 403、`success:false`、message=`安全验证状态无效`、code=`SECURITY_PROOF_INVALID`，两次均 `original_token_valid=true`、`user_exists=true`；`batch_keys_has_sk_prefix=false`，删除后第 1 次请求返回 401，延迟 0.001169s；基线 Rust 4443 passed/原有 10 skipped、前端 266 文件/3415 passed；详见 `docs/aicli-evidence/A6-04.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41369181694
 
 #### A6-05 实测：亲和规则和流中重试
 - [ ] 完成
@@ -955,8 +955,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 |---|---|---|---|
 | A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
-| A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过路由用例验证，未触及线上账号或数据库。 | 已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，A6-03 路由验收通过。 |
-| A6-04 | 原验收与系统访问令牌接口禁令的适用范围存在冲突。 | 负责人于 2026-11-02 明确：禁令仅适用于线上账号与产品客户端代码；授权在 A6-04 隔离本地环境中用一次性用户执行两个接口的拒绝测试，第 2 节已补充范围和断言。 | 原范围冲突已解除，待实现提交的 CI 完整验收；未声称接口已被实测拒绝。 |
+| A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过现有路由用例，未触及线上账号或数据库。 | 额度问题已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，但不代表下行列出的旧测试验收缺口已解决。 |
+| A6-03（验收缺口） | A6-04 复核时发现 `test_token_routing.py` 未保存并比较 T1/T2 的 quota，因此未断言约 1:2 比例；其 `login()` 直接使用登录响应的短期凭证，也未生成系统访问令牌。 | 静态复核现有测试和 rc.34 认证流程；旧 CI 只能证明现有断言通过。已撤回本项 `[x]`，改为待补验；本轮只做 A6-04，未顺手修改该测试。 | 后续单独补齐系统访问令牌准备和 quota 比例断言，并按同一项提交、运行 CI、补充证据后才能重新勾选；不需要负责人提供线上凭证或修改线上额度。 |
+| A6-04 | 原验收与系统访问令牌接口禁令的适用范围存在冲突。 | 负责人于 2026-11-02 明确本地测试授权范围；实现 `cf9147a5` 的 CI run 41369181694 成功。POST `/api/user/token` 和 DELETE `/api/user/self` 均 HTTP 403、`success:false`、message=`安全验证状态无效`、code=`SECURITY_PROOF_INVALID`；调用后原令牌仍可访问账户，管理 API 确认用户仍存在。完整无密钥记录见 `docs/aicli-evidence/A6-04.txt`。 | 已解除并验收通过；未出现接口意外成功，无需负责人再决定。 |
 
 ## 13. 偏差记录
 
@@ -970,18 +971,18 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-03 实现 CI 通过提交为 c66defc2c8a53116eff407d226a7d3455ade52fb（Actions run 41317794458）。
-完成/阻塞/跳过：7 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-03；A6-04 的范围冲突已解除，待 CI 验收，未计入完成；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-04 实现 CI 通过提交为 cf9147a5adf786b9ab5d88ed275f009ef8c110ed（Actions run 41369181694）。
+完成/阻塞/跳过：7 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-04；A6-03 复核发现旧验收缺口，已撤回完成标记，待单独补验；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
-tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6-02/K。
+tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
-一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-04 待 CI 完整验收；A6-05 及之后的任务尚未开始。
+线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-03 待补齐 quota 比例与系统访问令牌测试；A6-05 及之后的任务尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：A6-04 的范围决定已收到，当前等待 CI 验收；A6-03 已解除阻塞。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：A6-04 无待决事项，已通过 CI 验收；A6-03 的测试缺口需要后续单独修复，不需要线上凭证或额度操作。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
