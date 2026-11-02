@@ -155,6 +155,8 @@ GET https://{三条线路}/api/pricing
 
 A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于读取测试账号已有 Token（负责人于 2026-11-01 明确授权）；不得创建、修改或删除 Token，不得生成或撤销系统访问令牌。
 
+**A6-04 本地测试范围（负责人于 2026-11-02 明确授权）**：禁止生成或撤销系统访问令牌的约束适用于线上账号和产品客户端代码，不适用于 A6-04 的隔离 rc.34 测试环境。`test_access_token.py` 仅接受 `127.0.0.1` 或 `localhost`，其他地址直接退出，不读取 `AICLI_TEST_ACCESS_TOKEN`，不使用代理或跟随重定向。通过管理 HTTP API 新建一次性用户，在该用户中通过登录和 Security Proof 取得本地系统访问令牌，然后仅携带该访问令牌调用 `POST /api/user/token`、`DELETE /api/user/self` 验证拒绝行为；不使用 alice、bob 或任何线上账号。两个调用都必须断言响应没有 `success:true`，且调用后原令牌仍可访问 `/api/user/self`、管理 API 确认用户仍存在；实际状态码和 message 写入证据。任一调用意外成功则 A6-04 标 `[!]`，实际响应去除令牌后记入第 12 节，不放宽断言。
+
 ---
 
 ## A. 阶段 A：环境和基线
@@ -238,7 +240,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：c66defc2 | job `Checklist acceptance (Linux)`，命令：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py`; `bash scripts/aicli-check.sh` | CI success；A6-01 种子两次 PASS，A6-03 路由断言 1 passed，基线 Rust 4443 passed/10 skipped、前端 3415 passed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41317794458
 
 #### A6-04 实测：系统访问令牌的能力边界
-- [!] 阻塞：验收要求调用 `POST /api/user/token` 验证系统访问令牌能力边界，但负责人明确禁止调用任何生成或撤销系统访问令牌的接口。该接口请求未执行；其余 A6-04 检查也未运行，不能标记完成。
+- [ ] 待 CI 验收：负责人已明确本地测试授权范围，原范围冲突解除；尚未运行完整验收，不标记完成。
 - 修改：同目录 `test_access_token.py`。
 - 验收（只带 `Authorization`，不带 `New-Api-User`）：
   - 返回成功：`GET /api/user/self`、`/api/user/self/groups`、`/api/token/`、`/api/token/auto-groups`、`/api/pricing`、`/api/log/self?request_id=`、`/api/log/self/stat`；`POST /api/token/`；`POST /api/token/batch/keys`；`DELETE /api/token/:id`。
@@ -954,7 +956,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
 | A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过路由用例验证，未触及线上账号或数据库。 | 已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，A6-03 路由验收通过。 |
-| A6-04 | 验收要求调用 `POST /api/user/token` 检查系统访问令牌接口是否拒绝请求。 | 未调用该接口；负责人明确禁止调用任何生成或撤销系统访问令牌的接口。为避免执行被禁止的接口，其余 A6-04 测试也未开始，防止把部分结果误记为通过。 | 需负责人决定是否接受 A6-04 阻塞，或提供不调用该接口的替代验收标准；在决定前不开始下一项。 |
+| A6-04 | 原验收与系统访问令牌接口禁令的适用范围存在冲突。 | 负责人于 2026-11-02 明确：禁令仅适用于线上账号与产品客户端代码；授权在 A6-04 隔离本地环境中用一次性用户执行两个接口的拒绝测试，第 2 节已补充范围和断言。 | 原范围冲突已解除，待实现提交的 CI 完整验收；未声称接口已被实测拒绝。 |
 
 ## 13. 偏差记录
 
@@ -969,17 +971,17 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性阻塞交付，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-03 实现 CI 通过提交为 c66defc2c8a53116eff407d226a7d3455ade52fb（Actions run 41317794458）。
-完成/阻塞/跳过：7 / 1 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-03；A6-04 因验收要求与禁止调用系统访问令牌生成接口的约束冲突而阻塞；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
+完成/阻塞/跳过：7 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-03；A6-04 的范围冲突已解除，待 CI 验收，未计入完成；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 A6-02/K。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 一个账号实际创建的 aicli: Token 数量：0；仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。[!] A6-04，清单要求调用 `POST /api/user/token`，与禁止调用系统访问令牌生成接口的约束冲突；需确认是否接受阻塞或提供替代验收。A6-05 及之后的任务尚未开始。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-04 待 CI 完整验收；A6-05 及之后的任务尚未开始。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
 A6-05 的流中重试结论：未测试。
-需要负责人提供的事项：决定 A6-04 是否维持禁止调用系统访问令牌生成接口并接受该项阻塞，或确认不调用此接口的替代验收标准；A6-03 已解除阻塞。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。测试令牌已安全注入本机子进程环境且鉴权成功；无密钥进入代码、日志、证据、提交或 Actions。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：A6-04 的范围决定已收到，当前等待 CI 验收；A6-03 已解除阻塞。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。

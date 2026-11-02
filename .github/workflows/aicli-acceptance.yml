@@ -155,6 +155,32 @@ jobs:
             PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
           A603_RESULT=0
 
+      - name: A6-04 system access token boundaries in local disposable users
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/aicli-testenv/tests -p 'test_access_token_safety.py' -v 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-04-safety.txt"
+          project="aicli-a604-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > /dev/null; then break; fi
+            sleep 2
+          done
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-04.txt"
+
       - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
