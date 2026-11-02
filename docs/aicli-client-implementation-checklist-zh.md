@@ -321,13 +321,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：73cecdcc | job `Checklist acceptance (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink`；`cargo build --manifest-path src-tauri/Cargo.toml --example aicli-deeplink-probe`；`xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"`；原品牌扫描完整输出 `diff -u`；`bash scripts/aicli-check.sh` | 完整 CI success；深链 107 passed / 4351 filtered，新增两项测试通过；实际生成 `.local/share/applications/aicli-client-handler.desktop`、scheme=aicliapi；品牌扫描只剩实际 :67 updater 行；Rust 4448 passed / 原有 10 skipped，前端 3415 passed；详见 `docs/aicli-evidence/B-04.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41428843145
 
 ### B-05 更新器和发布工作流
-- [ ] 完成
+- [x] 完成
 - 修改：
   - `tauri.conf.json`：`createUpdaterArtifacts`=false，`plugins.updater.endpoints`=`[]`，`pubkey` 置空。若构建要求非空，移除 updater 插件的配置项并在 `lib.rs` 中按 `updater_enabled()`（常量，当前返回 false）跳过初始化；前端"检查更新"入口隐藏。
   - 删除 `.github/workflows/` 下的 `schema-version.yml`、`sync-r2.yml`、`stale.yml`、`labeler.yml`、`claude.yml`、`wsl2-nightly.yml`。
   - `release.yml`：保留，所有 `cc-switch`、`CC-Switch` 产物名改为 `aicli-client`、`AICLI-Client`；Apple 签名和 updater 签名步骤改为 `if: ${{ vars.AICLI_RELEASE_SIGNING == 'true' }}`。
 - 验收：`grep -n 'farion1231\|ccswitch.io' src-tauri/tauri.conf.json .github/workflows/*` 无结果；再跑 B-03 同一品牌扫描必须无结果，作为原 B-03 品牌验收的最终版本，两条扫描均写入 B-05 证据；检查通过。不得追加例外。
-- 证据：
+- 证据：ed432fdd | job `Checklist acceptance (Linux)`：`bash scripts/aicli-check.sh`；原 B-03 品牌扫描；`grep -n "$legacy_pattern" src-tauri/tauri.conf.json .github/workflows/*`（表达式等价于本项原扫描）；Python JSON/YAML 配置及签名条件断言 | 完整 CI success；两条扫描均 exit 1、0 字节；updater disabled、签名条件和指定工作流删除检查通过；Rust 4448 passed / 原有 10 skipped，前端 267 文件 / 3416 passed（新增禁用更新器无调用测试 1 passed）；release 未执行，未使用签名 secrets；详见 `docs/aicli-evidence/B-05.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41432910305
 
 ### B-06 Codex 配置里的品牌标识
 - [ ] 完成
@@ -972,6 +972,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| B-05 | 扫描包括 `.github/workflows/*`；禁用更新器和签名步骤开关。 | 扫描表达式在工作流中按片段拼接为与原命令相同的表达式，避免扫描命令文本自命中；扫描文件范围不变，退出码必须恰为 1 且输出 0 字节。H-06 未提供，前后端更新入口禁用，插件初始化由恒 false 的 updater_enabled() 控制。macOS 产物准备步骤内同时包含 codesign/stapler，因此该混合步骤也受签名变量约束；未执行 release。旧发布正文官网链接改为当前仓库，不假设新官网地址。 | 清除扫描自身的语法性命中，不增加任何例外；保留独立完整基线和配置断言作为验收。 |
 | B-04 | WiX :225-236 要求切换 scheme；Linux handler 需以插件实测为准。 | WiX 当前是 `deep_link_protocols` 动态模板，无硬编码 scheme，保持模板；tauri 配置已切换为 aicliapi。锁定插件 2.4.7 的 CI 实际注册生成 `aicli-client-handler.desktop`，应用检查同步使用此文件名。所有深链成功测试的 URL 输入同步新 scheme，断言保留；新增旧 scheme 拒绝及 PendingDeepLink::Error URL 无 query 测试。 | 模板定位差异，不改变 WiX 接口；文件名依据实际注册结果，非推测。 |
 | B-03 → B-04 → B-05 | B-03 要求品牌扫描无命中，但另两项随后才改 scheme 和 updater。 | 负责人于 2026-11-02 决定保持阶段顺序，以完整输出 diff 逐项收紧：B-03 恰好两行；B-04 恰好 updater 一行；B-05 无结果，并连同 B-05 原扫描写入证据。行号漂移按内容匹配、证据记录实际行号；任何其他命中标 `[!]`，不追加例外。B-03 最终实现 f141974e 的完整 CI 和两行 diff 均通过。 | 精确核对当前阶段全部预期命中，不提前改变后续项行为；K-03 全量扫描保持原样。 |
 | A5-01 | 第 2 节只允许方案 3.3 所列账户接口，未包括方案 3.2 中读取现有 Token 所需的 GET /api/token/ 和 POST /api/token/batch/keys。 | 经负责人明确授权，将这两个接口补充到第 2 节，仅允许读取测试账号已有 Token；完整流式探测已使用它们读取现有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。 | 系统访问令牌不能调用 /v1 模型接口；A5-01 流式探测需要安全读取已有 sk- Token，不能把系统访问令牌误用为模型密钥。 |
@@ -989,18 +990,18 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-04 最终实现为 73cecdcc8a042500508fe24e419d6cc444610999（Actions run 41428843145，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
-完成/阻塞/跳过：14 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01、B-02、B-03、B-04；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-04 已通过；下一项 B-05）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-05 最终实现为 ed432fdd81f49f884da5a1188f812ad68ef0a54e（Actions run 41432910305，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+完成/阻塞/跳过：15 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01、B-02、B-03、B-04、B-05；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-05 已通过；下一项 B-06）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-05 及之后除 C4-05 明确跳过外尚未完成。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-06 及之后除 C4-05 明确跳过外尚未完成。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
-需要负责人提供的事项：无 B-03 待决事项；B-04 完整 CI 已通过并补证，下一项 B-05。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：无 B-03 待决事项；B-05 完整 CI 已通过并补证，下一项 B-06。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。

@@ -1,0 +1,36 @@
+B-05 updater disabled and release signing guarded — PASSED
+Final implementation: ed432fdd81f49f884da5a1188f812ad68ef0a54e
+Evidence: ed432fdd | Checklist acceptance (Linux): bash scripts/aicli-check.sh; both original legacy scans below; Python JSON/YAML configuration and signing-condition assertions in B-05 verify updater disabled and release workflow guards | complete CI success; updater disabled; both scans exit 1 with zero bytes; required signing conditions present; six specified workflows removed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41432910305
+
+Final original B-03 scan:
+grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json
+Result: exit 1, B-03-scan.txt 0 bytes, no matches.
+This is the final zero-match version of B-03, following B-03 two-row and B-04
+one-row exact-output checks. No additional exceptions. K-03 unchanged.
+
+Original B-05 scan:
+grep -n 'farion1231\|ccswitch.io' src-tauri/tauri.conf.json .github/workflows/*
+Actual workflow uses:
+legacy_pattern=$(printf '%s%s\\|%s%s' 'farion' '1231' 'ccswitch' '.io')
+grep -n "$legacy_pattern" src-tauri/tauri.conf.json .github/workflows/*
+The effective expression and complete file scope are identical; splitting the
+literal prevents the command text itself from matching. No files or results
+are excluded. Exit must be exactly 1, and output must be empty (scan errors
+cannot pass). Result: B-05-scan.txt 0 bytes.
+
+B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed
+JSON assertions: createUpdaterArtifacts=false, updater pubkey="", endpoints=[].
+YAML assertions cover both Prepare Tauri signing key steps, Apple certificate
+import, bundle/sign/notarize, mixed macOS asset preparation containing signing,
+DMG notarization, signature verification and keychain cleanup; all require
+vars.AICLI_RELEASE_SIGNING == 'true'. Removed all six specified workflows.
+Release filenames use AICLI-Client / aicli-client. Release workflow retained,
+never run; no signing/release secrets added or used; no deploy or Release.
+H-06 not supplied: Rust updater_enabled() is false; initialization skipped;
+backend update/install commands refuse; UI check button hidden; frontend
+checkForUpdate returns without invoking the updater plugin or version query.
+
+Regression: Rust 4448 passed / 10 original skipped; frontend 267 files / 3416
+passed. New tests/config/updaterDisabled.test.ts: 1 passed, asserting no plugin
+or version calls. Renderer build, fmt, Clippy, typecheck all passed in isolated
+Actions HOME. Existing assertions retained.
