@@ -152,7 +152,7 @@ jobs:
           done
           AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
-            PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
+            PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
           A603_RESULT=0
 
       - name: A6-04 system access token boundaries in local disposable users
