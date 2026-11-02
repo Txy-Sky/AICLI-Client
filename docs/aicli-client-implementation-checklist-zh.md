@@ -94,32 +94,51 @@
 
 ### 0.6 云端构建（GitHub Actions）
 
-本机磁盘不足以承担完整构建，构建和测试一律在 GitHub Actions 上运行。清单中的 `cargo`、`pnpm`、`scripts/aicli-check.sh` 命令都按本节执行，第 0.2 节的其他规则不变。
+本机只承担不编译的推送前静态检查及本节明确允许的线上/对照测试；完整构建、类型检查和单元/集成测试在 GitHub Actions 上运行。第 0.2 节的隔离、保密、明确路径暂存等规则不变。
 
-**提交和标记**
+**推送前本地检查**
 
-1. 每项先推送实现提交，CI 通过后再追加一个只改清单和证据的提交。修复失败时继续追加提交，提交信息带同一项目编号。禁止强推。
-2. 只有 CI 在该项最终实现提交上通过，才能标 `[x]`。当前项未通过前不开始下一项。
-3. 证据格式：
+1. 每次推送前（包括只改清单/证据的提交），本机必须通过 `cargo fmt --check --manifest-path src-tauri/Cargo.toml`、Prettier 检查和全部工作流/复合 action 的 YAML 语法检查。统一入口为 `bash scripts/aicli-pre-push-check.sh`，使用临时 HOME；不编译、不运行 cargo 测试，也不改真实客户端配置。
+2. 本机只需 rustfmt，不要求安装完整构建依赖；已有 Rust 工具链不卸载。Prettier 使用锁文件版本，可在仓库外单独安装并通过 `AICLI_PRETTIER_BIN` 指定，不为此在本机安装整套前端依赖。YAML 检查使用 Python/PyYAML，并拒绝重复键。三类检查全部通过后才允许推送。
+
+**提交、并行推进和标记**
+
+3. 各项仍分别提交实现；CI 通过后再追加只改清单和证据的提交。失败时追加同项目编号的修复提交，不强推。只有实际用于验收的最终提交完整 CI 成功后才能标 `[x]`。
+4. 当前项 CI 运行期间，可以在本地开始下一项，但下一项必须等当前项 CI 通过后才能推送。阶段顺序与门禁不变。按下一条事先选定合并验收组时，以整组作为一个验收单元；组内可累计独立实现提交后一次推送。
+5. 同一阶段内最多 3 个相互独立的小项可以合并为一次 CI 验收；各项分别提交、分别填写证据，均引用包含这些实现的最终 CI 提交和同一个 run 链接，并注明各自的实现提交。合并验收任一部分失败，所有项都不得标记。
+6. GATE 项、需要线上账号或人工操作的项、跨阶段的项不得合并验收。相互依赖的项不属于可合并的小项。
+7. 证据格式：
    ```text
-   证据：<实现提交短哈希> | <job 名和实际命令> | <结果> | <Actions run 链接>
+   证据：<实际 CI 验收提交短哈希> | <job 名和实际命令> | <结果> | <Actions run 链接>
    ```
+   被新提交取代、取消或未完整通过的 run 不作为成功证据；失败历史仍保留。
 
-**工作流**
+**工作流和缓存**
 
-4. 新增独立工作流，用 `on.push` 只监听 `feat/aicli-client-v1`，并用 `paths-ignore` 排除 `docs/**`，避免证据提交触发构建。现有 `ci.yml` 的 push 只监听 `main`，不会在本分支自动运行。
-5. 不要依赖 `workflow_dispatch`：工作流文件不在默认分支上时无法手动触发，而本清单禁止合并到 `main`。
-6. 禁止运行 `release.yml` 和 `sync-r2.yml`，不新增或使用签名、发布类 secrets。
-7. 日常只跑 Linux。Windows 和 macOS 只在阶段门禁或清单明确要求时运行。
+8. 独立工作流 `aicli-acceptance.yml` 的 `on.push` 只监听 `feat/aicli-client-v1`，`paths-ignore` 排除 `docs/**`，避免证据提交触发构建。现有 `ci.yml` 的 push 只监听 `main`。不依赖 `workflow_dispatch`，不合并到 main。
+9. `aicli-setup` 使用与 `ci.yml` 相同的固定 `Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6`，工作区 `src-tauri -> target`；`setup-node` 开启 pnpm 缓存。缓存只用于构建依赖，不加入真实密钥或客户端 HOME。证据记录加缓存前后的 A3-01 实际起止时间和耗时；区分首次建缓存与命中缓存，不预设加速结论。
+10. checkout 和工具准备后，最先运行的验收步骤依次执行 `cargo fmt --check`、安装锁定依赖、`pnpm format:check`、`pnpm typecheck`，快速失败；另检查 YAML 和覆盖选择逻辑。原完整基线及断言保留。
+11. `concurrency.cancel-in-progress: true`；被取代的提交不作为成功验收证据。
+12. 测试环境未改动时可跳过 A6 Docker 步骤；GATE 项或改动 `tests/aicli-testenv/` 时必须运行。GATE 实现和修复提交的标题必须带相应 `*-GATE` 项目编号。覆盖判断比较上次成功验收提交到当前提交的完整差异和提交标题，不能只看上次 push，以免取消中间 run 后漏验。没有可验证的成功祖先、检测失败或修改覆盖逻辑/验收基础设施时保守运行 A6；同一 run 的 rerun 不把自身第一次成功当作新的比较基线。跳过 A6 时如实记录，不称为本轮 A6 已测。
+13. 禁止运行 `release.yml` 和 `sync-r2.yml`，不新增或使用签名、发布类 secrets。日常只跑 Linux；Windows 和 macOS 只在阶段门禁或清单明确要求时运行。
 
-**只在本机运行的内容**
+**预先授权的决定**
 
-8. 不要把 `AICLI_TEST_ACCESS_TOKEN` 放进 Actions secrets。A5-01、A5-02 这类线上测试在本机用环境变量运行。
-9. C5-GATE 和阶段 J 由 CI 构建产物（保留 7 天以内），下载到有真实客户端的机器上测试。
-10. A2-01：构建工具链的版本以 CI 日志为证据。本机只安装线上测试和对照工具需要的部分。
-11. Maskit 对照（E-07）留在本机运行，不进入工作流和产物。
+14. 以下情况无需等待负责人，按决定执行、逐项记入第 13 节，并在统一验收时复核：
+    - 清单内部先后顺序冲突：按原顺序执行，前一项验收改为逐项收紧的精确断言，不增加开放式例外。
+    - 只在本地隔离测试环境或 CI 中的操作。
+    - 两个选项中选择不改写用户本机其他应用数据的那一个。
+15. 上述授权不覆盖生产环境、真实密钥、费用、new-api 或服务端、删除或改写用户数据、改变产品对外行为；这些情况仍必须停下等待负责人。既有明确授权及 HUMAN 约束不变，不以“仅在 CI 中”为由绕过。
 
-**验收**：验收人查看或重跑证据中对应提交的 Actions 记录，不在本地编译。
+**仅在指定机器运行的内容**
+
+16. 不把 `AICLI_TEST_ACCESS_TOKEN` 放进 Actions secrets；A5-01、A5-02 等线上测试仍在本机用环境变量运行。
+17. C5-GATE 和阶段 J 使用 CI 构建产物（保留 7 天以内），下载到有真实客户端的机器测试。
+18. A2-01 的构建工具链版本以 CI 日志为证据；本机增加的 rustfmt/Prettier/YAML 静态检查工具不承担完整构建。Maskit 对照 E-07 留在本机，不进入工作流和产物。
+
+**验收**：查看或重跑证据对应提交的 Actions；本机静态检查不能替代 CI 验收。执行方式调整本身记为 `CI-OPT`，不计入产品项目完成数。
+
+证据：9e4dd03c | job `Checklist acceptance (Linux)`：新增快速格式/类型/YAML 检查、覆盖选择 8 项自测、`bash scripts/aicli-check.sh`、原 A6 与 B 专项；本机 `AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh` | 本地三类检查通过；同一实现两轮完整 CI success；Rust 4449 passed / 原有 10 skipped，前端 3416 passed；A3-01 加缓存前 16m02s，首次冷缓存 15m40s，复跑 Rust/pnpm 均命中为 11m45s；新增快速步骤两轮均 46s。实际起止时间及比较限制见 `docs/aicli-evidence/CI-OPT.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41449566786/attempts/2
 
 ---
 
@@ -974,6 +993,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| CI-OPT（自测环境记录） | 测试应使用隔离 HOME。 | 一次仅校验覆盖选择纯函数的 Python 自测先运行时漏设临时 HOME；该模块未读取或写入客户端配置，只生成仓库内 Python 字节码。已清理本次生成的字节码，并以临时 HOME、CC_SWITCH_TEST_HOME 和 PYTHONDONTWRITEBYTECODE=1 复跑，8/8 通过；正式验收仍以隔离 Actions 的同一自测和完整 CI 为准。 | 记录执行偏差，不把未隔离的一次自测当作正式验收，也不豁免后续隔离要求。 |
+| CI-OPT（执行方式） | 原第 0.6 节逐项串行、无本地格式检查或依赖缓存、每次运行 A6，且不取消旧 run。 | 按负责人于 2026-11-02 的明确决定，增加每次推送前隔离 HOME 的 rustfmt/Prettier/YAML 检查、固定版本 Rust 和 pnpm 缓存、最先格式/类型检查、取消被取代 run、按成功基线选择 A6；允许当前 CI 期间准备下一项及同阶段最多 3 个独立小项合并验收，保持分项提交和证据。覆盖检测无法证明安全跳过或验收基础设施变化时保守运行 A6；合并验收失败全组不得勾选。三类预先授权及仍须等待的边界已写入第 0.6 节；后续采用预授权决定仍逐项记入本节，统一验收复核。 | 减少可预防的 CI 失败和重复构建，不放宽产品验收、隔离、保密或人工边界；不改产品对外行为。 |
 | B-06 | 两项身份常量换值；旧 provider 列表范围未明确。 | 负责人于 2026-11-02 决定保留全部 48 项列表及三个旧迁移函数/测试；`lib.rs` 提取启动函数，使用统一 false 常量保留但跳过前三个调用。统一会话迁移原样保留，G 阶段另决。旧迁移模块以私有旧官方标识常量固定 `cc-switch-official`，避免产品常量改为 `aicli-official` 后间接改变旧函数语义；原函数及测试文本保持不变。新身份及目录文件名相关断言同步；实际模型目录投影还在 `live/project/codex.rs` 定义同用途常量，改为引用 `codex_config.rs` 的新文件名常量，并同步相关 fixture，避免写入路径与目录解析脱节。新增四种 provider 的隔离 HOME 全文件字节保留测试。 | 新应用不应启动时自动改写既有 Codex 历史；保留调用避免私有模块出现未使用代码，不能放宽 Clippy 或测试。 |
 | B-05 | 扫描包括 `.github/workflows/*`；禁用更新器和签名步骤开关。 | 扫描表达式在工作流中按片段拼接为与原命令相同的表达式，避免扫描命令文本自命中；扫描文件范围不变，退出码必须恰为 1 且输出 0 字节。H-06 未提供，前后端更新入口禁用，插件初始化由恒 false 的 updater_enabled() 控制。macOS 产物准备步骤内同时包含 codesign/stapler，因此该混合步骤也受签名变量约束；未执行 release。旧发布正文官网链接改为当前仓库，不假设新官网地址。 | 清除扫描自身的语法性命中，不增加任何例外；保留独立完整基线和配置断言作为验收。 |
 | B-04 | WiX :225-236 要求切换 scheme；Linux handler 需以插件实测为准。 | WiX 当前是 `deep_link_protocols` 动态模板，无硬编码 scheme，保持模板；tauri 配置已切换为 aicliapi。锁定插件 2.4.7 的 CI 实际注册生成 `aicli-client-handler.desktop`，应用检查同步使用此文件名。所有深链成功测试的 URL 输入同步新 scheme，断言保留；新增旧 scheme 拒绝及 PendingDeepLink::Error URL 无 query 测试。 | 模板定位差异，不改变 WiX 接口；文件名依据实际注册结果，非推测。 |
@@ -994,6 +1015,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-06 最终实现为 03c8c68147d75deba048f0d230ea5ee803c629f5（Actions run 41443239346，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，不提前执行 B-07。详见 docs/aicli-evidence/CI-OPT.txt。
 完成/阻塞/跳过：16 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-06；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；下一项 B-07，G 阶段有待决事项但不阻塞当前项）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
