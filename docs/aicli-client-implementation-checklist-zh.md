@@ -76,9 +76,11 @@
 
 | id | baseUrl | 显示名 | transport | 优先级 | 首字节超时 | 静默超时 | 流式总时长 | 非流式总时长 |
 |---|---|---|---|---|---|---|---|---|
-| `main` | `https://aicliapi.com` | 主线路 | cloudflare | 100 | 100s | 110s | 由 A5-01 决定 | 110s |
-| `global` | `https://aicli.qzz.io` | 全球备用 | cloudflare | 90 | 100s | 110s | 由 A5-01 决定 | 110s |
+| `main` | `https://aicliapi.com` | 主线路 | cloudflare | 100 | 100s | 110s | 600s | 110s |
+| `global` | `https://aicli.qzz.io` | 全球备用 | cloudflare | 90 | 100s | 110s | 600s | 110s |
 | `apac` | `https://api.aicli.qzz.io` | 亚太加速 | cdn | 80 | 300s | 300s | 600s | 600s |
+
+`main`、`global` 的流式总时长 `600s` 由负责人于 2026-11-02 决定，**未经实测**，不代表已确认 120 秒是空闲上限或总时长上限。A5-01 保持 `[-]`；C4-05 按同一决定不启用并标 `[-]`。其余超时值不变。
 
 ### 0.5 涉及的仓库与分支
 
@@ -190,19 +192,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：efbd24ef | Checklist acceptance (Linux): `bash scripts/aicli-check.sh（依次执行 pnpm install --frozen-lockfile; pnpm typecheck; pnpm format:check; pnpm test:unit; pnpm build:renderer; cargo fmt --check --manifest-path src-tauri/Cargo.toml; cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings; cargo nextest run --manifest-path src-tauri/Cargo.toml）` | CI success（16m03s），脚本退出码 0；前端 266 个文件、3415 tests passed；Rust 4443 passed、10 skipped（原有基线，未修改测试或新增 ignore）；完整日志见 `docs/aicli-evidence/A3-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287292774
 
 ### A5-01 实测 120 秒语义和三条线路 `[需 H-01]`
-- [-] 按负责人决定跳过 180 秒持续输出语义测量：直连、鉴权、预算守卫、离线测试和 CI 均已有证据；长流结果不用于推断线路总时长，也不回填第 0.4 节的流式总时长。`gpt-image-2` 只支持 `openai`/`image-generation`、属于 `quota_type=1`，未发送不匹配请求。详见 `docs/aicli-evidence/A5-01-streaming.txt`。
+- [-] 按负责人决定跳过 180 秒持续输出语义测量：直连、鉴权、预算守卫、离线测试和 CI 均已有证据；120 秒语义仍未实测定案。负责人于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`，已记入第 0.4 节；该值不是测量结论。C4-05 按同一决定不启用。`gpt-image-2` 只支持 `openai`/`image-generation`、属于 `quota_type=1`，未发送不匹配请求。历史测量详见 `docs/aicli-evidence/A5-01-streaming.txt`，本次决定见 `docs/aicli-evidence/A5-01-owner-decision.txt`。
 - 修改：新增 `scripts/aicli-poc/line_probe.py`，读 `AICLI_TEST_ACCESS_TOKEN`。
 - 步骤：
   1. 三条线路各请求 `/api/status`，记录 TLS 结果、HTTP 状态、延迟，连续 10 次。
   2. **空闲场景**：对每条线路发一个流式请求，提示词要求模型先长时间思考（或使用最慢模型），记录相邻两个字节的最大间隔，以及连接被断开时的累计时长。
   3. **持续输出场景**：要求模型输出足够长的文本，使总时长超过 180 秒，记录是否在约 120 秒被断开。
 - 单次请求预算不超过测试账号额度的 5%。
-- 验收与决定（把结果写进证据和 `docs/aicli-evidence/A5-01.txt`）：
+- 原测量判定规则（保留供历史核对；测量已按负责人决定跳过，不据此推断当前采用值）：
   - 持续输出能超过 180 秒 → 120 秒是**空闲上限**。把 `main`、`global` 的流式总时长定为 `600s`。
   - 持续输出在约 120 秒被断开 → 120 秒是**总时长上限**。把 `main`、`global` 的流式总时长定为 `110s`，并在 C4-05 启用"流式请求默认首选 `apac`"。
   - 结果不明确 → 标 `[!]`，不要猜。
-- 把决定值回填到第 0.4 节的线路表。
-- 证据：40d1ca64 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME、直连执行 `python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json` 等实际启动命令见 `docs/aicli-evidence/A5-01-streaming.txt` | CI success：探测离线测试 21 passed；前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。线上验收未通过：持续输出时长不足且有一次补测读超时，120 秒语义未定；只读核对的 `gpt-image-2` 不支持所需 SSE 文本端点，未发送不匹配请求；不回填第 0.4 节、不开始 A5-02。历史网络失败保留在 A5-01.txt，直连恢复证据在 A5-01-direct-network.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
+- 当前采用值：按负责人于 2026-11-02 的决定，第 0.4 节 `main`、`global` 均为 `600s`，未经实测，不形成 120 秒语义结论；C4-05 不启用。
+- 证据：40d1ca64 | Checklist acceptance (Linux): `python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v; bash scripts/aicli-check.sh`；本机隔离 HOME、直连执行 `python3 -B -u scripts/aicli-poc/line_probe.py --model codex-auto-review --max-output-tokens 65536 --output /tmp/aicli-A5-01-online-bounded.json` 等实际启动命令见 `docs/aicli-evidence/A5-01-streaming.txt` | CI success：探测离线测试 21 passed；前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。线上验收未通过：持续输出时长不足且有一次补测读超时，120 秒语义未定；只读核对的 `gpt-image-2` 不支持所需 SSE 文本端点，未发送不匹配请求；该次测量未回填第 0.4 节、当时未开始 A5-02。当前 600s 采用值来自负责人 2026-11-02 的另行决定，不是本次历史测量的结论。历史网络失败保留在 A5-01.txt，直连恢复证据在 A5-01-direct-network.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41297271375
 
 ### A5-02 真实账号能力核对 `[需 H-01]`
 - [x] 完成：只读复测确认五个接口均返回 200，`auto` 已在可用分组内，`auto_max_count=15`，单模型最大可用分组数为 3。
@@ -633,11 +635,11 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：
 
 ### C4-05 流式首选线路（条件项）
-- [ ] 完成或按条件跳过
-- 条件：仅当 A5-01 判定 120 秒是总时长上限时实施，否则标 `[-]` 并引用 A5-01。
-- 修改：`resolver` 第 6 步：请求 `stream=true` 且用户未显式固定线路时，首选 `apac`。设置页说明原因。
-- 验收：单测；显式选线优先于该规则。
-- 证据：
+- [-] 按负责人于 2026-11-02 的决定不启用；依据是本决定，不是 A5-01 已测出 120 秒结论。
+- 原条件：仅当 A5-01 判定 120 秒是总时长上限时实施；当前 A5-01 保持 `[-]`，120 秒语义未定案，负责人已明确决定跳过本项。
+- 原修改要求（本项跳过，不执行）：`resolver` 第 6 步：请求 `stream=true` 且用户未显式固定线路时，首选 `apac`。设置页说明原因。
+- 原验收要求（本项跳过，未运行）：单测；显式选线优先于该规则。
+- 证据：负责人 2026-11-02 明确决定 `main`、`global` 流式总时长为 `600s`（未实测），C4-05 不启用并标 `[-]`；仅记录决定，未实现该首选线路规则、未运行其单测，不声称 CI 验证了 120 秒语义。见 `docs/aicli-evidence/A5-01-owner-decision.txt`。
 
 ### C5-GATE 真实客户端验收（方案 PoC A）`[需 H-01、H-02]`
 - [ ] 完成
@@ -953,7 +955,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| A5-01 | 负责人明确决定不再测 180 秒持续输出语义。 | 已保留全部线上探测和失败结果；按负责人决定跳过该语义判定，不声称得出 120 秒结论，不修改线路总时长。 | 本轮继续实现不依赖该未定结论的账号能力核对；该决定属于清单验收偏差。 |
+| A5-01 / C4-05 | 负责人明确决定不再测 180 秒持续输出语义；120 秒语义未实测定案。 | 保留历史探测和失败结果；负责人于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），并决定不启用 C4-05。第 0.4 节已更新，两项均为 `[-]`。 | 当前采用值和是否启用 C4-05 均已由负责人决定，无待决事项；不得把采用值或跳过当成 120 秒实测结论。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
 | A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过现有路由用例，未触及线上账号或数据库。 | 额度问题已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，但不代表下行列出的旧测试验收缺口已解决。 |
 | A6-03（验收缺口） | A6-04 复核时发现 `test_token_routing.py` 未保存并比较 T1/T2 的 quota，因此未断言约 1:2 比例；其 `login()` 直接使用登录响应的短期凭证，也未生成系统访问令牌。 | 静态复核现有测试和 rc.34 认证流程；旧 CI 只能证明现有断言通过。已撤回本项 `[x]`，改为待补验；本轮只做 A6-04，未顺手修改该测试。 | 后续单独补齐系统访问令牌准备和 quota 比例断言，并按同一项提交、运行 CI、补充证据后才能重新勾选；不需要负责人提供线上凭证或修改线上额度。 |
@@ -965,22 +967,22 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 |---|---|---|---|
 | A5-01 | 第 2 节只允许方案 3.3 所列账户接口，未包括方案 3.2 中读取现有 Token 所需的 GET /api/token/ 和 POST /api/token/batch/keys。 | 经负责人明确授权，将这两个接口补充到第 2 节，仅允许读取测试账号已有 Token；完整流式探测已使用它们读取现有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。 | 系统访问令牌不能调用 /v1 模型接口；A5-01 流式探测需要安全读取已有 sk- Token，不能把系统访问令牌误用为模型密钥。 |
 | A5-01 | 本机线上探测，不在 CI 运行；原 TLS 路径在握手阶段被重置。 | 仓库外安装自写按进程启用的 `aicli-direct`，仅对 `api.aicli.qzz.io`、`aicli.qzz.io` 的首个 ClientHello 拆 TLS record，保留原握手字节、SNI、证书及主机名校验，清除该子进程代理环境变量。隔离 HOME 复验 60/60 及拒绝对照均通过；工具和源码未加入仓库、工作流或产品。 |
-| A5-01 | 清单要求用持续输出超过 180 秒判定 120 秒语义。 | 负责人于 2026-11-01 明确决定不再执行该测量；A5-01 以已有直连、鉴权、预算、CI 和失败结果作为记录，跳过语义结论，不回填超时。 | 当前继续后续只读账号能力核对；不得把跳过当成 120 秒结论。 |
+| A5-01 / C4-05 | 清单要求通过超过 180 秒持续输出来判定 120 秒语义，再决定流式总时长和 C4-05。 | 负责人于 2026-11-01 决定跳过该测量；于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），C4-05 不启用。第 0.4 节已更新；A5-01 与 C4-05 均为 `[-]`，历史测量证据保留。 | 按负责人明确决定采用参数和跳过条件项，不将决定伪装成实测，不声称得出 120 秒语义结论。 |
 | A5-02 | 清单验收要求按 `/api/pricing` 的 `enable_groups` 与账号可用分组取交集，并在 `auto` 缺失或上限不足时交 H-04。 | 实际响应以 `data` 字段承载分组，报告统计 69 个模型；复测 `auto_available=true`、`max_count=15`、最大交集分组数为 3。 | 只记录实际响应形状，不改变接口或数据结构；复测结果通过验收。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-04 实现 CI 通过提交为 cf9147a5adf786b9ab5d88ed275f009ef8c110ed（Actions run 41369181694）。
-完成/阻塞/跳过：7 / 0 / 1（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-04；A6-03 复核发现旧验收缺口，已撤回完成标记，待单独补验；A5-01 按负责人决定跳过 180 秒语义测量；其余项目未开始，不冒充已验证或已跳过）。
+完成/阻塞/跳过：7 / 0 / 2（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-04；A6-03 复核发现旧验收缺口，已撤回完成标记，待单独补验；A5-01 按负责人决定跳过 180 秒语义测量，C4-05 按负责人 2026-11-02 的决定不启用；其余项目未开始，不冒充已验证或已跳过）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最终实现提交 CI success，4443 / 3415；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，不回填线路总时长。A6-03 待补齐 quota 比例与系统访问令牌测试；A6-05 及之后的任务尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A6-03 待补齐 quota 比例与系统访问令牌测试；A6-05 及之后的任务除 C4-05 已明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
-A5-01 的 120 秒结论及采用的超时：按负责人决定不定案；不回填第 0.4 节的流式总时长，也不决定 C4-05。
+A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：未测试。
 需要负责人提供的事项：A6-04 无待决事项，已通过 CI 验收；A6-03 的测试缺口需要后续单独修复，不需要线上凭证或额度操作。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
