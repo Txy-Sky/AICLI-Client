@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CC Switch",
-  "version": "4.0.21",
-  "identifier": "com.ccswitch.desktop",
+  "productName": "AICLI Client",
+  "version": "0.1.0",
+  "identifier": "com.aicliapi.com",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",

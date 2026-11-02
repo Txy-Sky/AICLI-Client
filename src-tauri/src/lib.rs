@@ -528,7 +528,7 @@ pub fn run() {
             app_store::refresh_app_config_dir_override(app.handle());
             panic_hook::init_app_config_dir(crate::config::get_app_config_dir());
 
-            // 初始化日志（输出到 <app_config_dir>/logs/cc-switch.log）
+            // 初始化日志（输出到 <app_config_dir>/logs/aicli-client.log）
             {
                 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
@@ -553,7 +553,7 @@ pub fn run() {
                             Target::new(TargetKind::Stdout),
                             Target::new(TargetKind::Folder {
                                 path: log_dir,
-                                file_name: Some("cc-switch".into()),
+                                file_name: Some("aicli-client".into()),
                             }),
                         ])
                         // KeepSome(4) 保留 4 个轮转归档，加上当前文件最多约 100 MiB。

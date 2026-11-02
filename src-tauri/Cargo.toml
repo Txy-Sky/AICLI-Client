@@ -1,10 +1,10 @@
 [package]
-name = "cc-switch"
-version = "4.0.21"
-description = "All-in-One Assistant for Claude Code, Codex & Gemini CLI"
-authors = ["Jason Young"]
+name = "aicli-client"
+version = "0.1.0"
+description = "AICLI Client desktop application"
+authors = ["Txy-Sky"]
 license = "MIT"
-repository = "https://github.com/farion1231/cc-switch"
+repository = "https://github.com/Txy-Sky/AICLI-Client"
 edition = "2021"
 rust-version = "1.85.0"
 

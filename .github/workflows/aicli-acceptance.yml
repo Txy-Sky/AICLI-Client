@@ -281,6 +281,21 @@ jobs:
           cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-02-desktop.txt"
           printf 'B-02: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-02.txt"
 
+      - name: B-03 verify product identity metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-cargo.txt"
+          pnpm typecheck 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-typecheck.txt"
+          if grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json; then
+            echo 'B-03: legacy product identity remains'
+            exit 1
+          fi
+          test "$(grep -n 'AICLI Client' src-tauri/tauri.conf.json src-tauri/tauri.windows.conf.json | wc -l)" -gt 0
+          test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
+          test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
+          printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
