@@ -76,15 +76,6 @@ jobs:
         run: |
           set -euo pipefail
           project="aicli-a6-${GITHUB_RUN_ID}"
-          cleanup() {
-            if [ "${A6_RESULT:-0}" -ne 0 ]; then
-              docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml ps || true
-              docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml logs --no-color new-api mysql || true
-            fi
-            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
-          }
-          trap cleanup EXIT
-          A6_RESULT=1
           docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > "$RUNNER_TEMP/aicli-status.json.tmp"; then
@@ -112,7 +103,69 @@ jobs:
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 tests/aicli-testenv/seed.py
           printf 'A6-01: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/A6-01.txt"
-          A6_RESULT=0
+
+      - name: A6-01 sanitized startup logs and container start times
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          compose = ["docker", "compose", "-p", "aicli-a6-" + os.environ["GITHUB_RUN_ID"],
+                     "-f", "tests/aicli-testenv/docker-compose.yml"]
+
+          def redact(text):
+              text = re.sub(r"(?i)\bsk-[^\s\"'<>;,]+", "[REDACTED]", text)
+              text = re.sub(r"(?i)\bBearer\s+[^\s\"'<>;,]+", "[REDACTED]", text)
+              text = re.sub(
+                  r"(?i)([\"']?(?:access[_-]?token|refresh[_-]?token|proof[_-]?token|"
+                  r"authorization|password|api[_-]?key|secret|token|key)[\"']?\s*[:=]\s*)"
+                  r"(?:\"[^\"]*\"|'[^']*'|[^\s,;}]+)",
+                  r"\1[REDACTED]", text,
+              )
+              # Also hide unlabelled opaque credentials; startup timestamps and
+              # readiness messages remain readable. Raw output never hits disk.
+              return re.sub(r"[A-Za-z0-9_+/=-]{20,}", "[REDACTED]", text)
+
+          canary = "opaque" * 6
+          for sample in ("sk-" + canary, "Bearer " + canary,
+                         '"access_token":"' + canary + '"'):
+              assert canary not in redact(sample), "startup log redaction failed"
+
+          def capture(command):
+              return subprocess.run(command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True)
+
+          logs = capture(compose + ["logs", "--timestamps", "mysql", "new-api"])
+          print(redact(logs.stdout), flush=True)
+          print("A6-01 startup connection_refused_count=" +
+                str(logs.stdout.lower().count("connection refused")), flush=True)
+          results = [logs.returncode]
+          for service in ("mysql", "new-api"):
+              containers = capture(compose + ["ps", "--all", "--quiet", service])
+              results.append(containers.returncode)
+              ids = containers.stdout.split()
+              if containers.returncode != 0 or not ids:
+                  print("A6-01 StartedAt unavailable for " + service, flush=True)
+                  results.append(1)
+                  continue
+              inspected = capture(["docker", "inspect", "--format",
+                                   "{{.State.StartedAt}}", *ids])
+              print("A6-01 " + service + " StartedAt=" + redact(inspected.stdout.strip()), flush=True)
+              results.append(inspected.returncode)
+          raise SystemExit(1 if any(results) else 0)
+          PY
+
+      - name: A6-01 remove the isolated compose environment
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="aicli-a6-${GITHUB_RUN_ID}"
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
 
       - name: A6-02 mock upstream protocol and injection tests
         shell: bash
