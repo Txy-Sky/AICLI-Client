@@ -93,6 +93,7 @@ def test_auto_group_order_and_fallback():
             keys[name] = key
 
         billed = {}
+        billed_usage = {}
         for name, model, group in (
             ("aicli:a6-t1", "mock-model-a", "g-cheap"),
             ("aicli:a6-t2", "mock-model-a", "g-mid"),
@@ -106,10 +107,20 @@ def test_auto_group_order_and_fallback():
             quota = float(row.get("quota", 0))
             require(math.isfinite(quota) and quota > 0, "missing positive billed quota")
             billed[name] = quota
+            prompt_tokens = row.get("prompt_tokens")
+            completion_tokens = row.get("completion_tokens")
+            require(type(prompt_tokens) is int and prompt_tokens > 0,
+                    "missing positive billed prompt token count")
+            require(type(completion_tokens) is int and completion_tokens >= 0,
+                    "missing billed completion token count")
+            billed_usage[name] = (prompt_tokens, completion_tokens)
             print("A6-03 " + json.dumps({
                 "token_name": name, "model": model, "request_id": request_id,
                 "group": row["group"], "quota": quota,
+                "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
             }), flush=True)
+        require(billed_usage["aicli:a6-t1"] == billed_usage["aicli:a6-t2"],
+                "quota comparison requires identical prompt and completion usage")
         ratio = billed["aicli:a6-t2"] / billed["aicli:a6-t1"]
         print(f"A6-03 quota_ratio_mid_over_cheap={ratio:.6f}", flush=True)
         require(math.isclose(ratio, 2.0, rel_tol=0.02), "quota ratio is not approximately 1:2")
