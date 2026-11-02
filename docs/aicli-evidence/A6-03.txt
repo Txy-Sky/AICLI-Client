@@ -1,0 +1,46 @@
+A6-03 interim acceptance evidence — NOT PASSED
+
+Implementation: 16d39c759860efd4b406b1dea453828e77bf703d
+Workflow: AICLI Acceptance
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41375253825
+Attempt 1 job: 125053974284 — failure, A6-01 environment startup
+Attempt 2 job: 125055473701 — failure, A6-01 environment startup
+
+Actual runner commands before the failure:
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+  curl --fail --silent --show-error http://127.0.0.1:13000/api/status
+The status readiness loop exhausted; the status JSON file did not exist.
+The new-api process exited with MySQL TCP connection refused.
+A6-03, A6-04 and the A3-01 baseline were skipped in both attempts.
+No quota numbers or routing success are claimed for this implementation.
+
+Attempt 2 actual sequence (2026-11-02 UTC):
+  02:05:45 MySQL temporary server ready, socket active, port 0.
+  02:05:47 Compose reported MySQL Healthy; new-api started.
+  02:05:47 new-api FATAL: dial tcp 172.18.0.3:3306: connect: connection refused.
+  02:05:48 MySQL temporary server stopped; initialization completed.
+  02:05:49 MySQL final server ready, port 3306.
+  02:07:47 A6-01 failed with missing aicli-status.json after status probes.
+
+Observed configuration:
+  mysqladmin ping -h localhost -paicli_mysql --silent
+This socket-based healthcheck can accept the temporary initialization server.
+Proposed minimal repair (not applied pending owner scope approval):
+  mysqladmin ping --protocol=TCP -h 127.0.0.1 -P 3306 -paicli_mysql --silent
+This is a readiness ping only; no SQL or direct database data access.
+
+Actual local read-only/syntax checks:
+  Python ast.parse of test_token_routing.py — passed before implementation commit.
+  git diff --check — passed before implementation commit.
+  git pull --rebase origin feat/aicli-client-v1 — Already up to date.
+  gh run view 41375253825 --job 125055473701 --log-failed — retrieved failed log.
+  gh api repos/Txy-Sky/AICLI-Client/actions/runs/41375253825/attempts/1
+  gh api repos/Txy-Sky/AICLI-Client/actions/runs/41375253825/attempts/2
+  Both API responses: status=completed, conclusion=failure, head_sha=16d39c75... .
+
+Pending: repair environment readiness if authorized, run complete CI on final
+implementation, record actual PAT marker, routing groups, quotas, quota ratio,
+pytest totals and full baseline before marking A6-03 [x].
+All tests remain in cloud CI with isolated HOME. No local build/test or online
+account operation was performed in this continuation.
