@@ -1,3 +1,35 @@
+A-GATE — PASSED after explicit owner authorization (2026-11-02)
+
+Owner response: 确认，开始。
+Authorized change: A5-01 may retain its already approved [-] as the only new
+A-GATE exception. Other gate conditions are unchanged. No streaming timing
+measurement is claimed. Original blocked evidence is preserved below.
+Document baseline: c9e9d666. Latest tested implementation: b16f7e51.
+
+Actual local read-only verification command:
+python3 - <<'PY_CHECK'
+import pathlib,re
+s=pathlib.Path('docs/aicli-client-implementation-checklist-zh.md').read_text()
+items=dict(re.findall(r'^#{3,4} (A\d+-\d+) [^\n]*\n- \[([^\]])\]',s,re.M))
+expected={'A1-01','A2-01','A3-01','A5-01','A5-02','A6-01','A6-02','A6-03','A6-04','A6-05'}
+assert set(items)==expected
+for item,status in items.items():
+    assert status==('-' if item=='A5-01' else 'x'), (item,status)
+    print(f'{item}: [{status}]')
+print('A-GATE: PASS, only owner-authorized A5-01 skip excepted')
+PY_CHECK
+Result: exit 0; nine [x], A5-01 [-], exact expected item set present.
+
+Actual CI verification command:
+  env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY gh run view 41390700661 -R Txy-Sky/AICLI-Client --json headSha,status,conclusion
+Result: completed / success, headSha=b16f7e5136c130085a7db3369983edb59be22da4.
+Job: Checklist acceptance (Linux).
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
+This documentation-only gate change requires no new build. The implementation
+CI remains the one on the final A6-05 SHA. B-01 may now begin.
+
+--- Historical gate blocker (closed by the explicit decision above) ---
+
 A-GATE — BLOCKED pending an owner decision on the gate condition
 
 Checklist revision checked: 5828a5ec (A6-05 evidence commit).

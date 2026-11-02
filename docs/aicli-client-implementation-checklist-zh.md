@@ -264,9 +264,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：b16f7e51 | job `Checklist acceptance (Linux)`，step `A6-05 affinity rules and streaming retry observations`：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 AICLI_TESTENV_PROJECT="$project" PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_affinity_retry.py`; `bash scripts/aicli-check.sh` | 完整 CI success，5 passed in 5.52s；无请求头前后默认规则快照相同；两个 profile 各 5 次固定在渠道 4、5，缓存隔离；RetryTimes 0/2 × 两类流错误的四组均无重复、实际上游均 1 次，截断场景未恢复完整内容，不能据此断言流中重试安全；H-08 仍由负责人决定。前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。详见 `docs/aicli-evidence/A6-05.txt`，保留两次夹具准备失败记录 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
 
 ### A-GATE 阶段 A 门禁
-- [!] 待负责人确认 A5-01 已授权跳过能否作为本门禁例外；未进入 B 阶段。
-- 验收：A1～A6 全部 `[x]`（A5-01、A5-02 可因 H-01 缺失为 `[!]`，但必须在 C5-GATE 之前解决）。
-- 证据：5828a5ec | 本机只读 `python3` 脚本逐项提取 A1～A6 的复选框并检查全为 `[x]`（完整实际命令见 `docs/aicli-evidence/A-GATE.txt`）；最近实现 b16f7e51 的 job `Checklist acceptance (Linux)` 全部成功 | 门禁检查 exit 1：9 项 `[x]`、A5-01 为负责人已决定的 `[-]`，与原门禁字面条件不符；未自行修改门禁或进入 B。待负责人确认是否仅增加 A5-01 已授权跳过这一例外 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
+- [x] 完成（负责人于 2026-11-02 明确确认 A5-01 已授权跳过的门禁例外）。
+- 验收：A1～A6 全部 `[x]`，唯一新增例外：A5-01 可按负责人已确认的跳过决定保持 `[-]`（负责人于 2026-11-02 明确批准；其他条件不变）。原 H-01 例外保留：A5-01、A5-02 可因 H-01 缺失为 `[!]`，但必须在 C5-GATE 之前解决。
+- 证据：c9e9d666（门禁授权前文档基准）/ b16f7e51（最近完整实现验收） | 本机只读 `python3` 核对完整 A1～A6 项目集合、9 项 `[x]` 与唯一 A5-01 `[-]`；`gh run view 41390700661 -R Txy-Sky/AICLI-Client --json headSha,status,conclusion`（实际命令和结果见 `docs/aicli-evidence/A-GATE.txt`） | 按负责人明确批准的例外核验 exit 0；最近完整 CI success；A5-01 仍为跳过，未冒充实测；原阻塞已关闭，允许进入 B | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
 
 ---
 
@@ -963,7 +963,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A6-03（验收缺口） | 旧测试使用登录短期凭证且未比较 T1/T2 quota，旧 CI 不足以证明完整验收。 | A6-01 修正通过两次 CI 后，独立实现 `53567f1c` 的 run 41383467961 完整成功；真实系统访问令牌、request_id 精确对应、相同 192/3 token 用量及 quota 98/195（比例 1:1.989796）全部通过，T3 命中 g-pro。 | 已关闭；本项已以自己的新提交和 CI 重新验收并勾选，未沿用 c66defc2。 |
 | A6-01（前置环境） / A6-03 | run 41375253825 attempt 1、2 曾在 A6-01 失败：socket 健康检查提前通过，new-api 连接 TCP 3306 被拒绝。 | 经负责人授权，健康检查改为指定的显式 TCP 命令；最终修正版本 `75f6e4d7` 的 run 41379889841 attempt 1、2 均完整成功。两次均核对 MySQL port 3306 就绪早于 new-api StartedAt，new-api 无 connection refused；日志过滤后仅输出到 job 日志并完成保密抽查，未上传或保存容器日志。证据仅记时间点与链接，旧失败记录保留。 | 已关闭环境阻塞；未增加 sleep、自动重启或重试，未放宽断言。A6-03 已另用独立提交 53567f1c 和 CI run 41383467961 通过重新验收。 |
 | A6-04 | 原验收与系统访问令牌接口禁令的适用范围存在冲突。 | 负责人于 2026-11-02 明确本地测试授权范围；实现 `cf9147a5` 的 CI run 41369181694 成功。POST `/api/user/token` 和 DELETE `/api/user/self` 均 HTTP 403、`success:false`、message=`安全验证状态无效`、code=`SECURITY_PROOF_INVALID`；调用后原令牌仍可访问账户，管理 API 确认用户仍存在。完整无密钥记录见 `docs/aicli-evidence/A6-04.txt`。 | 已解除并验收通过；未出现接口意外成功，无需负责人再决定。 |
-| A-GATE | 原门禁要求 A1～A6 全部 `[x]`，但负责人已明确 A5-01 保持 `[-]`；原文只列 H-01 缺失的 `[!]` 例外，没有跳过例外。 | A6-05 最终实现 b16f7e51 的 CI 已全部成功并补证；只读门禁检查确认其余 9 项 `[x]`、A5-01 `[-]`，exit 1。完整命令和结果见 `docs/aicli-evidence/A-GATE.txt`。 | 按第 0.3 节，请负责人确认是否仅为 A-GATE 增加“A5-01 可按已确认的跳过决定保持 [-]”这一例外，其他条件不变。此前已提问，尚无明确答复；不把一般的继续指令当作门禁变更授权，未进入 B。 |
+| A-GATE | 原门禁要求 A1～A6 全部 `[x]`，但负责人已明确 A5-01 保持 `[-]`；原文只列 H-01 缺失的 `[!]` 例外，没有跳过例外。 | A6-05 最终实现 b16f7e51 的 CI 已全部成功并补证；只读门禁检查确认其余 9 项 `[x]`、A5-01 `[-]`，exit 1。完整命令和结果见 `docs/aicli-evidence/A-GATE.txt`。 | 已关闭：负责人于 2026-11-02 明确回复“确认，开始”，批准上述唯一例外；门禁原有其他条件不变，按新条件只读核验通过，允许进入 B。原 exit 1 历史证据保留。 |
 
 ## 13. 偏差记录
 
@@ -976,21 +976,23 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A6-01 | 负责人要求健康检查和成功日志取证放在同一修正提交。 | 健康检查 `21aae9ea` 已推送后才补充授权取证，因此保留已公开历史并追加同编号修正 `75f6e4d7`；最终版本同时包含二者，连续两次验收均只使用最终 SHA。旧 21aae9ea 的未完运行取消，未计作通过。日志取证为独立 always / continue-on-error 步骤，清理移到其后，原启动、等待和验收代码保持一致。 | 遵守禁止强推和已公开提交不得改写的规则；本次仅修复获授权的测试环境健康检查并补充取证。 |
 | A6-05 | 清单/方案使用 `KeySources`、`SkipRetryOnFailure`、`IncludeUsingGroup`、`IncludeRuleName` 等 Go 字段名。 | HTTP 配置使用 rc.34 对应的 `key_sources`、`skip_retry_on_failure`、`include_using_group`、`include_rule_name`；通过 `channel_affinity_setting.rules` 更新规则，并保留原规则列表。新增渠道后用正常优先级更新 HTTP 接口刷新路由缓存；两次准备失败和最终通过均在证据中保留。 | 字段定位映射及测试夹具准备，不改变服务端接口、产品行为或验收要求；不增加等待、重启或工作流重试。 |
 
+| A-GATE | 原门禁未列出 A5-01 已授权跳过的例外。 | 负责人于 2026-11-02 明确确认仅允许 A5-01 按既有决定保持 `[-]`，其他门禁条件不变；更新门禁后重新核验并通过，保留原阻塞证据。 | 按第 0.3 节取得明确授权后变更门禁；不把跳过写成实测通过。 |
+
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 A6-05 最终实现为 b16f7e5136c130085a7db3369983edb59be22da4（Actions run 41390700661，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
-完成/阻塞/跳过：9 / 1 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01、A6-02、A6-03、A6-04、A6-05；阻塞为 A-GATE，待负责人确认 A5-01 已授权跳过的门禁例外。A6-01 启动竞争与 A6-03 旧验收缺口均已关闭；跳过为 A5-01、C4-05，未进入 B）。
+完成/阻塞/跳过：10 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；下一项 B-01 尚待实现验收）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 完整 CI 也为相同数量；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[!] A-GATE，待负责人确认 A5-01 已授权跳过的门禁例外；[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A6-05 已完成；B 及之后除 C4-05 明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-01 及之后除 C4-05 明确跳过外尚未完成。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
-需要负责人提供的事项：当前仅 A-GATE 需要明确决定是否允许 A5-01 已授权的 [-] 作为门禁例外（其他条件不变）。A6-01、A6-03、A6-04、A6-05 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：A-GATE 的唯一例外已明确批准并核验通过，无待决事项，下一项 B-01。A6-01、A6-03、A6-04、A6-05 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
