@@ -1,3 +1,41 @@
+A6-03 independent acceptance — PASSED
+
+Implementation: 53567f1c4468a71efe93fe35d67914da8015c4ab
+Job: Checklist acceptance (Linux), job ID 125079078146
+Step: A6-03 managed token routing integration test
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41383467961
+Result: full CI success; routing integration 1 passed in 0.63s.
+
+Actual runner commands (isolated HOME, local disposable containers only):
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+  python3 tests/aicli-testenv/seed.py
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api
+  PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_token_routing.py
+  bash scripts/aicli-check.sh
+The seed/config refresh restart was already present before A6-01's correction;
+no additional startup wait/restart/retry was added to hide the readiness race.
+
+Observed acceptance facts, not secret-bearing response dumps:
+- credential_kind=system_access_token. A local scoped password Security Proof
+  bootstraps the real PAT; the login JWT is not the acceptance credential.
+- T1: mock-model-a -> g-cheap; quota=98; prompt_tokens=192; completion_tokens=3.
+- T2: mock-model-a -> g-mid; quota=195; prompt_tokens=192; completion_tokens=3.
+- T3: mock-model-b -> g-pro; quota=390; prompt_tokens=192; completion_tokens=3.
+- Equal T1/T2 prompt/completion usage asserted before the quota comparison.
+- T2/T1=1.989796, approximately 2 with rel_tol=0.02. Integer billing rounding
+  explains the non-exact 2.0; the tolerance was not changed to obtain a pass.
+- All three response X-Oneapi-Request-Id values identified exactly one matching
+  log row through GET /api/log/self?request_id=, with the expected group.
+- Created local model tokens were deleted through HTTP API during cleanup.
+- Frontend: 266 files / 3415 passed. Rust: 4443 passed / 10 pre-existing skipped.
+  No assertion was removed, relaxed or ignored.
+
+This is a new A6-03 implementation commit and CI after A6-01 correction, as
+requested. Neither c66defc2's old result nor A6-01's two runs substitutes for it.
+No production API, database connection or online credential was used.
+
+--- Historical blocked attempt (preserved; no longer the current status) ---
+
 A6-03 interim acceptance evidence — NOT PASSED
 
 Implementation: 16d39c759860efd4b406b1dea453828e77bf703d
