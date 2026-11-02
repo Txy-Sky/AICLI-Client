@@ -39,7 +39,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -paicli_mysql --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -P 3306 --protocol=tcp -paicli_mysql --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
