@@ -1,0 +1,42 @@
+A-GATE — BLOCKED pending an owner decision on the gate condition
+
+Checklist revision checked: 5828a5ec (A6-05 evidence commit).
+All executable A1-A6 items except the authorized A5-01 skip have evidence.
+Latest full CI on A6-05 implementation b16f7e51:
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
+Job: Checklist acceptance (Linux), conclusion=success.
+
+Actual local read-only gate check:
+python3 - <<'PY'
+import pathlib, re
+text = pathlib.Path('docs/aicli-client-implementation-checklist-zh.md').read_text()
+items = re.findall(r'^#{3,4} (A\d+-\d+) [^\n]*\n- \[([^\]])\]', text, re.M)
+for item, status in items:
+    print(f'{item}: [{status}]')
+passed = all(status == 'x' for _, status in items)
+print('A-GATE all A1-A6 [x]:', passed)
+raise SystemExit(0 if passed else 1)
+PY
+
+Result (exit 1, an unmet document condition, not a CI test failure):
+A1-01: [x]
+A2-01: [x]
+A3-01: [x]
+A5-01: [-]
+A5-02: [x]
+A6-01: [x]
+A6-02: [x]
+A6-03: [x]
+A6-04: [x]
+A6-05: [x]
+A-GATE all A1-A6 [x]: False
+
+The owner explicitly authorized keeping A5-01 [-]. The current A-GATE text
+requires all A1-A6 [x], with only a missing-H-01 blocked exception. It contains
+no exception for an authorized skip. Under checklist 0.3, changing a gate's
+condition requires an owner decision. The earlier explicit question remains
+unanswered; a general instruction to continue is not counted as that answer.
+
+Required decision: permit A5-01's previously authorized [-] as an A-GATE
+exception, leaving all other conditions unchanged, or keep the existing gate.
+No gate condition was changed and no B-stage work was started.
