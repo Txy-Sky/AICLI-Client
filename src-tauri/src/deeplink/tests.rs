@@ -62,7 +62,7 @@ impl Drop for TestHomeGuard {
 
 #[test]
 fn test_parse_valid_claude_deeplink() {
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test%20Provider&homepage=https%3A%2F%2Fexample.com&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test-123&icon=claude";
+    let url = "aicliapi://v1/import?resource=provider&app=claude&name=Test%20Provider&homepage=https%3A%2F%2Fexample.com&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test-123&icon=claude";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -81,7 +81,7 @@ fn test_parse_valid_claude_deeplink() {
 
 #[test]
 fn test_parse_deeplink_drops_icon_that_is_not_a_builtin_name() {
-    let base = "ccswitch://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test";
+    let base = "aicliapi://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test";
 
     // 大小写和空白照旧归一
     let request = parse_deeplink_url(&format!("{base}&icon=%20DeepSeek%20")).unwrap();
@@ -100,7 +100,7 @@ fn test_parse_deeplink_drops_icon_that_is_not_a_builtin_name() {
 
 #[test]
 fn test_parse_deeplink_keeps_only_allowed_icon_urls() {
-    let base = "ccswitch://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test&icon=deepseek";
+    let base = "aicliapi://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test&icon=deepseek";
 
     let request = parse_deeplink_url(&format!(
         "{base}&iconUrl=https%3A%2F%2Fcdn.example.com%2Flogo.svg"
@@ -129,7 +129,7 @@ fn test_parse_deeplink_keeps_only_allowed_icon_urls() {
 
 #[test]
 fn test_parse_deeplink_with_notes() {
-    let url = "ccswitch://v1/import?resource=provider&app=codex&name=Codex&homepage=https%3A%2F%2Fcodex.com&endpoint=https%3A%2F%2Fapi.codex.com&apiKey=key123&notes=Test%20notes";
+    let url = "aicliapi://v1/import?resource=provider&app=codex&name=Codex&homepage=https%3A%2F%2Fcodex.com&endpoint=https%3A%2F%2Fapi.codex.com&apiKey=key123&notes=Test%20notes";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -138,7 +138,7 @@ fn test_parse_deeplink_with_notes() {
 
 #[test]
 fn pi_provider_link_without_a_model_is_rejected_up_front() {
-    let url = "ccswitch://v1/import?resource=provider&app=pi&name=Pi&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test";
+    let url = "aicliapi://v1/import?resource=provider&app=pi&name=Pi&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test";
     let err = parse_deeplink_url(url).expect_err("a Pi node without models is unusable");
     assert!(err.to_string().contains("model"), "{err}");
 }
@@ -147,7 +147,7 @@ fn pi_provider_link_without_a_model_is_rejected_up_front() {
 fn test_parse_grokbuild_provider() {
     use super::provider::build_provider_from_request;
 
-    let url = "ccswitch://v1/import?resource=provider&app=grokbuild&name=Grok%20Relay&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=secret&model=grok-4.5";
+    let url = "aicliapi://v1/import?resource=provider&app=grokbuild&name=Grok%20Relay&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=secret&model=grok-4.5";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -187,7 +187,7 @@ fn test_parse_invalid_scheme() {
 
 #[test]
 fn test_parse_unsupported_version() {
-    let url = "ccswitch://v2/import?resource=provider&app=claude&name=Test";
+    let url = "aicliapi://v2/import?resource=provider&app=claude&name=Test";
 
     let result = parse_deeplink_url(url);
     assert!(result.is_err());
@@ -200,7 +200,7 @@ fn test_parse_unsupported_version() {
 #[test]
 fn test_parse_missing_required_field() {
     // Name is still required even in v3.8+ (only homepage/endpoint/apiKey are optional)
-    let url = "ccswitch://v1/import?resource=provider&app=claude";
+    let url = "aicliapi://v1/import?resource=provider&app=claude";
 
     let result = parse_deeplink_url(url);
     assert!(result.is_err());
@@ -213,7 +213,7 @@ fn test_parse_missing_required_field() {
 /// configUrl 没实现，必须在解析阶段就报错：放行的话，用户点了确认导入才失败
 #[test]
 fn test_parse_rejects_config_url_up_front() {
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test&configUrl=https%3A%2F%2Fexample.com%2Fc.json";
+    let url = "aicliapi://v1/import?resource=provider&app=claude&name=Test&configUrl=https%3A%2F%2Fexample.com%2Fc.json";
 
     let err = parse_deeplink_url(url).unwrap_err();
     assert!(err.to_string().contains("configUrl"), "{err}");
@@ -223,7 +223,7 @@ fn test_parse_rejects_config_url_up_front() {
 #[test]
 fn test_parse_mcp_deeplink_accepts_pi_mcode_and_omp() {
     let config = BASE64_URL_SAFE_NO_PAD.encode(r#"{"mcpServers":{"fetch":{"command":"uvx"}}}"#);
-    let url = format!("ccswitch://v1/import?resource=mcp&apps=claude,pi,mcode,omp&config={config}");
+    let url = format!("aicliapi://v1/import?resource=mcp&apps=claude,pi,mcode,omp&config={config}");
 
     let request = parse_deeplink_url(&url).expect("pi, mcode and ohmpi are valid MCP targets");
     let apps = parse_mcp_apps(request.apps.as_deref().unwrap()).unwrap();
@@ -235,7 +235,7 @@ fn test_parse_mcp_deeplink_accepts_pi_mcode_and_omp() {
 fn test_parse_mcp_deeplink_accepts_dsh() {
     let config = BASE64_URL_SAFE_NO_PAD.encode(r#"{"mcpServers":{"fetch":{"command":"uvx"}}}"#);
     for apps in ["dsh", "claude,dsh"] {
-        let url = format!("ccswitch://v1/import?resource=mcp&apps={apps}&config={config}");
+        let url = format!("aicliapi://v1/import?resource=mcp&apps={apps}&config={config}");
         let request = parse_deeplink_url(&url).expect("dsh is a valid MCP target");
         assert!(
             parse_mcp_apps(request.apps.as_deref().unwrap())
@@ -250,7 +250,7 @@ fn test_parse_mcp_deeplink_accepts_dsh() {
 fn test_parse_provider_deeplink_refuses_omp_with_guidance() {
     for app in ["omp", "ohmypi", "oh-my-pi", "oh_my_pi"] {
         let url =
-            format!("ccswitch://v1/import?resource=provider&app={app}&name=Test&endpoint=https%3A%2F%2Fapi.example.com");
+            format!("aicliapi://v1/import?resource=provider&app={app}&name=Test&endpoint=https%3A%2F%2Fapi.example.com");
         let err = parse_deeplink_url(&url).unwrap_err().to_string();
         assert!(
             err.contains("Oh My Pi provider page"),
@@ -261,7 +261,7 @@ fn test_parse_provider_deeplink_refuses_omp_with_guidance() {
 
 #[test]
 fn test_parse_prompt_deeplink_accepts_mcode() {
-    let url = "ccswitch://v1/import?resource=prompt&app=mcode&name=Rules&content=IyBoaQ%3D%3D";
+    let url = "aicliapi://v1/import?resource=prompt&app=mcode&name=Rules&content=IyBoaQ%3D%3D";
 
     let request = parse_deeplink_url(url).expect("MiniMax Code has a prompt panel");
     assert_eq!(request.app.as_deref(), Some("mcode"));
@@ -279,7 +279,7 @@ fn test_pending_deeplink_survives_peek_and_clears_only_on_matching_ack() {
     let link = |name: &str| PendingDeepLink::Import {
         request: Box::new(
             parse_deeplink_url(&format!(
-                "ccswitch://v1/import?resource=provider&app=claude&name={name}"
+                "aicliapi://v1/import?resource=provider&app=claude&name={name}"
             ))
             .expect("valid link"),
         ),
@@ -1025,7 +1025,7 @@ fn test_build_claude_provider_without_config_unchanged() {
 #[serial_test::serial]
 fn test_import_prompt_allows_space_in_base64_content() {
     let _test_home = TestHomeGuard::new();
-    let url = "ccswitch://v1/import?resource=prompt&app=codex&name=PromptPlus&content=Pj4+";
+    let url = "aicliapi://v1/import?resource=prompt&app=codex&name=PromptPlus&content=Pj4+";
     let request = parse_deeplink_url(url).unwrap();
 
     // URL decoded content may have "+" become space
@@ -1073,7 +1073,7 @@ fn test_parse_prompt_deeplink() {
     let content = "Hello World";
     let content_b64 = BASE64_STANDARD.encode(content);
     let url = format!(
-        "ccswitch://v1/import?resource=prompt&app=claude&name=test&content={}&description=desc&enabled=true",
+        "aicliapi://v1/import?resource=prompt&app=claude&name=test&content={}&description=desc&enabled=true",
         content_b64
     );
 
@@ -1090,7 +1090,7 @@ fn test_parse_prompt_deeplink() {
 fn test_parse_grokbuild_prompt_deeplink() {
     let content_b64 = BASE64_STANDARD.encode("Grok instructions");
     let url = format!(
-        "ccswitch://v1/import?resource=prompt&app=grokbuild&name=test&content={content_b64}"
+        "aicliapi://v1/import?resource=prompt&app=grokbuild&name=test&content={content_b64}"
     );
 
     let request = parse_deeplink_url(&url).expect("parse Grok Build prompt deeplink");
@@ -1103,7 +1103,7 @@ fn test_parse_mcp_deeplink() {
     let config = r#"{"mcpServers":{"test":{"command":"echo"}}}"#;
     let config_b64 = BASE64_STANDARD.encode(config);
     let url = format!(
-        "ccswitch://v1/import?resource=mcp&apps=claude,codex&config={}&enabled=true",
+        "aicliapi://v1/import?resource=mcp&apps=claude,codex&config={}&enabled=true",
         config_b64
     );
 
@@ -1119,7 +1119,7 @@ fn test_parse_grokbuild_mcp_deeplink() {
     let config = r#"{"mcpServers":{"test":{"command":"echo"}}}"#;
     let config_b64 = BASE64_STANDARD.encode(config);
     let url = format!(
-        "ccswitch://v1/import?resource=mcp&apps=grokbuild&config={config_b64}&enabled=true"
+        "aicliapi://v1/import?resource=mcp&apps=grokbuild&config={config_b64}&enabled=true"
     );
 
     let request = parse_deeplink_url(&url).expect("parse Grok Build MCP deeplink");
@@ -1129,7 +1129,7 @@ fn test_parse_grokbuild_mcp_deeplink() {
 
 #[test]
 fn test_parse_skill_deeplink() {
-    let url = "ccswitch://v1/import?resource=skill&repo=owner/repo&directory=skills&branch=dev";
+    let url = "aicliapi://v1/import?resource=skill&repo=owner/repo&directory=skills&branch=dev";
     let request = parse_deeplink_url(url).unwrap();
 
     assert_eq!(request.resource, "skill");
@@ -1144,7 +1144,7 @@ fn test_parse_skill_deeplink() {
 
 #[test]
 fn test_parse_multiple_endpoints_comma_separated() {
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi1.example.com,https%3A%2F%2Fapi2.example.com,https%3A%2F%2Fapi3.example.com&apiKey=sk-test";
+    let url = "aicliapi://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi1.example.com,https%3A%2F%2Fapi2.example.com,https%3A%2F%2Fapi3.example.com&apiKey=sk-test";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -1159,7 +1159,7 @@ fn test_parse_multiple_endpoints_comma_separated() {
 #[test]
 fn test_parse_single_endpoint_backward_compatible() {
     // Old format with single endpoint should still work
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test";
+    let url = "aicliapi://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi.example.com&apiKey=sk-test";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -1171,7 +1171,7 @@ fn test_parse_single_endpoint_backward_compatible() {
 
 #[test]
 fn test_parse_endpoints_with_spaces_trimmed() {
-    let url = "ccswitch://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi1.example.com%20,%20https%3A%2F%2Fapi2.example.com&apiKey=sk-test";
+    let url = "aicliapi://v1/import?resource=provider&app=claude&name=Test&endpoint=https%3A%2F%2Fapi1.example.com%20,%20https%3A%2F%2Fapi2.example.com&apiKey=sk-test";
 
     let request = parse_deeplink_url(url).unwrap();
 
@@ -1629,7 +1629,7 @@ fn test_grok_link_config_rejects_credential_providers_and_local_files() {
 
 fn provider_link(app: &str, api_format: Option<&str>) -> String {
     let mut url = format!(
-        "ccswitch://v1/import?resource=provider&app={app}&name=Example&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test&model=example-model"
+        "aicliapi://v1/import?resource=provider&app={app}&name=Example&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&apiKey=sk-test&model=example-model"
     );
     if let Some(format) = api_format {
         url.push_str(&format!("&apiFormat={format}"));
@@ -1860,7 +1860,7 @@ fn test_dynamic_syntax_guard_also_covers_values_from_config_and_direct_requests(
     // config 里补来的 Key 在合并时就拒绝
     let config = BASE64_STANDARD.encode(r#"{"apiKey":"{file:~/.aws/credentials}"}"#);
     let url = format!(
-        "ccswitch://v1/import?resource=provider&app=opencode&name=Example&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&model=m&config={config}"
+        "aicliapi://v1/import?resource=provider&app=opencode&name=Example&endpoint=https%3A%2F%2Fapi.example.com%2Fv1&model=m&config={config}"
     );
     let request = parse_deeplink_url(&url).expect("URL params themselves are fine");
     assert!(parse_and_merge_config(&request).is_err());
@@ -2074,7 +2074,7 @@ fn agy_deeplink_provider_config_precedence_and_protocol() {
         "env": {"GEMINI_API_KEY": "fixture", "GOOGLE_GEMINI_BASE_URL": "https://relay.example", "GEMINI_MODEL": "env-model", "NODE_OPTIONS": "untrusted"},
         "config": {"model": {"name": "native-model"}, "unrelated": true}
     }).to_string());
-    let url = format!("ccswitch://v1/import?resource=provider&app=agy&name=Test&config={config}&apiFormat=gemini_native");
+    let url = format!("aicliapi://v1/import?resource=provider&app=agy&name=Test&config={config}&apiFormat=gemini_native");
     let request = parse_deeplink_url(&url).unwrap();
     let merged = parse_and_merge_config(&request).unwrap();
     assert_eq!(merged.model.as_deref(), Some("native-model"));
@@ -2100,7 +2100,7 @@ fn agy_deeplink_provider_config_precedence_and_protocol() {
     assert_eq!(merged.endpoint.as_deref(), Some("https://explicit.example"));
     for format in ["anthropic", "openai_chat", "openai_responses"] {
         assert!(parse_deeplink_url(&format!(
-            "ccswitch://v1/import?resource=provider&app=agy&name=Test&apiFormat={format}"
+            "aicliapi://v1/import?resource=provider&app=agy&name=Test&apiFormat={format}"
         ))
         .is_err());
     }
@@ -2117,7 +2117,7 @@ fn agy_deeplink_accepts_flat_env_and_rejects_invalid_env() {
     ] {
         let encoded = BASE64_URL_SAFE_NO_PAD.encode(config.to_string());
         let request = parse_deeplink_url(&format!(
-            "ccswitch://v1/import?resource=provider&app=agy&name=Test&config={encoded}"
+            "aicliapi://v1/import?resource=provider&app=agy&name=Test&config={encoded}"
         ))
         .unwrap();
         let result = parse_and_merge_config(&request);
@@ -2141,7 +2141,7 @@ fn agy_deeplink_mcp_import_merges_apps_and_writes_native_config() {
     // First import belongs to another app, then the same ID is enabled for agy.
     for apps in ["codex", "agy"] {
         let request = parse_deeplink_url(&format!(
-            "ccswitch://v1/import?resource=mcp&apps={apps}&config={config}"
+            "aicliapi://v1/import?resource=mcp&apps={apps}&config={config}"
         ))
         .unwrap();
         let result = super::mcp::import_mcp_from_deeplink(&state, request).unwrap();
@@ -2168,7 +2168,7 @@ fn agy_deeplink_prompt_import_respects_activation() {
     let content = BASE64_URL_SAFE_NO_PAD.encode("Agy instructions");
     let path = crate::prompt_files::prompt_file_path(&AppType::Agy).unwrap();
     for enabled in [false, true] {
-        let request = parse_deeplink_url(&format!("ccswitch://v1/import?resource=prompt&app=agy&name=Test-{enabled}&content={content}&enabled={enabled}")).unwrap();
+        let request = parse_deeplink_url(&format!("aicliapi://v1/import?resource=prompt&app=agy&name=Test-{enabled}&content={content}&enabled={enabled}")).unwrap();
         let id = import_prompt_from_deeplink(&state, request).unwrap();
         assert_eq!(
             state.db.get_prompts("agy").unwrap()[&id].content,
@@ -2188,7 +2188,7 @@ fn agy_deeplink_prompt_import_respects_activation() {
 fn agy_deeplink_enabled_key_provider_stays_out_of_live_files() {
     let _home = TestHomeGuard::new();
     let state = AppState::new(Arc::new(Database::memory().unwrap()));
-    let request = parse_deeplink_url("ccswitch://v1/import?resource=provider&app=agy&name=Agy&endpoint=https://relay.example&apiKey=fixture&model=link-model&enabled=true").unwrap();
+    let request = parse_deeplink_url("aicliapi://v1/import?resource=provider&app=agy&name=Agy&endpoint=https://relay.example&apiKey=fixture&model=link-model&enabled=true").unwrap();
     let id = super::provider::import_provider_from_deeplink(&state, request).unwrap();
     // Antigravity cards have no "enable": enabled=true only imports the card.
     let current = crate::mode::current::provider_for(
@@ -2226,7 +2226,7 @@ fn agy_deeplink_enabled_key_provider_stays_out_of_live_files() {
 fn skill_deeplink_is_a_shared_repository_not_an_agy_install() {
     let state = AppState::new(Arc::new(Database::memory().unwrap()));
     let request =
-        parse_deeplink_url("ccswitch://v1/import?resource=skill&repo=example/skills&app=agy")
+        parse_deeplink_url("aicliapi://v1/import?resource=skill&repo=example/skills&app=agy")
             .unwrap();
     assert!(request.app.is_none());
     assert_eq!(
@@ -2234,4 +2234,25 @@ fn skill_deeplink_is_a_shared_repository_not_an_agy_install() {
         "example/skills"
     );
     assert!(state.db.get_all_installed_skills().unwrap().is_empty());
+}
+
+#[test]
+fn test_deeplink_rejects_legacy_scheme() {
+    let result =
+        parse_deeplink_url("ccswitch://v1/import?resource=provider&app=claude&name=Test");
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Invalid scheme"));
+}
+
+#[test]
+fn test_deeplink_pending_error_drops_query_secret() {
+    let pending = crate::pending_deeplink_from_url("aicliapi://v2/import?accessKey=SECRET");
+    match pending {
+        super::PendingDeepLink::Error { url, .. } => {
+            assert!(!url.contains("SECRET"));
+            assert!(!url.contains('?'));
+            assert_eq!(url, "aicliapi://v2/import");
+        }
+        _ => panic!("expected pending deep link parse error"),
+    }
 }

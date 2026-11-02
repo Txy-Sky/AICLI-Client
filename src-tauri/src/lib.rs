@@ -266,27 +266,8 @@ fn runtime_log_level_allows(level: log::Level, max_level: log::LevelFilter) -> b
     max_level.to_level().is_some_and(|maximum| level <= maximum)
 }
 
-/// 统一处理 ccswitch:// 深链接 URL
-///
-/// - 解析 URL，把结果（或错误）暂存为待处理深链接，再发 `deeplink-pending` 通知前端来读
-///   （前端可能还没挂载，见 `deeplink::PendingDeepLink`）
-/// - 可选：聚焦主窗口
-fn handle_deeplink_url(
-    app: &tauri::AppHandle,
-    url_str: &str,
-    focus_main_window: bool,
-    source: &str,
-) -> bool {
-    if !url_str.starts_with("ccswitch://") {
-        return false;
-    }
-
-    log::info!(
-        "✓ Deep link URL detected from {source}: {}",
-        url_for_log(url_str)
-    );
-
-    let pending = match crate::deeplink::parse_deeplink_url(url_str) {
+fn pending_deeplink_from_url(url_str: &str) -> crate::deeplink::PendingDeepLink {
+    match crate::deeplink::parse_deeplink_url(url_str) {
         Ok(request) => {
             log::info!(
                 "✓ Successfully parsed deep link: resource={}, app={:?}, name={:?}",
@@ -301,11 +282,34 @@ fn handle_deeplink_url(
         Err(e) => {
             log::error!("✗ Failed to parse deep link URL: {e}");
             crate::deeplink::PendingDeepLink::Error {
-                url: url_str.to_string(),
+                url: url_for_log(url_str).to_string(),
                 error: e.to_string(),
             }
         }
-    };
+    }
+}
+
+/// 统一处理 aicliapi:// 深链接 URL
+///
+/// - 解析 URL，把结果（或错误）暂存为待处理深链接，再发 `deeplink-pending` 通知前端来读
+///   （前端可能还没挂载，见 `deeplink::PendingDeepLink`）
+/// - 可选：聚焦主窗口
+fn handle_deeplink_url(
+    app: &tauri::AppHandle,
+    url_str: &str,
+    focus_main_window: bool,
+    source: &str,
+) -> bool {
+    if !url_str.starts_with("aicliapi://") {
+        return false;
+    }
+
+    log::info!(
+        "✓ Deep link URL detected from {source}: {}",
+        url_for_log(url_str)
+    );
+
+    let pending = pending_deeplink_from_url(url_str);
     crate::deeplink::set_pending_deeplink(pending);
 
     if let Err(e) = app.emit("deeplink-pending", ()) {
@@ -1135,12 +1139,12 @@ pub fn run() {
                 #[cfg(target_os = "linux")]
                 {
                     // Use Tauri's path API to get correct path (includes app identifier)
-                    // tauri-plugin-deep-link writes to: ~/.local/share/com.ccswitch.desktop/applications/cc-switch-handler.desktop
+                    // tauri-plugin-deep-link writes to: ~/.local/share/applications/aicli-client-handler.desktop
                     // Only register if .desktop file doesn't exist to avoid overwriting user customizations
                     let should_register = app
                         .path()
                         .data_dir()
-                        .map(|d| !d.join("applications/cc-switch-handler.desktop").exists())
+                        .map(|d| !d.join("applications/aicli-client-handler.desktop").exists())
                         .unwrap_or(true);
 
                     if should_register {
@@ -1183,7 +1187,7 @@ pub fn run() {
                         log::debug!("  URL[{i}]: {}", url_for_log(url_str));
 
                         if handle_deeplink_url(&app_handle, url_str, true, "on_open_url") {
-                            break; // Process only first ccswitch:// URL
+                            break; // Process only first aicliapi:// URL
                         }
                     }
                 }
@@ -2007,7 +2011,7 @@ pub fn run() {
         #[cfg(target_os = "macos")]
         {
             // macOS 在 Dock 图标被点击并重新激活应用时会触发 Reopen 事件，这里手动恢复主窗口。
-            // RunEvent::Opened（ccswitch:// 链接）不在这里处理：deep-link 插件的 on_event 已把它
+            // RunEvent::Opened（aicliapi:// 链接）不在这里处理：deep-link 插件的 on_event 已把它
             // 转成 on_open_url 回调，这里再处理一遍会让同一条链接触发两次导入。
             if let RunEvent::Reopen { .. } = event {
                 if let Some(window) = app_handle.get_webview_window("main") {

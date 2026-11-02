@@ -288,7 +288,6 @@ jobs:
           cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-cargo.txt"
           pnpm typecheck 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-typecheck.txt"
           expected=$(cat <<'EOF'
-          src-tauri/tauri.conf.json:61:        "schemes": ["ccswitch"]
           src-tauri/tauri.conf.json:67:        "https://dl.ccswitch.io/latest.json",
           EOF
           )
@@ -299,6 +298,18 @@ jobs:
           test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
           test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
           printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
+
+      - name: B-04 verify deep links and generated Linux handler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-tests.txt"
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdg-utils desktop-file-utils
+          cargo build --manifest-path src-tauri/Cargo.toml --example aicli-deeplink-probe
+          mkdir -p "$RUNNER_TEMP/aicli-deeplink-probe"
+          cp src-tauri/target/debug/examples/aicli-deeplink-probe "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"
+          xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client" 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-handler.txt"
+          printf 'B-04: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-04.txt"
 
       - name: Save acceptance evidence
         if: always()
