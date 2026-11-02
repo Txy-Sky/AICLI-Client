@@ -3673,7 +3673,8 @@ fn claude_editor_never_leaves_the_row_and_live_apart() {
     let mut edited = base.clone();
     edited["env"]["ANTHROPIC_AUTH_TOKEN"] = json!("sk-new");
     let db = rusqlite::Connection::open(
-        home.join(cc_switch_lib::APP_DIR_NAME).join("aicli-client.db"),
+        home.join(cc_switch_lib::APP_DIR_NAME)
+            .join("aicli-client.db"),
     )
     .expect("open db");
     db.execute_batch(

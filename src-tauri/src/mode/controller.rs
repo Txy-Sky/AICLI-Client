@@ -3199,7 +3199,10 @@ mod mode_tests {
                 state.db.get_live_backup("claude").await.unwrap().is_none(),
                 "the old version would replay a leftover backup row after a downgrade"
             );
-            let drained = home.dir.path().join(crate::config::APP_DIR_NAME)
+            let drained = home
+                .dir
+                .path()
+                .join(crate::config::APP_DIR_NAME)
                 .join("backups/proxy-live-backup");
             assert_eq!(
                 fs::read_dir(&drained).unwrap().count(),

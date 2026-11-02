@@ -64,7 +64,10 @@ fn existing_upstream_database_in_another_home_is_never_adopted() {
     let db = Database::init().expect("initialize under explicit test home");
     let store = DeviceStore::for_device();
     assert!(home.join(".aicli-client/aicli-client.db").is_file());
-    assert_eq!(store.state_path(), home.join(".aicli-client/live-state.json"));
+    assert_eq!(
+        store.state_path(),
+        home.join(".aicli-client/live-state.json")
+    );
     assert_eq!(fs::read(&upstream_db).unwrap(), original);
     assert_eq!(fs::read_dir(&upstream_dir).unwrap().count(), 1);
     assert!(!foreign_home.path().join(".aicli-client").exists());

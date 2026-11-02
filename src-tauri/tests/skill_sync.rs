@@ -78,7 +78,10 @@ fn import_from_apps_does_not_rewrite_selected_app_directory() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_skill_dir = home.join(cc_switch_lib::APP_DIR_NAME).join("skills").join("codex-skill");
+    let ssot_skill_dir = home
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("skills")
+        .join("codex-skill");
     write_skill(&ssot_skill_dir, "Stale SSOT Skill");
     fs::write(ssot_skill_dir.join("prompt.md"), "stale ssot").expect("write stale ssot prompt");
 
@@ -173,7 +176,10 @@ fn uninstall_skill_creates_backup_before_removing_ssot() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_skill_dir = home.join(cc_switch_lib::APP_DIR_NAME).join("skills").join("backup-skill");
+    let ssot_skill_dir = home
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("skills")
+        .join("backup-skill");
     write_skill(&ssot_skill_dir, "Backup Skill");
     fs::write(ssot_skill_dir.join("prompt.md"), "backup me").expect("write prompt.md");
 
