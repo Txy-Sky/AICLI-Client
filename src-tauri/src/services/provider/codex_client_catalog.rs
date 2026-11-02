@@ -687,7 +687,7 @@ mod tests {
         }
 
         fn store(&self) -> DeviceStore {
-            DeviceStore::at(self.dir.path().join(".cc-switch"))
+            DeviceStore::at(self.dir.path().join(crate::config::APP_DIR_NAME))
         }
     }
 

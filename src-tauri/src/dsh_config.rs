@@ -864,7 +864,7 @@ fn initialize_profiles_and_commit<T>(
         return commit();
     }
     let profiles = target_paths();
-    let receipt = data_dir().join(".cc-switch-profile-sync.json");
+    let receipt = data_dir().join(".aicli-client-profile-sync.json");
     let parse_receipt = |text: &str| -> Result<Vec<String>, AppError> {
         if text.trim().is_empty() {
             Ok(vec![])
@@ -2108,7 +2108,7 @@ mod tests {
         let _home = DshHome::new();
         let providers = IndexMap::from([("gateway".into(), editor_config())]);
         let servers = IndexMap::from([("fetch".into(), json!({"command":"node"}))]);
-        let receipt = data_dir().join(".cc-switch-profile-sync.json");
+        let receipt = data_dir().join(".aicli-client-profile-sync.json");
         let result = initialize_profiles_and_commit(&providers, &servers, || {
             Err::<(), _>(AppError::Database("injected".into()))
         });
@@ -2147,7 +2147,7 @@ mod tests {
         .unwrap();
         let providers = IndexMap::from([("gateway".into(), editor_config())]);
         initialize_profiles(&providers, &IndexMap::new()).unwrap();
-        assert!(data_dir().join(".cc-switch-profile-sync.json").exists());
+        assert!(data_dir().join(".aicli-client-profile-sync.json").exists());
         for name in ["web", "desktop"] {
             assert!(get_providers_from(&profile_path(name), &credentials_path())
                 .unwrap()

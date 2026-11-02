@@ -259,6 +259,16 @@ jobs:
           set -euo pipefail
           bash scripts/aicli-check.sh 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A3-01.txt"
 
+      - name: B-01 verify the configuration directory identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rn '"\.cc-switch"' src-tauri/src; then
+            echo 'B-01: legacy configuration directory literal remains'
+            exit 1
+          fi
+          cargo nextest run --manifest-path src-tauri/Cargo.toml --test config_identity 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-01.txt"
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
