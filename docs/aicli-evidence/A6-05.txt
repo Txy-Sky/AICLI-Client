@@ -1,0 +1,81 @@
+A6-05 affinity isolation and streaming retry observations — PASSED
+
+Implementation: b16f7e5136c130085a7db3369983edb59be22da4
+Workflow: AICLI Acceptance
+Job: Checklist acceptance (Linux), job ID 125101223064
+Step: A6-05 affinity rules and streaming retry observations
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
+Result: full CI success; 5 passed in 5.52s.
+
+Actual runner commands (isolated HOME, disposable local containers only):
+  project="aicli-a605-${GITHUB_RUN_ID}"
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+  AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 python3 tests/aicli-testenv/seed.py
+  AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 AICLI_TESTENV_PROJECT="$project" PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_affinity_retry.py
+  docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+  bash scripts/aicli-check.sh
+Seed also used the workflow's fixed local fixture username/password variables.
+No production credential, production API or SQL data access was used.
+
+Affinity configuration and assertions:
+- Prepended aicli-session-test while preserving the original rules unchanged.
+- key_sources=[{type:request_header,key:X-AICLI-Session}], skip_retry_on_failure=false,
+  include_using_group=true, include_rule_name=true, include_model_name=false.
+- Before/after no-header snapshots were identical:
+  /v1/responses, gpt-aicli-affinity: channel=4, rule_name=codex cli trace,
+    key_source=gjson, key_key="", key_path=prompt_cache_key,
+    key_fp=4cdbd6c6, using_group=g-cheap.
+  /v1/messages, claude-aicli-affinity: channel=4, rule_name=claude cli trace,
+    key_source=gjson, key_key="", key_path=metadata.user_id,
+    key_fp=8ab2082d, using_group=g-cheap.
+- The new rule had zero cache entries after the no-header snapshots.
+- profile-a:shared-session -> [4,4,4,4,4].
+- profile-b:shared-session -> [5,5,5,5,5].
+- Changed channel priorities between the first requests to make distinct pins
+  deterministic. Later requests alternated profiles and retained their pins.
+- Asserted the rule name, header source and SHA1 fingerprint of the complete
+  profile-prefixed header value, and exactly two independent new-rule entries.
+
+Streaming observations (HTTP 200 and SSE in all four cases):
+RetryTimes | injected failure    | upstream attempts | data | done | error | duplicate | full fixture
+0          | stream_error_event  | 1                 | 4    | 1    | 1     | false     | true
+2          | stream_error_event  | 1                 | 4    | 1    | 1     | false     | true
+0          | fail_after_n_chunks | 1                 | 2    | 1    | 0     | false     | false
+2          | fail_after_n_chunks | 1                 | 2    | 1    | 0     | false     | false
+Client transport error was null in all four cases. Each had exactly one mock
+prefix; stream_error_event had one response fragment, fail_after_n_chunks had
+zero response fragments. The latter lost the remaining content despite DONE.
+The fixture used fail_after_n_chunks=1. Each injected request was preceded by a
+healthy full-output calibration on the same session. Stored RetryTimes and
+runtime /api/channel/ops retry_times were both asserted as 0 or 2 respectively.
+Upstream attempts were counted through the local mock HTTP request recorder.
+No repeated content or upstream retry was observed for these two mock failures
+with this rc.34 image. This does NOT prove retries are safe for other failures,
+or that interrupted streams are recovered. H-08 remains an owner decision;
+no online RetryTimes or affinity setting was changed.
+
+Cleanup restores ModelRatio, RetryTimes and the original affinity rule list,
+and deletes the temporary channels and model token through HTTP APIs. Compose
+then removes the isolated containers and volumes, including local PAT state.
+
+Full baseline: frontend 266 files / 3415 passed; Rust 4443 passed / 10 original
+skipped. No assertion was relaxed, removed or ignored.
+
+Historical failed attempts, retained rather than counted as acceptance:
+- 81a95522, run 41389526312: fixture default snapshot failed before assertions;
+  5 setup errors. Original fixed error text did not expose the HTTP cause.
+- bf046a48, run 41390273491: same 5 setup errors; sanitized diagnosis showed
+  /v1/responses HTTP 503, no available channel under g-cheap.
+- rc.34 AddChannel does not rebuild the in-memory routing cache. The final
+  fixture uses the existing PUT /api/channel/ priority update immediately after
+  creation to refresh it through the normal HTTP API. No sleep, restart,
+  workflow retry or changed acceptance assertion was added to obtain a pass.
+  The successful run above is on the final implementation SHA.
+
+Actual local lightweight checks before implementation pushes:
+- Python ast.parse of test_affinity_retry.py: passed.
+- git diff --check: passed.
+- git pull --rebase origin feat/aicli-client-v1: up to date before each push.
+Builds and test execution took place only in GitHub Actions with isolated HOME.
+Evidence contains normalized fixture facts only, not raw responses, credentials
+or container logs.

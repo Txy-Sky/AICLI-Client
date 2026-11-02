@@ -255,13 +255,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：cf9147a5 | job `Checklist acceptance (Linux)`，step `A6-04 system access token boundaries in local disposable users`：`python3 -m unittest discover -s tests/aicli-testenv/tests -p 'test_access_token_safety.py' -v`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py`; `bash scripts/aicli-check.sh` | CI success；地址防护 1 test OK、接口验收 3 passed；POST `/api/user/token` 和 DELETE `/api/user/self` 均 HTTP 403、`success:false`、message=`安全验证状态无效`、code=`SECURITY_PROOF_INVALID`，两次均 `original_token_valid=true`、`user_exists=true`；`batch_keys_has_sk_prefix=false`，删除后第 1 次请求返回 401，延迟 0.001169s；基线 Rust 4443 passed/原有 10 skipped、前端 266 文件/3415 passed；详见 `docs/aicli-evidence/A6-04.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41369181694
 
 #### A6-05 实测：亲和规则和流中重试
-- [ ] 完成
+- [x] 完成
 - 修改：同目录 `test_affinity_retry.py`。按方案 3.4 配置新亲和规则（只在测试环境，放在规则列表**最前**，`KeySources=[{type:request_header,key:X-AICLI-Session}]`，`SkipRetryOnFailure=false`，`IncludeUsingGroup=true`，`IncludeRuleName=true`）。
 - 验收：
   - 同一 `X-AICLI-Session` 连续 5 次请求落在同一渠道；不同 profile 前缀互不影响。
   - 不带该请求头时，默认规则的行为与配置前一致（对比快照）。若新规则抢占了默认规则，标 `[!]`。
   - `RetryTimes=0` 和 `RetryTimes=2` 时，分别用 `stream_error_event` 和 `fail_after_n_chunks` 触发错误，**如实记录**客户端收到的 SSE 是否出现重复内容。此项不要求通过，只要求结论写入证据，供 H-08 决策。
-- 证据：
+- 证据：b16f7e51 | job `Checklist acceptance (Linux)`，step `A6-05 affinity rules and streaming retry observations`：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 AICLI_TESTENV_PROJECT="$project" PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_affinity_retry.py`; `bash scripts/aicli-check.sh` | 完整 CI success，5 passed in 5.52s；无请求头前后默认规则快照相同；两个 profile 各 5 次固定在渠道 4、5，缓存隔离；RetryTimes 0/2 × 两类流错误的四组均无重复、实际上游均 1 次，截断场景未恢复完整内容，不能据此断言流中重试安全；H-08 仍由负责人决定。前端 266 文件/3415 passed；Rust 4443 passed/原有 10 skipped。详见 `docs/aicli-evidence/A6-05.txt`，保留两次夹具准备失败记录 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41390700661
 
 ### A-GATE 阶段 A 门禁
 - [ ] 完成
@@ -973,21 +973,22 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A5-01 / C4-05 | 清单要求通过超过 180 秒持续输出来判定 120 秒语义，再决定流式总时长和 C4-05。 | 负责人于 2026-11-01 决定跳过该测量；于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），C4-05 不启用。第 0.4 节已更新；A5-01 与 C4-05 均为 `[-]`，历史测量证据保留。 | 按负责人明确决定采用参数和跳过条件项，不将决定伪装成实测，不声称得出 120 秒语义结论。 |
 | A5-02 | 清单验收要求按 `/api/pricing` 的 `enable_groups` 与账号可用分组取交集，并在 `auto` 缺失或上限不足时交 H-04。 | 实际响应以 `data` 字段承载分组，报告统计 69 个模型；复测 `auto_available=true`、`max_count=15`、最大交集分组数为 3。 | 只记录实际响应形状，不改变接口或数据结构；复测结果通过验收。 |
 | A6-01 | 负责人要求健康检查和成功日志取证放在同一修正提交。 | 健康检查 `21aae9ea` 已推送后才补充授权取证，因此保留已公开历史并追加同编号修正 `75f6e4d7`；最终版本同时包含二者，连续两次验收均只使用最终 SHA。旧 21aae9ea 的未完运行取消，未计作通过。日志取证为独立 always / continue-on-error 步骤，清理移到其后，原启动、等待和验收代码保持一致。 | 遵守禁止强推和已公开提交不得改写的规则；本次仅修复获授权的测试环境健康检查并补充取证。 |
+| A6-05 | 清单/方案使用 `KeySources`、`SkipRetryOnFailure`、`IncludeUsingGroup`、`IncludeRuleName` 等 Go 字段名。 | HTTP 配置使用 rc.34 对应的 `key_sources`、`skip_retry_on_failure`、`include_using_group`、`include_rule_name`；通过 `channel_affinity_setting.rules` 更新规则，并保留原规则列表。新增渠道后用正常优先级更新 HTTP 接口刷新路由缓存；两次准备失败和最终通过均在证据中保留。 | 字段定位映射及测试夹具准备，不改变服务端接口、产品行为或验收要求；不增加等待、重启或工作流重试。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 A6-03 独立实现为 53567f1c4468a71efe93fe35d67914da8015c4ab（Actions run 41383467961，完整 CI success）；A6-01 修正 75f6e4d7 的同一 SHA 两次完整通过记录保留。
-完成/阻塞/跳过：8 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01、A6-02、A6-03、A6-04；A6-01 启动竞争与 A6-03 旧验收缺口均已关闭。A5-01、C4-05 仍按负责人决定跳过；A6-05 及之后尚未完成，不冒充已验证或已跳过）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 A6-05 最终实现为 b16f7e5136c130085a7db3369983edb59be22da4（Actions run 41390700661，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+完成/阻塞/跳过：9 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01、A6-02、A6-03、A6-04、A6-05；A6-01 启动竞争与 A6-03 旧验收缺口均已关闭。A5-01、C4-05 仍按负责人决定跳过；下一项为 A-GATE，未进入 B）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c 完整 CI 也为相同数量；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A6-03 已完成独立重新验收；A6-05 及之后的任务除 C4-05 已明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A6-05 已完成；下一项 A-GATE，B 及之后除 C4-05 明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
-A6-05 的流中重试结论：未测试；A6-03 已完整通过，下一项为 A6-05。
+A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
 需要负责人提供的事项：A6-04 无待决事项，已通过 CI 验收；A6-01 前置环境修正已通过同一 SHA 连续两次完整 CI，无待决事项；A6-03 已按负责人要求独立重新验收通过，无待决事项，未操作线上凭证或额度。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
