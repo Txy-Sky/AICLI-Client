@@ -63,7 +63,9 @@ fn snapshot(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
                 visit(root, &path, files);
             } else {
                 files.insert(
-                    path.strip_prefix(root).expect("relative path").to_path_buf(),
+                    path.strip_prefix(root)
+                        .expect("relative path")
+                        .to_path_buf(),
                     fs::read(path).expect("read original bytes"),
                 );
             }
