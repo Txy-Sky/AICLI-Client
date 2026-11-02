@@ -1,0 +1,84 @@
+B-06 Codex identity and disabled legacy startup migrations — PASSED
+Final implementation: 03c8c68147d75deba048f0d230ea5ee803c629f5
+Evidence: 03c8c681 | Checklist acceptance (Linux): bash scripts/aicli-check.sh; cargo nextest run --manifest-path src-tauri/Cargo.toml codex; cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes | complete CI success; Rust 4449 passed / 10 original skipped; frontend 267 files / 3416 passed; Codex 1122 passed; isolated startup preservation 1 passed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41443239346
+Run/job completed successfully on 2026-11-02; job 125269990851.
+
+Commands actually run by the successful CI job:
+1. bash scripts/aicli-check.sh
+   pnpm install --frozen-lockfile
+   pnpm typecheck
+   pnpm format:check
+   pnpm test:unit
+   pnpm build:renderer
+   cargo fmt --check --manifest-path src-tauri/Cargo.toml
+   cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+   cargo nextest run --manifest-path src-tauri/Cargo.toml
+   All passed. Actual summaries:
+   Test Files 267 passed (267)
+   Tests 3416 passed (3416)
+   Summary [94.908s] 4449 tests run: 4449 passed, 10 skipped
+2. cargo nextest run --manifest-path src-tauri/Cargo.toml codex
+   Summary [23.450s] 1122 tests run: 1122 passed, 3337 skipped
+3. cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes
+   PASS [0.056s] (1/1) aicli-client codex_startup_tests::codex_startup_migrations_preserve_existing_history_bytes
+   Summary [0.061s] 1 test run: 1 passed, 4458 skipped
+4. B-06: PASS
+The two focused commands use name filters; their skipped counts include all
+nonmatching tests and the original baseline exclusions. No new ignore or
+exclusion was introduced. Full baseline increased from B-05's 4448 to 4449
+passing Rust tests by adding the startup preservation test; no tests deleted.
+
+Authorized implementation and preservation assertions:
+- Product constants retain their Rust names; values are aicli-official and
+  aicli-model-catalog.json. The live projection's catalog filename references
+  the same constant. Associated test inputs, assertions and golden filenames
+  use the new generated filename; assertion strength is unchanged.
+- The 48-entry legacy provider ID list, including ccswitch, is unchanged.
+- lib.rs extracts run_codex_startup_migrations. A single false constant,
+  AICLI_LEGACY_CODEX_STARTUP_MIGRATIONS_ENABLED, gates the first three calls:
+  maybe_migrate_codex_third_party_history_provider_bucket,
+  maybe_migrate_codex_provider_template_bucket,
+  maybe_migrate_codex_legacy_official_history_to_openai_bucket.
+  Calls remain in source; their functions and existing tests are unchanged.
+  The private migration module pins the old official ID locally rather than
+  inheriting the newly changed product ID, preserving legacy function behavior.
+- maybe_migrate_codex_official_history_to_unified_bucket remains outside the
+  false gate, with its original call and handling, including its own setting
+  gate. Whether to retain unified session migration is a G-stage decision.
+- The new test creates a temporary HOME and a fresh in-memory AICLI Database
+  with no Codex providers. It seeds four CRLF session JSONL files under
+  .codex/sessions/2026/11/02, one per ccswitch/openrouter/cc-switch-official/
+  aicli-official, plus .codex/config.toml and .codex/state_5.sqlite. The state
+  database has one threads row per provider and is closed before snapshotting.
+- It checks the actual Codex directory, default unified-history setting off,
+  empty AICLI providers and exactly six seeded files. It snapshots every file
+  in the temporary HOME, calls the extracted real startup function, then
+  asserts the entire relative-path-to-byte-vector map is identical and AICLI
+  providers remain empty. No file addition, removal or byte rewrite is allowed.
+- HOME, USERPROFILE, CC_SWITCH_TEST_HOME, XDG config/data/cache, CODEX_HOME and
+  CODEX_SQLITE_HOME are isolated and restored by the test guard. CI also uses
+  the preexisting disposable HOME setup. No real client HOME is used.
+
+Preserved failed implementation history (not counted as acceptance):
+43cbf4be56a06696ffb7674fc7d03aca518fe4af
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41439300327
+Baseline cargo fmt --check failed on wrapping the new snapshot helper chain.
+Rust tests and B-06 focused commands were not reached. Formatting-only fix:
+004b0d300efd59ca0dd33c26d71d1a1d755ac6cc.
+
+004b0d300efd59ca0dd33c26d71d1a1d755ac6cc
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41440913228
+Baseline fmt and Clippy passed. Full Rust execution failed at
+mode::controller::mode_tests::codex_a_hand_written_catalog_pointer_gives_way_to_the_stack_catalog:
+left Some("cc-switch-model-catalog.json"), right Some("aicli-model-catalog.json").
+Summary: 963/4449 run, 962 passed, 1 failed, 10 skipped; fail-fast left 3486
+not run. The NEW startup preservation test itself PASSED [0.056s] (198/4449).
+Focused B-06 steps were not reached, so this run was not used as acceptance.
+Cause: live/project/codex.rs had a second generated-catalog filename constant.
+03c8c681 makes it reference the product constant and updates two related test
+fixtures and a filename comment. No assertion was removed or relaxed.
+
+Read-back: successful run evidence artifact was downloaded to an external
+/tmp directory; summaries above were read from A3-01.txt, B-06-codex.txt,
+B-06-startup.txt and B-06.txt. This committed record is a summary, not a raw
+container log or a copy of the artifact. No access token was needed for B-06.
