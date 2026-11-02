@@ -145,7 +145,24 @@ class Environment:
                 require(response.status == 200, "affinity fixture request failed")
                 request_id = response.headers.get("X-Oneapi-Request-Id")
                 response.read()
-        except (OSError, urllib.error.HTTPError):
+        except urllib.error.HTTPError as error:
+            # Keep fixture failures diagnosable without exposing response data,
+            # request headers, credentials or exception representations.
+            with error:
+                try:
+                    result = json.loads(error.read(16384))
+                except (ValueError, UnicodeError):
+                    result = {}
+            detail = result.get("error", {}) if isinstance(result, dict) else {}
+            detail = detail if isinstance(detail, dict) else {}
+            message = str(detail.get("message", ""))[:1000]
+            for secret in sorted(self.api.secrets, key=len, reverse=True):
+                message = message.replace(secret, "[REDACTED]")
+            message = re.sub(r"(?i)(?:sk-|Bearer\s+)\S+|[A-Za-z0-9_/-]{24,}", "[REDACTED]", message)
+            evidence("fixture_http_error", path=path, model=model,
+                     http_status=error.code, message=message)
+            raise AssertionError("affinity fixture request failed") from None
+        except OSError:
             raise AssertionError("affinity fixture request failed") from None
         return self.log(request_id)
 
