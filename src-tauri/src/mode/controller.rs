@@ -1979,7 +1979,7 @@ mod tests {
         let default = stack.first().cloned();
         let (projection, contract) = claude_contract(
             route,
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:15821",
             &stack,
             default.as_ref(),
             others,
@@ -2070,7 +2070,7 @@ mod tests {
         );
         // 没有发布 Stack 模型（路由模式）时契约和原来一样，不看别家。
         let (projection, _) =
-            claude_contract(&route, "http://127.0.0.1:15721", &[], None, &[&other]);
+            claude_contract(&route, "http://127.0.0.1:15821", &[], None, &[&other]);
         assert_env_str(&projection.exclusive, "ENABLE_TOOL_SEARCH", Some("true"));
         assert_env_str(
             &projection.exclusive,
@@ -2081,7 +2081,7 @@ mod tests {
 
     /// 以 `live` 为底写入 `provider` 的代理契约，和进入代理时的补丁相同。
     fn takeover(live: &Value, provider: &Provider) -> Value {
-        let (projection, _) = claude_contract(provider, "http://127.0.0.1:15721", &[], None, &[]);
+        let (projection, _) = claude_contract(provider, "http://127.0.0.1:15821", &[], None, &[]);
         let mut doc = live.clone();
         direct_patch(None, &projection)
             .apply_to(Path::new("settings.json"), &mut doc)
@@ -3172,7 +3172,7 @@ mod mode_tests {
         for enabled in [true, false] {
             let home = Home::new();
             seed_settings(
-                r#"{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:15721","ANTHROPIC_AUTH_TOKEN":"PROXY_MANAGED"},"hooks":{}}"#,
+                r#"{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:15821","ANTHROPIC_AUTH_TOKEN":"PROXY_MANAGED"},"hooks":{}}"#,
             );
             let state = state_with(
                 AppType::Claude,
@@ -3828,7 +3828,7 @@ command = "fs-server"
         let dormant = &doc["model_providers"]["custom"];
         assert_eq!(
             dormant["base_url"].as_str(),
-            Some("http://127.0.0.1:15721/v1"),
+            Some("http://127.0.0.1:15821/v1"),
             "the dormant table points at the configured local proxy: {text}"
         );
         assert_eq!(
@@ -3929,7 +3929,7 @@ base_url = "https://c.example/v1"
 
 [model_providers.deepseek]
 name = "deepseek"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:15821/v1"
 experimental_bearer_token = "PROXY_MANAGED"
 
 [model_providers.ollama_local]
@@ -6591,7 +6591,7 @@ model_provider = "c"
         let old = crate::claude_desktop_config::route_profile(
             &state.db,
             &desktop_card("map", true),
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:15821",
             &[],
         )
         .expect("old profile");

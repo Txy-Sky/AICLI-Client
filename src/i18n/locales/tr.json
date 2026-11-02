@@ -3686,7 +3686,7 @@
         },
         "listenPort": {
           "label": "Bağlantı Noktasını Dinle",
-          "placeholder": "15721",
+          "placeholder": "15821",
           "description": "Yönlendirme sunucusunun dinlediği port numarası (1024 ~ 65535)"
         },
         "maxRetries": {

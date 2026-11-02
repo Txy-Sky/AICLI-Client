@@ -3722,7 +3722,7 @@
         },
         "listenPort": {
           "label": "リッスンポート",
-          "placeholder": "15721",
+          "placeholder": "15821",
           "description": "ルーティングサーバーがリッスンするポート番号（1024 ~ 65535）"
         },
         "maxRetries": {

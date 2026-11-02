@@ -81,17 +81,17 @@ mod tests {
     async fn rejects_own_listener_including_custom_ports_and_url_aliases() {
         for (target, address, port) in [
             ("http://127.0.0.1:3688/v1/responses", "127.0.0.1", 3688),
-            ("http://localhost:15721/v1", "127.0.0.1", 15721),
-            ("http://LOCALHOST.:15721/v1", "127.0.0.1", 15721),
-            ("http://proxy.localhost:15721/v1", "127.0.0.1", 15721),
-            ("http://127.1:15721/v1", "127.0.0.1", 15721),
-            ("http://[::ffff:127.0.0.1]:15721/v1", "127.0.0.1", 15721),
-            ("http://[::1]:15721/v1", "::1", 15721),
-            ("http://localhost:15721/v1", "::1", 15721),
-            ("http://127.0.0.1:15721/v1", "0.0.0.0", 15721),
-            ("http://[::1]:15721/v1", "::", 15721),
-            ("http://192.0.2.10:15721/v1", "192.0.2.10", 15721),
-            ("http://0.0.0.0:15721/v1", "127.0.0.1", 15721),
+            ("http://localhost:15821/v1", "127.0.0.1", 15821),
+            ("http://LOCALHOST.:15821/v1", "127.0.0.1", 15821),
+            ("http://proxy.localhost:15821/v1", "127.0.0.1", 15821),
+            ("http://127.1:15821/v1", "127.0.0.1", 15821),
+            ("http://[::ffff:127.0.0.1]:15821/v1", "127.0.0.1", 15821),
+            ("http://[::1]:15821/v1", "::1", 15821),
+            ("http://localhost:15821/v1", "::1", 15821),
+            ("http://127.0.0.1:15821/v1", "0.0.0.0", 15821),
+            ("http://[::1]:15821/v1", "::", 15821),
+            ("http://192.0.2.10:15821/v1", "192.0.2.10", 15821),
+            ("http://0.0.0.0:15821/v1", "127.0.0.1", 15821),
             ("http://127.0.0.1/v1", "127.0.0.1", 80),
         ] {
             assert!(
@@ -110,27 +110,27 @@ mod tests {
             "http://127.0.0.1:11434/v1",
             "http://localhost:1234/v1",
             "http://[::1]:11434/v1",
-            "http://[::1]:15721/v1",
-            "http://192.0.2.10:15721/v1",
-            "http://127.0.0.2:15721/v1",
+            "http://[::1]:15821/v1",
+            "http://192.0.2.10:15821/v1",
+            "http://127.0.0.2:15821/v1",
             "https://api.example.com/v1",
         ] {
             assert!(
-                reject_self_forwarding(target, "127.0.0.1", 15721)
+                reject_self_forwarding(target, "127.0.0.1", 15821)
                     .await
                     .is_ok(),
                 "{target}"
             );
         }
         assert!(
-            reject_self_forwarding("http://localhost:15721/v1", "127.0.0.1", 0)
+            reject_self_forwarding("http://localhost:15821/v1", "127.0.0.1", 0)
                 .await
                 .is_ok()
         );
         let error = reject_self_forwarding(
-            "http://user:secret@127.0.0.1:15721/private-key/v1?key=private-token",
+            "http://user:secret@127.0.0.1:15821/private-key/v1?key=private-token",
             "127.0.0.1",
-            15721,
+            15821,
         )
         .await
         .unwrap_err()

@@ -4623,7 +4623,7 @@ mod tests {
             "api.anthropic.com",
             "notopencode.ai",
             "example.com",
-            "127.0.0.1:15721",
+            "127.0.0.1:15821",
         ] {
             assert!(
                 !is_opencode_upstream(Some(host)),

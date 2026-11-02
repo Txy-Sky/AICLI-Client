@@ -531,7 +531,7 @@ model_reasoning_effort = "xhigh"
 
 [model_providers.custom]
 name = "Old"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:15821/v1"
 wire_api = "responses"
 experimental_bearer_token = "PROXY_MANAGED"
 "#;

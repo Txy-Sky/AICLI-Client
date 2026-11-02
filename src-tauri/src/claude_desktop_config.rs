@@ -18,8 +18,8 @@ use crate::mode::stack::DesktopStackModel;
 use crate::mode::state::{self, PendingTarget};
 use crate::provider::{ClaudeDesktopMode, Provider};
 
-pub const PROFILE_ID: &str = "00000000-0000-4000-8000-000000157210";
-pub const PROFILE_NAME: &str = "CC Switch";
+pub const PROFILE_ID: &str = "00000000-0000-4000-8000-000000158210";
+pub const PROFILE_NAME: &str = "AICLI Client";
 
 #[cfg(any(target_os = "macos", windows, target_os = "linux", test))]
 const CONFIG_FILE: &str = "claude_desktop_config.json";
@@ -1945,6 +1945,48 @@ mod tests {
     }
 
     #[test]
+    fn claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile() {
+        let temp = TempDir::new().expect("tempdir");
+        let paths = test_paths(temp.path());
+        let db = test_db();
+        let legacy_entry: Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/legacy_desktop_profile_entry.json"
+        ))
+        .expect("legacy entry fixture");
+        let legacy_id = legacy_entry["id"].as_str().expect("legacy id");
+        let legacy_path = paths.config_library_path.join(format!("{legacy_id}.json"));
+        let legacy_bytes = b"{\r\n  \"userSetting\": true\r\n}\r\n";
+        fs::create_dir_all(&paths.config_library_path).expect("create configLibrary");
+        fs::write(&legacy_path, legacy_bytes).expect("seed legacy profile");
+        write_json_file(
+            &paths.meta_path,
+            &json!({"entries": [legacy_entry.clone()], "appliedId": legacy_id}),
+        )
+        .expect("seed legacy meta");
+
+        apply_provider_to_paths(&db, &direct_provider("aicli"), &paths).expect("apply AICLI");
+        for after_cleanup in [false, true] {
+            if after_cleanup {
+                restore_official(&paths).expect("clean up AICLI");
+            }
+            assert_eq!(fs::read(&legacy_path).expect("legacy profile"), legacy_bytes);
+            let meta: Value = read_json_file(&paths.meta_path).expect("read meta");
+            let entries = meta["entries"].as_array().expect("entries");
+            assert!(entries.contains(&legacy_entry), "legacy entry must be intact");
+            assert_eq!(
+                entries.iter().any(|entry| entry["id"] == json!(PROFILE_ID)),
+                !after_cleanup
+            );
+            if !after_cleanup {
+                assert_eq!(meta["appliedId"], json!(PROFILE_ID));
+                assert!(entries.iter().any(|entry| {
+                    entry["id"] == json!(PROFILE_ID) && entry["name"] == json!("AICLI Client")
+                }));
+            }
+        }
+    }
+
+    #[test]
     fn claude_desktop_direct_can_write_optional_safe_model_ids() {
         let temp = TempDir::new().expect("tempdir");
         let paths = test_paths(temp.path());
@@ -2086,12 +2128,12 @@ mod tests {
             }
             let before = serde_json::to_value(&provider).expect("provider snapshot");
             let db = test_db();
-            let profile = route_profile(&db, &provider, "http://127.0.0.1:15721", &[])
+            let profile = route_profile(&db, &provider, "http://127.0.0.1:15821", &[])
                 .expect("native provider should not need a pre-existing mapping");
 
             assert_eq!(
                 profile["inferenceGatewayBaseUrl"],
-                json!("http://127.0.0.1:15721/claude-desktop")
+                json!("http://127.0.0.1:15821/claude-desktop")
             );
             assert_eq!(
                 profile["inferenceModels"],
@@ -2169,7 +2211,7 @@ mod tests {
 
         let error = validate_proxy_provider(&provider).expect_err("mapping is required");
         assert!(error.to_string().contains("至少需要一个模型路由映射"));
-        route_profile(&test_db(), &provider, "http://127.0.0.1:15721", &[])
+        route_profile(&test_db(), &provider, "http://127.0.0.1:15821", &[])
             .expect_err("an empty mapping must not silently become native defaults");
     }
 
@@ -2196,7 +2238,7 @@ mod tests {
         let profile: Value = read_json_file(&paths.profile_path).expect("read profile");
         assert_eq!(
             profile["inferenceGatewayBaseUrl"],
-            json!("http://127.0.0.1:15721/claude-desktop")
+            json!("http://127.0.0.1:15821/claude-desktop")
         );
         assert_eq!(profile["inferenceGatewayAuthScheme"], json!("bearer"));
         assert_eq!(profile["coworkEgressAllowedHosts"], json!(["*"]));
@@ -2230,7 +2272,7 @@ mod tests {
             let profile: Value = read_json_file(&paths.profile_path).expect("read profile");
             assert_eq!(
                 profile["inferenceGatewayBaseUrl"],
-                json!("http://127.0.0.1:15721/claude-desktop")
+                json!("http://127.0.0.1:15821/claude-desktop")
             );
             assert_eq!(
                 profile["inferenceModels"],

@@ -903,7 +903,7 @@ describe("SwitchModePanel — mode layer", () => {
     mockMode("route", "route");
     server.use(
       http.post(`${TAURI_ENDPOINT}/get_proxy_status`, () =>
-        HttpResponse.json({ running: true, address: "127.0.0.1", port: 15721 }),
+        HttpResponse.json({ running: true, address: "127.0.0.1", port: 15821 }),
       ),
     );
     renderPanel("gemini", { route: provider("route") });
@@ -916,7 +916,7 @@ describe("SwitchModePanel — mode layer", () => {
     expect(
       screen.getByLabelText("mode.status.routeLead route"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/15721/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/15821/)).not.toBeInTheDocument();
   });
 });
 

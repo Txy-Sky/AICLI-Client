@@ -4496,10 +4496,10 @@ mod tests {
             None,
         )]));
         let mut apps = [desktop];
-        let problems = [TrayProblem::ServiceDown { port: 15721 }];
+        let problems = [TrayProblem::ServiceDown { port: 15821 }];
         mark_attention(&mut apps, &problems);
         let menu = model(&problems, &apps);
-        assert_eq!(text_of(&menu[0]), "路由服务没在运行（端口 15721）");
+        assert_eq!(text_of(&menu[0]), "路由服务没在运行（端口 15821）");
         assert!(
             matches!(&menu[0], TrayEntry::Item { id, enabled: true, .. } if id == "nav:settings:routing")
         );
@@ -4517,7 +4517,7 @@ mod tests {
     #[test]
     fn problem_area_keeps_two_rows_then_says_how_many_more() {
         let problems = [
-            TrayProblem::ServiceDown { port: 15721 },
+            TrayProblem::ServiceDown { port: 15821 },
             TrayProblem::AttachFailed {
                 app: AppType::Claude,
                 stack: false,
@@ -4531,7 +4531,7 @@ mod tests {
         assert_eq!(
             texts_of(&menu[..4]),
             [
-                "路由服务没在运行（端口 15721）",
+                "路由服务没在运行（端口 15821）",
                 "Claude Code：上次的路由没能接上，已回到直连",
                 "还有 1 个问题，打开 CC Switch 查看",
                 "---"
@@ -4709,7 +4709,7 @@ mod tests {
     fn tooltip_names_the_first_problem_and_is_plain_otherwise() {
         assert_eq!(tray_tooltip(&zh(), &[]), "CC Switch");
         let problems = [
-            TrayProblem::ServiceDown { port: 15721 },
+            TrayProblem::ServiceDown { port: 15821 },
             TrayProblem::SwitchFailed {
                 app: AppType::Codex,
                 reason: "boom".to_string(),
@@ -4717,7 +4717,7 @@ mod tests {
         ];
         assert_eq!(
             tray_tooltip(&zh(), &problems),
-            "CC Switch · 需要处理：路由服务没在运行（端口 15721）"
+            "CC Switch · 需要处理：路由服务没在运行（端口 15821）"
         );
         let long = [TrayProblem::SwitchFailed {
             app: AppType::Codex,
@@ -4794,7 +4794,7 @@ mod tests {
     #[test]
     fn feedback_row_is_a_grey_line_after_the_problems() {
         let status = MenuStatus {
-            problems: vec![TrayProblem::ServiceDown { port: 15721 }],
+            problems: vec![TrayProblem::ServiceDown { port: 15821 }],
             feedback: Some(TrayFeedback::Switched {
                 app: AppType::Codex,
                 name: "DeepSeek".to_string(),
@@ -4805,7 +4805,7 @@ mod tests {
         assert_eq!(
             texts_of(&menu[..4]),
             [
-                "路由服务没在运行（端口 15721）",
+                "路由服务没在运行（端口 15821）",
                 "Codex 已切换到 DeepSeek，重启 Codex 后生效",
                 "---",
                 "打开 CC Switch",
@@ -4933,9 +4933,9 @@ mod tests {
         // Claude Code 重新进入路由：「退回直连」的问题行消失。
         let rerouted = [(AppType::Claude, false), (AppType::Codex, true)];
         assert_eq!(
-            collect_problems(Some(15721), &rerouted),
+            collect_problems(Some(15821), &rerouted),
             [
-                TrayProblem::ServiceDown { port: 15721 },
+                TrayProblem::ServiceDown { port: 15821 },
                 TrayProblem::SwitchFailed {
                     app: AppType::Codex,
                     reason: "boom".to_string()

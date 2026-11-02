@@ -3220,15 +3220,15 @@ mod tests {
 
     #[test]
     fn official_proxy_route_is_recognized_by_its_address() {
-        let proxy = |url: &str| url == "http://127.0.0.1:15721/v1";
+        let proxy = |url: &str| url == "http://127.0.0.1:15821/v1";
         for (config, expected) in [
-            ("openai_base_url = \"http://127.0.0.1:15721/v1/\"\n", true),
-            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", true),
-            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nrequires_openai_auth = true\n", true),
+            ("openai_base_url = \"http://127.0.0.1:15821/v1/\"\n", true),
+            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:15821/v1\"\n", true),
+            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15821/v1\"\nrequires_openai_auth = true\n", true),
             // 别的地址（比如其他工具改道到自己的本地服务）不算。
             ("openai_base_url = \"http://127.0.0.1:10531/v1\"\n", false),
             // 选了别的 provider，改道不生效。
-            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", false),
+            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:15821/v1\"\n", false),
             // 官方直连的统一会话镜像表没有地址。
             ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nrequires_openai_auth = true\n", false),
             ("model = \"gpt-5.5\"\n", false),

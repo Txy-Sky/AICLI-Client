@@ -2014,7 +2014,7 @@ model = "deepseek-chat"
 
 [model_providers.deepseek]
 name = "DeepSeek"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:15821/v1"
 wire_api = "responses"
 experimental_bearer_token = "PROXY_MANAGED"
 "#;
@@ -2984,7 +2984,7 @@ fn recover_from_crash_without_backup_cleans_placeholder_instead_of_writing_it_ba
     // 接管态 Claude Live，且 DB 中无备份（模拟切换 app_config_dir 后新库首启的场景）
     let taken_over_live = json!({
         "env": {
-            "ANTHROPIC_BASE_URL": "http://127.0.0.1:15721",
+            "ANTHROPIC_BASE_URL": "http://127.0.0.1:15821",
             "ANTHROPIC_AUTH_TOKEN": "PROXY_MANAGED"
         }
     });

@@ -566,7 +566,7 @@ web_search = "grok-4.6"
 
 [model."grok-4.5"]
 model = "a"
-base_url = "http://127.0.0.1:15721/grokbuild/v1"
+base_url = "http://127.0.0.1:15821/grokbuild/v1"
 api_key = "PROXY_MANAGED"
 "#;
         let official = GrokProjection::of(&row(""), true).unwrap();
@@ -581,7 +581,7 @@ api_key = "PROXY_MANAGED"
     fn proxy_contract_keeps_env_key_and_points_at_the_proxy() {
         let b = GrokProjection::of(&row(ROW_B), false).unwrap();
         let contract =
-            GrokProjection::proxy_contract(&b, "http://127.0.0.1:15721/grokbuild/v1", PLACEHOLDER)
+            GrokProjection::proxy_contract(&b, "http://127.0.0.1:15821/grokbuild/v1", PLACEHOLDER)
                 .unwrap();
         let (name, table) = contract.table.unwrap();
         assert_eq!(name, "b");

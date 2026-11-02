@@ -1113,7 +1113,7 @@ mod tests {
         doc
     }
 
-    const PROXY: &str = "http://127.0.0.1:15721/v1";
+    const PROXY: &str = "http://127.0.0.1:15821/v1";
 
     fn official_proxy(unified: bool) -> RouteWrite {
         RouteWrite::OfficialProxy {
@@ -1125,7 +1125,7 @@ mod tests {
     #[test]
     fn the_official_proxy_route_stays_in_the_built_in_openai_bucket() {
         // 旧版写的 cc-switch-official 表删掉；第三方留下的 custom 表改成休眠形态。
-        let live = "model_provider = \"cc-switch-official\"\nopenai_base_url = \"https://stale.example/v1\"\nmodel = \"gpt-5.5\"\n\n[model_providers.cc-switch-official]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nrequires_openai_auth = true\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"https://relay.example/v1\"\nexperimental_bearer_token = \"sk-relay\"\n";
+        let live = "model_provider = \"cc-switch-official\"\nopenai_base_url = \"https://stale.example/v1\"\nmodel = \"gpt-5.5\"\n\n[model_providers.cc-switch-official]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15821/v1\"\nrequires_openai_auth = true\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"https://relay.example/v1\"\nexperimental_bearer_token = \"sk-relay\"\n";
         let doc = apply(official_proxy(false), live);
         assert!(doc.get("model_provider").is_none(), "{doc}");
         assert_eq!(doc["openai_base_url"].as_str(), Some(PROXY));
@@ -1141,7 +1141,7 @@ mod tests {
 
         // 已有的改道原位改值，重写不挪位置。
         let settled =
-            "openai_base_url = \"http://127.0.0.1:15721/v1\"\napproval_policy = \"never\"\n";
+            "openai_base_url = \"http://127.0.0.1:15821/v1\"\napproval_policy = \"never\"\n";
         assert_eq!(apply(official_proxy(false), settled).to_string(), settled);
 
         // 没有 model_providers 时不建表。
@@ -1154,7 +1154,7 @@ mod tests {
     fn the_unified_official_proxy_route_is_a_custom_mirror_of_the_proxy() {
         for live in [
             "model = \"gpt-5.5\"\n",
-            "openai_base_url = \"http://127.0.0.1:15721/v1\"\n",
+            "openai_base_url = \"http://127.0.0.1:15821/v1\"\n",
         ] {
             let doc = apply(official_proxy(true), live);
             assert_eq!(doc["model_provider"].as_str(), Some(ROUTE_ID), "{doc}");
