@@ -2238,8 +2238,7 @@ fn skill_deeplink_is_a_shared_repository_not_an_agy_install() {
 
 #[test]
 fn test_deeplink_rejects_legacy_scheme() {
-    let result =
-        parse_deeplink_url("ccswitch://v1/import?resource=provider&app=claude&name=Test");
+    let result = parse_deeplink_url("ccswitch://v1/import?resource=provider&app=claude&name=Test");
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Invalid scheme"));
 }

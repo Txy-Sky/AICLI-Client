@@ -3,7 +3,10 @@ use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    assert_eq!(std::env::var("HOME")?, std::env::var("CC_SWITCH_TEST_HOME")?);
+    assert_eq!(
+        std::env::var("HOME")?,
+        std::env::var("CC_SWITCH_TEST_HOME")?
+    );
     let mut context = tauri::generate_context!();
     context.config_mut().app.windows.clear();
     let app = tauri::Builder::default()
