@@ -1,3 +1,44 @@
+# A6-01 TCP readiness correction — current acceptance
+
+Final implementation revision: 75f6e4d77172759d289e61dd1982f74a3d1ff4fb.
+The final tree includes the exact TCP healthcheck and the authorized sanitized
+startup logging step. The already-pushed healthcheck commit 21aae9ea was retained;
+75f6e4d7 appended logging without rewriting published history. The earlier run
+41379447998 was cancelled before its full baseline finished and is not counted.
+
+Job: Checklist acceptance (Linux).
+First full run and one full gh run rerun used the same final SHA, both success.
+Actual trigger for the second attempt: gh run rerun 41379889841.
+A6-01 status/version assertions and both seed invocations passed in each attempt.
+A3-01 in each attempt: frontend 266 files / 3415 passed; Rust 4443 passed / 10
+pre-existing skipped. No additional wait, restart, workflow retry or weaker
+assertion was introduced.
+
+Startup timing evidence only (UTC; no container log content saved here):
+
+Attempt 1:
+- MySQL port 3306 ready: 2026-11-02T02:52:37.458336742Z
+- new-api container StartedAt: 2026-11-02T02:52:40.499913879Z
+- https://github.com/Txy-Sky/AICLI-Client/actions/runs/41379889841/job/125068197882
+
+Attempt 2:
+- MySQL port 3306 ready: 2026-11-02T03:10:00.904176307Z
+- new-api container StartedAt: 2026-11-02T03:10:03.111664023Z
+- https://github.com/Txy-Sky/AICLI-Client/actions/runs/41379889841/job/125072929528
+
+Both timing comparisons passed; no connection refused in the new-api startup
+logs. Sanitized job output was reviewed for exposed credentials. Raw startup
+logs are not committed, copied into this evidence directory or uploaded as an
+artifact. The workflow logs/inspect step runs before deletion with always() and
+continue-on-error: true; it does not affect the acceptance result.
+
+Reason for correction: run 41375253825 attempts 1 and 2 exposed a race after the
+original environment acceptance. The socket healthcheck accepted MySQL's
+initialization server before final TCP 3306 readiness. See the historical failure
+record in A6-03.txt; the original success below remains as historical evidence.
+
+--- Historical initial environment acceptance (preserved verbatim) ---
+
 # A6-01 compose rc.34 environment and idempotent seed
 
 Implementation commit: `4945b896`.

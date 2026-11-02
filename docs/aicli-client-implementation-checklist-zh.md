@@ -224,7 +224,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - `seed.py`：通过 new-api 管理 API 创建管理员、两个测试用户（`alice`、`bob`）、三个分组（`g-cheap` 倍率 0.5、`g-mid` 倍率 1、`g-pro` 倍率 2），把 `auto` 加入可用分组，`MaxTokenAutoGroups=10`，并给每个分组配一个指向 `mock-upstream` 的渠道（`g-cheap`、`g-mid` 都含 `mock-model-a`，`g-pro` 只含 `mock-model-b`）。
   - `.env.example`：只放变量名和假值。
 - 验收：`docker compose up -d` 后 `curl -s 127.0.0.1:<port>/api/status` 版本为 `v1.0.0-rc.34`；`seed.py` 重复运行结果不变。
-- 证据：4945b896 | Checklist acceptance (Linux), job `A6-01 compose rc.34 environment and idempotent seed`: `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `curl --fail --silent --show-error http://127.0.0.1:13000/api/status`; `python3 tests/aicli-testenv/seed.py`（连续运行两次）；`bash scripts/aicli-check.sh` | CI run success；rc.34 `/api/status` 版本断言通过，seed 重复运行通过，A3-01 基线通过（Rust 4443 passed/10 skipped，前端 266 文件/3415 passed） | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41307378844
+- 证据：75f6e4d7 | job `Checklist acceptance (Linux)`，step `A6-01 compose rc.34 environment and idempotent seed`：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `curl --fail --silent --show-error http://127.0.0.1:13000/api/status`; `python3 tests/aicli-testenv/seed.py`（两次）；取证 step 执行 `docker compose logs --timestamps mysql new-api` 及 `docker inspect --format '{{.State.StartedAt}}'`，输出前过滤；`bash scripts/aicli-check.sh` | 同一 SHA 首次运行及 `gh run rerun 41379889841` 各完整通过（attempt 1 / 2）；两次均确认 MySQL 的 port 3306 就绪早于 new-api StartedAt，new-api 无 connection refused；基线两次均前端 266 文件/3415 passed，Rust 4443 passed/原有 10 skipped。时间点和原始 run 链接见 `docs/aicli-evidence/A6-01.txt`；日志只在 job 日志中，未写入证据或 artifact | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41379889841
+- 历史证据（保留；原环境验收未暴露初始化竞争，不作为本次修正的两次验收）：4945b896 | Checklist acceptance (Linux), job `A6-01 compose rc.34 environment and idempotent seed`: `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `curl --fail --silent --show-error http://127.0.0.1:13000/api/status`; `python3 tests/aicli-testenv/seed.py`（连续运行两次）；`bash scripts/aicli-check.sh` | CI run success；rc.34 `/api/status` 版本断言通过，seed 重复运行通过，A3-01 基线通过（Rust 4443 passed/10 skipped，前端 266 文件/3415 passed） | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41307378844
 
 #### A6-02 编写 mock-upstream
 - [x] 完成
@@ -233,13 +234,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：e45c2cde | Checklist acceptance (Linux), job `A6-02 mock upstream protocol and injection tests`: `python3 -m pip install --user pytest`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py` | CI run success；协议流式/非流式与行为注入 pytest 通过，A3-01 基线同 run 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41311104301
 
 #### A6-03 实测：受管 Token 路由（方案 PoC B 前半）
-- [!] 待补验，当前被前置环境阻塞：实现 `16d39c75` 已补入真正系统访问令牌和 T1/T2 quota 比例断言；Actions run 41375253825 的两次 attempt 均在 A6-01 的 MySQL TCP 就绪前启动 new-api 而失败，A6-03 未执行。历史 CI 通过记录保留，但不足以证明本项全部验收完成；不得勾选。详见 `docs/aicli-evidence/A6-03.txt`。
+- [ ] 待独立重新验收：实现 `16d39c75` 已补系统访问令牌与 quota 比例断言；旧 CI 的两次前置失败保留。A6-01 修正 `75f6e4d7` 已在同一 SHA 连续两次完整通过，环境阻塞已解除。按负责人要求，本项仍须以自己的新提交和 CI 重新验收，不能沿用 `c66defc2` 或以 A6-01 的通过替代本项证据。
 - 修改：`tests/aicli-testenv/tests/test_token_routing.py`。用 alice 的系统访问令牌调用 `POST /api/token/` 创建 Token：T1 `Group=auto, AutoGroups=[g-cheap,g-mid]`；T2 `Group=auto, AutoGroups=[g-mid,g-cheap]`；T3 `Group=auto, AutoGroups=[g-cheap,g-pro]`。
 - 验收（断言 `logs` 表的 `group`、`quota`）：
   - T1 请求 `mock-model-a` → 分组 `g-cheap`；T2 → `g-mid`；quota 比例约为 1:2。
   - T3 请求 `mock-model-b` → 分组 `g-pro`（第一组没有该模型时跳组）。
   - 响应头含 `X-Oneapi-Request-Id`，用它在 `/api/log/self?request_id=` 能查到对应行。
-- 证据：c66defc2 | job `Checklist acceptance (Linux)`，命令：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py`; `bash scripts/aicli-check.sh` | CI success；A6-01 种子两次 PASS，A6-03 路由断言 1 passed，基线 Rust 4443 passed/10 skipped、前端 3415 passed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41317794458
+- 历史证据（旧测试缺少系统访问令牌和比例断言，不作为重新验收依据）：c66defc2 | job `Checklist acceptance (Linux)`，命令：`docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d`; `python3 tests/aicli-testenv/seed.py`; `docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml restart new-api`; `PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_token_routing.py`; `bash scripts/aicli-check.sh` | CI success；A6-01 种子两次 PASS，A6-03 路由断言 1 passed，基线 Rust 4443 passed/10 skipped、前端 3415 passed | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41317794458
 
 #### A6-04 实测：系统访问令牌的能力边界
 - [x] 完成：负责人已明确本地测试授权范围；两个敏感接口均被拒绝，原令牌仍可用且用户仍存在。仅使用隔离容器中新建的一次性用户。
@@ -958,8 +959,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A5-01 / C4-05 | 负责人明确决定不再测 180 秒持续输出语义；120 秒语义未实测定案。 | 保留历史探测和失败结果；负责人于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），并决定不启用 C4-05。第 0.4 节已更新，两项均为 `[-]`。 | 当前采用值和是否启用 C4-05 均已由负责人决定，无待决事项；不得把采用值或跳过当成 120 秒实测结论。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
 | A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过现有路由用例，未触及线上账号或数据库。 | 额度问题已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，但不代表下行列出的旧测试验收缺口已解决。 |
-| A6-03（验收缺口） | A6-04 复核时发现 `test_token_routing.py` 未保存并比较 T1/T2 的 quota，因此未断言约 1:2 比例；其 `login()` 直接使用登录响应的短期凭证，也未生成系统访问令牌。 | 实现 `16d39c75` 已通过本地隔离账户的 Security Proof 取得真正系统访问令牌，增加 request_id 精确对应及 T2/T1 quota 约 2（相对误差 2%）断言。已推送，但 CI 前置环境失败，尚无新验收结论，保持不勾选。 | 需先解决下行的 A6-01 启动竞争，再在最终实现提交上跑完 CI；不需要线上凭证或修改线上额度。 |
-| A6-01（前置环境） / A6-03 | run 41375253825 attempt 1、2 均在 A6-01 失败，new-api 报 MySQL TCP connection refused，A6-03 和基线均跳过。 | 读取两次失败记录并对照 compose；attempt 2 中 mysql 在 02:05:47 UTC 被判 Healthy，new-api 同秒连接失败，最终 TCP 3306 至 02:05:49 UTC 才就绪。当前 `mysqladmin ping -h localhost` 可命中初始化临时 socket 服务。未修改环境或放宽断言。详见 `docs/aicli-evidence/A6-03.txt`。 | 已向负责人请求允许对 A6-01 作单独的前置修复：健康检查显式使用 TCP 127.0.0.1:3306；不执行 SQL、不改 new-api。收到决定前不修改该项，也不开始 A6-05。 |
+| A6-03（验收缺口） | A6-04 复核时发现 `test_token_routing.py` 未保存并比较 T1/T2 的 quota，因此未断言约 1:2 比例；其 `login()` 直接使用登录响应的短期凭证，也未生成系统访问令牌。 | 实现 `16d39c75` 已通过本地隔离账户的 Security Proof 取得真正系统访问令牌，增加 request_id 精确对应及 T2/T1 quota 约 2（相对误差 2%）断言。原实现 CI 被前置环境阻断；A6-01 修正现已连续两次完整通过。 | 环境阻塞已解除；按负责人要求，以本项自己的新提交和 CI 独立重新验收后才能勾选。不需要线上凭证或修改线上额度。 |
+| A6-01（前置环境） / A6-03 | run 41375253825 attempt 1、2 曾在 A6-01 失败：socket 健康检查提前通过，new-api 连接 TCP 3306 被拒绝。 | 经负责人授权，健康检查改为指定的显式 TCP 命令；最终修正版本 `75f6e4d7` 的 run 41379889841 attempt 1、2 均完整成功。两次均核对 MySQL port 3306 就绪早于 new-api StartedAt，new-api 无 connection refused；日志过滤后仅输出到 job 日志并完成保密抽查，未上传或保存容器日志。证据仅记时间点与链接，旧失败记录保留。 | 已关闭环境阻塞；未增加 sleep、自动重启或重试，未放宽断言。A6-03 按负责人要求另用自己的新提交和 CI 重新验收，尚不勾选。 |
 | A6-04 | 原验收与系统访问令牌接口禁令的适用范围存在冲突。 | 负责人于 2026-11-02 明确本地测试授权范围；实现 `cf9147a5` 的 CI run 41369181694 成功。POST `/api/user/token` 和 DELETE `/api/user/self` 均 HTTP 403、`success:false`、message=`安全验证状态无效`、code=`SECURITY_PROOF_INVALID`；调用后原令牌仍可访问账户，管理 API 确认用户仍存在。完整无密钥记录见 `docs/aicli-evidence/A6-04.txt`。 | 已解除并验收通过；未出现接口意外成功，无需负责人再决定。 |
 
 ## 13. 偏差记录
@@ -970,22 +971,23 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A5-01 | 本机线上探测，不在 CI 运行；原 TLS 路径在握手阶段被重置。 | 仓库外安装自写按进程启用的 `aicli-direct`，仅对 `api.aicli.qzz.io`、`aicli.qzz.io` 的首个 ClientHello 拆 TLS record，保留原握手字节、SNI、证书及主机名校验，清除该子进程代理环境变量。隔离 HOME 复验 60/60 及拒绝对照均通过；工具和源码未加入仓库、工作流或产品。 |
 | A5-01 / C4-05 | 清单要求通过超过 180 秒持续输出来判定 120 秒语义，再决定流式总时长和 C4-05。 | 负责人于 2026-11-01 决定跳过该测量；于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），C4-05 不启用。第 0.4 节已更新；A5-01 与 C4-05 均为 `[-]`，历史测量证据保留。 | 按负责人明确决定采用参数和跳过条件项，不将决定伪装成实测，不声称得出 120 秒语义结论。 |
 | A5-02 | 清单验收要求按 `/api/pricing` 的 `enable_groups` 与账号可用分组取交集，并在 `auto` 缺失或上限不足时交 H-04。 | 实际响应以 `data` 字段承载分组，报告统计 69 个模型；复测 `auto_available=true`、`max_count=15`、最大交集分组数为 3。 | 只记录实际响应形状，不改变接口或数据结构；复测结果通过验收。 |
+| A6-01 | 负责人要求健康检查和成功日志取证放在同一修正提交。 | 健康检查 `21aae9ea` 已推送后才补充授权取证，因此保留已公开历史并追加同编号修正 `75f6e4d7`；最终版本同时包含二者，连续两次验收均只使用最终 SHA。旧 21aae9ea 的未完运行取消，未计作通过。日志取证为独立 always / continue-on-error 步骤，清理移到其后，原启动、等待和验收代码保持一致。 | 遵守禁止强推和已公开提交不得改写的规则；本次仅修复获授权的测试环境健康检查并补充取证。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-04 实现 CI 通过提交为 cf9147a5adf786b9ab5d88ed275f009ef8c110ed（Actions run 41369181694）。
-完成/阻塞/跳过：7 / 1 / 2（完成含负责人原已完成的 A1-01，以及 A2-01、A3-01、A5-02、A6-01、A6-02、A6-04；A6-03 已推送验收缺口修复，但 run 41375253825 两次均被 A6-01 启动竞争阻断，A6-03 未执行；A6-01 的历史通过证据保留，新增环境问题登记第 12 节。A5-01 按负责人决定跳过 180 秒语义测量，C4-05 按负责人 2026-11-02 的决定不启用；其余项目未开始，不冒充已验证或已跳过）。
-scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：最近已通过的 A6-04 实现 cf9147a5 CI success，4443 / 3415；当前 A6-03 实现 16d39c75 的两次 CI 均在前置环境失败，基线未运行；Rust 原有 10 skipped；前端 266 个测试文件全部通过，数量与 A3-01 相同。A5-01 新增的 21 个 Python 离线测试全部通过；未减少测试或增加 ignore。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；A6-01 最终修正版本为 75f6e4d77172759d289e61dd1982f74a3d1ff4fb（Actions run 41379889841，同一 SHA 两次完整通过）。
+完成/阻塞/跳过：7 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01、A6-02、A6-04；A6-01 前置环境阻塞已关闭，A6-03 待自己的新提交与 CI 独立重新验收。A5-01、C4-05 仍按负责人决定跳过；其余项目尚未完成，不冒充已验证或已跳过）。
+scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；数量与原基线一致，未减少测试或增加 ignore。A6-03 仍须独立验收。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。[!] A6-03，quota 比例与系统访问令牌测试已补实现，因 A6-01 启动竞争未执行验收；A6-05 及之后的任务除 C4-05 已明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A6-03，quota 比例与系统访问令牌测试已补实现，前置环境阻塞已解除，待自己的新提交和 CI 独立验收；A6-05 及之后的任务除 C4-05 已明确跳过外尚未开始。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：未测试；A6-03 当前 CI 未通过，尚未开始下一项。
-需要负责人提供的事项：A6-04 无待决事项，已通过 CI 验收；A6-03 的测试缺口已补实现，等待负责人允许单独修复 A6-01 的 TCP 健康检查后重新验收；不需要线上凭证或额度操作。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：A6-04 无待决事项，已通过 CI 验收；A6-01 前置环境修正已通过同一 SHA 连续两次完整 CI，无待决事项；A6-03 按负责人要求独立重新验收，不需要线上凭证或额度操作。A5-02/H-04 无待决事项，180 秒语义测量按负责人决定跳过。线上测试令牌仅用于获授权的本机子进程；A6-04 仅在本地容器中新建一次性用户，不读取线上测试令牌。无密钥进入代码、日志、证据、提交或 Actions secrets。H-02～H-08 仍按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
