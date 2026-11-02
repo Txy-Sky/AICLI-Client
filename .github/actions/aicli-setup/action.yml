@@ -20,17 +20,19 @@ runs:
           echo "XDG_CACHE_HOME=$test_home/.cache"
         } >> "$GITHUB_ENV"
 
-    - name: Set up the pinned Node.js version
-      uses: actions/setup-node@v6
-      with:
-        node-version-file: .node-version
-
     - name: Set up the pinned pnpm version
       shell: bash
       run: |
         set -euo pipefail
         package_manager=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).packageManager')
         npm install --global --ignore-scripts "$package_manager"
+
+    - name: Set up the pinned Node.js version
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
 
     - name: Set up Python 3.12
       uses: actions/setup-python@v6
@@ -57,6 +59,12 @@ runs:
       with:
         toolchain: ${{ steps.rust-version.outputs.channel }}
         components: rustfmt, clippy
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: src-tauri -> target
+        shared-key: aicli-acceptance
 
     - name: Install cargo-nextest
       uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
