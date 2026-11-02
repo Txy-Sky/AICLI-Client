@@ -10,6 +10,8 @@ mod claude_plugin;
 mod codex_config;
 mod codex_history_migration;
 mod codex_rollout_file;
+#[cfg(test)]
+mod codex_startup_tests;
 mod codex_state_db;
 mod commands;
 mod config;
@@ -260,6 +262,88 @@ pub(crate) fn error_for_log(error: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+// AICLI starts with a new identity; legacy history migrations remain callable only
+// for their existing tests, never as an automatic startup mutation.
+const AICLI_LEGACY_CODEX_STARTUP_MIGRATIONS_ENABLED: bool = false;
+
+fn run_codex_startup_migrations(db: &Database) {
+    if AICLI_LEGACY_CODEX_STARTUP_MIGRATIONS_ENABLED {
+        match crate::codex_history_migration::maybe_migrate_codex_third_party_history_provider_bucket(
+            db,
+        ) {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex history provider bucket migration skipped: {reason}");
+                } else {
+                    log::info!(
+                        "✓ Codex history provider bucket migration completed: sources={}, jsonl_files={}, state_rows={}",
+                        outcome.source_provider_ids.len(),
+                        outcome.migrated_jsonl_files,
+                        outcome.migrated_state_rows
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex history provider bucket migration failed: {e}");
+            }
+        }
+
+        match crate::codex_history_migration::maybe_migrate_codex_provider_template_bucket(db) {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex provider template bucket migration skipped: {reason}");
+                } else if !outcome.migrated_provider_ids.is_empty() {
+                    log::info!(
+                        "✓ Codex provider template bucket migration completed: providers={}",
+                        outcome.migrated_provider_ids.len()
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex provider template bucket migration failed: {e}");
+            }
+        }
+
+        // 旧版官方路由桶（cc-switch-official）迁回 openai，须在统一迁移之前：
+        // 开关开着时，紧接着的统一迁移会把它们按正常流程带进 custom。
+        match crate::codex_history_migration::maybe_migrate_codex_legacy_official_history_to_openai_bucket() {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex legacy official history bucket migration skipped: {reason}");
+                } else {
+                    log::info!(
+                        "✓ Codex legacy official history bucket migration completed: jsonl_files={}, state_rows={}",
+                        outcome.migrated_jsonl_files,
+                        outcome.migrated_state_rows
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex legacy official history bucket migration failed: {e}");
+            }
+        }
+    }
+
+    // 统一会话开关的官方历史迁移：开关开启但上次未完成（如文件被占用
+    // 中途失败）时在启动期重试；函数内部自门控，开关关闭时直接跳过。
+    match crate::codex_history_migration::maybe_migrate_codex_official_history_to_unified_bucket() {
+        Ok(outcome) => {
+            if let Some(reason) = outcome.skipped_reason {
+                log::debug!("○ Codex official history unify migration skipped: {reason}");
+            } else {
+                log::info!(
+                    "✓ Codex official history unify migration completed: jsonl_files={}, state_rows={}",
+                    outcome.migrated_jsonl_files,
+                    outcome.migrated_state_rows
+                );
+            }
+        }
+        Err(e) => {
+            log::warn!("✗ Codex official history unify migration failed: {e}");
+        }
+    }
 }
 
 pub(crate) const fn updater_enabled() -> bool {
@@ -865,81 +949,7 @@ pub fn run() {
             {
                 let db_for_codex_history_migration = app_state.db.clone();
                 tauri::async_runtime::spawn_blocking(move || {
-                    match crate::codex_history_migration::maybe_migrate_codex_third_party_history_provider_bucket(
-                        &db_for_codex_history_migration,
-                    ) {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex history provider bucket migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex history provider bucket migration completed: sources={}, jsonl_files={}, state_rows={}",
-                                    outcome.source_provider_ids.len(),
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex history provider bucket migration failed: {e}");
-                        }
-                    }
-
-                    match crate::codex_history_migration::maybe_migrate_codex_provider_template_bucket(
-                        &db_for_codex_history_migration,
-                    ) {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex provider template bucket migration skipped: {reason}");
-                            } else if !outcome.migrated_provider_ids.is_empty() {
-                                log::info!(
-                                    "✓ Codex provider template bucket migration completed: providers={}",
-                                    outcome.migrated_provider_ids.len()
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex provider template bucket migration failed: {e}");
-                        }
-                    }
-
-                    // 旧版官方路由桶（cc-switch-official）迁回 openai，须在统一迁移之前：
-                    // 开关开着时，紧接着的统一迁移会把它们按正常流程带进 custom。
-                    match crate::codex_history_migration::maybe_migrate_codex_legacy_official_history_to_openai_bucket() {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex legacy official history bucket migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex legacy official history bucket migration completed: jsonl_files={}, state_rows={}",
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex legacy official history bucket migration failed: {e}");
-                        }
-                    }
-
-                    // 统一会话开关的官方历史迁移：开关开启但上次未完成（如文件被占用
-                    // 中途失败）时在启动期重试；函数内部自门控，开关关闭时直接跳过。
-                    match crate::codex_history_migration::maybe_migrate_codex_official_history_to_unified_bucket() {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex official history unify migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex official history unify migration completed: jsonl_files={}, state_rows={}",
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex official history unify migration failed: {e}");
-                        }
-                    }
+                    run_codex_startup_migrations(&db_for_codex_history_migration);
                 });
             }
 

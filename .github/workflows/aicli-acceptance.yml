@@ -347,6 +347,14 @@ jobs:
           print("B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed")
           PY
 
+      - name: B-06 verify Codex identity and startup history preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml codex 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-codex.txt"
+          cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-startup.txt"
+          printf 'B-06: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-06.txt"
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
