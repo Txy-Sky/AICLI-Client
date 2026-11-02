@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "aicli-client"
-version = "4.0.21"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "arboard",
