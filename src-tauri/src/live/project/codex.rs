@@ -26,8 +26,8 @@ pub const ROUTE_ID: &str = "custom";
 pub const OFFICIAL_PROXY_ROUTE_ID: &str = "cc-switch-official";
 /// 把内置 openai 改道到别的地址的顶层键。
 const OPENAI_BASE_URL: &str = "openai_base_url";
-/// CC Switch 生成的模型目录文件名。
-pub const CATALOG_FILENAME: &str = "cc-switch-model-catalog.json";
+/// AICLI Client 生成的模型目录文件名。
+pub const CATALOG_FILENAME: &str = crate::codex_config::CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME;
 pub use super::claude::PROXY_TOKEN_PLACEHOLDER;
 /// `web_search` 的禁用值。
 pub const WEB_SEARCH_DISABLED: &str = "disabled";

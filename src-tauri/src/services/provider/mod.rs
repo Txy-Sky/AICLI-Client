@@ -2001,7 +2001,7 @@ disable_response_storage = true
 model_reasoning_effort = "high"
 approval_policy = "on-request"
 experimental_bearer_token = "sk-live-secret"
-model_catalog_json = "cc-switch-model-catalog.json"
+model_catalog_json = "aicli-model-catalog.json"
 web_search = "disabled"
 
 [agents]
