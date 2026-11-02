@@ -106,6 +106,10 @@ class Environment:
             matches = [item for item in self.channels() if item.get("name") == name]
             require(len(matches) == 1, "missing or ambiguous local affinity channel")
             self.channel_ids.append(matches[0]["id"])
+            # rc.34 AddChannel does not rebuild the routing cache; the normal
+            # update endpoint does. Confirm the configured priority through HTTP
+            # so this newly created fixture channel is immediately selectable.
+            self.priority(matches[0]["id"], priority)
         name = "aicli:a605"
         self.api.success("POST", "/api/token/", {"name": name, "group": "g-cheap",
                          "unlimited_quota": True, "expired_time": -1}, token=self.access)
