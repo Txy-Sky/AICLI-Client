@@ -1969,10 +1969,16 @@ mod tests {
             if after_cleanup {
                 restore_official(&paths).expect("clean up AICLI");
             }
-            assert_eq!(fs::read(&legacy_path).expect("legacy profile"), legacy_bytes);
+            assert_eq!(
+                fs::read(&legacy_path).expect("legacy profile"),
+                legacy_bytes
+            );
             let meta: Value = read_json_file(&paths.meta_path).expect("read meta");
             let entries = meta["entries"].as_array().expect("entries");
-            assert!(entries.contains(&legacy_entry), "legacy entry must be intact");
+            assert!(
+                entries.contains(&legacy_entry),
+                "legacy entry must be intact"
+            );
             assert_eq!(
                 entries.iter().any(|entry| entry["id"] == json!(PROFILE_ID)),
                 !after_cleanup
