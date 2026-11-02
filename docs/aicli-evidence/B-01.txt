@@ -1,0 +1,42 @@
+B-01 configuration directory identity — PASSED
+
+Evidence: 6f99e807 | Checklist acceptance (Linux): bash scripts/aicli-check.sh; grep -rn '"\.cc-switch"' src-tauri/src; cargo nextest run --manifest-path src-tauri/Cargo.toml --test config_identity | 4445 Rust tests passed / 10 original skipped; 266 frontend files / 3415 tests passed; renderer build passed; targeted config_identity 2 passed, 0 skipped | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41396544099
+Final implementation: 6f99e8073fe7f17ad1e814c097392618cfba9a1c
+Initial implementation: 19ebf304d15f3c9b3c8dda1e2af681dbce1e26c4
+Job: Checklist acceptance (Linux), job ID 125118985256
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41396544099
+
+Scope:
+- Centralized APP_DIR_NAME=.aicli-client for configuration/device paths.
+- Renamed the database and backup source to aicli-client.db.
+- Renamed the DSH receipt to .aicli-client-profile-sync.json.
+- Removed the v3.10.3 Windows legacy HOME database fallback, including its
+  test-only bypass. No legacy database is adopted or migrated.
+- Additional same-purpose path references found outside the checklist's
+  examples were updated in database/backup.rs, mode/controller.rs,
+  services/backup_storage.rs, services/env_manager.rs, services/skill.rs
+  and related integration fixtures. No unrelated brand/port change.
+
+Tests removed together with the deleted compatibility feature:
+- src-tauri/src/config.rs: Windows-only
+  test_home_short_circuits_the_home_legacy_fallback, plus its unused env_lock.
+  This test asserted priority over a fallback which no longer exists.
+  No unrelated assertion was removed or relaxed.
+New cross-platform tests in src-tauri/tests/config_identity.rs:
+- database_and_device_store_use_only_the_aicli_directory
+- existing_upstream_database_in_another_home_is_never_adopted
+The latter preserves a separate upstream database sentinel byte-for-byte.
+Windows/macOS execution was not required for this daily Linux item.
+
+Historical failure (not acceptance):
+19ebf304 | Checklist acceptance (Linux): bash scripts/aicli-check.sh |
+cargo fmt --check failed on path-chain/assertion wrapping; frontend 266 files /
+3415 passed and renderer build succeeded; Rust tests and B-01 step not reached |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41395522583
+6f99e807 applies only the formatter changes shown by that CI failure.
+
+Actual local static checks (no local build/test):
+- git diff --check: exit 0.
+- grep -rn '"\.cc-switch"' src-tauri/src: no matches.
+- rg '"cc-switch.db"|\.cc-switch-profile-sync' src-tauri/src: no matches.
+Builds and tests run in Actions only, with isolated HOME/CC_SWITCH_TEST_HOME.
