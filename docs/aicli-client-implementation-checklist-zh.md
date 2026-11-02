@@ -295,7 +295,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：`e78f3a7e` | Checklist acceptance (Linux): `bash scripts/aicli-check.sh`; `grep -rn 15721 src-tauri/src src`; `test "$(grep -R -n -o '15821' src-tauri/src src | wc -l)" -gt 0`; `cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile` | 旧值无命中，新值存在；Rust 4446 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，renderer build passed；Desktop 定向 1 passed，其余 4455 项被过滤 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41404536037 （失败历史见 `docs/aicli-evidence/B-02.txt`）
 
 ### B-03 标识和产品名
-- [ ] 完成
+- [!] 阻塞：验收扫描与 B-04、B-05 的修改范围冲突，待负责人决定。
 - 修改：
   - `src-tauri/tauri.conf.json`：`productName`=`AICLI Client`，`identifier`=`com.aicliapi.com`，`version` 改 `0.1.0`；`tauri.windows.conf.json` 的窗口标题。
   - `src-tauri/Cargo.toml`：`name`=`aicli-client`，`version`=`0.1.0`，`description`、`authors`、`repository` 改为本项目；`[lib] name` 保留。
@@ -958,6 +958,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
+| B-03 | 指定品牌扫描要求无结果，但 `tauri.conf.json:61` 的 `ccswitch` scheme 明确属于 B-04，`:67` 的 `dl.ccswitch.io` 更新地址明确属于 B-05。 | 实现 `ed35b335` 已推送，Actions run 41408109801 尚未验收完成；本机只读执行原始 `grep -n 'ccswitch\|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json`，exit 0，实际命中上述两行。方案第 6.1、6.2 节确认需改身份和深链，但未解决分项验收顺序矛盾。未提前更改后续项行为，未放宽扫描。 | 按第 0.3、0.6 节等待负责人决定：是否仅对这两处给 B-03 临时精确例外，并在 B-05 恢复完整扫描；或将这两处行为变更提前纳入 B-03。当前项未通过，不开始下一项。 |
 | A5-01 / C4-05 | 负责人明确决定不再测 180 秒持续输出语义；120 秒语义未实测定案。 | 保留历史探测和失败结果；负责人于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），并决定不启用 C4-05。第 0.4 节已更新，两项均为 `[-]`。 | 当前采用值和是否启用 C4-05 均已由负责人决定，无待决事项；不得把采用值或跳过当成 120 秒实测结论。 |
 | A5-02 | 初次核对时账号可用分组不含 `auto`。 | 负责人告知已开启 `auto`；随后通过只读接口复测，五个接口均 HTTP 200，`auto_available=true`、`auto_max_count=15`、最大模型分组数 3；未写入任何 Token。 | 已解决；A5-02 通过，H-04 条件已满足。 |
 | A6-03 | 初次路由验收时，隔离环境创建的 alice 用户无账户额度，模型请求返回 HTTP 403 `insufficient_user_quota`。 | 隔离环境通过管理 HTTP API 的 `/api/user/manage` `add_quota` 操作给 alice 注入测试额度；在 CI 重建环境并通过现有路由用例，未触及线上账号或数据库。 | 额度问题已解除；实现提交 `c66defc2` 的 CI run 41317794458 成功，但不代表下行列出的旧测试验收缺口已解决。 |
@@ -986,17 +987,17 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-02 最终实现为 e78f3a7ed37c47dd04b4335dc25897613195781a（Actions run 41404536037，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
-完成/阻塞/跳过：12 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01、B-02；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；下一项 B-03）。
+完成/阻塞/跳过：12 / 1 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01、B-02；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；当前 B-03 因跨项验收范围冲突阻塞，未进入 B-04）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-03 及之后除 C4-05 明确跳过外尚未完成。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[!] B-03，品牌扫描与 B-04 scheme、B-05 更新地址的修改范围冲突，待负责人决定；[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-03 及之后除 C4-05 明确跳过外尚未完成。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
-需要负责人提供的事项：A-GATE 的唯一例外已明确批准并核验通过，无待决事项，下一项 B-03。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：B-03 的跨项扫描范围冲突待决定，详见第 12 节；第 0.6 节要求当前项通过前不进入下一项。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
