@@ -394,6 +394,56 @@ jobs:
           cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-startup.txt"
           printf 'B-06: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-06.txt"
 
+      - name: B-07 verify visible copy and upstream attribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-07.txt"
+          import json
+          from pathlib import Path
+          import re
+          import subprocess
+
+          baseline = "d82605fd66a1f9c064daa000a5652351d9773aac"
+          files = sorted(Path("src/i18n/locales").glob("*.json"))
+          assert len(files) == 5
+
+          def compare(old, new):
+              assert type(old) is type(new)
+              if isinstance(old, dict):
+                  assert old.keys() == new.keys(), "translation keys changed"
+                  for key in old:
+                      compare(old[key], new[key])
+              elif isinstance(old, str):
+                  assert sorted(re.findall(r"\{\{.*?\}\}", old)) == sorted(re.findall(r"\{\{.*?\}\}", new))
+
+          expected_hits = {"en": 28, "ja": 28, "tr": 28, "zh": 29, "zh-TW": 29}
+          legacy = re.compile(r"cc switch|cc-switch", re.IGNORECASE)
+          for path in files:
+              before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:{path}"], text=True))
+              after = json.loads(path.read_text())
+              compare(before, after)
+              promotions = after["providerForm"].pop("partnerPromotion")
+              assert promotions == before["providerForm"]["partnerPromotion"], "promotion copy changed"
+              hits = sum(bool(legacy.search(value)) for value in promotions.values())
+              assert hits == expected_hits[path.stem], (path.stem, hits)
+              assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
+              print(f"{path.stem}: preserved promotion entries matching legacy brand={hits}; remainder=0")
+              assert after["app"]["title"] == "AICLI Client"
+          original_license = subprocess.check_output(["git", "show", f"{baseline}:LICENSE"])
+          license_text = Path("LICENSE").read_bytes()
+          assert license_text.startswith(original_license), "original MIT text must remain intact"
+          assert b"Copyright (c) 2025 Jason Young" in license_text
+          assert b"Copyright (c) 2026 Txy-Sky (AICLI Client modifications)" in license_text
+          for name in ("README_DE.md", "README_JA.md", "README_ZH.md", "deplink.html"):
+              assert not Path(name).exists(), name
+          assert "基于 farion1231/cc-switch，MIT" in Path("README.md").read_text()
+          assert len(Path("README.md").read_text().splitlines()) < 70
+          for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
+              assert Path(name).is_file(), name
+          print("B-07: PASS; five locales retain all keys/interpolations; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
+          PY
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
