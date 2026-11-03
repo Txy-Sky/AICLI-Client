@@ -1,0 +1,54 @@
+B-GATE final acceptance
+Implementation: b2ee89451a545d4490a7aef4709e996fc7b539ed
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41563951882
+Result: completed / success, verified using gh run view --json status,conclusion,headSha.
+
+Actual commands:
+sudo apt-get install -y --no-install-recommends xvfb xauth xdg-utils desktop-file-utils
+python3 scripts/aicli-b-gate.py
+The script runs xvfb-run -a pnpm tauri dev in a newly created RUNNER_TEMP HOME.
+HOME and CC_SWITCH_TEST_HOME both point to that directory; XDG paths are under it.
+CARGO_HOME/RUSTUP_HOME retain the CI toolchain locations.
+CI-only frontend module uses real Tauri IPC:
+get_init_error; start_proxy_server; get_proxy_status.
+It waits for the real startup's five direct mode entries before starting the proxy once.
+A loopback HTTP test receiver only collects readiness/results; no service is added to the product.
+The original src/index.html bytes are restored and the injected module is deleted in finally.
+Post-check: git diff --exit-code -- src/index.html; test ! -e src/aicli-b-gate-probe.js.
+
+Actual captured results:
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+LISTEN 0      128        127.0.0.1:15821      0.0.0.0:*    users:(("aicli-client",pid=5341,fd=43))
+
+B-GATE IPC: {"info": {"address": "127.0.0.1", "port": 15821, "started_at": "2026-11-03T02:09:26.098137920+00:00"}, "status": {"active_connections": 0, "active_targets": [], "address": "127.0.0.1", "current_provider": null, "current_provider_id": null, "failed_requests": 0, "failover_count": 0, "last_error": null, "last_request_at": null, "port": 15821, "running": true, "success_rate": 0, "success_requests": 0, "total_requests": 0, "uptime_seconds": 0}}
+B-GATE HOME entries: ['.aicli-client', '.cache', '.config', '.local']
+B-GATE: PASS; real Tauri dev startup, fresh AICLI configuration, real IPC proxy start and loopback listener verified
+
+Complete baseline: bash scripts/aicli-check.sh exited 0.
+Test Files 267 passed (267); Tests 3416 passed (3416).
+Summary [92.883s] 4449 tests run: 4449 passed, 10 skipped.
+Compared with A3-01: +1 frontend file / +1 frontend test, +6 Rust tests; no reduction.
+The original 10 Rust skips remain unchanged, no new ignore/skip added.
+B-01 added 2 Rust tests; B-02 added 1; B-04 added 2; B-06 added 1.
+The frontend addition is the B-05 tests/config/updaterDisabled.test.ts (1 passed).
+
+Coverage selection explicitly reported: GATE item; run full A6 coverage.
+All A6 steps passed in this run, as did B-01 through B-08 and the debug build.
+No production, real credentials, signing, release or deployment used.
+
+Local static checks before push:
+Python ast.parse of the gate script passed (not claimed as runtime verification).
+git diff --check
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+All passed: rustfmt, Prettier and YAML (5 files, no duplicate keys).
+Git pull --rebase origin feat/aicli-client-v1 before the gate push: up to date.
+Note: the preceding B-08 evidence push's pull reported unstaged changes because gate
+preparation overlapped it; normal evidence push succeeded. Before this gate push,
+all gate changes were committed and pull --rebase succeeded, with no force push.
+
+Artifacts downloaded via gh run download to /tmp/aicli-B-GATE-evidence;
+B-GATE.txt, A3-01.txt and CI-OPT-coverage.txt inspected.
+Full ephemeral desktop startup logs remain in the run artifact, not copied into the repository.
+Two local gh watch queries encountered transient TLS timeouts; the same run was re-queried,
+not rerun. This final complete success is the only B-GATE acceptance run.
