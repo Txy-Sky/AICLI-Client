@@ -1,4 +1,5 @@
 use super::*;
+use crate::aicli::account::AccountLifecycle;
 use rusqlite::Connection;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::Notify;
