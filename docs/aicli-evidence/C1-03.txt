@@ -1,0 +1,59 @@
+C1-03 local SQLite v25
+Implementation: 71b064800702624d47b888b2a4e739f046b9d0ee
+Final combined acceptance: a4445066c1d64f3b7c50c3978c682b08e945e5e1
+Group: C1-01/C1-02/C1-03, separate implementation/evidence commits.
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41588458491
+Result: completed / success, verified using gh run view --json status,conclusion,headSha.
+
+Actual CI commands/results:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::schema::tests
+Summary [0.137s] 5 tests run: 5 passed, 4471 filtered/existing skipped.
+cargo nextest run --manifest-path src-tauri/Cargo.toml database::schema::tests
+Summary [0.285s] 14 tests run: 14 passed, 4462 filtered/existing skipped.
+cargo nextest run --manifest-path src-tauri/Cargo.toml database::tests
+Summary [0.730s] 31 tests run: 31 passed, 4445 filtered/existing skipped.
+bash scripts/aicli-check.sh
+Summary [108.346s] 4466 tests run: 4466 passed, original 10 skipped.
+Frontend 267 files / 3416 passed. Original tests/assertions unchanged, no new ignore.
+
+Five new tests passed:
+v24_migration_preserves_every_existing_field_and_is_repeatable
+fresh_and_migrated_tables_have_identical_columns_and_indexes
+account_defaults_and_singleton_constraint_are_enforced
+group_hash_and_composite_primary_keys_are_enforced
+failed_v24_migration_rolls_back_schema_and_version
+
+The fixture contains all committed v24 proxy log columns, a historical request
+and a setting. Every original log value is compared before/after; new values NULL.
+New account/token rows also survive repeated migration and table creation.
+Fresh/migrated column metadata matches for all nine AICLI tables plus proxy logs.
+New-table index metadata matches, original proxy secondary indexes outside scope.
+Defaults main/0/block/0, singleton check, groups_hash UNIQUE, scope/line-health
+composite primary keys verified. A conflicting index forces late schema failure,
+and savepoint rollback leaves version 24, prior rows and no partial new schema.
+
+Only local client SQLite code changed; no new-api database access, no server changes.
+9 tables and 6 request log fields are exactly the checklist scope. The plan's
+section 6.4 is an incomplete summary, so the checklist wins (recorded section 13).
+The local_token table stores only local-client token values per checklist;
+no access-token or upstream sk- column added. There is no account data writer yet.
+Existing partial-table migration fixtures are retained: v25 only adds log columns
+if that preexisting table exists; complete v24/fresh schemas have dedicated tests.
+All existing migration assertions retained; version assertions already use SCHEMA_VERSION.
+
+Final same run: C1-01 2 passed; C1-02 10 passed; real desktop startup/IPC, all A6,
+B-01 through B-08 and debug build passed. Coverage selected full A6.
+Compared to previous 4449 Rust baseline, 17 tests added in this group; none removed.
+
+Prior run 41587843001 at 71b06480 superseded/cancelled by C1-02 correction, not evidence.
+Final artifacts downloaded by gh run download to /tmp/aicli-C1-01-03-evidence;
+C1-03.txt, A3-01.txt and CI-OPT-coverage.txt read before marking complete.
+
+Local pre-push static commands actually run:
+CC_SWITCH_TEST_HOME=/tmp/aicli-c1-format cargo fmt --manifest-path src-tauri/Cargo.toml
+git diff --check
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+All passed (rustfmt, Prettier, YAML 5 files/no duplicate keys).
+git pull --rebase origin feat/aicli-client-v1 before push succeeded.
+No local compilation or runtime tests, no real credentials or production operations.
