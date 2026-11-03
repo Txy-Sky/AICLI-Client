@@ -418,13 +418,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：d803b70f | job `Checklist acceptance (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests`；`cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-newapi-probe`；`python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py`；`bash scripts/aicli-check.sh` | 完整 CI success；mock/脱敏/本机地址限制专项 9 passed，rc.34 全部 11 个封装集成 1 passed；账单/stat/count 一致，模型 Token 已删除，401 映射通过；全量 Rust 4474 passed/原有 10 skipped，前端 267 文件/3416 passed；A6 和 B 回归全部通过，未调用线上服务。详见 `docs/aicli-evidence/C1-04.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41595990426
 
 ### C1-05 绑定和解绑
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli/account.rs`：
   - `bind(access_token, line)`：去除首尾空白；以 `sk-` 开头时直接返回 `WrongCredentialType`，不发请求；按线路调用 `user_self` 校验，失败不保存任何内容；成功后令牌写 Keychain（`access-token`），写 `aicli_account`，触发 C1-06 的刷新。切换到不同 `user_id` 时清空缓存、配置集和 Token 记录。
   - `unbind(delete_created_tokens: bool)`：还原全部接管（C3-10）；清除 Keychain 中的 `access-token` 和全部 `token:*`；清空账户相关表，但**保留** `proxy_request_logs`。`delete_created_tokens=true` 时才删除 `created_by_client=1` 的 Token，默认 false，因为这些 Token 可能被该账号的其他设备共用。访问令牌无法撤销，界面要提示用户到网页处理。
   - 运行中收到 `TokenInvalid`：转为"需要重新绑定"状态，保留缓存可读，模型请求返回 `not_bound`。
 - 验收：单测覆盖误填 `sk-` 被拒且没有网络请求、校验失败不落盘、换账号清空、解绑两种选项、令牌失效状态；断言令牌不进 SQLite（搜索数据库文件内容）。令牌失效后，再粘贴同账号的新令牌时，配置集、缓存和 Token 记录都保留。
-- 证据：
+- 证据：abd86717 | job `Checklist acceptance (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::account::tests`；`bash scripts/aicli-check.sh` | 完整 CI success；绑定/解绑定向 12 passed；全量 Rust 4486 passed/原有 10 skipped，前端 267 文件/3416 passed；绑定失败不落盘、换账号清理与设备数据保护、同账号重绑、两种解绑、删除/还原/数据库/凭证存储失败回滚及迟到 401 保护全部通过。详见 `docs/aicli-evidence/C1-05.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41600439692
 
 ### C1-06 缓存优先的加载
 - [ ] 完成
@@ -1028,17 +1028,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | C1-03 | 方案第 6.4 节是简表，缺少清单中的 scope_binding/local_token/takeover、allow_unscanned_media 及部分完整列；现有 v24 迁移在 match 内联，定位与清单描述略有差异。 | 按清单完整实现 9 表及日志 6 列，不采用方案简表删字段；新增逻辑/测试放 aicli/schema.rs，由原 schema 创建和新增 24 分支调用。旧单表迁移夹具缺日志表时仅补存在的日志列，完整 v24 及新库由新增专项覆盖；既有断言不删不放宽。 | 最终新增 5、既有 schema 14、database 31 项全通过；变更仅客户端本地 SQLite，不访问 new-api 数据库；aicli_local_token 仅为清单要求的本地令牌，不是系统访问令牌或 sk- 密钥。 |
 
+| C1-05 | 本项在 C1-06 缓存和 C3-10 接管实现前执行，需要让绑定/解绑可独立验证。 | AccountLifecycle 是必需注入的接口，没有生产空实现；绑定成功后刷新回调一次，解绑先 await 全量还原，只有还原成功才进入 Token 删除/本地清理；SQLite 和 SecretStore 使用补偿/事务保持失败时状态一致。定向 mock 测试断言调用和顺序；C1-06、C3-10 后续接线与集成验收仍按各自项目执行。 | 这是阶段内依赖先后的实现安排，没有宣称缓存刷新或真实接管还原已由本项完成；运行时 wiring 仍需后续项目。12 项专项及完整 CI 通过。 |
 | C1-04 | rc.34 的 create_token 成功响应没有 id/key，pricing 的倍率和端点位于顶层；A6 需要实际运行新的 Rust 客户端而非 Python 重写接口。 | 读取封装保留完整成功响应，创建返回单元值，调用方重新列举取得 ID；按第 0.6 节预授权新增仅 test-hooks 可用的 HTTP loopback 构造器与 Rust probe，在既有 A6-04 容器内用管理 HTTP API 新建一次性用户并覆盖全部 11 个封装。未修改 new-api，未使用线上凭证。 | 字段形状与测试接线调整，不改变接口或用户行为；mock 专项 9、真实 rc.34 集成 1 及完整 CI 全部通过；响应原文不进入错误/Debug/日志。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-04 验收提交 d803b70f25c4e72b1cde47e6ef2804c1e6de0bd2（Actions run 41595990426，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-05 验收提交 abd867178cb78d854ac7333fd80c4ef5e67a0a19（Actions run 41600439692，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：23 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-04；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；阶段 B 全部通过，C1-01～C1-04 已通过，下一项 C1-05，G 阶段仍有待决事项）。
+完成/阻塞/跳过：24 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-05；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；阶段 B 全部通过，C1-01～C1-05 已通过，下一项 C1-06，G 阶段仍有待决事项）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
-最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；前端 267 文件/3416 passed；专项 9 passed，真实 rc.34 Rust 客户端全部 11 个封装集成 1 passed；Clippy、A6、桌面启动及 B 回归全部通过。公开 job 日志长格式模型密钥及 Bearer 值候选扫描均为 0；原始启动日志未写入文档。
+最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
+最近 C1-05 验收 abd86717：Rust 4486 passed / 原有 10 skipped，前端 267 文件/3416 passed；绑定/解绑专项 12 passed；Clippy、A6、桌面启动及 B 回归全部通过。公开 job 日志长格式模型密钥和 Bearer 值候选扫描为 0；原始启动日志未写入文档。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。

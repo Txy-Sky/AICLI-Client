@@ -1,0 +1,45 @@
+C1-05 account binding lifecycle
+Implementation and final acceptance: abd867178cb78d854ac7333fd80c4ef5e67a0a19
+Job: Checklist acceptance (Linux), 125797648740, completed/success, 29m28s
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41600439692
+Verified the actual head SHA, status and conclusion using `gh run view --json headSha,status,conclusion,url,jobs`.
+
+Actual CI commands:
+`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::account::tests`
+`bash scripts/aicli-check.sh`
+Pre-push checks also ran:
+`AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh`
+PASS: isolated rustfmt, Prettier, and workflow YAML syntax (five files; duplicate keys rejected).
+CI HOME == CC_SWITCH_TEST_HOME == $RUNNER_TEMP/aicli-test-home; tests use a disposable temp directory/SQLite file and MemoryStore. No host client data.
+
+Actual targeted result (ANSI removed):
+12 tests run: 12 passed, 4484 filtered.
+failed_credential_write_rolls_back_sqlite_and_restores_previously_removed_model_keys
+failed_database_write_does_not_change_credentials_or_delete_existing_rows
+invalidation_keeps_cache_readable_and_rebinding_same_user_preserves_profiles_tokens_and_cache
+failed_or_malformed_verification_preserves_existing_binding_and_all_data
+rejects_api_keys_empty_tokens_and_unknown_lines_without_network_or_storage
+reopening_uses_only_local_account_and_credential_presence
+late_invalid_token_error_cannot_invalidate_replacement_binding_or_unbound_state
+remote_delete_failure_does_not_clear_local_account_data_or_reused_tokens
+restoration_failure_preserves_binding_credentials_and_every_table
+trims_validates_then_stores_only_public_account_and_schedules_refresh
+switching_user_clears_user_data_and_old_model_keys_but_preserves_device_backups_and_logs
+unbind_restores_takeovers_removes_credentials_and_account_tables_and_preserves_logs
+
+Full baseline:
+Rust 4486 passed, 10 original skips (summary 87.277s). Frontend 267 files / 3416 passed; typecheck, format, renderer build and `cargo clippy -- -D warnings` all passed. No tests/assertions deleted or weakened and no new ignores.
+The same run passed A6-01 through A6-05, B-GATE and B-01 through B-08.
+
+Coverage in the 12 passing account tests:
+- Reject `sk-` prefixed API keys, whitespace-only input and unknown line before network/storage writes.
+- Trim a valid system access token, validate the returned public identity, store the credential only via SecretStore, persist non-secret identity fields, and request refresh once after commit.
+- Failed or malformed verification leaves previous account/cache/profile/token data and stored credential intact.
+- Switching user clears account cache, profiles, scopes, usage and managed-token rows/keys; device takeover backups/local auth and request logs remain unchanged; no remote tokens are deleted.
+- Same-user rebind keeps profile/cache/managed records. TokenInvalid moves runtime state to NeedsRebind while account data remains readable; a late error from a previous binding generation cannot invalidate a replacement binding.
+- Unbind(false) and unbind(true) call restore before clearing. True deletes only `created_by_client=1` token IDs; reused ID remains untouched remotely. Account tables and access/token credentials clear; privacy HMAC secret and proxy request logs remain.
+- Restore/delete/database/credential-write failures retain usable local state/data as tested; SQLite does not contain the system access token or model keys. Reopen derives bound/rebind state from local account row plus credential availability.
+
+Lifecycle boundary: C1-06 cache refresh and C3-10 real takeover restoration are future implementations. This module requires an injected AccountLifecycle and has no production no-op; this item verifies exact callback invocation/order and does not claim those future integrations are complete.
+
+Public job log was downloaded and scanned after success: model-key pattern `sk-` plus 24 or more alphanumerics had 0 candidate values; long Bearer values had 0. Raw job/startup logs remain outside the repo. An existing lib-test warning for `SystemKeychain::named` was previously recorded in section 12 and was not changed.
