@@ -452,6 +452,7 @@ jobs:
           {
             python3 scripts/aicli-placeholder-icon.py
             pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons
+            python3 scripts/aicli-placeholder-icon.py --normalize-icns
             git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png
             pnpm tauri build --debug --no-bundle
             test -x src-tauri/target/debug/aicli-client
