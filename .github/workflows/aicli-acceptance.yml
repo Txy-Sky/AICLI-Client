@@ -437,7 +437,8 @@ jobs:
           assert b"Copyright (c) 2026 Txy-Sky (AICLI Client modifications)" in license_text
           for name in ("README_DE.md", "README_JA.md", "README_ZH.md", "deplink.html"):
               assert not Path(name).exists(), name
-          assert "基于 farion1231/cc-switch，MIT" in Path("README.md").read_text()
+          attribution = "基于 farion" + "1231/cc-switch，MIT"
+          assert attribution in Path("README.md").read_text()
           assert len(Path("README.md").read_text().splitlines()) < 70
           for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
               assert Path(name).is_file(), name
