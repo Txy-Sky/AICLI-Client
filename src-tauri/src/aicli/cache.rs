@@ -1,5 +1,6 @@
 //! Cache-first account data loading backed by the AICLI-owned SQLite tables.
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use chrono::{NaiveDate, Utc};
@@ -107,6 +108,8 @@ pub struct AicliCache {
     inflight: Mutex<HashSet<String>>,
     errors: Mutex<HashMap<String, String>>,
     idle: Notify,
+    usage_slots: Arc<Semaphore>,
+    periodic_started: AtomicBool,
 }
 
 impl AicliCache {
@@ -151,6 +154,8 @@ impl AicliCache {
             inflight: Mutex::new(HashSet::new()),
             errors: Mutex::new(HashMap::new()),
             idle: Notify::new(),
+            usage_slots: Arc::new(Semaphore::new(2)),
+            periodic_started: AtomicBool::new(false),
         }
     }
 
@@ -199,7 +204,6 @@ impl AicliCache {
             self.schedule_refresh(kind.to_owned());
         }
         let today = Utc::now().date_naive();
-        let semaphore = Arc::new(Semaphore::new(2));
         for offset in 0..30 {
             let Some(day) = today.checked_sub_days(chrono::Days::new(offset)) else {
                 continue;
@@ -208,17 +212,21 @@ impl AicliCache {
             if self.usage_is_final(&day).unwrap_or(false) {
                 continue;
             }
-            self.schedule_usage(day, semaphore.clone());
+            self.schedule_usage(day);
         }
     }
 
     pub fn start_periodic_refresh(self: &Arc<Self>) {
-        let cache = Arc::clone(self);
+        if self.periodic_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let cache = Arc::downgrade(self);
         tauri::async_runtime::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
             interval.tick().await;
             loop {
                 interval.tick().await;
+                let Some(cache) = cache.upgrade() else { return };
                 for kind in ACCOUNT_KINDS {
                     cache.schedule_refresh(kind.to_owned());
                 }
@@ -250,7 +258,7 @@ impl AicliCache {
             return Ok(cached);
         }
         if date <= today {
-            self.schedule_usage(day.to_owned(), Arc::new(Semaphore::new(2)));
+            self.schedule_usage(day.to_owned());
         }
         Ok(cached)
     }
@@ -266,14 +274,14 @@ impl AicliCache {
         });
     }
 
-    fn schedule_usage(self: &Arc<Self>, day: String, semaphore: Arc<Semaphore>) {
+    fn schedule_usage(self: &Arc<Self>, day: String) {
         let kind = format!("usage:{day}");
         if !self.begin(&kind) {
             return;
         }
         let cache = Arc::clone(self);
         tauri::async_runtime::spawn(async move {
-            let _permit = semaphore.acquire_owned().await;
+            let _permit = cache.usage_slots.acquire().await;
             let result = cache.remote.fetch_usage(&day).await;
             cache.finish_usage_refresh(&day, &kind, result);
         });
@@ -318,6 +326,9 @@ impl AicliCache {
                 let requests = value.pointer("/data/requests").and_then(Value::as_i64);
                 if let (Some(quota), Some(requests)) = (quota, requests) {
                     if self.write_usage(day, quota, requests).is_ok() {
+                        if let Ok(mut errors) = self.errors.lock() {
+                            errors.remove(kind);
+                        }
                         self.events.data_updated(kind);
                     } else {
                         self.record_error(kind, NewApiError::Network);
@@ -338,7 +349,9 @@ impl AicliCache {
     }
 
     fn write_cache(&self, kind: &str, value: &Value) -> Result<bool, NewApiError> {
-        let body = serde_json::to_string(value).map_err(|_| NewApiError::InvalidResponse)?;
+        let mut canonical = value.clone();
+        canonical.sort_all_objects();
+        let body = serde_json::to_string(&canonical).map_err(|_| NewApiError::InvalidResponse)?;
         let fingerprint = format!("{:x}", Sha256::digest(body.as_bytes()));
         let now = Utc::now().timestamp();
         let conn = self.db.conn.lock().map_err(|_| NewApiError::Network)?;
@@ -362,17 +375,23 @@ impl AicliCache {
     }
 
     pub fn read_usage(&self, day: &str) -> Result<Option<CachedValue>, NewApiError> {
+        let kind = format!("usage:{day}");
+        let last_error = self
+            .errors
+            .lock()
+            .ok()
+            .and_then(|errors| errors.get(&kind).cloned());
         let conn = self.db.conn.lock().map_err(|_| NewApiError::Network)?;
         conn.query_row(
-            "SELECT quota,requests,fetched_at FROM aicli_usage_daily WHERE day=?1",
+            "SELECT quota,requests,fetched_at,is_final FROM aicli_usage_daily WHERE day=?1",
             [day],
             |row| {
                 Ok(CachedValue {
-                    kind: format!("usage:{day}"),
+                    kind,
                     value: serde_json::json!({"quota": row.get::<_, i64>(0)?, "requests": row.get::<_, i64>(1)?}),
                     fetched_at: row.get(2)?,
-                    stale: false,
-                    last_error: None,
+                    stale: !row.get::<_, bool>(3)? && Utc::now().timestamp().saturating_sub(row.get(2)?) >= 600,
+                    last_error,
                 })
             },
         )

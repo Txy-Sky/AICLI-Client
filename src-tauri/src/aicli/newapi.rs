@@ -330,6 +330,7 @@ impl NewApiClient {
         let mut page = 1_u64;
         let mut requests = 0_i64;
         let mut quota = 0_i64;
+        let mut seen = HashSet::new();
         loop {
             let mut query = Self::time_query(start, end)?;
             query.extend([
@@ -352,6 +353,14 @@ impl NewApiClient {
                 return Err(NewApiError::InvalidResponse);
             }
             for item in items {
+                let id = item
+                    .get("id")
+                    .and_then(Value::as_i64)
+                    .filter(|id| *id > 0)
+                    .ok_or(NewApiError::InvalidResponse)?;
+                if !seen.insert(id) {
+                    return Err(NewApiError::InvalidResponse);
+                }
                 quota = quota
                     .checked_add(
                         item.get("quota")
@@ -363,6 +372,9 @@ impl NewApiClient {
                     .checked_add(1)
                     .ok_or(NewApiError::InvalidResponse)?;
             }
+            if requests as u64 > total {
+                return Err(NewApiError::InvalidResponse);
+            }
             if (requests as u64) >= total {
                 return Ok(json!({"data":{"quota":quota,"requests":requests}}));
             }
@@ -370,6 +382,7 @@ impl NewApiClient {
         }
     }
 
+    #[cfg(any(test, feature = "test-hooks"))]
     pub async fn audit_self_request_count(&self, start: i64, end: i64) -> Result<u64, NewApiError> {
         if start < 0 || end < start {
             return Err(NewApiError::InvalidInput);

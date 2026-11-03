@@ -189,10 +189,12 @@ async fn lists_all_pages_even_when_page_is_short_and_rejects_stalled_pages() {
 
 #[tokio::test]
 async fn daily_usage_sums_quota_and_request_rows_across_pages() {
-    let first_page = (0..100).map(|_| json!({"quota":1})).collect::<Vec<_>>();
+    let first_page = (1..=100)
+        .map(|id| json!({"id":id,"quota":1}))
+        .collect::<Vec<_>>();
     let server = mock(vec![
         ok(json!({"total":101,"items":first_page})),
-        ok(json!({"total":101,"items":[{"quota":1}]})),
+        ok(json!({"total":101,"items":[{"id":101,"quota":1}]})),
     ])
     .await;
     let result = client(&[server.origin.clone()])

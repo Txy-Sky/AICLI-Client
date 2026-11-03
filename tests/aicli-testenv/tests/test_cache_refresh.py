@@ -3,8 +3,9 @@
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
-from test_access_token import BASE, disposable_user, require
+from test_access_token import BASE, disposable_user, local_admin, require
 
 
 def test_cache_first_refresh_stays_within_cold_start_request_budget(disposable_user):
@@ -19,13 +20,18 @@ def test_cache_first_refresh_stays_within_cold_start_request_budget(disposable_u
         "AICLI_LOCAL_TEST_ACCESS_TOKEN": access,
         "AICLI_LOCAL_TEST_USERNAME": username,
     })
-    result = subprocess.run([str(probe)], env=environment, capture_output=True, text=True, timeout=120)
+    with tempfile.TemporaryDirectory(prefix="aicli-cache-home-") as test_home:
+        environment.update({"HOME": test_home, "CC_SWITCH_TEST_HOME": test_home,
+                            "XDG_CONFIG_HOME": test_home + "/.config",
+                            "XDG_DATA_HOME": test_home + "/.local/share",
+                            "XDG_CACHE_HOME": test_home + "/.cache"})
+        result = subprocess.run([str(probe)], env=environment, capture_output=True, text=True, timeout=750)
     if result.returncode:
         for line in result.stderr.splitlines():
-            if line.startswith("C1-06: FAIL;"):
+            if line.startswith("C1-06: FAIL;") and all(value not in line for value in api.secrets):
                 print(line, flush=True)
     require(result.returncode == 0, "C1-06 cache probe failed")
     require(result.stderr == "", "C1-06 probe wrote unexpected diagnostics")
-    require(result.stdout.startswith("C1-06: PASS; cold-start audited /api/* request count="),
+    require(result.stdout.startswith("C1-06: PASS; observed 601s including periodic refresh; audited /api/* request count="),
             "C1-06 probe returned unexpected output")
     print(result.stdout.strip(), flush=True)

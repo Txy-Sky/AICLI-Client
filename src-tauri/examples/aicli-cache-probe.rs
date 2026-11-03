@@ -1,7 +1,7 @@
 //! Exercise cache-first refresh against the isolated rc.34 fixture.
 use cc_switch_lib::aicli::cache::{AicliCache, CacheEvents};
 use cc_switch_lib::aicli::newapi::NewApiClient;
-use cc_switch_lib::database::Database;
+use cc_switch_lib::Database;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,6 +35,8 @@ async fn run() -> Result<(), &'static str> {
             .map_err(|_| "local API setup failed")?,
     );
 
+    let window_started = tokio::time::Instant::now();
+    cache.start_periodic_refresh();
     let today = chrono::Utc::now().date_naive();
     cache.schedule_account_refresh();
     tokio::time::timeout(Duration::from_secs(90), cache.wait_for_idle())
@@ -44,6 +46,25 @@ async fn run() -> Result<(), &'static str> {
     for kind in ["account", "groups", "pricing"] {
         if cache.read(kind).map_err(|_| "cache read failed")?.is_none() {
             return Err("cache did not persist fetched data");
+        }
+    }
+    let first_fetch = cache
+        .read("account")
+        .map_err(|_| "account cache read failed")?
+        .ok_or("account cache missing")?
+        .fetched_at;
+    for offset in 0..30 {
+        let day = today
+            .checked_sub_days(chrono::Days::new(offset))
+            .ok_or("invalid backfill day")?
+            .format("%Y-%m-%d")
+            .to_string();
+        if cache
+            .read_usage(&day)
+            .map_err(|_| "backfill read failed")?
+            .is_none()
+        {
+            return Err("backfill did not persist all 30 days");
         }
     }
     if cache
@@ -59,15 +80,35 @@ async fn run() -> Result<(), &'static str> {
     tokio::time::timeout(Duration::from_secs(30), cache.wait_for_idle())
         .await
         .map_err(|_| "today usage refresh did not finish")?;
+    // Observe an actual ten-minute idle period, including the first periodic refresh.
+    tokio::time::sleep_until(window_started + Duration::from_secs(601)).await;
+    tokio::time::timeout(Duration::from_secs(30), cache.wait_for_idle())
+        .await
+        .map_err(|_| "periodic refresh did not finish")?;
+    let periodic_fetch = cache
+        .read("account")
+        .map_err(|_| "periodic cache read failed")?
+        .ok_or("periodic account cache missing")?
+        .fetched_at;
+    if periodic_fetch - first_fetch < 599 {
+        return Err("ten-minute periodic refresh did not run");
+    }
     let total = api
         .audit_self_request_count(start, i64::MAX)
         .await
         .map_err(|_| "final audit query failed")?;
-    let count = total.saturating_sub(baseline).saturating_sub(1);
+    // Count both audit observation calls too; the final call is logged after its response.
+    let count = total
+        .checked_sub(baseline)
+        .and_then(|count| count.checked_add(1))
+        .ok_or("audit count moved backwards")?;
+    if count < 35 {
+        return Err("audit did not observe all cold-start requests");
+    }
     if count > 40 {
         return Err("cold-start API request count exceeded 40");
     }
-    println!("C1-06: PASS; cold-start audited /api/* request count={count} (limit 40); 30-day backfill persisted");
+    println!("C1-06: PASS; observed 601s including periodic refresh; audited /api/* request count={count} (limit 40, includes audit observers); all 30 days persisted");
     Ok(())
 }
 

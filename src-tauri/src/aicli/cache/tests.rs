@@ -280,3 +280,86 @@ async fn background_backfill_does_not_block_the_initial_account_read() {
     assert!(started.elapsed() < std::time::Duration::from_millis(100));
     remote.started.notified().await;
 }
+
+#[tokio::test]
+async fn daily_refresh_and_backfill_share_the_two_request_limit() {
+    let remote = Arc::new(BackfillRemote {
+        active: AtomicUsize::new(0),
+        maximum: AtomicUsize::new(0),
+        calls: AtomicUsize::new(0),
+        two_started: Notify::new(),
+        gate: Arc::new(tokio::sync::Semaphore::new(0)),
+    });
+    let (cache, _, _) = fixture(remote.clone());
+    cache.schedule_account_refresh();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        remote.two_started.notified(),
+    )
+    .await
+    .unwrap();
+    cache.get_usage("2000-01-01").unwrap();
+    remote.gate.add_permits(31);
+    tokio::time::timeout(std::time::Duration::from_secs(2), cache.wait_for_idle())
+        .await
+        .unwrap();
+    assert_eq!(remote.calls.load(Ordering::SeqCst), 31);
+    assert_eq!(remote.maximum.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn today_is_refreshed_on_each_page_open() {
+    let remote = Arc::new(UsageRemote(AtomicUsize::new(0)));
+    let (cache, _, _) = fixture(remote.clone());
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    assert!(cache.get_usage(&today).unwrap().is_none());
+    cache.wait_for_idle().await;
+    assert!(!cache.usage_is_final(&today).unwrap());
+    assert!(cache.get_usage(&today).unwrap().is_some());
+    cache.wait_for_idle().await;
+    assert_eq!(remote.0.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn usage_error_preserves_values_and_is_cleared_after_success() {
+    let (cache, _, _) = fixture(Arc::new(UsageRemote(AtomicUsize::new(0))));
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    cache.get_usage(&today).unwrap();
+    cache.wait_for_idle().await;
+    let before = cache.read_usage(&today).unwrap().unwrap();
+    cache.finish_usage_refresh(&today, &format!("usage:{today}"), Err(NewApiError::Network));
+    let failed = cache.read_usage(&today).unwrap().unwrap();
+    assert_eq!(failed.value, before.value);
+    assert_eq!(failed.fetched_at, before.fetched_at);
+    assert!(failed.last_error.is_some());
+    cache.get_usage(&today).unwrap();
+    cache.wait_for_idle().await;
+    assert!(cache
+        .read_usage(&today)
+        .unwrap()
+        .unwrap()
+        .last_error
+        .is_none());
+}
+
+#[tokio::test]
+async fn object_order_does_not_change_fingerprint_but_content_does() {
+    let (cache, _, events) = fixture(Arc::new(Remote::new(Ok(serde_json::json!({})))));
+    let first: Value = serde_json::from_str(r#"{"data":{"a":1,"b":2}}"#).unwrap();
+    let reordered: Value = serde_json::from_str(r#"{"data":{"b":2,"a":1}}"#).unwrap();
+    cache.finish_account_refresh("pricing", Ok(first));
+    cache.finish_account_refresh("pricing", Ok(reordered));
+    assert_eq!(events.0.load(Ordering::SeqCst), 1);
+    cache.finish_account_refresh("pricing", Ok(serde_json::json!({"data":{"a":2,"b":2}})));
+    assert_eq!(events.0.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn periodic_worker_does_not_keep_a_replaced_cache_alive() {
+    let (cache, _, _) = fixture(Arc::new(Remote::new(Ok(serde_json::json!({})))));
+    let weak = Arc::downgrade(&cache);
+    cache.start_periodic_refresh();
+    cache.start_periodic_refresh();
+    drop(cache);
+    assert!(weak.upgrade().is_none());
+}
