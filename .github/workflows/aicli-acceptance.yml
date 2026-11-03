@@ -128,6 +128,14 @@ jobs:
           set -euo pipefail
           cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::account::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-05.txt"
 
+      - name: C1-06 verify cache-first refresh behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::cache::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-unit.txt"
+          cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-api.txt"
+          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-cache-probe
+
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |
@@ -319,6 +327,10 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-integration.txt"
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-integration.txt"
 
       - name: A6-05 affinity rules and streaming retry observations
         if: steps.coverage.outputs.testenv == 'true'

@@ -324,6 +324,75 @@ impl NewApiClient {
             .and_then(Value::as_u64)
             .ok_or(NewApiError::InvalidResponse)
     }
+
+    /// Read one day's consume rows so quota and request count come from the same bounded API.
+    pub async fn log_daily_usage(&self, start: i64, end: i64) -> Result<Value, NewApiError> {
+        let mut page = 1_u64;
+        let mut requests = 0_i64;
+        let mut quota = 0_i64;
+        loop {
+            let mut query = Self::time_query(start, end)?;
+            query.extend([
+                ("p", page.to_string()),
+                ("page_size", PAGE_SIZE.to_string()),
+            ]);
+            let result = self
+                .request(Method::GET, "/api/log/self", &query, None)
+                .await?;
+            let data = result.get("data").ok_or(NewApiError::InvalidResponse)?;
+            let total = data
+                .get("total")
+                .and_then(Value::as_u64)
+                .ok_or(NewApiError::InvalidResponse)?;
+            let items = data
+                .get("items")
+                .and_then(Value::as_array)
+                .ok_or(NewApiError::InvalidResponse)?;
+            if items.is_empty() && (requests as u64) < total {
+                return Err(NewApiError::InvalidResponse);
+            }
+            for item in items {
+                quota = quota
+                    .checked_add(
+                        item.get("quota")
+                            .and_then(Value::as_i64)
+                            .ok_or(NewApiError::InvalidResponse)?,
+                    )
+                    .ok_or(NewApiError::InvalidResponse)?;
+                requests = requests
+                    .checked_add(1)
+                    .ok_or(NewApiError::InvalidResponse)?;
+            }
+            if (requests as u64) >= total {
+                return Ok(json!({"data":{"quota":quota,"requests":requests}}));
+            }
+            page = page.checked_add(1).ok_or(NewApiError::InvalidResponse)?;
+        }
+    }
+
+    pub async fn audit_self_request_count(&self, start: i64, end: i64) -> Result<u64, NewApiError> {
+        if start < 0 || end < start {
+            return Err(NewApiError::InvalidInput);
+        }
+        let result = self
+            .request(
+                Method::GET,
+                "/api/audit/self",
+                &[
+                    ("category", "access_token".into()),
+                    ("start_timestamp", start.to_string()),
+                    ("end_timestamp", end.to_string()),
+                    ("p", "1".into()),
+                    ("page_size", "100".into()),
+                ],
+                None,
+            )
+            .await?;
+        result
+            .pointer("/data/total")
+            .and_then(Value::as_u64)
+            .ok_or(NewApiError::InvalidResponse)
+    }
 }
 
 #[cfg(test)]

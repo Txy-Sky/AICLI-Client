@@ -3,6 +3,7 @@ use axum::body::Body;
 use axum::http::{Request, Response};
 use axum::routing::any;
 use axum::Router;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 type Recorded = Arc<Mutex<Vec<(Method, Url, reqwest::header::HeaderMap, Value)>>>;
@@ -184,6 +185,69 @@ async fn lists_all_pages_even_when_page_is_short_and_rejects_stalled_pages() {
             Err(NewApiError::InvalidResponse)
         );
     }
+}
+
+#[tokio::test]
+async fn daily_usage_sums_quota_and_request_rows_across_pages() {
+    let first_page = (0..100).map(|_| json!({"quota":1})).collect::<Vec<_>>();
+    let server = mock(vec![
+        ok(json!({"total":101,"items":first_page})),
+        ok(json!({"total":101,"items":[{"quota":1}]})),
+    ])
+    .await;
+    let result = client(&[server.origin.clone()])
+        .log_daily_usage(1_700_000_000, 1_700_086_399)
+        .await
+        .unwrap();
+    assert_eq!(result["data"]["quota"], 101);
+    assert_eq!(result["data"]["requests"], 101);
+    let requests = server.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].1.path(), "/api/log/self");
+    assert_eq!(
+        requests[0]
+            .1
+            .query_pairs()
+            .find(|(key, _)| key == "type")
+            .unwrap()
+            .1,
+        "2"
+    );
+    assert_eq!(
+        requests[0]
+            .1
+            .query_pairs()
+            .find(|(key, _)| key == "p")
+            .unwrap()
+            .1,
+        "1"
+    );
+    assert_eq!(
+        requests[1]
+            .1
+            .query_pairs()
+            .find(|(key, _)| key == "p")
+            .unwrap()
+            .1,
+        "2"
+    );
+}
+
+#[tokio::test]
+async fn audit_request_count_uses_the_access_token_self_audit_api() {
+    let server = mock(vec![ok(json!({"total":33,"items":[]}))]).await;
+    let count = client(&[server.origin.clone()])
+        .audit_self_request_count(100, 200)
+        .await
+        .unwrap();
+    assert_eq!(count, 33);
+    let requests = server.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].1.path(), "/api/audit/self");
+    let query = requests[0].1.query_pairs().collect::<HashMap<_, _>>();
+    assert_eq!(query.get("category").unwrap(), "access_token");
+    assert_eq!(query.get("start_timestamp").unwrap(), "100");
+    assert_eq!(query.get("end_timestamp").unwrap(), "200");
 }
 
 #[tokio::test]
