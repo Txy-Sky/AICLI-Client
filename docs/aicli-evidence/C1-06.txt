@@ -1,0 +1,37 @@
+C1-06 cache-first background loading
+Final acceptance SHA: e3a70c893618ea2d69cbb54c414692686a1639e5
+Job: Checklist acceptance (Linux), 125879365867, completed/success
+Started 2026-11-03T11:06:47Z; completed 2026-11-03T11:52:38Z (45m51s).
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41624807753
+Verified headSha/status/conclusion/jobs via gh run view --json.
+
+Actual commands in that job:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::cache::tests
+cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests
+cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-cache-probe
+python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py
+bash scripts/aicli-check.sh
+Local before push: AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+Local rustfmt, Prettier, five YAML files with duplicate-key rejection: PASS.
+
+Actual targeted results (ANSI removed):
+Cache: Summary [0.233s] 14 tests run: 14 passed, 4498 filtered by selection.
+API (test-hooks): Summary [0.605s] 11 tests run: 11 passed, 4502 filtered by selection.
+C1-06: PASS; observed 601s including periodic refresh; audited /api/* request count=39 (limit 40, includes audit observers); all 30 days persisted
+1 passed in 601.45s (0:10:01)
+The real-time probe checked persisted account/groups/pricing, every one of 30 backfill days, an additional today-page refresh, and account fetched_at advancing at least 599 seconds after the first refresh. Counts include both audit observer calls; no polling or SQL access to new-api was used.
+
+Unit coverage: immediate cached reads with a permanently blocked remote; missing snapshots remain None after failure; failed refresh preserves old value and fetched_at with last_error; same-kind refresh deduplication; unchanged content emits no event; recursively sorted object hashing; final past dates fetched once; today refreshed on every page opening; 30-day background backfill and page refresh share a two-request semaphore; background work does not block initial read; periodic task uses Weak and starts only once. API tests cover daily pagination and quota/request aggregation.
+Daily quota and request counts are summed from consume rows through GET /api/log/self. rc.34 /api/log/self/stat.rpm is a last-60-second metric, not a daily request count. Returned log IDs are display sequence IDs, not stable database identifiers; duplicate-ID validation only checks pagination shape.
+
+Full regression: Rust 4502 passed / 10 original skips, summary 83.780s; frontend 267 files / 3416 passed. Typecheck, formatting, renderer build, Clippy -D warnings, A6-01 through A6-05 and all B regressions including desktop startup passed. No assertions removed/weakened or ignores added.
+CI HOME is isolated. The probe uses its own temporary HOME/XDG paths and disposable HTTP-created rc.34 user; AICLI_TEST_ACCESS_TOKEN is removed from the child environment. The cache probe has a separate disposable Compose project so account-security fixtures do not share its rate-limit state. Rate limits and assertions remain unchanged; no retry/sleep/restart was added to hide setup failures. The 601-second wait is the required observation window.
+
+Failure history, retained and not counted as successful evidence:
+1fd5ba07 / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41608990926 : cache test compile failed because AccountLifecycle trait was not imported.
+08a70792 / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41609851523 : test-hooks example imported private database::Database; corrected to public cc_switch_lib::Database.
+2e38849b / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41622111022 : cache 14 and API 11 passed, but cache integration fixture login received a non-JSON response before starting the probe. Existing A6-04 3 tests and C1-04 integration passed. rc.34 source confirms login/verify/token generation/batch keys share CT IP quota (20/20 minutes); old diagnostics did not include HTTP status, so no observed 429 is claimed. e3a70c89 isolates the new probe in fresh Compose services and adds status-only diagnostics, without logging bodies or changing assertions.
+
+Lifecycle boundary: CacheAccountLifecycle implements the required account refresh callback and requires an actual restore callback. Runtime/Tauri wiring and real takeover restore remain C2-01/C3-10/C3-11 work; this item does not claim the UI is wired yet.
+
+Public job log scan after success: model-key candidates (sk- plus 24+ alphanumeric/underscore/hyphen characters) = 0; Bearer value candidates (24+ characters) = 0. Raw logs remain in /tmp, not docs or artifacts.
