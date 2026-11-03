@@ -1,0 +1,60 @@
+C1-02 credential stores
+Implementation: 1e2fcfff; restart fallback correction: a4445066
+Final combined acceptance: a4445066c1d64f3b7c50c3978c682b08e945e5e1
+Group: C1-01/C1-02/C1-03, independent item implementation/evidence commits.
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41588458491
+Result: completed / success (gh run view --json status,conclusion,headSha).
+Actual CI commands:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::secrets::tests
+bash scripts/aicli-check.sh (includes cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings)
+Targeted result: 10 passed, 4466 filtered/existing skipped; no new ignore.
+Full result: 4466 Rust passed / original 10 skipped; 267 frontend files / 3416 passed.
+
+All 10 cases passed, both targeted and in full baseline:
+memory_store_crud_and_debug_redaction
+fallback_file_crud_survives_reopening_and_redacts_debug
+fallback_file_permissions_remain_private_on_replacement
+each_failed_operation_selects_fallback_once
+missing_key_does_not_trigger_fallback
+reopening_fallback_does_not_lose_credentials_when_keychain_recovers_empty
+invalid_file_errors_are_redacted_and_do_not_destroy_data
+concurrent_file_store_instances_preserve_all_accounts
+fallback_refuses_symlink_without_reading_or_overwriting_target
+native_secret_service_unavailable_uses_isolated_file
+
+Synthetic values only. Tests never read AICLI_TEST_ACCESS_TOKEN.
+Native Linux test runs in a child process with fresh HOME/CC_SWITCH_TEST_HOME and
+DBUS_SESSION_BUS_ADDRESS pointing to an absent Unix socket. It confirms the actual
+keyring backend fails and storage falls back to that temporary HOME, not the real keychain.
+Missing credential NoEntry is not a storage failure. Backend is keychain/file_fallback.
+Once fallback file exists, reopening continues to read it rather than hiding credentials
+behind an empty newly available keychain. Concurrent file instances serialize RMW.
+File writes use private temporary files, sync and atomic persist; Unix 0600 is asserted
+on initial write and replacement. Windows keeps user-directory default ACL behavior.
+Debug and error messages never include secret values. Corrupt files and symlink targets
+are not overwritten. No credentials stored in SQLite by this module.
+
+Reference actually read: upstream keyring 3.6.3 crate source/Cargo.toml downloaded to
+/tmp/aicli-keyring-reference from crates.io. API: Entry::new, get_password,
+set_password, delete_credential; NoEntry mapped to None/idempotent delete.
+Features: apple-native, windows-native, sync-secret-service, crypto-rust, vendored.
+No new system library install on local machine; this feature set builds in CI.
+
+Local commands (no local compilation/runtime testing):
+cargo fmt --manifest-path src-tauri/Cargo.toml with CC_SWITCH_TEST_HOME=/tmp/aicli-c1-format
+An initial cargo generate-lockfile was stopped before any lock change; then:
+env -u HTTPS_PROXY -u HTTP_PROXY -u ALL_PROXY CARGO_HOME=/home/txy/.cargo RUSTUP_HOME=/home/txy/.rustup HOME=/tmp/aicli-c1-lock-home CC_SWITCH_TEST_HOME=/tmp/aicli-c1-lock-home cargo update --workspace --manifest-path src-tauri/Cargo.toml
+Succeeded: 25 added package versions, all preexisting registry package versions retained
+(verified twice using Python tomllib sets against 559023ea:Cargo.lock).
+The lock also records the package rename from earlier B-03; no dependency-wide upgrade.
+git diff --check
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+All passed; YAML 5 files/no duplicate keys. git pull --rebase before push succeeded.
+
+History: run 41587843001 at 71b06480 superseded and cancelled by restart correction;
+not completion evidence. Final same group rerun at a4445066 fully successful.
+All A6, real desktop/IPC and B regressions passed. Final artifacts downloaded using
+gh run download to /tmp/aicli-C1-01-03-evidence and actual results inspected.
+No production operations or real credentials used. macOS/Windows runtime tests belong
+to later required platform gates, not claimed here.

@@ -387,10 +387,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：a4445066（本项实现 f7b3c16d） | job `Checklist acceptance (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::lines::tests`；`bash scripts/aicli-check.sh` | 合并验收 C1-01～C1-03 完整 CI success；线路专项 2 passed，逐字段及未知 ID 断言通过；全量 Rust 4466 passed/原有 10 skipped，前端 267 文件/3416 passed；main/global 600s 为负责人决定、未经实测。详见 `docs/aicli-evidence/C1-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41588458491
 
 ### C1-02 Keychain
-- [ ] 完成
+- [x] 完成
 - 修改：`src-tauri/Cargo.toml` 增加 `keyring`（启用 apple-native、windows-native、sync-secret-service）。`aicli/secrets.rs`：`trait SecretStore { get, set, delete }`，实现 `KeyringStore`、`FileFallbackStore`（`~/.aicli-client/secrets.json`，Unix 权限 0600，Windows 使用用户目录默认 ACL）、测试用 `MemoryStore`。`secret_backend() -> {keychain|file_fallback}`。优先 Keychain，首次读写失败时退回文件并置 `file_fallback`，供设置页显示。
 - 验收：单测覆盖读写删、回退；文件权限断言（Unix）；`Debug` 输出不含值；`cargo clippy` 通过。Linux 无 Secret Service 时测试走回退路径。
-- 证据：
+- 证据：a4445066（本项实现 1e2fcfff，修正 a4445066） | job `Checklist acceptance (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::secrets::tests`；`bash scripts/aicli-check.sh`（含 Clippy -D warnings） | 合并验收 C1-01～C1-03 完整 CI success；凭证专项 10 passed，包括真实 Linux 无 Secret Service 时回退、0600、CRUD、重启保留、Debug/错误脱敏、并发及符号链接保护；全量 Rust 4466 passed/原有 10 skipped，前端 3416 passed；未接触本机真实 keychain。详见 `docs/aicli-evidence/C1-02.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41588458491
 
 ### C1-03 数据库 v25
 - [ ] 完成
@@ -1023,18 +1023,20 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | C1-01～C1-03（合并验收） | 三个同阶段独立基础模块可共享完整回归，逐项串行 CI 会重复构建。 | 按第 0.6 节预先选定三项合并验收，分别提交实现与证据，共同引用最终 a4445066 的 run 41588458491；任一部分失败均不标记。先前 71b06480 的 run 41587843001 被修正提交取代并取消，不作成功证据。 | 三项专项和完整基线均成功；逐项回填，不合并 GATE 或线上账号操作。 |
 
+| C1-02（实现细节） | 原清单未指定 keyring 版本及无系统开发库的构建方式，亦未说明回退后的重启选择。 | 使用 keyring 3.6.3，启用三平台指定特性及 crypto-rust/vendored，按上游 crate 说明提供总线加密与 DBus 构建；本机仅隔离 HOME 运行 cargo update --workspace 解析锁文件，不编译，保留全部既有 registry 版本，新增 25 个版本。已存在 secrets.json 时继续回退存储，避免重启后空 keychain 遮蔽旧凭证；仅文件缺失时优先 keychain。新增重开测试，最终 run 全部通过。 | 不迁移或改写其他应用数据；Debug 与错误不含值；Linux 缺服务测试在独立进程中指向不存在的总线，本机真实 keychain 不参与。 |
+
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-01 验收提交 a4445066c1d64f3b7c50c3978c682b08e945e5e1（Actions run 41588458491，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-02 验收提交 a4445066c1d64f3b7c50c3978c682b08e945e5e1（Actions run 41588458491，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：20 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；阶段 B 全部通过，C1-01 已通过，下一项 C1-02 补证，G 阶段仍有待决事项）。
+完成/阻塞/跳过：21 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-02；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；阶段 B 全部通过，C1-01～C1-02 已通过，下一项 C1-03 补证，G 阶段仍有待决事项）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；C1-02 及之后除 C4-05 明确跳过外尚未完成；当前无 [!] 项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；C1-03 及之后除 C4-05 明确跳过外尚未完成；当前无 [!] 项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
