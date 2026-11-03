@@ -93,6 +93,15 @@ jobs:
             printf 'A2-01: PASS\n'
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A2-01.txt"
 
+      - name: B-GATE real desktop startup and loopback proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdg-utils desktop-file-utils
+          python3 scripts/aicli-b-gate.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-GATE.txt"
+          git diff --exit-code -- src/index.html
+          test ! -e src/aicli-b-gate-probe.js
+
       - name: A5-01 offline probe safety and timing tests
         shell: bash
         run: |
