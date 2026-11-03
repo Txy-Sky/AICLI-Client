@@ -75,7 +75,7 @@ class LocalApi:
             try:
                 result = json.loads(response.read())
             except (ValueError, UnicodeError):
-                raise AssertionError("API returned a non-JSON response") from None
+                raise AssertionError(f"API returned a non-JSON response (HTTP {status})") from None
         require(isinstance(result, dict), "API response is not an object")
         return status, response_headers, result
 
