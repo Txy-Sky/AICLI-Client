@@ -361,10 +361,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：535a193e | job `Checklist acceptance (Linux)`：`bash scripts/aicli-check.sh`；B-07 步骤的 JSON/版权/文档 Python 断言 | 完整 CI success；Rust 4449 passed / 原有 10 skipped，前端 267 文件 / 3416 passed；优惠宣传原文与基线完全相同，命中条目 en/ja/tr=28、zh/zh-TW=29，其余 JSON 均零命中；MIT 原文逐字节保留并追加版权，翻译键名和插值保持，README 重写及指定文件删除通过；两次失败历史见 `docs/aicli-evidence/B-07.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41554786813
 
 ### B-08 占位图标
-- [ ] 完成
+- [x] 完成
 - 修改：用 `pnpm tauri icon` 从一张自制的纯色 `AI` 字样 PNG 生成全部图标，覆盖 `src-tauri/icons/`。
 - 验收：`pnpm tauri build --debug --no-bundle` 成功；文件存在。
-- 证据：
+- 证据：60c5c8ef | job `Checklist acceptance (Linux)`：`python3 scripts/aicli-placeholder-icon.py`；`pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons`；`python3 scripts/aicli-placeholder-icon.py --normalize-icns`；`git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png`；`pnpm tauri build --debug --no-bundle`；`bash scripts/aicli-check.sh` | 完整 CI success；54 个原有图标资源全部替换，额外生成 Android XML；ICNS 12 个完整图块排序后逐字节重现；debug 构建成功（1m21s）、可执行文件和配置图标存在；前端 267 文件/3416 passed，Rust 4449 passed/原有 10 skipped；首次 ICNS 顺序失败历史见 `docs/aicli-evidence/B-08.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41561343830
 
 ### B-GATE 阶段 B 门禁
 - [ ] 完成
@@ -1017,17 +1017,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | A-GATE | 原门禁未列出 A5-01 已授权跳过的例外。 | 负责人于 2026-11-02 明确确认仅允许 A5-01 按既有决定保持 `[-]`，其他门禁条件不变；更新门禁后重新核验并通过，保留原阻塞证据。 | 按第 0.3 节取得明确授权后变更门禁；不把跳过写成实测通过。 |
 
+| B-08 | Tauri ICNS 生成器的图块顺序不稳定，首次 run 41558722833 的附加逐字节重现检查失败，尚未执行构建。 | 在生成后按完整图块排序，保留全部 12 个图块及其内容；本机两次独立生成后 cmp 相同，最终 60c5c8ef 的 run 41561343830 完整通过，未放宽逐字节断言。生成器不覆盖的 DMG 背景与托盘模板由同一自制 AI 绘图脚本覆盖，模板保留透明黑色语义。 | 图标与源 PNG 可重现；不涉及签名、打包发布或正式图标决定。 |
+
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-07 最终实现为 535a193e736dcd042826369a699d511a985a5df1（Actions run 41554786813，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-08 最终实现为 60c5c8ef70957296c29d7c9d375b714450ab7a1b（Actions run 41561343830，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：17 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-07；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；B-07 已通过，下一项 B-08，G 阶段仍有待决事项）。
+完成/阻塞/跳过：18 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；B-08 已通过，下一项 B-GATE，G 阶段仍有待决事项）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-08 及之后除 C4-05 明确跳过外尚未完成；当前无 [!] 项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-GATE 及之后除 C4-05 明确跳过外尚未完成；当前无 [!] 项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
