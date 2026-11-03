@@ -115,6 +115,13 @@ jobs:
             cargo nextest run --manifest-path src-tauri/Cargo.toml database::tests
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-03.txt"
 
+      - name: C1-04 verify account HTTP client mocks and redaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-unit.txt"
+          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-newapi-probe
+
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |
@@ -302,6 +309,10 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_access_token.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-04.txt"
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-integration.txt"
 
       - name: A6-05 affinity rules and streaming retry observations
         if: steps.coverage.outputs.testenv == 'true'
