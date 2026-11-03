@@ -1,3 +1,4 @@
+pub mod account;
 pub mod lines;
 pub mod newapi;
 pub(crate) mod schema;

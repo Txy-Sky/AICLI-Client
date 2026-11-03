@@ -122,6 +122,12 @@ jobs:
           cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-unit.txt"
           cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-newapi-probe
 
+      - name: C1-05 verify binding unbinding and account data isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::account::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-05.txt"
+
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |
