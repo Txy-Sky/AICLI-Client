@@ -1,0 +1,36 @@
+C1-07 cached catalog projection
+Implementation and final acceptance SHA: 1f49f6855730c2f579b0a5b505ccba405d2c2261
+Job: Checklist acceptance (Linux), 125902110990, completed/success.
+Started 2026-11-03T11:56:30Z; completed 2026-11-03T12:37:57Z (41m27s).
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41631553088
+Actual headSha/status/conclusion/jobs checked with gh run view --json.
+
+Actual commands:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::catalog::tests
+cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-catalog-probe
+python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_catalog.py
+bash scripts/aicli-check.sh
+Before push locally: AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+PASS: rustfmt, lockfile Prettier, YAML syntax across five files with duplicate-key rejection. Local Python AST parse and git diff --check also passed; no local compilation/test execution.
+
+Actual results (ANSI removed):
+Summary [1.393s] 9 tests run: 9 passed, 4512 skipped by targeted run selection.
+C1-07: PASS; default permissions; every group matches HTTP models intersect pricing; svip excluded
+C1-07: PASS; special -:/+: permissions; every group matches HTTP models intersect pricing; svip excluded
+2 passed in 0.25s
+Full regression: Rust 4511 passed / 10 original skips, summary 68.371s; frontend 267 files / 3416 passed. Formatting, typecheck, renderer build, Clippy -D warnings, A6 and B checks all passed. No tests/assertions removed/weakened or ignores added.
+Cache regression: actual 601-second periodic-refresh observation, 39 audited API requests including both observers, every one of 30 days persisted; 1 passed in 601.31s.
+
+Directory tests verify:
+- Intersect enable_groups with account groups, exclude auto and unavailable svip, remove empty models, deduplicate group memberships.
+- Read numeric group ratio only from /api/user/self/groups. Missing/string ratios remain None with ratio_known=false even when pricing.group_ratio supplies 1. auto_available is tracked separately.
+- Preserve the entire pricing row, including supported_endpoint_types, billing_mode, billing_expr, quota_type, model_price and unknown future metadata; never calculate final charges.
+- Native protocol passthrough, then fixed openai-response > openai > anthropic > gemini fallback; no invented wire for an unknown/empty endpoint set.
+- Exact protocol|model override, full/partial/text_only/unavailable states, default unverified, invalid built-in override rejection. compat.json is initially {}.
+- Cache-only construction has no remote/event side effects; missing one or both persisted snapshots returns None.
+
+Real rc.34 integration uses disposable HTTP-created users in its own isolated loopback Compose environment. For each actual available group, compare Rust catalog model membership exactly with GET /api/user/models?group=X intersect pricing model names. The special case first removes g-pro from base UserUsableGroups and verifies it is absent, then configures group_ratio_setting.group_special_usable_group with -:g-cheap and +:g-pro, verifies remove/add effects and repeats every group comparison. Both options are restored in finally. A synthetic svip-only pricing model is rejected even if the server normally filters such rows. No new-api code or database was modified and no SQL was used.
+The projection example only consumes groups/pricing JSON on stdin; it never receives a credential. Python suppresses arbitrary subprocess diagnostics. The actual API fixture uses local-only origin validation, no proxies/redirects, isolated HOME and no online AICLI_TEST_ACCESS_TOKEN in child environment.
+
+Public job log scan after success: long model-key candidates=0, long Bearer value candidates=0. Raw job/container logs are kept outside the repository, not in docs/aicli-evidence.
+No failed C1-07 runs. Runtime/Tauri wiring remains the later checklist items; catalog does not itself initiate network requests.
