@@ -217,7 +217,9 @@ impl Database {
             duration_ms INTEGER, status_code INTEGER NOT NULL, error_message TEXT, session_id TEXT,
             provider_type TEXT, is_streaming INTEGER NOT NULL DEFAULT 0,
             cost_multiplier TEXT NOT NULL DEFAULT '1.0', created_at INTEGER NOT NULL,
-            data_source TEXT NOT NULL DEFAULT 'proxy'
+            data_source TEXT NOT NULL DEFAULT 'proxy',
+            aicli_line_id TEXT, aicli_profile_id TEXT, upstream_request_id TEXT,
+            server_group TEXT, billed_quota INTEGER, billed_at INTEGER
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_provider ON proxy_request_logs(provider_id, app_type)", [])
@@ -433,6 +435,8 @@ impl Database {
             "BOOLEAN NOT NULL DEFAULT 0",
         )?;
 
+        crate::aicli::schema::create_tables(conn)?;
+
         // 删除旧的 failover_queue 表（如果存在）
         let _ = conn.execute("DROP INDEX IF EXISTS idx_failover_queue_order", []);
         let _ = conn.execute("DROP TABLE IF EXISTS failover_queue", []);
@@ -444,6 +448,17 @@ impl Database {
             [],
         );
 
+        Ok(())
+    }
+
+    fn migrate_v24_to_v25(conn: &Connection) -> Result<(), AppError> {
+        crate::aicli::schema::create_tables(conn)?;
+        // Historical migration fixtures may contain only selected preexisting tables.
+        if Self::table_exists(conn, "proxy_request_logs")? {
+            for (column, definition) in crate::aicli::schema::REQUEST_LOG_COLUMNS {
+                Self::add_column_if_missing(conn, "proxy_request_logs", column, definition)?;
+            }
+        }
         Ok(())
     }
 
@@ -647,6 +662,10 @@ impl Database {
                             )?;
                         }
                         Self::set_user_version(conn, 24)?;
+                    }
+                    24 => {
+                        Self::migrate_v24_to_v25(conn)?;
+                        Self::set_user_version(conn, 25)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(

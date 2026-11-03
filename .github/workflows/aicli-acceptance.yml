@@ -93,6 +93,28 @@ jobs:
             printf 'A2-01: PASS\n'
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A2-01.txt"
 
+      - name: C1-01 verify the immutable service line registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::lines::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-01.txt"
+
+      - name: C1-02 verify credential stores and private fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::secrets::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-02.txt"
+
+      - name: C1-03 verify v25 schema and existing database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::schema::tests
+            cargo nextest run --manifest-path src-tauri/Cargo.toml database::schema::tests
+            cargo nextest run --manifest-path src-tauri/Cargo.toml database::tests
+          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-03.txt"
+
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |
