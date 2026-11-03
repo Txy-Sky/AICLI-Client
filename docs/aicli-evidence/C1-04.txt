@@ -1,0 +1,75 @@
+C1-04 new-api HTTP client
+Implementation and final acceptance: d803b70f25c4e72b1cde47e6ef2804c1e6de0bd2
+Job: Checklist acceptance (Linux), 125783357351, completed/success, 28m18s
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41595990426
+Verified actual headSha/status/conclusion using gh run view --json headSha,status,conclusion,url,jobs.
+
+Actual CI commands:
+cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests
+cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-newapi-probe
+python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py
+bash scripts/aicli-check.sh
+The pytest command uses the existing workflow's loopback base URL and local
+fixture admin environment. The fixture passes a new disposable user's local credential to the Rust
+probe through AICLI_LOCAL_TEST_ACCESS_TOKEN, never argv or output. No live account.
+HOME and CC_SWITCH_TEST_HOME use the isolated runner HOME for all cargo/tests.
+
+Unit result (ANSI removed, no source response bodies):
+        PASS [   0.131s] (1/9) aicli-client aicli::newapi::tests::html_body_without_content_type_can_fall_back
+        PASS [   0.131s] (2/9) aicli-client aicli::newapi::tests::fixed_line_order_and_timeout_constants
+        PASS [   0.132s] (3/9) aicli-client aicli::newapi::tests::falls_back_in_order_on_network_and_html_5xx
+        PASS [   0.056s] (4/9) aicli-client aicli::newapi::tests::local_test_constructor_rejects_remote_or_credential_bearing_origins
+        PASS [   0.202s] (5/9) aicli-client aicli::newapi::tests::exhausted_network_error_and_client_debug_are_redacted_in_logs
+        PASS [   0.130s] (6/9) aicli-client aicli::newapi::tests::rejects_missing_batch_keys_mismatched_logs_and_invalid_time_ranges
+        PASS [   0.206s] (7/9) aicli-client aicli::newapi::tests::lists_all_pages_even_when_page_is_short_and_rejects_stalled_pages
+        PASS [   0.134s] (8/9) aicli-client aicli::newapi::tests::wrappers_use_exact_paths_queries_payloads_and_only_bearer_identity
+        PASS [   0.389s] (9/9) aicli-client aicli::newapi::tests::status_and_api_errors_do_not_change_lines_or_expose_bodies
+     Summary [   0.580s] 9 tests run: 9 passed, 4476 skipped
+
+Actual integration output:
+C1-04: PASS; all 11 wrappers; disposable rc.34 user; mock bill/stat/count match; token deleted; invalid access mapped
+.
+1 passed in 0.33s
+
+Full baseline:
+Rust: 4474 passed, original 10 skipped, summary duration 87.877s.
+Frontend: 267 files / 3416 passed; typecheck, formatting, renderer build and
+cargo clippy -- -D warnings passed. Default tests increased by 8; the ninth new
+unit test requires test-hooks and ran in the dedicated 9-test command above.
+A6-01 through A6-05, B-GATE and all B regression steps passed in this same run.
+No existing assertions deleted/weakened and no new ignore.
+
+Coverage:
+- Fixed selected line first, remaining fixed lines in priority order; 10s connect,
+  20s request timeout. Network/HTML 5xx fallback; 401/403/429/JSON 5xx/API errors
+  and redirects do not switch lines. Automatic redirects are disabled.
+- All token pages fetched despite a short page; duplicate/stalled pages rejected.
+- Exact wrapper paths/methods/query encoding/payloads; only bearer identity, no
+  Cookie/New-Api-User/security proof header on client account requests.
+- Errors, Debug and captured runtime logs exclude header names/credential values
+  and a synthetic key returned by a rejected response.
+- Rust integration verifies user_self, user_groups, pricing (top-level metadata),
+  auto_groups_setting, list_tokens, create_token, batch_token_keys, delete_token,
+  log_by_request_id, log_stat(type=2), log_count(type=2). A local mock model
+  produces one bill; request ID/token identity/quota, stat and count agree.
+- Local model Token is deleted; missing bill returns None; invalid access maps
+  to TokenInvalid. Remote/credential-bearing test origins rejected.
+
+Read-only reference: unmodified new-api v1.0.0-rc.34. create_token returns no id/key;
+pricing metadata is outside data. Client retains the complete success envelope.
+Only the CI test-hooks build permits loopback origins; production uses fixed IDs.
+The fixture is a new local disposable user; no alice/bob security operations,
+production changes, SQL access to new-api, real credentials or paid upstream.
+
+Post-run review actually performed:
+Downloaded evidence and the public job log with gh run download / gh run view --log.
+Regex candidate scan for model keys with the standard prefix and 24+ alphanumerics: 0.
+Regex candidate scan for long Bearer values: 0.
+C1-04 stored outputs contain no Authorization header or bearer value.
+Raw job/startup logs remain outside this repository; no raw logs added to docs.
+Existing lib-test-only unused SystemKeychain::named warning also appears in the
+previous successful C1-01/02/03 artifacts; recorded in section 12, not fixed here.
+
+Local pre-push:
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+PASS: isolated cargo fmt --check, Prettier and five workflow YAML files/no duplicate keys.
