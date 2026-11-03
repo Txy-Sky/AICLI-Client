@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_VISIBLE_APPS } from "@/config/appConfig";
 import { UNKNOWN_PROJECT_DIR_KEY } from "@/components/sessions/utils";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
@@ -81,7 +81,15 @@ const openAppMenu = async () =>
 const EXPANDED_KEY = "cc-switch.sessionManager.expandedProjects";
 
 describe("SessionManagerPage", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    // Keep relative hour-old fixtures in the same calendar day at UTC midnight.
+    // Only Date is faked; query/user-event timers continue to run normally.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 3, 12, 0, 0));
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
     platform.mac = false;
