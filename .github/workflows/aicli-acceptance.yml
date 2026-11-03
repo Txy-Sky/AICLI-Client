@@ -445,6 +445,29 @@ jobs:
           print("B-07: PASS; five locales retain all keys/interpolations; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
           PY
 
+      - name: B-08 verify generated placeholder icons and debug build
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            python3 scripts/aicli-placeholder-icon.py
+            pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons
+            git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png
+            pnpm tauri build --debug --no-bundle
+            test -x src-tauri/target/debug/aicli-client
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
+          for name in config["bundle"]["icon"]:
+              path = Path("src-tauri") / name
+              assert path.is_file() and path.stat().st_size > 0, path
+          assert Path("scripts/assets/aicli-placeholder.png").is_file()
+          print("B-08: PASS; generated icons reproducible; debug executable and all configured icons exist")
+          PY
+          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-08.txt"
+
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
