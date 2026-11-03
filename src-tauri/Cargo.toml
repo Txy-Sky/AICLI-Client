@@ -27,6 +27,10 @@ required-features = ["test-hooks"]
 name = "aicli-cache-probe"
 required-features = ["test-hooks"]
 
+[[example]]
+name = "aicli-catalog-probe"
+required-features = ["test-hooks"]
+
 [build-dependencies]
 tauri-build = { version = "2.4.0", features = [] }
 

@@ -1,5 +1,6 @@
 pub mod account;
 pub mod cache;
+pub mod catalog;
 pub mod lines;
 pub mod newapi;
 pub(crate) mod schema;
