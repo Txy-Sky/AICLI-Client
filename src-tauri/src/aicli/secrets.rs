@@ -167,15 +167,24 @@ impl fmt::Debug for KeyringStore {
 
 impl Default for KeyringStore {
     fn default() -> Self {
-        Self {
-            primary: Box::new(NativeKeyring),
-            fallback: FileFallbackStore::default(),
-            backend: Mutex::new(SecretBackend::Keychain),
-        }
+        Self::with_primary(Box::new(NativeKeyring), FileFallbackStore::default())
     }
 }
 
 impl KeyringStore {
+    fn with_primary(primary: Box<dyn SecretStore>, fallback: FileFallbackStore) -> Self {
+        // An existing fallback file is the durable record of a previous downgrade.
+        // Do not silently lose those credentials when a formerly unavailable keychain returns.
+        let backend = match fallback.path.symlink_metadata() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => SecretBackend::Keychain,
+            _ => SecretBackend::FileFallback,
+        };
+        Self {
+            primary,
+            fallback,
+            backend: Mutex::new(backend),
+        }
+    }
     pub fn secret_backend(&self) -> SecretBackend {
         *self
             .backend
@@ -377,6 +386,25 @@ mod tests {
             serde_json::to_string(&SecretBackend::FileFallback).unwrap(),
             "\"file_fallback\""
         );
+    }
+
+    #[test]
+    fn reopening_fallback_does_not_lose_credentials_when_keychain_recovers_empty() {
+        let temp = tempfile::tempdir().unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let store =
+            KeyringStore::with_primary(Box::new(Unavailable(calls.clone())), file_store(&temp));
+        store.set("access-token", VALUE).unwrap();
+        drop(store);
+        let reopened = KeyringStore::with_primary(Box::<MemoryStore>::default(), file_store(&temp));
+        assert_eq!(reopened.secret_backend(), SecretBackend::FileFallback);
+        assert_eq!(
+            reopened.get("access-token").unwrap().as_deref(),
+            Some(VALUE)
+        );
+        reopened.delete("access-token").unwrap();
+        assert_eq!(reopened.get("access-token").unwrap(), None);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
     #[test]
