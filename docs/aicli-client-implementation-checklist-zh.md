@@ -355,10 +355,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：03c8c681 | job `Checklist acceptance (Linux)`：`bash scripts/aicli-check.sh`；`cargo nextest run --manifest-path src-tauri/Cargo.toml codex`；`cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes` | 完整 CI success；Rust 4449 passed / 原有 10 skipped，前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed，六个预置文件及完整临时 HOME 文件集合逐字节不变；比 B-05 新增 1 项 Rust 测试，未删除或放宽断言；两次失败历史保留于 `docs/aicli-evidence/B-06.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41443239346
 
 ### B-07 用户可见文案
-- [!] 阻塞：第三方真实优惠码及上游合作宣传不能机械替换为 AICLI Client，等待负责人决定中性文案；未运行最终 CI，不标完成。
+- [x] 完成
 - 修改：5 个 `src/i18n/locales/*.json` 中 `CC Switch`、`cc-switch` 的用户可见文案改 `AICLI Client`；`README*.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`SUPPORT.md`、`SECURITY.md`、`deplink.html`、`session-manager.md`：删除多语言 README 和 `deplink.html`，`README.md` 重写为一页（产品说明 + 开发命令 + 上游声明"基于 farion1231/cc-switch，MIT"），`LICENSE` 保留并追加本项目版权行，`CHANGELOG.md` 清空为新起点。
-- 验收：`grep -ril 'cc switch\|cc-switch' src/i18n` 无结果；`LICENSE` 中保留原作者版权声明；检查通过。
-- 证据：
+- 验收：JSON 解析五种语言，`providerForm.partnerPromotion` 与改造前保持一致；该部分含旧品牌的字符串条目数 en/ja/tr 各 28、zh/zh-TW 各 29，必须精确相等。移除该部分后的 JSON 不得含 `cc switch` 或 `cc-switch`（不区分大小写）；`LICENSE` 中保留原作者版权声明；检查通过。该部分在 G-01 删除。
+- 证据：535a193e | job `Checklist acceptance (Linux)`：`bash scripts/aicli-check.sh`；B-07 步骤的 JSON/版权/文档 Python 断言 | 完整 CI success；Rust 4449 passed / 原有 10 skipped，前端 267 文件 / 3416 passed；优惠宣传原文与基线完全相同，命中条目 en/ja/tr=28、zh/zh-TW=29，其余 JSON 均零命中；MIT 原文逐字节保留并追加版权，翻译键名和插值保持，README 重写及指定文件删除通过；两次失败历史见 `docs/aicli-evidence/B-07.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41554786813
 
 ### B-08 占位图标
 - [ ] 完成
@@ -857,6 +857,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 修改：
   - `src/App.tsx`：删除 `AddProviderDialog`、`EditProviderDialog` 相关状态和对话框（`:82,87,1821,1829`），删除复制逻辑（`:1067-1192`）、`useProviderActions` 及 provider 事件监听（`:444`）。
   - 删除 `src/components/providers/`（**先把** `mode/` 中仍被 F-04 引用的组件移到 `src/components/aicli/mode/`）、`src/components/universal/`、`src/hooks/useProviderActions.ts`、`src/lib/api/providers.ts`（保留类型的先移动）、`src/components/DeepLinkImportDialog.tsx`、`src/components/deeplink/`、`src/config/*ProviderPresets.ts`、`src/components/UsageScriptModal.tsx`、`src/components/ProviderIcon*`（若无其他引用）。
+- 修改补充（负责人 2026-11-03）：先用 `grep -rn 'partnerPromotion' src tests` 核查引用，排除五个定义文件后，除 `src/components/providers/` 和预设文件外出现任何其他引用则标 `[!]`。移除 Provider UI 时同时删除五种语言的 `providerForm.partnerPromotion`。
+- 验收补充：`grep -ril 'cc switch\|cc-switch' src/i18n` 必须无结果，恢复原 B-07 最终全量扫描。
 - 验收：`grep -rln 'AddProviderDialog\|EditProviderDialog\|useProviderActions\|ProviderPresets' src tests` 无结果；检查通过。
 - 证据：
 
@@ -978,7 +980,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| B-07 | 五种语言的 `providerForm.partnerPromotion` 包含真实 `cc-switch` 优惠码、原项目官方合作关系及特定折扣承诺；直接替换会把这些承诺错误归给新项目，原始无命中扫描又要求移除旧品牌。 | 非合作宣传的品牌及路径示例、根目录文档、MIT 追加版权、严格扫描/键名及插值保留的 CI 验收已准备为本地 draft stash；剩余命中均为 partnerPromotion（en/ja/tr 各 28，zh/zh-TW 各 29）。静态键名/插值与 MIT 字节保留核对通过，本地 rustfmt/Prettier/YAML 检查通过；未运行最终 CI。B-08 仅在仓库外生成原创建议图标及 CLI 输出，未编译、未标完成。 | 等待负责人决定：建议五种语言的 partnerPromotion 改为中性“第三方预设，详情以服务商官网为准”，保留全部键名及实际链接/预设/请求行为，不编造优惠码或新合作承诺。该选择改变用户可见优惠宣传，按第 0.6 节第 15 条等待明确授权。 |
+| B-07 | 第三方优惠码及上游合作宣传与原始无命中扫描冲突。 | 负责人于 2026-11-03 决定五种语言的 providerForm.partnerPromotion 原样保留，B-07 用 JSON 精确计数与其余部分零命中验收；在 G-01 随 Provider UI 删除并恢复全量扫描。 | 已关闭并验收通过：535a193e 的 run 41554786813 完整成功，JSON 精确计数及其余部分零命中通过；不改优惠码、不新增宣传承诺。 |
 | G 阶段（待决事项） | 统一会话迁移是否保留。 | 按负责人决定，本次 B-06 保留 `maybe_migrate_codex_official_history_to_unified_bucket` 的启动及设置保存调用和自门控行为，不与前三个旧迁移一起禁用。 | G 阶段由负责人决定“统一会话迁移是否保留”；当前不阻塞 B-06，不提前实现或猜测该决定。 |
 | B-06 | 原清单对 48 项旧 provider 列表清理范围有歧义。 | 负责人于 2026-11-02 明确决定完整保留列表，提取启动迁移函数，以统一 false 常量跳过前三个旧迁移；函数及其既有测试不改；统一会话迁移保持原样。最终实现 `03c8c681` 的 CI run 41443239346 完整成功，Codex 1122 passed、启动保留专项 1 passed；48 项列表、三个旧迁移函数和既有测试原样保留，旧范围疑问及两次失败历史保留于证据。 | 已关闭 B-06 阻塞并验收通过；G 阶段待决事项另行登记。 |
 | B-03 | 原扫描要求无结果，但 B-04 的 scheme 和 B-05 的更新地址必须按阶段顺序修改。 | 负责人于 2026-11-02 明确要求不提前修改，B-03 用 `diff` 精确核对且只能命中 `tauri.conf.json` 当前 scheme 和 updater 两行；B-04 后只能剩 updater 行；B-05 后必须无结果。实现提交 `ed35b335` 保留后续项行为，验收工作流已按该决定调整。 | 已关闭范围冲突：负责人决定逐阶段收紧扫描；f141974e 的 run 41412991201 完整成功，两行精确 diff 通过，实际行号 61、67。后续不得追加例外。 |
@@ -994,6 +996,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| B-07（验收自命中） | B-05 扫描整个工作流目录，新增 B-07 归属声明断言含上游作者字面值导致命中命令自身。 | run 41552036556 完整基线通过后 B-05 失败；把 B-07 断言中的上游声明分段拼接，运行时字符串、README 原文、扫描范围及零命中断言均不变，最终 535a193e 完整 CI 通过。 | 与 B-05 既有表达式分段处理相同，避免扫描命令自身产生语法性命中，不新增扫描例外。 |
+| B-07（测试环境预授权） | 既有会话分组测试用当前时间减 1～4 小时造“今天”数据，UTC 午夜后落到昨天。 | run 41550716520 在 SessionManagerPage.test.tsx:303 失败，3415 passed / 1 failed；只在该测试固定 Date 为本地中午，afterEach 恢复，真实异步计时保持运行，原“今天/更早”等全部断言保留。按第 0.6 节测试环境预授权修正，最终重新跑完整 CI。 | 消除时间夹具的午夜不确定性，不修改产品逻辑或放宽验收；失败历史保留于 B-07 证据。 |
+| B-07 → G-01 | B-07 全量品牌扫描与 Provider UI 中真实优惠码冲突。 | 按负责人 2026-11-03 决定，B-07 保留五种语言 providerForm.partnerPromotion 原文，以 JSON 删除该部分后零旧品牌命中，并精确断言该部分匹配条目数 en/ja/tr=28、zh/zh-TW=29。G-01 先 grep 核查 src/tests 的引用范围，再删除该部分并恢复原全量 grep；出现范围外引用则标 [!]。README 按原要求重写，赞助商段落一并删除。 | 不编造新优惠码或合作关系，按原顺序收紧验收；本次不提前删除 Provider UI。 |
 | CI-OPT（自测环境记录） | 测试应使用隔离 HOME。 | 一次仅校验覆盖选择纯函数的 Python 自测先运行时漏设临时 HOME；该模块未读取或写入客户端配置，只生成仓库内 Python 字节码。已清理本次生成的字节码，并以临时 HOME、CC_SWITCH_TEST_HOME 和 PYTHONDONTWRITEBYTECODE=1 复跑，8/8 通过；正式验收仍以隔离 Actions 的同一自测和完整 CI 为准。 | 记录执行偏差，不把未隔离的一次自测当作正式验收，也不豁免后续隔离要求。 |
 | CI-OPT（执行方式） | 原第 0.6 节逐项串行、无本地格式检查或依赖缓存、每次运行 A6，且不取消旧 run。 | 按负责人于 2026-11-02 的明确决定，增加每次推送前隔离 HOME 的 rustfmt/Prettier/YAML 检查、固定版本 Rust 和 pnpm 缓存、最先格式/类型检查、取消被取代 run、按成功基线选择 A6；允许当前 CI 期间准备下一项及同阶段最多 3 个独立小项合并验收，保持分项提交和证据。覆盖检测无法证明安全跳过或验收基础设施变化时保守运行 A6；合并验收失败全组不得勾选。三类预先授权及仍须等待的边界已写入第 0.6 节；后续采用预授权决定仍逐项记入本节，统一验收复核。 | 减少可预防的 CI 失败和重复构建，不放宽产品验收、隔离、保密或人工边界；不改产品对外行为。 |
 | B-06 | 两项身份常量换值；旧 provider 列表范围未明确。 | 负责人于 2026-11-02 决定保留全部 48 项列表及三个旧迁移函数/测试；`lib.rs` 提取启动函数，使用统一 false 常量保留但跳过前三个调用。统一会话迁移原样保留，G 阶段另决。旧迁移模块以私有旧官方标识常量固定 `cc-switch-official`，避免产品常量改为 `aicli-official` 后间接改变旧函数语义；原函数及测试文本保持不变。新身份及目录文件名相关断言同步；实际模型目录投影还在 `live/project/codex.rs` 定义同用途常量，改为引用 `codex_config.rs` 的新文件名常量，并同步相关 fixture，避免写入路径与目录解析脱节。新增四种 provider 的隔离 HOME 全文件字节保留测试。 | 新应用不应启动时自动改写既有 Codex 历史；保留调用避免私有模块出现未使用代码，不能放宽 Clippy 或测试。 |
@@ -1015,19 +1020,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-06 最终实现为 03c8c68147d75deba048f0d230ea5ee803c629f5（Actions run 41443239346，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
-执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，不提前执行 B-07。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：16 / 1 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-06；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；当前 B-07 优惠宣传文案待决定，G 阶段仍有待决事项）。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 B-07 最终实现为 535a193e736dcd042826369a699d511a985a5df1（Actions run 41554786813，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
+完成/阻塞/跳过：17 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-07；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；B-06 已通过；B-07 已通过，下一项 B-08，G 阶段仍有待决事项）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-07 及之后除 C4-05 明确跳过外尚未完成；[!] B-07，第三方优惠宣传文案待负责人决定。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；B-08 及之后除 C4-05 明确跳过外尚未完成；当前无 [!] 项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：未测试、未修改。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
-需要负责人提供的事项：B-07 的中性第三方宣传文案决定，详见第 12 节；无 B-03 待决事项；B-05 完整 CI 已通过并补证；B-06 已按新决定完整验收并补证；G 阶段待决定“统一会话迁移是否保留”，详见第 12 节。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：B-07 已按决定完成并补证，详见第 12 节；无 B-03 待决事项；B-05 完整 CI 已通过并补证；B-06 已按新决定完整验收并补证；G 阶段待决定“统一会话迁移是否保留”，详见第 12 节。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
