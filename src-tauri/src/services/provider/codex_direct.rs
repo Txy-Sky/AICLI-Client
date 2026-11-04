@@ -583,6 +583,7 @@ pub(crate) fn plan(
     target: &Target<'_>,
     prepared: &Prepared,
 ) -> Result<Planned, AppError> {
+    let proxy_token = crate::aicli::local_auth::token_for(db, "codex")?;
     let facts = row_facts(db)?;
     let provider = target_provider(target);
     let projection = provider.map(project).transpose()?;
@@ -654,7 +655,7 @@ pub(crate) fn plan(
                 // The proxy owns its URL/auth, but the route still owns the remote
                 // compaction preference. Preserve the existing UI's OpenAI-name
                 // toggle and Codex's explicit override (including "unsupported").
-                let mut proxy_table = proxy_route_table(ROUTE_ID, base_url, false);
+                let mut proxy_table = proxy_route_table(ROUTE_ID, base_url, false, &proxy_token);
                 if let Route::Custom { table, .. } = &projection.route {
                     if table.get("name").and_then(Item::as_str) == Some("OpenAI") {
                         proxy_table.insert("name", toml_edit::value("OpenAI"));
@@ -738,6 +739,7 @@ pub(crate) fn plan(
         .map(row_auth);
 
     let config = CodexConfigPatch {
+        proxy_token,
         top,
         nested,
         exclusive,

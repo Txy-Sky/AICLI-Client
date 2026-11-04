@@ -101,6 +101,7 @@ mod tests {
             url,
             ProxyAuth::FollowRow,
             None,
+            crate::live::project::claude::PROXY_TOKEN_PLACEHOLDER,
         ))
     }
 

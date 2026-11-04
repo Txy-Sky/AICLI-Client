@@ -28,7 +28,8 @@ pub const OFFICIAL_PROXY_ROUTE_ID: &str = "cc-switch-official";
 const OPENAI_BASE_URL: &str = "openai_base_url";
 /// AICLI Client 生成的模型目录文件名。
 pub const CATALOG_FILENAME: &str = crate::codex_config::CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME;
-pub use super::claude::PROXY_TOKEN_PLACEHOLDER;
+#[cfg(test)]
+use super::claude::PROXY_TOKEN_PLACEHOLDER;
 /// `web_search` 的禁用值。
 pub const WEB_SEARCH_DISABLED: &str = "disabled";
 pub const MODEL_CATALOG_JSON: &str = "model_catalog_json";
@@ -502,15 +503,17 @@ pub fn official_mirror_table(base_url: Option<&str>, supports_websockets: bool) 
 }
 
 /// 指向本地代理的第三方路由表（代理契约和官方直连的休眠表共用）。
-pub fn proxy_route_table(name: &str, base_url: &str, requires_openai_auth: bool) -> Table {
+pub fn proxy_route_table(
+    name: &str,
+    base_url: &str,
+    requires_openai_auth: bool,
+    token: &str,
+) -> Table {
     let mut table = Table::new();
     table.insert("name", toml_edit::value(name));
     table.insert("base_url", toml_edit::value(base_url));
     table.insert("wire_api", toml_edit::value("responses"));
-    table.insert(
-        "experimental_bearer_token",
-        toml_edit::value(PROXY_TOKEN_PLACEHOLDER),
-    );
+    table.insert("experimental_bearer_token", toml_edit::value(token));
     if requires_openai_auth {
         table.insert("requires_openai_auth", toml_edit::value(true));
     }
@@ -527,6 +530,7 @@ pub struct KnownTable {
 /// Codex `config.toml` 的补丁：只改关键字段和独有字段，其余字节不碰。
 #[derive(Debug, Clone)]
 pub struct CodexConfigPatch {
+    pub proxy_token: String,
     /// 顶层关键字段的目标值。
     pub top: Vec<(String, TomlValue)>,
     pub nested: Vec<(Vec<String>, TomlValue)>,
@@ -769,7 +773,8 @@ impl CodexConfigPatch {
         match &self.route {
             RouteWrite::Official { dormant_base_url } => {
                 if providers.contains_key(ROUTE_ID) {
-                    let dormant = proxy_route_table(ROUTE_ID, dormant_base_url, false);
+                    let dormant =
+                        proxy_route_table(ROUTE_ID, dormant_base_url, false, &self.proxy_token);
                     put_table(providers, ROUTE_ID, dormant, container_inline);
                 }
             }
@@ -805,7 +810,7 @@ impl CodexConfigPatch {
             } => {
                 // 之前第三方路由留下的 custom 表改成休眠形态（同样指向本地代理）。
                 if providers.contains_key(ROUTE_ID) {
-                    let dormant = proxy_route_table(ROUTE_ID, base_url, false);
+                    let dormant = proxy_route_table(ROUTE_ID, base_url, false, &self.proxy_token);
                     put_table(providers, ROUTE_ID, dormant, container_inline);
                 }
             }
@@ -859,7 +864,7 @@ fn holds_placeholder(item: &Item) -> bool {
     item.as_table_like()
         .and_then(|table| table.get("experimental_bearer_token"))
         .and_then(Item::as_str)
-        == Some(PROXY_TOKEN_PLACEHOLDER)
+        .is_some_and(crate::aicli::local_auth::is_proxy_token)
 }
 
 fn first_free_id(providers: &dyn TableLike, base: &str) -> String {
@@ -1098,6 +1103,7 @@ mod tests {
 
     fn apply(route: RouteWrite, live: &str) -> DocumentMut {
         let patch = CodexConfigPatch {
+            proxy_token: PROXY_TOKEN_PLACEHOLDER.into(),
             top: Vec::new(),
             nested: Vec::new(),
             exclusive: Vec::new(),

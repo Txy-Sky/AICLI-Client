@@ -45,8 +45,6 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
-const PROXY_AUTH_PLACEHOLDER: &str = "PROXY_MANAGED";
-
 /// Whether the upstream belongs to the OpenCode gateway (`opencode.ai`).
 ///
 /// That gateway (<https://opencode.ai/docs/go/>) expects clients to identify
@@ -183,7 +181,7 @@ fn validate_codex_official_authorization(
         )),
         // 带占位 Key 的请求有两种来源：没重载配置的 Codex 进程；或切换前用第三方供应商建的
         // 旧会话（Codex 按会话记下的 provider 走休眠的 custom 表，重启也还是它）。
-        Some(value) if value.contains(PROXY_AUTH_PLACEHOLDER) => Err(ProxyError::AuthError(
+        Some(value) if value.split_whitespace().any(crate::aicli::local_auth::is_proxy_token) => Err(ProxyError::AuthError(
             "已切换到 OpenAI 官方供应商，但这个请求仍按第三方供应商的配置发出。如果这是切换前用第三方供应商创建的旧会话，它会一直沿用原供应商，重启也无效，请新建会话继续；否则请重启 Codex 以加载官方登录配置".to_string(),
         )),
         Some(_) => {
@@ -4397,7 +4395,16 @@ fn reject_proxy_placeholder_for_managed_account_upstream(
     url: &str,
     headers: &http::HeaderMap,
 ) -> Result<(), ProxyError> {
-    if !is_managed_account_upstream_url(url) || !headers_contain_proxy_placeholder(headers) {
+    let has_local_token = headers.values().any(|value| {
+        value.to_str().ok().is_some_and(|value| {
+            value
+                .split_whitespace()
+                .any(|token| token.starts_with("aicli-local-"))
+        })
+    });
+    if !has_local_token
+        && (!is_managed_account_upstream_url(url) || !headers_contain_proxy_placeholder(headers))
+    {
         return Ok(());
     }
 
@@ -4426,7 +4433,11 @@ fn headers_contain_proxy_placeholder(headers: &http::HeaderMap) -> bool {
     headers.values().any(|value| {
         value
             .to_str()
-            .map(|value| value.contains(PROXY_AUTH_PLACEHOLDER))
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .any(crate::aicli::local_auth::is_proxy_token)
+            })
             .unwrap_or(false)
     })
 }
@@ -5417,6 +5428,33 @@ mod tests {
             err,
             ProxyError::AuthError(message) if message.contains("PROXY_MANAGED")
         ));
+    }
+
+    #[test]
+    fn aicli_local_credentials_never_leave_for_any_upstream() {
+        let token = "aicli-local-00000000000040008000000000000001";
+        for url in [
+            "https://api.example.com/v1/messages",
+            "https://api.githubcopilot.com/chat/completions",
+            "http://127.0.0.1:12345/v1/messages",
+        ] {
+            for name in ["authorization", "x-api-key", "x-goog-api-key"] {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    name,
+                    HeaderValue::from_str(&if name == "authorization" {
+                        format!("Bearer {token}")
+                    } else {
+                        token.into()
+                    })
+                    .unwrap(),
+                );
+                assert!(matches!(
+                    reject_proxy_placeholder_for_managed_account_upstream(url, &headers),
+                    Err(ProxyError::AuthError(_))
+                ));
+            }
+        }
     }
 
     #[test]

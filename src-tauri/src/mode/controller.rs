@@ -25,9 +25,10 @@ use crate::app_config::AppType;
 use crate::claude_desktop_config::{self, DesktopTarget};
 use crate::error::AppError;
 use crate::live::engine::DeviceStore;
+#[cfg(test)]
+use crate::live::project::claude::PROXY_TOKEN_PLACEHOLDER;
 use crate::live::project::claude::{
     direct_patch, proxy_projection, ClaudeProjection, ProxyAuth, StackRoleModel,
-    PROXY_TOKEN_PLACEHOLDER,
 };
 use crate::live::project::gemini::GeminiProjection;
 use crate::live::project::grok::GrokProjection;
@@ -190,6 +191,7 @@ fn claude_contract(
     stack: &[StackModel],
     stack_default: Option<&StackModel>,
     others: &[&Provider],
+    token: &str,
 ) -> (ClaudeProjection, Contract) {
     let mut projection = proxy_projection(
         &ClaudeProjection::of(&route.settings_config),
@@ -199,6 +201,7 @@ fn claude_contract(
             id: &model.id,
             name: &model.name,
         }),
+        token,
     );
     with_stack_models(&mut projection, stack);
     if !stack.is_empty() {
@@ -412,6 +415,7 @@ async fn write_proxy(
                 &published,
                 stack_default.as_ref(),
                 &others,
+                &crate::aicli::local_auth::token_for(&state.db, "claude").map_err(err)?,
             );
             let unchanged = !force && live_now.has_contract(&contract.key);
             let mut patch = direct_patch(live_now.claude_exclusive_owner().as_ref(), &projection);
@@ -430,7 +434,7 @@ async fn write_proxy(
             let projection = GeminiProjection::proxy_contract(
                 &GeminiProjection::of(&route.settings_config, false),
                 &proxy_url,
-                PROXY_TOKEN_PLACEHOLDER,
+                &crate::aicli::local_auth::token_for(&state.db, "gemini").map_err(err)?,
             );
             let contract = contract::gemini(&projection);
             let unchanged = !force && live_now.has_contract(&contract.key);
@@ -473,7 +477,7 @@ async fn write_proxy(
             let projection = GrokProjection::proxy_contract(
                 &grok_direct::projection(route).map_err(err)?,
                 &base_url,
-                PROXY_TOKEN_PLACEHOLDER,
+                &crate::aicli::local_auth::token_for(&state.db, "grokbuild").map_err(err)?,
             )
             .map_err(err)?;
             let contract = contract::grok(&projection);
@@ -1983,6 +1987,7 @@ mod tests {
             &stack,
             default.as_ref(),
             others,
+            PROXY_TOKEN_PLACEHOLDER,
         );
         assert_eq!(contract.exclusive, projection.exclusive);
         projection.exclusive
@@ -2069,8 +2074,14 @@ mod tests {
             }),
         );
         // 没有发布 Stack 模型（路由模式）时契约和原来一样，不看别家。
-        let (projection, _) =
-            claude_contract(&route, "http://127.0.0.1:15821", &[], None, &[&other]);
+        let (projection, _) = claude_contract(
+            &route,
+            "http://127.0.0.1:15821",
+            &[],
+            None,
+            &[&other],
+            PROXY_TOKEN_PLACEHOLDER,
+        );
         assert_env_str(&projection.exclusive, "ENABLE_TOOL_SEARCH", Some("true"));
         assert_env_str(
             &projection.exclusive,
@@ -2081,7 +2092,14 @@ mod tests {
 
     /// 以 `live` 为底写入 `provider` 的代理契约，和进入代理时的补丁相同。
     fn takeover(live: &Value, provider: &Provider) -> Value {
-        let (projection, _) = claude_contract(provider, "http://127.0.0.1:15821", &[], None, &[]);
+        let (projection, _) = claude_contract(
+            provider,
+            "http://127.0.0.1:15821",
+            &[],
+            None,
+            &[],
+            PROXY_TOKEN_PLACEHOLDER,
+        );
         let mut doc = live.clone();
         direct_patch(None, &projection)
             .apply_to(Path::new("settings.json"), &mut doc)
@@ -2703,7 +2721,12 @@ mod mode_tests {
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let live = settings();
         assert_eq!(live["env"]["ANTHROPIC_BASE_URL"], proxy_url.as_str());
-        assert_eq!(live["env"]["ANTHROPIC_AUTH_TOKEN"], PROXY_TOKEN_PLACEHOLDER);
+        assert_eq!(
+            live["env"]["ANTHROPIC_AUTH_TOKEN"],
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
+        );
         assert_eq!(
             live["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"],
             "claude-sonnet-5"
@@ -2930,7 +2953,9 @@ mod mode_tests {
         assert_eq!(restarted.proxy_route.as_deref(), Some("b"));
         assert_eq!(
             settings()["env"]["ANTHROPIC_AUTH_TOKEN"],
-            PROXY_TOKEN_PLACEHOLDER
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
         );
         exit(&state, &AppType::Claude).await.expect("exit");
     }
@@ -2977,7 +3002,12 @@ mod mode_tests {
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let live = settings();
         assert_eq!(live["env"]["ANTHROPIC_BASE_URL"], proxy_url.as_str());
-        assert_eq!(live["env"]["ANTHROPIC_AUTH_TOKEN"], PROXY_TOKEN_PLACEHOLDER);
+        assert_eq!(
+            live["env"]["ANTHROPIC_AUTH_TOKEN"],
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
+        );
 
         exit(state, &AppType::Claude).await.expect("exit");
         assert_eq!(
@@ -3004,7 +3034,9 @@ mod mode_tests {
             .expect("sync");
         assert_eq!(
             settings()["env"]["ANTHROPIC_AUTH_TOKEN"],
-            PROXY_TOKEN_PLACEHOLDER
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
         );
         exit(state, &AppType::Claude).await.expect("exit");
     }
@@ -3120,7 +3152,10 @@ mod mode_tests {
             crate::mode::operation::recover_on_startup(&state.db);
             let recovered = mode(&AppType::Claude);
             let live = settings();
-            let live_is_proxy = live["env"]["ANTHROPIC_AUTH_TOKEN"] == PROXY_TOKEN_PLACEHOLDER;
+            let live_is_proxy = live["env"]["ANTHROPIC_AUTH_TOKEN"]
+                == crate::aicli::local_auth::token_for(&state.db, "claude")
+                    .unwrap()
+                    .as_str();
             assert_eq!(recovered.is_proxy(), expect_proxy, "{point}");
             assert_eq!(recovered.attached, expect_proxy, "{point}");
             assert_eq!(live_is_proxy, expect_proxy, "{point}: file and state agree");
@@ -3253,7 +3288,7 @@ mod mode_tests {
         assert_eq!(
             fs::read_to_string(&env_path).unwrap(),
             format!(
-                "# my notes\nGEMINI_SANDBOX=true\nGEMINI_API_KEY=PROXY_MANAGED\nGOOGLE_GEMINI_BASE_URL={proxy_url}\n"
+                "# my notes\nGEMINI_SANDBOX=true\nGEMINI_API_KEY={}\nGOOGLE_GEMINI_BASE_URL={proxy_url}\n", crate::aicli::local_auth::token_for(&state.db, "gemini").unwrap()
             )
         );
         exit(&state, &AppType::Gemini).await.expect("exit");
@@ -3410,7 +3445,11 @@ mod mode_tests {
         enter(&state, &AppType::Codex, false).await.expect("enter");
         let third_party = fs::read_to_string(&config_path).unwrap();
         assert!(
-            third_party.contains(PROXY_TOKEN_PLACEHOLDER),
+            third_party.contains(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            ),
             "{third_party}"
         );
         assert_eq!(
@@ -3453,7 +3492,11 @@ mod mode_tests {
         let dormant = &doc["model_providers"]["custom"];
         assert_eq!(
             dormant["experimental_bearer_token"].as_str(),
-            Some(PROXY_TOKEN_PLACEHOLDER)
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            )
         );
         assert!(dormant.get("requires_openai_auth").is_none());
         assert!(!official_contract.contains("sk-relay"));
@@ -3461,7 +3504,11 @@ mod mode_tests {
 
         ProviderService::switch(&state, AppType::Codex, "relay").expect("route back");
         let third_party = fs::read_to_string(&config_path).unwrap();
-        assert!(third_party.contains(PROXY_TOKEN_PLACEHOLDER));
+        assert!(third_party.contains(
+            crate::aicli::local_auth::token_for(&state.db, "codex")
+                .unwrap()
+                .as_str()
+        ));
         assert!(!third_party.contains("openai_base_url"), "{third_party}");
         exit(&state, &AppType::Codex).await.expect("exit");
         assert_eq!(auth(), native_auth);
@@ -3833,7 +3880,11 @@ command = "fs-server"
         );
         assert_eq!(
             dormant["experimental_bearer_token"].as_str(),
-            Some(PROXY_TOKEN_PLACEHOLDER)
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            )
         );
         assert!(dormant.get("name").is_some(), "Codex loads it: {text}");
         assert!(!text.contains("sk-a"), "no real key stays behind: {text}");
@@ -4361,7 +4412,14 @@ model_provider = "c"
         let state = state_with(AppType::Codex, &[a, b, c, d], "b").await;
         enter(&state, &AppType::Codex, false).await.expect("enter");
         let entered = codex_text();
-        assert!(entered.contains(PROXY_TOKEN_PLACEHOLDER), "{entered}");
+        assert!(
+            entered.contains(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            ),
+            "{entered}"
+        );
         assert!(!entered.contains("sk-b"), "{entered}");
         let mtime = fs::metadata(codex_config_path())
             .unwrap()
@@ -4415,7 +4473,13 @@ model_provider = "c"
         let back = codex_text();
         assert_eq!(codex_doc()["model"].as_str(), Some("gpt-b"));
         assert!(
-            back.contains("sk-b") && !back.contains(PROXY_TOKEN_PLACEHOLDER),
+            back.contains("sk-b")
+                && !back.contains(PROXY_TOKEN_PLACEHOLDER)
+                && !back.contains(
+                    crate::aicli::local_auth::token_for(&state.db, "codex")
+                        .unwrap()
+                        .as_str()
+                ),
             "{back}"
         );
         assert_eq!(codex_user_parts(&back).len(), 6, "{back}");
@@ -5020,7 +5084,13 @@ model_provider = "c"
         enter(&state, &AppType::Gemini, false).await.expect("enter");
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let env = gemini_env();
-        assert!(env.contains("GEMINI_API_KEY=PROXY_MANAGED"), "{env}");
+        assert!(
+            env.contains(&format!(
+                "GEMINI_API_KEY={}",
+                crate::aicli::local_auth::token_for(&state.db, "gemini").unwrap()
+            )),
+            "{env}"
+        );
         assert!(
             env.contains(&format!("GOOGLE_GEMINI_BASE_URL={proxy_url}")),
             "{env}"
@@ -5068,6 +5138,14 @@ model_provider = "c"
         let env = gemini_env();
         assert!(env.contains("GEMINI_API_KEY=key-a"), "{env}");
         assert!(!env.contains(PROXY_TOKEN_PLACEHOLDER), "{env}");
+        assert!(
+            !env.contains(
+                crate::aicli::local_auth::token_for(&state.db, "gemini")
+                    .unwrap()
+                    .as_str()
+            ),
+            "{env}"
+        );
         assert_eq!(gemini_user_lines(&env), gemini_user_lines(GEMINI_USER_ENV));
     }
 
@@ -5334,7 +5412,14 @@ model_provider = "c"
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let doc = grok_doc();
         let table = &doc["model"]["grok-4.5"];
-        assert_eq!(table["api_key"].as_str(), Some(PROXY_TOKEN_PLACEHOLDER));
+        assert_eq!(
+            table["api_key"].as_str(),
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "grokbuild")
+                    .unwrap()
+                    .as_str()
+            )
+        );
         assert_eq!(
             table["base_url"].as_str(),
             Some(format!("{proxy_url}/grokbuild/v1").as_str())

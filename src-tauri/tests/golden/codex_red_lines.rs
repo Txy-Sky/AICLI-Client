@@ -28,7 +28,7 @@
 //! | 17 | 切到无材料官方卡时删掉第三方残留的 auth.json，真实登录不删；重选当前卡不删 | 已有 `..._official_clears_stale_third_party_auth`、`provider_service_reswitch_current_official_keeps_live_auth` |
 //! | 18 | 元数据（last_refresh、account_id）不算登录（#6277） | crate 内：`codex_config.rs` 的 `credential_login_material_only_counts_real_credentials` |
 //! | 19 | 托管账号切走：先采纳 CLI 轮换过的 refresh token，按 marker 精确删；代际无法排序时拒绝 | crate 内：`services/provider/mod.rs` 的托管账号测试 |
-//! | 20 | 进入代理不写 auth.json；第三方路由契约用字面值 `PROXY_MANAGED` | 已有 `codex_official_to_deepseek_then_takeover_...` |
+//! | 20 | 进入代理不写 auth.json；第三方路由契约使用已登记的 AICLI 本地令牌 | 已有 `codex_official_to_deepseek_then_takeover_...` |
 //! | 21 | 代理下官方路由不写占位凭据，客户端带自己的真实登录 | crate 内：`mode::controller` 的 `codex_routes_between_official_and_third_party_contracts` |
 //! | 22 | 退出代理不覆盖用户此刻的登录状态（期间登出就保持登出，重新登录就保留新登录） | 本文件 |
 //! | 23 | `model_catalog_json` 是关键字段：卡里自带的指针随卡写入；否则有生成的目录写 `aicli-model-catalog.json`，没有就删；live 里手写的值不保留 | 本文件 |

@@ -311,9 +311,12 @@ fn extract_codex_managed_oauth_account_id(auth: &Value) -> Option<String> {
         return None;
     }
 
-    let api_key_is_clearable = auth
-        .get("OPENAI_API_KEY")
-        .is_none_or(|value| value.is_null() || value.as_str() == Some("PROXY_MANAGED"));
+    let api_key_is_clearable = auth.get("OPENAI_API_KEY").is_none_or(|value| {
+        value.is_null()
+            || value
+                .as_str()
+                .is_some_and(crate::aicli::local_auth::is_proxy_token)
+    });
     if !api_key_is_clearable {
         return None;
     }

@@ -340,7 +340,11 @@ impl ProxyService {
             "OPENROUTER_API_KEY",
             "OPENAI_API_KEY",
         ] {
-            if env.get(key).and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+            if env
+                .get(key)
+                .and_then(|v| v.as_str())
+                .is_some_and(crate::aicli::local_auth::is_proxy_token)
+            {
                 return true;
             }
         }
@@ -354,7 +358,7 @@ impl ProxyService {
             .and_then(|v| v.as_object())
             .and_then(|auth| auth.get("OPENAI_API_KEY"))
             .and_then(|v| v.as_str())
-            == Some(PROXY_TOKEN_PLACEHOLDER)
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
         {
             return true;
         }
@@ -364,7 +368,7 @@ impl ProxyService {
             .and_then(|v| v.as_str())
             .and_then(crate::codex_config::extract_codex_experimental_bearer_token)
             .as_deref()
-            == Some(PROXY_TOKEN_PLACEHOLDER)
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
     }
 
     fn is_codex_live_taken_over(config: &Value) -> bool {
@@ -380,7 +384,9 @@ impl ProxyService {
             Some(env) => env,
             None => return false,
         };
-        env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
+        env.get("GEMINI_API_KEY")
+            .and_then(|v| v.as_str())
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
     }
 
     fn is_grok_live_taken_over(config: &Value) -> bool {

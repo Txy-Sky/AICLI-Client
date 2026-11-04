@@ -89,6 +89,14 @@ async fn upstream(
     State(capture): State<Capture>,
     req: axum::extract::Request,
 ) -> axum::response::Response {
+    for name in ["authorization", "x-api-key", "x-goog-api-key"] {
+        assert!(req
+            .headers()
+            .get_all(name)
+            .iter()
+            .all(|value| !value.to_str().unwrap().contains("aicli-local-")));
+    }
+    assert!(!req.uri().to_string().contains("aicli-local-"));
     let path = req.uri().path().to_owned();
     let query = req.uri().query().map(str::to_owned);
     let bytes = axum::body::to_bytes(req.into_body(), 1024 * 1024)
@@ -226,7 +234,16 @@ impl Fixture {
         }
     }
     fn client(&self) -> reqwest::Client {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "x-api-key",
+            cc_switch_lib::aicli::local_auth::token_for(&self.db, "codex")
+                .unwrap()
+                .parse()
+                .unwrap(),
+        );
         reqwest::Client::builder()
+            .default_headers(headers)
             .no_proxy()
             .timeout(std::time::Duration::from_secs(10))
             .build()
@@ -521,5 +538,60 @@ async fn transport_test_hook_rejects_non_loopback_without_connecting() {
     )
     .is_err());
     assert!(f.capture.lock().unwrap().is_empty());
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn local_auth_requires_a_registered_app_token_and_never_forwards_it() {
+    let f = Fixture::new(true).await;
+    let raw = reqwest::Client::builder().no_proxy().build().unwrap();
+    let url = format!("{}/v1/messages", f.origin);
+    let body = json!({"model":PUBLIC,"messages":[{"role":"user","content":"hi"}],"max_tokens":10});
+    for wrong in [None, Some("wrong"), Some("PROXY_MANAGED")] {
+        let mut request = raw.post(&url).json(&body);
+        if let Some(wrong) = wrong {
+            request = request.header("x-api-key", wrong);
+        }
+        assert_eq!(request.send().await.unwrap().status(), 401);
+    }
+    assert!(f.capture.lock().unwrap().is_empty());
+    for app in ["claude", "codex", "gemini", "grokbuild", "claude-desktop"] {
+        let token = cc_switch_lib::aicli::local_auth::token_for(&f.db, app).unwrap();
+        for header in ["authorization", "x-api-key", "x-goog-api-key"] {
+            let value = if header == "authorization" {
+                format!("Bearer {token}")
+            } else {
+                token.clone()
+            };
+            let response = raw
+                .post(&url)
+                .header(header, value)
+                .header("origin", "http://tauri.localhost")
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200);
+        }
+    }
+    assert_eq!(f.capture.lock().unwrap().len(), 15);
+    let response = f
+        .client()
+        .post(&url)
+        .header("origin", "https://evil.example")
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 403);
+    assert_eq!(f.capture.lock().unwrap().len(), 15);
+    assert_eq!(
+        raw.get(format!("{}/health", f.origin))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
     f.stop().await;
 }

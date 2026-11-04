@@ -643,8 +643,9 @@ wire_api = "responses"
         "enabling takeover should point Codex config.toml at the local proxy"
     );
     assert!(
-        config_after_takeover.contains("PROXY_MANAGED"),
-        "enabling takeover should move the proxy placeholder into config.toml"
+        config_after_takeover
+            .contains(&cc_switch_lib::aicli::local_auth::token_for(&state.db, "codex").unwrap()),
+        "enabling takeover should write the registered local token into config.toml"
     );
     assert!(
         !config_after_takeover.contains("https://api.deepseek.com/v1"),
@@ -673,6 +674,8 @@ wire_api = "responses"
         !restored_config.contains("PROXY_MANAGED"),
         "restored live config must not keep the proxy placeholder"
     );
+    assert!(!restored_config
+        .contains(&cc_switch_lib::aicli::local_auth::token_for(&state.db, "codex").unwrap()));
 }
 
 #[test]

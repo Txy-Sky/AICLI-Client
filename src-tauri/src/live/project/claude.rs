@@ -195,7 +195,7 @@ fn legacy_bedrock_shape(row: &Value, projection: &ClaudeProjection) -> Option<Cl
     Some(projection)
 }
 
-/// 代理模式下写进客户端的凭据占位符。旧版只认这个字面值来识别接管态，不能改。
+/// 旧版占位符，仅供兼容识别和历史夹具；新代理投影使用传入的本地令牌。
 pub const PROXY_TOKEN_PLACEHOLDER: &str = "PROXY_MANAGED";
 
 /// 代理契约里的稳定模型别名：客户端只看到这几个名字，真实模型由代理映射。
@@ -248,6 +248,7 @@ pub fn proxy_projection(
     proxy_url: &str,
     auth: ProxyAuth,
     stack_default: Option<StackRoleModel<'_>>,
+    token: &str,
 ) -> ClaudeProjection {
     let mut env = Map::new();
     env.insert(
@@ -261,7 +262,7 @@ pub fn proxy_projection(
     for (key, value) in fields {
         env.insert(key.to_string(), Value::String(value));
     }
-    let placeholder = Value::String(PROXY_TOKEN_PLACEHOLDER.to_string());
+    let placeholder = Value::String(token.to_string());
     match auth {
         ProxyAuth::FollowRow => {
             let mut wrote_any = false;
@@ -783,6 +784,7 @@ mod tests {
                 id: "ccs-claude-z--glm-5.2[1M]",
                 name: "GLM 5.2",
             }),
+            PROXY_TOKEN_PLACEHOLDER,
         );
         let env = |key: &str| stacked.env.get(key).and_then(Value::as_str);
         // haiku 档也带 1M 标记：Stack id 不是 claude- 开头，不带标记会按 200K 算。
@@ -802,7 +804,13 @@ mod tests {
         assert_eq!(env("ANTHROPIC_AUTH_TOKEN"), Some(PROXY_TOKEN_PLACEHOLDER));
 
         // 路由模式照旧写 `claude-*` 别名和行里的子代理模型。
-        let routed = proxy_projection(&route, "http://127.0.0.1:15821", ProxyAuth::FollowRow, None);
+        let routed = proxy_projection(
+            &route,
+            "http://127.0.0.1:15821",
+            ProxyAuth::FollowRow,
+            None,
+            PROXY_TOKEN_PLACEHOLDER,
+        );
         assert_eq!(
             routed.env["ANTHROPIC_DEFAULT_SONNET_MODEL"],
             "claude-sonnet-5[1M]"
@@ -825,6 +833,7 @@ mod tests {
             "http://127.0.0.1:15821",
             ProxyAuth::FollowRow,
             None,
+            PROXY_TOKEN_PLACEHOLDER,
         );
         let env = |key: &str| routed.env.get(key).and_then(Value::as_str);
         assert_eq!(
@@ -917,6 +926,7 @@ mod tests {
                 "http://127.0.0.1:15821",
                 ProxyAuth::FollowRow,
                 None,
+                PROXY_TOKEN_PLACEHOLDER,
             );
             let client_id = routed.env["CLAUDE_CODE_SUBAGENT_MODEL"]
                 .as_str()

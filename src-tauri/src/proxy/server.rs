@@ -466,6 +466,10 @@ impl ProxyServer {
             .route("/gemini/v1/*path", any(handlers::handle_gemini))
             // 提高默认请求体大小限制（避免 413 Payload Too Large）
             .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
+            .layer(axum::middleware::from_fn_with_state(
+                self.state.clone(),
+                crate::aicli::local_auth::authenticate,
+            ))
             .with_state(self.state.clone())
     }
 
@@ -506,6 +510,25 @@ impl ProxyServer {
 
 #[cfg(test)]
 mod tests {
+    fn local_headers(db: &Database) -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "x-api-key",
+            crate::aicli::local_auth::token_for(db, "codex")
+                .unwrap()
+                .parse()
+                .unwrap(),
+        );
+        headers
+    }
+    fn local_client(db: &Database) -> reqwest::Client {
+        reqwest::Client::builder()
+            .no_proxy()
+            .default_headers(local_headers(db))
+            .build()
+            .unwrap()
+    }
+
     use super::*;
     use crate::provider::{Provider, ProviderMeta};
     use crate::AppError;
@@ -555,7 +578,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         for path in [
             "/responses",
             "/v1/responses",
@@ -591,6 +614,7 @@ mod tests {
         );
         let info = proxy.start().await.expect("start proxy");
         let client = reqwest::Client::builder()
+            .default_headers(local_headers(&proxy.state.db))
             .no_proxy()
             .timeout(std::time::Duration::from_secs(2))
             .build()
@@ -725,7 +749,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
 
         let cases = [
             (
@@ -901,7 +925,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/images/generations",
             "/v1/images/generations",
@@ -1111,7 +1135,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/images/edits",
             "/v1/images/edits",
@@ -1336,7 +1360,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/alpha/search",
             "/v1/alpha/search",

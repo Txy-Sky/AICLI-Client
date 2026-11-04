@@ -25,7 +25,7 @@ pub const PROFILE_NAME: &str = "AICLI Client";
 const CONFIG_FILE: &str = "claude_desktop_config.json";
 #[cfg(any(target_os = "macos", windows, target_os = "linux", test))]
 const CONFIG_LIBRARY_DIR: &str = "configLibrary";
-const GATEWAY_TOKEN_SETTING_KEY: &str = "claude_desktop_gateway_token";
+
 const CLAUDE_DESKTOP_PROXY_PREFIX: &str = "/claude-desktop";
 pub const DEFAULT_CREATED_AT: &str = "2024-01-01T00:00:00Z";
 /// `inferenceModels` 的上限（Desktop 的 schema 写着 `maxItems: 200`）。
@@ -253,10 +253,18 @@ pub fn get_status(db: &Database, proxy_running: bool) -> Result<ClaudeDesktopSta
         })
         .unwrap_or(false);
     let gateway_token_configured = db
-        .get_setting(GATEWAY_TOKEN_SETTING_KEY)
+        .conn
+        .lock()
         .ok()
-        .flatten()
-        .is_some_and(|token| !token.trim().is_empty());
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM aicli_local_token WHERE app_type='claude-desktop'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .ok()
+        })
+        .is_some_and(|count| count > 0);
     // 路由模式下看路由那家，直连模式下看直连那家。
     let routed = crate::mode::current::is_proxy(&AppType::ClaudeDesktop);
     let current_provider = crate::mode::current::provider_in_use(db, &AppType::ClaudeDesktop)
@@ -393,16 +401,7 @@ fn inference_model_json(spec: &InferenceModelSpec) -> Value {
 }
 
 pub fn get_or_create_gateway_token(db: &Database) -> Result<String, AppError> {
-    if let Some(token) = db.get_setting(GATEWAY_TOKEN_SETTING_KEY)? {
-        let trimmed = token.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
-        }
-    }
-
-    let token = format!("ccs-{}", uuid::Uuid::new_v4().simple());
-    db.set_setting(GATEWAY_TOKEN_SETTING_KEY, &token)?;
-    Ok(token)
+    crate::aicli::local_auth::token_for(db, "claude-desktop")
 }
 
 pub fn direct_gateway_credentials(
@@ -2253,7 +2252,11 @@ mod tests {
         assert!(profile["inferenceGatewayApiKey"]
             .as_str()
             .expect("gateway token")
-            .starts_with("ccs-"));
+            .starts_with("aicli-local-"));
+        assert_eq!(
+            profile["inferenceGatewayApiKey"],
+            crate::aicli::local_auth::token_for(&db, "claude-desktop").unwrap()
+        );
         assert_eq!(
             profile["inferenceModels"],
             json!([{ "name": "claude-sonnet-4-6", "labelOverride": "Kimi K2", "supports1m": true, "prefer1m": true }])

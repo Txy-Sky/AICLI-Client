@@ -2173,7 +2173,10 @@ command = "legacy-cmd"
 
         let live: Value = read_json_file(&get_claude_settings_path()).expect("read live");
         let env = &live["env"];
-        assert_eq!(env["ANTHROPIC_API_KEY"], "PROXY_MANAGED");
+        assert_eq!(
+            env["ANTHROPIC_API_KEY"],
+            crate::aicli::local_auth::token_for(&state.db, "claude").unwrap()
+        );
         assert_eq!(env["ANTHROPIC_BASE_URL"], proxy_url.as_str());
         assert!(env.get("ANTHROPIC_MODEL").is_none(), "{live}");
         assert_eq!(

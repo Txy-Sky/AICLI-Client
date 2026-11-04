@@ -264,7 +264,10 @@ impl GrokConfigPatch {
                                 item.as_table_like()
                                     .and_then(|table| table.get("api_key"))
                                     .and_then(Item::as_str)
-                                    == Some(placeholder)
+                                    .is_some_and(|token| {
+                                        token == placeholder
+                                            || crate::aicli::local_auth::is_proxy_token(token)
+                                    })
                             }))
                 })
                 .map(|(name, _)| name.to_string())

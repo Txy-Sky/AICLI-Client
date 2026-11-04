@@ -5,6 +5,7 @@ pub mod catalog;
 pub mod cooldown;
 pub mod errors;
 pub mod lines;
+pub mod local_auth;
 pub mod newapi;
 pub mod profiles;
 pub mod resolver;

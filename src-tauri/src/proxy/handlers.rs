@@ -53,6 +53,7 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+#[cfg(test)]
 use subtle::ConstantTimeEq;
 
 // ============================================================================
@@ -296,7 +297,6 @@ pub async fn handle_claude_desktop_messages(
             &AppType::ClaudeDesktop,
         ));
     }
-    validate_claude_desktop_gateway_auth(&state, request.headers())?;
     handle_messages_for_app(
         state,
         request,
@@ -322,7 +322,6 @@ pub async fn handle_claude_desktop_models(
             &AppType::ClaudeDesktop,
         ));
     }
-    validate_claude_desktop_gateway_auth(&state, &headers)?;
     aicli_model_list(&state, &AppType::ClaudeDesktop, &headers)
 }
 
@@ -463,13 +462,7 @@ fn claude_response_needs_transform(
     )
 }
 
-fn validate_claude_desktop_gateway_auth(
-    state: &ProxyState,
-    headers: &axum::http::HeaderMap,
-) -> Result<(), ProxyError> {
-    validate_claude_desktop_gateway_auth_for_db(state.db.as_ref(), headers)
-}
-
+#[cfg(test)]
 fn validate_claude_desktop_gateway_auth_for_db(
     db: &crate::database::Database,
     headers: &axum::http::HeaderMap,
@@ -480,6 +473,7 @@ fn validate_claude_desktop_gateway_auth_for_db(
     validate_claude_desktop_gateway_token(headers, &expected)
 }
 
+#[cfg(test)]
 fn validate_claude_desktop_gateway_token(
     headers: &axum::http::HeaderMap,
     expected: &str,
@@ -503,6 +497,7 @@ fn validate_claude_desktop_gateway_token(
 /// own explicit setting — may send `Authorization: Bearer <token>`. This
 /// helper accepts either and returns the raw token bytes, with no validity
 /// check; the caller is responsible for comparing to the expected token.
+#[cfg(test)]
 fn extract_gateway_token(headers: &axum::http::HeaderMap) -> Option<String> {
     // Prefer `Authorization` if present (more specific).
     if let Some(value) = headers.get(axum::http::header::AUTHORIZATION) {
@@ -3591,8 +3586,14 @@ mod tests {
     #[tokio::test]
     async fn claude_desktop_gateway_auth_entry_uses_uniform_401_response() {
         let db = Database::memory().expect("in-memory database");
-        db.set_setting("claude_desktop_gateway_token", TEST_GATEWAY_TOKEN)
-            .expect("seed gateway token");
+        db.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO aicli_local_token VALUES('claude-desktop',?1,0)",
+                [TEST_GATEWAY_TOKEN],
+            )
+            .unwrap();
 
         assert!(validate_claude_desktop_gateway_auth_for_db(
             &db,

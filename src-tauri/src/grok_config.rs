@@ -235,7 +235,9 @@ pub fn extract_base_url(config_toml: &str) -> Option<String> {
 pub fn has_proxy_placeholder(config_toml: &str, token_placeholder: &str) -> bool {
     extract_model_config(config_toml)
         .and_then(|config| config.api_key)
-        .is_some_and(|api_key| api_key == token_placeholder)
+        .is_some_and(|api_key| {
+            api_key == token_placeholder || crate::aicli::local_auth::is_proxy_token(&api_key)
+        })
 }
 
 /// Remove MCP projections from a provider-owned Grok Build settings snapshot.
