@@ -56,7 +56,12 @@ impl AccountLifecycle for NoTakeovers {
     }
 }
 
-async fn request(origin: &str, secrets: &dyn SecretStore, id: i64) -> Result<(), &'static str> {
+async fn request(
+    origin: &str,
+    secrets: &dyn SecretStore,
+    id: i64,
+    stage: &'static str,
+) -> Result<(), &'static str> {
     let key = secrets
         .get(&format!("token:{id}"))
         .map_err(|_| "credential lookup failed")?
@@ -66,10 +71,44 @@ async fn request(origin: &str, secrets: &dyn SecretStore, id: i64) -> Result<(),
         .post(format!("{}/v1/chat/completions",origin.trim_end_matches('/')))
         .bearer_auth(key).json(&json!({"model":"mock-model-a","messages":[{"role":"user","content":"C1-09 fixture"}],"max_tokens":8}))
         .send().await.map_err(|_|"model request failed")?;
-    require(
-        response.status().is_success(),
-        "managed key request rejected",
-    )?;
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body: Value = response.json().await.unwrap_or(Value::Null);
+        let code = body["error"]["code"].as_str().unwrap_or_default();
+        let code = match code {
+            "insufficient_user_quota"
+            | "insufficient_quota"
+            | "no_available_channel"
+            | "invalid_api_key"
+            | "invalid_token"
+            | "rate_limit_exceeded"
+            | "model_not_found"
+            | "channel_not_found" => code,
+            _ => "unclassified",
+        };
+        let message = body["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .to_lowercase();
+        let category = if message.contains("倍率")
+            || message.contains("价格")
+            || message.contains("ratio")
+            || message.contains("price")
+        {
+            "pricing configuration"
+        } else if message.contains("渠道") || message.contains("channel") {
+            "channel routing"
+        } else if message.contains("额度") || message.contains("quota") {
+            "quota"
+        } else if message.contains("令牌") || message.contains("token") {
+            "token authorization"
+        } else {
+            "unclassified"
+        };
+        // Fixed stage/category and allowlisted code only; never print response text.
+        eprintln!("C1-04: FAIL; C1-09 request stage={stage}; status={status}; code={code}; category={category}");
+        return Err("managed key request rejected");
+    }
     let body: Value = response
         .json()
         .await
@@ -308,8 +347,8 @@ async fn exercise(api: &NewApiClient, origin: &str, access: &str) -> Result<(), 
         "second device did not reuse identical tokens",
     )?;
     let id = *first.values().next().ok_or("compiled token absent")?;
-    request(origin, secrets_a.as_ref(), id).await?;
-    request(origin, secrets_b.as_ref(), id).await?;
+    request(origin, secrets_a.as_ref(), id, "first device").await?;
+    request(origin, secrets_b.as_ref(), id, "second device").await?;
     require(
         home_a.join(".aicli-client/secrets.json").is_file()
             && home_b.join(".aicli-client/secrets.json").is_file(),
@@ -336,7 +375,7 @@ async fn exercise(api: &NewApiClient, origin: &str, access: &str) -> Result<(), 
             == Some(access),
         "second access changed",
     )?;
-    request(origin, secrets_b.as_ref(), id).await?;
+    request(origin, secrets_b.as_ref(), id, "after other device unbind").await?;
     api.delete_token(id)
         .await
         .map_err(|_| "web deletion failed")?;
@@ -369,6 +408,6 @@ async fn exercise(api: &NewApiClient, origin: &str, access: &str) -> Result<(), 
         .await
         .map_err(|_| "401 recovery failed")?;
     require(recovered != id, "deleted id reused")?;
-    request(origin, secrets_b.as_ref(), recovered).await?;
+    request(origin, secrets_b.as_ref(), recovered, "after recovery").await?;
     Ok(())
 }
