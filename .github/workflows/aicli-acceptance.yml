@@ -143,6 +143,12 @@ jobs:
           cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::catalog::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-07-unit.txt"
           cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-catalog-probe
 
+      - name: C1-08 verify profile validation persistence and route compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::profiles::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-08-unit.txt"
+
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |

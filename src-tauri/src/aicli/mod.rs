@@ -3,5 +3,6 @@ pub mod cache;
 pub mod catalog;
 pub mod lines;
 pub mod newapi;
+pub mod profiles;
 pub(crate) mod schema;
 pub mod secrets;
