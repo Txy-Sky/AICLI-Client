@@ -649,7 +649,15 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - `release(app)`：`mode::controller::exit`，再把备份原文原样写回，与备份逐字节比较后删除备份。
   - 启动时若检测到 cc-switch 正在接管（客户端配置的 base URL 指向 `127.0.0.1:15721`，或 token 为 `PROXY_MANAGED`），`take_over` 返回 `CcSwitchConflict`，由前端提示，用户确认后才继续。
   - Tauri 命令在 C3-11 暴露。
-- 验收：对 Claude、Codex、Gemini、Grok、Desktop 分别测试：临时 HOME 下准备配置 → 接管 → 配置指向 `127.0.0.1:15821` 且 token 符合格式 → 还原 → **文件逐字节一致**。崩溃中断测试：接管写到一半（用 `live-state.json` 的 pending 机制）后 `startup` 能恢复。
+- 负责人于 2026-11-04 决定（模型投影）：
+  - 原则：`aicli-*` 种子不含模型和 key。接管前由程序按"该客户端当前配置集"的编译结果补全投影所需字段，再交给现有 cc-switch 投影代码写入，不改投影写入逻辑；不保留客户端原有模型选择（原配置已备份，还原时逐字节写回）。当前配置集按 `app 绑定 > global 绑定 > active_profile_id > recommended`（接管时没有会话）。只计入该客户端协议下 compat 不是 `unavailable` 的模型。
+  - key 一律写 C3-08 的本地令牌 `local_auth::token_for(app)`，**绝不写真实 sk- Token**。校验时 `aicli-*` 种子视为托管 Provider，跳过"必须有 API Key"检查（同现有 `xai_oauth` 等托管类型的处理方式）。
+  - Desktop：`inferenceModels` 为配置集全部可用模型，模型 id 用 C2-02 的 Desktop 别名编码，排序沿用现有 `claude_role_rank` 再按名称；超过 200 个时报错，不截断。opus/sonnet/haiku 等档位按 C2-02 已定规则。
+  - Grok：只写一张模型表，表名 `aicli`。默认模型为：用户 Grok 原默认模型（配置集中有同名时）> 名称含 `grok`（不区分大小写）的字典序第一个 > 字典序第一个。`api_backend` 用现有 `PROXY_API_BACKEND`；`context_window` v1 固定 `128000`（目录无此数据，第 13 节记偏差）；`name` 为 `AICLI`；`base_url` 为本地代理地址。Grok 内切换模型留到 F-04，v1 只设默认模型。
+  - 配置集没有该客户端可用的模型时，`take_over` 返回 `NoModels`（前端提示先选分组），不写任何文件。
+  - 配置集或目录变化导致快照 fingerprint 变化时，对已接管的 Desktop、Grok 用现有 `resync_route` 重新投影，不要求用户重新接管。
+  - Claude、Codex、Gemini 沿用现有投影，不变。
+- 验收：对 Claude、Codex、Gemini、Grok、Desktop 分别测试：临时 HOME 下准备配置 → 接管 → 配置指向 `127.0.0.1:15821` 且 token 符合格式 → 还原 → **文件逐字节一致**。另需单测：Desktop 模型列表与配置集一致且为别名编码、配置文件中无 sk- 值；Grok 默认模型三级选择、`context_window=128000`；无可用模型时返回 `NoModels` 且文件未改动；fingerprint 变化后重新投影。崩溃中断测试：接管写到一半（用 `live-state.json` 的 pending 机制）后 `startup` 能恢复。
 - 证据：
 
 ### C3-11 Tauri 命令
@@ -1010,6 +1018,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C1-09（CI 夹具） | 初轮推荐预设无自动分组；共用安全测试环境取钥限流；独立环境的种子渠道未同步到内存缓存；桌面链接曾耗尽磁盘。 | 失败和安全诊断记录见 C1-09.txt、第 13 节。修正夹具预设、独立 Compose 预算、HTTP 临时渠道创建/删除初始化缓存，并限制 CI 调试元数据体积。最终 0b0953b2 的 run 41766760053 四 job 及汇总全部 success。 | 已关闭并验收；未放宽任何断言，未改 new-api 或限流设置，未加入等待/重启/请求重试。 |
 | C1-08 | 原清单未明确 fallback 范围、预设冲突确认及撤销影响模型判定。 | 负责人于 2026-11-04 已决定：fallback 限所选组；复制/重置确认当时冲突，后续新冲突只拦保存；基线写 aicli_cache，缺组不覆盖，无基线整体停用，有基线拦截含缺失组（含后备）的模型。执行者确认采用后备组也拦截的保守规则。最终实现 05c80736 的 run 41747863675 完整成功，专项 20 passed，Rust 4531 passed/原有 10 skipped，前端 3416 passed。 | 负责人已决定；范围阻塞已关闭并验收通过。C3-01/F-05 后续接线仍按各自项目执行，不提前宣称完成。 |
 | C3-01（接口依赖） | 本项验收要求 RouteDecision 返回线路 Provider 克隆及每线路超时，但对应的 seed Provider 结构和 `clone_for(app,line,wire)` 在下一项 C3-02 才定义；同时清单第 6 步引用 `model preferred_line`，当前 Catalog/ModelRoute 没有该字段或来源。 | 核对 `aicli/runtime.rs`、`profiles.rs`、`catalog.rs`、`lines.rs`、`proxy/handler_context.rs` 与 C3-02 条款；没有实现解析器，也未改变请求行为或数据结构。C3-02 只描述 seed Provider 的 base URL/meta 选择，未定义 preferred_line 的持久化/下发来源，也未定义线路超时在 RouteDecision 中如何映射到现有 `StreamingTimeoutConfig`。 | 负责人于 2026-11-04 已决定：先做 C3-02，C3-01 调用 `seed::clone_for`，线路只来自 `lines.rs`；v1 不实现 `preferred_line`（第 13 节记偏差）；`LineTimeouts` 从 `Line` 复制、以 Provider id 为键，映射由 C3-03/C3-07 完成。阻塞已关闭，详见 C3-01 条款；执行顺序 C3-02（9926c904、run 41815729786）→ C3-01（594eb8d8、run 41817318022），两轮完整 CI 均 success，本项解析器专项 13 passed，已验收闭环。 |
+| C3-10（模型投影） | 执行端接线时发现 Grok 投影要求完整模型表、Desktop 投影要求 API Key 和模型映射，而 `aicli-main` 种子只有 base URL，无法直接接管。 | 核对 `live/project/grok.rs`（只写一张表，必须有 model/api_backend/context_window/key）与 `claude_desktop_config.rs::validate_proxy_provider`（要求 key 与模型路由）。 | 负责人于 2026-11-04 已决定：接管前按当前配置集补全种子投影字段，key 写本地令牌；Desktop 列全部可用模型（别名编码），Grok 默认模型三级选择、context_window 固定 128000；无模型返回 NoModels；fingerprint 变化重投影。详见 C3-10 条款。 |
 | C1-06（测试夹具） | 2e38849b 的缓存集成在一次性用户登录收到非 JSON 响应，尚未进入观测；此前缓存 14/API 11 项和 A6-04 原有测试通过。 | 对照 rc.34 共用 CT 限流源码，将缓存测试放入独立临时 Compose 环境，保留原限流和断言，追加只含状态码的安全错误诊断；e3a70c89 的 run 41624807753 完整成功，601 秒观测 39 次、30 天落盘通过。 | 已关闭；旧错误未记录 HTTP 状态码，不声称旧响应实测 429；全部失败历史见 C1-06.txt。 |
 | C1-04 期间观察（非阻塞） | Linux lib-test 构建提示既有 `services/agy_account/keychain.rs::SystemKeychain::named` 未使用。 | 对照此前 a4445066 的已下载证据，同一告警已存在；当前 Clippy -D warnings 和完整基线仍通过，未改相关模块或测试。 | 非阻塞既有告警；后续仅按 G-03 原定模块清理范围处理，本项不顺手修复。 |
 | B-07 | 第三方优惠码及上游合作宣传与原始无命中扫描冲突。 | 负责人于 2026-11-03 决定五种语言的 providerForm.partnerPromotion 原样保留，B-07 用 JSON 精确计数与其余部分零命中验收；在 G-01 随 Provider UI 删除并恢复全量扫描。 | 已关闭并验收通过：535a193e 的 run 41554786813 完整成功，JSON 精确计数及其余部分零命中通过；不改优惠码、不新增宣传承诺。 |
@@ -1031,6 +1040,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C2-01（运行时接线） | 示例结构含固定 NewApiClient、Cooldown，启动从缓存构建后后台刷新。 | 未绑定时不存在可用访问令牌，因此按每次刷新时的账号/线路/SecretStore 构造 NewApiClient，TokenService 按账号/线路复用以保留 Retry-After 和恢复状态；ProxyState 同步加载本地缓存，监听成功后后台刷新。将 auto-groups 的 groups/max_count 作为公开缓存合入目录编译；旧快照和密钥分开保存，LRU 4096/24h；冷却这里只提供存储容器，策略仍由 C3-06 实现。 | 结构接线细化，不改 v25 表、产品行为或工作流；后台更新按 fingerprint 原子换快照，失败保留旧值，账号更换/解绑清空旧凭证和 pin；新增 lru 默认特性关闭，锁文件仅新增该依赖。Cargo 清单变化按 CI-OPT2 本轮应执行 A6 和 601 秒观测，不称跳过。 |
 | C3-01 | 第 3 步列出 `project` 作用域，但代理请求不含项目信息，无法解析。 | 负责人于 2026-11-04 决定：v1 解析时跳过 `project`，保留表结构和代码接口。 | 不改表结构；有可靠的项目标识来源后再启用。 |
 | C3-01（preferred_line） | 第 6 步线路顺序首级为 `model preferred_line`，但目录与配置集均无此字段，new-api 也不提供。 | 负责人于 2026-11-04 决定：v1 去掉该级，顺序为 `line_policy`（非 inherit）> `selected_line_id` > 其余按 priority 降序，排除冷却，全冷却时 probe-one。 | 不新增字段或表结构；有可靠来源后再加。 |
+| C3-10（Grok context_window） | Grok 模型表必须有正整数 `context_window`，new-api 目录不提供上下文长度。 | 负责人于 2026-11-04 决定：v1 固定写 `128000`（与 Codex 投影现有默认值一致）。 | 不新增字段；目录将来提供该数据时改为按模型取值。 |
 | C3-07（超时接线） | 当前线路首字节/非流式超时需传入 hyper、reqwest 和首包准备；响应阶段用最终 ctx.provider。 | 转发器持有按 Provider id 的超时 DTO，每次 forward 重新取值；响应处理按最终 ctx.provider 取得首字节、静默、总时长。原测试用旧准备函数保留为测试包装器；旧非 AICLI 总时长保持 0。 | 定位漂移和内部参数接线，不改线路表或外部接口；使用 1s/2s 的测试专用值模拟两类线路，断言实际请求次数，不用线上账号。 |
 | C3-06（模块定位） | 冷却策略位于 `aicli/cooldown.rs`，C2-01 已在 runtime 中提供两级表。 | 将原容器迁至 cooldown 模块，runtime 重导出原类型，注入时钟并接入转发失败/429/成功路径。 | 保留原调用接口和两级隔离，不改表结构或工作流；首轮遗漏 Duration 导入已追加同编号修正，未弱化验收。 |
 | C3-05（错误载荷与接线） | 现有 UpstreamError 不保留 Retry-After；整流失败有独立旧分类，客户端断开没有显式错误变体。 | Retry-After 在 AICLI 转发器内按秒/HTTP-date 解析并保存，429 写线路＋模型首级冷却；新增 ClientAbort 分类变体，已输出后的流错误继续不重放。整流失败使用同一 AICLI 分类。401 接 C1-09 一次性恢复，不重放当前请求；既有 pin 的凭证查找随恢复更新。C3-04 备用成功夹具改为 HTML 502，新增 JSON 503 不切线的精确断言。 | 不改外部接口、v25 或旧分类行为；分类和冷却之间的接线细化，完整退避留 C3-06。首轮前缀测试预期与 Clippy 失败均保留，未放宽断言或 lint。 |
