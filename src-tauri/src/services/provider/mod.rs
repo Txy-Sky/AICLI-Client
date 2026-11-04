@@ -5516,7 +5516,9 @@ impl ProviderService {
             }
             return Ok(saved);
         }
-        state.db.get_all_providers(app_type.as_str())
+        let mut providers = state.db.get_all_providers(app_type.as_str())?;
+        providers.retain(|_, provider| !crate::aicli::seed::is_hidden(provider));
+        Ok(providers)
     }
 
     /// Get current provider ID

@@ -35,6 +35,7 @@ case "$set_name" in
     item C1-09-unit aicli::tokens::tests
     item C2-01-unit aicli::runtime::tests
     item C2-02-unit aicli::alias::tests
+    item C3-02-unit aicli::seed::tests
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests

@@ -939,12 +939,12 @@ pub fn run() {
                 log::warn!("Initializing DeepSeek Harness profiles failed: {error}");
             }
 
-            match app_state.db.init_default_official_providers() {
+            match crate::aicli::seed::init(&app_state.db) {
                 Ok(count) if count > 0 => {
-                    log::info!("✓ Seeded {count} official provider(s)");
+                    log::info!("✓ Seeded {count} internal AICLI provider(s)");
                 }
                 Ok(_) => {}
-                Err(e) => log::warn!("✗ Failed to seed official providers: {e}"),
+                Err(e) => log::warn!("✗ Failed to seed AICLI providers: {e}"),
             }
 
             {
