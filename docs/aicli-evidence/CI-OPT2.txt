@@ -1,0 +1,31 @@
+CI-OPT2 parallel acceptance jobs (owner decision 2026-11-04)
+
+Implementation: 40b0e795 (ci(aicli): CI-OPT2 split acceptance into parallel jobs)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41755323062 -- success
+Local pre-push: prettier 3.6.2 --check workflow/action YAML unchanged; scripts/aicli-check-workflow-yaml.py 5 files passed;
+  python3 -m unittest scripts/tests/test_aicli_ci_scope.py 15 passed. cargo fmt not run locally (no cargo on this machine; no Rust source changed).
+
+Before (single job, run 41747863675 at 05c80736): 52m02s wall clock.
+  Cause: every item added a workflow step -> scope treated it as infrastructure -> full A6 + 601s C1-06 observation on every run;
+  test-hooks on/off toggling recompiled the crate ~6 times (2-3 min each); all steps serial.
+
+After (this run, worst case: workflow changed -> testenv=true, c106_observe=true; all four Rust caches cold, new keys):
+  created 01:37:31Z, completed 01:56:50Z = 19m19s wall clock
+  Rust item tests (Linux)          12m39s  (default set 6m48s incl. cold compile, test-hooks set 4m37s)
+  A3-01 baseline (Linux)           17m19s  (aicli-check.sh 14m56s, cold cache)
+  B stage desktop checks (Linux)   17m44s
+  A6 test environment (Linux)      19m10s  (probe build 4m13s; C1-06 observation 10m26s)
+  Checklist acceptance (Linux)     summary, all four needs success
+
+Coverage decision (CI-OPT-coverage.txt): base 05c80736, head 40b0e795, testenv=true, c106_observe=true,
+  reason "test environment or its CI infrastructure changed".
+
+Results identical to the previous run (no test removed or skipped):
+  C1-01 2, C1-02 10, C1-03 5+14+31, C1-05 12, C1-06 unit 14, C1-07 unit 9, C1-08 20, C1-04/C1-06 api (test-hooks) 11+11 passed
+  A3-01: Rust 4531 passed / 10 pre-existing skipped; frontend 267 files / 3416 passed
+  B: config_identity 2, desktop 1, codex 1122, startup 1, deeplink 107 passed; B-GATE, B-03/05/07/08 PASS
+  A6-02 14, A6-03 1, A6-04 3+1, C1-07 integration 2, A6-05 5 passed;
+  C1-06: observed 601s, audited /api/* request count=39 (limit 40), all 30 days persisted
+
+Not yet measured: an ordinary item run with warm caches and c106_observe=false. Expected to be bounded by A3-01
+(~10-12 min); the first such run's wall clock should be appended here, not assumed.

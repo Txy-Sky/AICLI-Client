@@ -148,6 +148,8 @@
 
 证据：9e4dd03c | job `Checklist acceptance (Linux)`：新增快速格式/类型/YAML 检查、覆盖选择 8 项自测、`bash scripts/aicli-check.sh`、原 A6 与 B 专项；本机 `AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh` | 本地三类检查通过；同一实现两轮完整 CI success；Rust 4449 passed / 原有 10 skipped，前端 3416 passed；A3-01 加缓存前 16m02s，首次冷缓存 15m40s，复跑 Rust/pnpm 均命中为 11m45s；新增快速步骤两轮均 46s。实际起止时间及比较限制见 `docs/aicli-evidence/CI-OPT.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41449566786/attempts/2
 
+CI-OPT2 证据：40b0e795 | 四个并行 job 加汇总 job `Checklist acceptance (Linux)` | 完整 CI success，墙钟时间 19m19s（改前 run 41747863675 为 52m02s）。本轮为最坏情况：四个 Rust 缓存全冷，且工作流改动触发了 A6 和 601 秒观测。各项测试数与改前一致；预热缓存后普通项的耗时尚未实测，见 `docs/aicli-evidence/CI-OPT2.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41755323062
+
 ---
 
 ## 1. `[HUMAN]` 开工前由负责人提供
