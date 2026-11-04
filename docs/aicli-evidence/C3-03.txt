@@ -1,0 +1,76 @@
+C3-03 request entry integration
+
+Final implementation: cb6db8312e67df1bc7bbfa1c803b28411018827e
+Initial implementation: 5696d65394866668bcdb579b17a2447f1185242b
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41827583316
+Entire run: success; all four parallel jobs and the summary job passed.
+
+Rust item tests (Linux), job 126566171334:
+  Command: cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing
+  Result: 8 passed, 0 skipped.
+  Real ProxyServer and loopback mock coverage: six handler families; exactly one
+  upstream request and correct path/model; Gemini action and GET URLs/query;
+  unbound inference/discovery HTTP 401 without forwarding; alias list envelopes;
+  scope changes and existing session pins; profile misses without legacy fallback;
+  RequestContext public identity, retries and per-line streaming timeout selection;
+  test transport rejects non-loopback addresses without connecting.
+  Existing seed forwarding tests: cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::seed::tests
+  Result: 10 passed, including all eight protocol/path forwarding cases.
+
+A3-01 baseline (Linux), job 126566170807:
+  Command: bash scripts/aicli-check.sh
+  Result: Rust 4584 passed, original 10 skipped; frontend 267 files / 3416 passed.
+  Typecheck, formatting, renderer build, Clippy (-D warnings) and nextest passed.
+  The eight feature-gated routing integration tests run in the item job above,
+  separately from this default-feature baseline.
+
+A6 test environment (Linux), job 126566171323:
+  Result: A6-01 PASS; A6-02 14 passed; A6-03 1 passed; A6-04 3 passed;
+  A6-05 5 passed; C1-04 integration 1 passed; C1-07 integration 2 passed;
+  C1-09 integration 1 passed.
+  CI-OPT-coverage.txt: base=594eb8d8, head=cb6db831, testenv=true because client
+  code exercised by A6 probes changed; c106_observe=false because cache refresh
+  inputs were unchanged. The 601-second observation was NOT rerun.
+B stage desktop checks (Linux), job 126566171442: passed, including real startup.
+Checklist acceptance (Linux), job 126572650849: passed.
+
+Implementation boundaries and fixture adjustments:
+  Production handlers use the real resolver and selected profile. Test-only
+  runtime DTO substitution accepts only HTTP loopback without URL credentials;
+  it does not bypass binding, credential lookup, aliases, scope or session pins.
+  Existing forwarding regressions now supply bound in-memory account/catalog
+  fixtures; all original forwarding assertions remain. Legacy Stack selection
+  tests run at the legacy resolver/context boundary because product HTTP entry
+  now intentionally requires AICLI binding. No tests or assertions were deleted.
+  Discovery uses the selected profile and does not read legacy client catalogs.
+  RouteInput::Stack boxes StackTarget to avoid the observed 1424-byte enum Clippy
+  error. This only changes internal allocation, not routing behavior.
+  Replaced legacy model-list helpers are test-only or removed when unreferenced.
+  Desktop mock supplies synthetic auth and identity model mapping until C3-04
+  bypasses old mapping and C3-09 injects production credentials. Production seeds
+  remain keyless. Those later product behaviors were not implemented in C3-03.
+
+Failed run history (not successful acceptance evidence):
+  5696d653 / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41821725062
+  Missing fixture auto_groups made recommended routes empty (model_not_in_profile).
+  Clippy also reported newly unused legacy helpers and large RouteInput variant.
+  fa68943e supplied bound fixture auto_groups, test-only integration access and
+  cleanup/boxing. No forwarding assertions were relaxed.
+  fa68943e / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41823633248
+  Clippy found unused FromStr import; Desktop mock lacked required auth.
+  95da9c3c corrected both without adding product credential injection.
+  95da9c3c / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41825263924
+  Desktop legacy mapping rejected the mock model; baseline architecture test
+  rejected direct current-provider pointer access in the fixture.
+  cb6db831 added mock-only identity mapping and used mode::current::direct_provider.
+  Final full run above passed with original baseline/forwarding assertions.
+
+Local checks before each implementation push:
+  AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+  git diff --check
+  Result: PASS. Local Rust use was formatting only; no local compilation/tests.
+All tests used isolated HOME and synthetic mock credentials in CI.
+Final downloaded evidence and complete public job logs were scanned:
+long sk- credential-shaped values: 0; long Bearer credential candidates: 0.
+Downloaded failed-run evidence/logs were also scanned with both counts zero.
+No raw container logs or real credentials are committed here.
