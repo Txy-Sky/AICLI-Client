@@ -183,7 +183,18 @@ async fn run() -> Result<(), &'static str> {
 #[tokio::main]
 async fn main() {
     let result = async {
-        run().await?;
+        if std::env::var("AICLI_LOCAL_TEST_TOKEN_ONLY").as_deref() != Ok("1") {
+            return run().await;
+        }
+        require(
+            std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true"),
+            "CI fixture only",
+        )?;
+        let home = std::env::var("HOME").map_err(|_| "missing isolated home")?;
+        require(
+            std::env::var("CC_SWITCH_TEST_HOME").as_deref() == Ok(home.as_str()),
+            "home is not isolated",
+        )?;
         let origin = std::env::var("AICLI_TESTENV_BASE_URL").map_err(|_| "missing local origin")?;
         let access = std::env::var("AICLI_LOCAL_TEST_ACCESS_TOKEN")
             .map_err(|_| "missing local credential")?;

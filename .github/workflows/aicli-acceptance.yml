@@ -545,6 +545,28 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-integration.txt"
+      - name: C1-09 managed tokens in a separate disposable environment
+        if: steps.coverage.outputs.testenv == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Preserve rc.34 limits; account-security fixtures must not consume
+          # the independent TokenService/multi-device key-read budget.
+          project="aicli-c109-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_tokens.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-09-integration.txt"
       - name: C1-07 catalog permissions in a separate disposable environment
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
