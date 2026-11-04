@@ -118,8 +118,16 @@
 8. 独立工作流 `aicli-acceptance.yml` 的 `on.push` 只监听 `feat/aicli-client-v1`，`paths-ignore` 排除 `docs/**`，避免证据提交触发构建。现有 `ci.yml` 的 push 只监听 `main`。不依赖 `workflow_dispatch`，不合并到 main。
 9. `aicli-setup` 使用与 `ci.yml` 相同的固定 `Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6`，工作区 `src-tauri -> target`；`setup-node` 开启 pnpm 缓存。缓存只用于构建依赖，不加入真实密钥或客户端 HOME。证据记录加缓存前后的 A3-01 实际起止时间和耗时；区分首次建缓存与命中缓存，不预设加速结论。
 10. checkout 和工具准备后，最先运行的验收步骤依次执行 `cargo fmt --check`、安装锁定依赖、`pnpm format:check`、`pnpm typecheck`，快速失败；另检查 YAML 和覆盖选择逻辑。原完整基线及断言保留。
+10a. （CI-OPT2，负责人于 2026-11-04 决定）工作流拆为四个并行 job，另有汇总 job `Checklist acceptance (Linux)`，只有四个 job 全部成功时它才成功，整个 run 才算成功：
+    - `Rust item tests (Linux)`：A2-01，以及 `scripts/aicli-item-tests.sh` 中按特性集分组的各项 Rust 单测（先跑无额外特性的一组，再跑 `test-hooks` 一组，各编译一次）。
+    - `A3-01 baseline (Linux)`：快速失败检查和 `scripts/aicli-check.sh`。
+    - `B stage desktop checks (Linux)`：B-01～B-08 和 B-GATE。
+    - `A6 test environment (Linux)`：覆盖选择、A5 离线测试、构建 `test-hooks` 探针，以及 A6 和 C1-04/06/07 的集成测试。
+    各 job 使用独立的 Rust 缓存键，证据分别上传为 `aicli-evidence-<job>-<sha>`。证据中的 job 名写实际执行该命令的 job。
+10b. **新增项的 Rust 单测写进 `scripts/aicli-item-tests.sh`，不要在工作流里新增步骤。** 改动工作流会被当作基础设施改动，强制运行全部 A6 和 C1-06 观测。只有确实需要新的 Docker、桌面或集成步骤时才改工作流。
 11. `concurrency.cancel-in-progress: true`；被取代的提交不作为成功验收证据。
 12. 测试环境未改动时可跳过 A6 Docker 步骤；GATE 项或改动 `tests/aicli-testenv/` 时必须运行。GATE 实现和修复提交的标题必须带相应 `*-GATE` 项目编号。覆盖判断比较上次成功验收提交到当前提交的完整差异和提交标题，不能只看上次 push，以免取消中间 run 后漏验。没有可验证的成功祖先、检测失败或修改覆盖逻辑/验收基础设施时保守运行 A6；同一 run 的 rerun 不把自身第一次成功当作新的比较基线。跳过 A6 时如实记录，不称为本轮 A6 已测。
+12a. （CI-OPT2）A6 集成测试会编译并运行客户端探针，所以改动 `src-tauri/src/aicli/`、`src-tauri/examples/aicli-*`、`src-tauri/Cargo.toml` 或 `Cargo.lock` 时同样运行 A6。C1-06 的 601 秒真实观测只在以下情况运行：改动 `aicli/cache*`、`aicli/newapi*`、`aicli-cache-probe`、Cargo 清单或锁文件、测试环境或验收基础设施；GATE；没有可验证的成功基线。其余情况跳过该观测，`CI-OPT-coverage.txt` 记录 `c106_observe` 及原因，跳过时不称为本轮已观测。
 13. 禁止运行 `release.yml` 和 `sync-r2.yml`，不新增或使用签名、发布类 secrets。日常只跑 Linux；Windows 和 macOS 只在阶段门禁或清单明确要求时运行。
 
 **预先授权的决定**

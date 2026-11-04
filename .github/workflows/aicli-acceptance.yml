@@ -14,9 +14,11 @@ concurrency:
   group: aicli-acceptance-${{ github.ref }}
   cancel-in-progress: true
 
+# Four parallel jobs (CI-OPT2). Item unit tests live in scripts/aicli-item-tests.sh
+# so adding a checklist item does not edit this file (which forces full A6 coverage).
 jobs:
-  acceptance:
-    name: Checklist acceptance (Linux)
+  items:
+    name: Rust item tests (Linux)
     if: github.ref == 'refs/heads/feat/aicli-client-v1'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -26,42 +28,13 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-
       - name: Set up the isolated acceptance environment
         uses: ./.github/actions/aicli-setup
-
-      - name: Fail fast on formatting and types
+        with:
+          rust-cache-key: aicli-items
+      - name: Prepare the evidence directory
         shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aicli-evidence"
-          {
-            cargo fmt --check --manifest-path src-tauri/Cargo.toml
-            pnpm install --frozen-lockfile
-            pnpm format:check
-            pnpm typecheck
-            python3 -m pip install --user PyYAML==6.0.3
-            python3 scripts/aicli-check-workflow-yaml.py
-            python3 -m unittest discover -s scripts/tests -p test_aicli_ci_scope.py -v
-          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/CI-OPT-fast.txt"
-
-      - name: Select the required test environment coverage
-        id: coverage
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # Compare with the last successful *other* run, not a possibly cancelled push.
-          # A rerun must retain the same coverage as its first attempt.
-          if ! baseline=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/aicli-acceptance.yml/runs" \
-            -f branch="$GITHUB_REF_NAME" -f status=success -f per_page=100 \
-            --jq '.workflow_runs | map(select(.id != (env.GITHUB_RUN_ID | tonumber))) | .[0].head_sha // ""'); then
-            baseline=""
-          fi
-          python3 scripts/aicli-ci-scope.py --base "$baseline" --head "$GITHUB_SHA" \
-            --github-output "$GITHUB_OUTPUT" | tee "$RUNNER_TEMP/aicli-evidence/CI-OPT-coverage.txt"
-
+        run: mkdir -p "$RUNNER_TEMP/aicli-evidence"
       - name: A2-01 verify all toolchains and Linux dependencies
         shell: bash
         run: |
@@ -92,63 +65,251 @@ jobs:
             df -h "$GITHUB_WORKSPACE" "$HOME"
             printf 'A2-01: PASS\n'
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A2-01.txt"
+      - name: Rust item tests without extra features (C1-01..C1-08)
+        shell: bash
+        run: bash scripts/aicli-item-tests.sh default "$RUNNER_TEMP/aicli-evidence"
+      - name: Rust item tests with test-hooks (C1-04, C1-06)
+        shell: bash
+        run: bash scripts/aicli-item-tests.sh test-hooks "$RUNNER_TEMP/aicli-evidence"
+      - name: Save acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aicli-evidence-items-${{ github.sha }}
+          path: ${{ runner.temp }}/aicli-evidence/
+          if-no-files-found: warn
+          retention-days: 7
 
-      - name: C1-01 verify the immutable service line registry
+  baseline:
+    name: A3-01 baseline (Linux)
+    if: github.ref == 'refs/heads/feat/aicli-client-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact acceptance revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up the isolated acceptance environment
+        uses: ./.github/actions/aicli-setup
+        with:
+          rust-cache-key: aicli-baseline
+      - name: Prepare the evidence directory
+        shell: bash
+        run: mkdir -p "$RUNNER_TEMP/aicli-evidence"
+      - name: Fail fast on formatting and types
         shell: bash
         run: |
           set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::lines::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-01.txt"
-
-      - name: C1-02 verify credential stores and private fallback
+          mkdir -p "$RUNNER_TEMP/aicli-evidence"
+          {
+            cargo fmt --check --manifest-path src-tauri/Cargo.toml
+            pnpm install --frozen-lockfile
+            pnpm format:check
+            pnpm typecheck
+            python3 -m pip install --user PyYAML==6.0.3
+            python3 scripts/aicli-check-workflow-yaml.py
+            python3 -m unittest discover -s scripts/tests -p test_aicli_ci_scope.py -v
+          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/CI-OPT-fast.txt"
+      - name: A3-01 run the baseline acceptance commands
         shell: bash
         run: |
           set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::secrets::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-02.txt"
+          bash scripts/aicli-check.sh 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A3-01.txt"
+      - name: Save acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aicli-evidence-baseline-${{ github.sha }}
+          path: ${{ runner.temp }}/aicli-evidence/
+          if-no-files-found: warn
+          retention-days: 7
 
-      - name: C1-03 verify v25 schema and existing database migrations
+  desktop:
+    name: B stage desktop checks (Linux)
+    if: github.ref == 'refs/heads/feat/aicli-client-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact acceptance revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up the isolated acceptance environment
+        uses: ./.github/actions/aicli-setup
+        with:
+          rust-cache-key: aicli-desktop
+      - name: Prepare the evidence directory
+        shell: bash
+        run: mkdir -p "$RUNNER_TEMP/aicli-evidence"
+      - name: Install locked frontend dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+      - name: B-01 verify the configuration directory identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rn '"\.cc-switch"' src-tauri/src; then
+            echo 'B-01: legacy configuration directory literal remains'
+            exit 1
+          fi
+          cargo nextest run --manifest-path src-tauri/Cargo.toml --test config_identity 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-01.txt"
+      - name: B-02 verify the proxy port migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rn 15721 src-tauri/src src; then
+            echo 'B-02: legacy proxy port reference remains'
+            exit 1
+          fi
+          test "$(grep -R -n -o '15821' src-tauri/src src | wc -l)" -gt 0
+          cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-02-desktop.txt"
+          printf 'B-02: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-02.txt"
+      - name: B-06 verify Codex identity and startup history preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml codex 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-codex.txt"
+          cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-startup.txt"
+          printf 'B-06: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-06.txt"
+      - name: B-04 verify deep links and generated Linux handler
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-tests.txt"
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdg-utils desktop-file-utils
+          cargo build --manifest-path src-tauri/Cargo.toml --example aicli-deeplink-probe
+          mkdir -p "$RUNNER_TEMP/aicli-deeplink-probe"
+          cp src-tauri/target/debug/examples/aicli-deeplink-probe "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"
+          xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client" 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-handler.txt"
+          printf 'B-04: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-04.txt"
+      - name: B-03 verify product identity metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-cargo.txt"
+          pnpm typecheck 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-typecheck.txt"
+          scan_status=0
+          grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json > "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt" || scan_status=$?
+          cat "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
+          test "$scan_status" -eq 1
+          test ! -s "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
+          test "$(grep -n 'AICLI Client' src-tauri/tauri.conf.json src-tauri/tauri.windows.conf.json | wc -l)" -gt 0
+          test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
+          test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
+          printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
+      - name: B-05 verify updater disabled and release workflow guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy_pattern=$(printf '%s%s\\|%s%s' 'farion' '1231' 'ccswitch' '.io')
+          scan_status=0
+          grep -n "$legacy_pattern" src-tauri/tauri.conf.json .github/workflows/* > "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt" || scan_status=$?
+          cat "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
+          test "$scan_status" -eq 1
+          test ! -s "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
+          python3 -m pip install --user pyyaml
+          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-05.txt"
+          import json
+          from pathlib import Path
+          import yaml
+
+          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
+          assert config["bundle"]["createUpdaterArtifacts"] is False
+          assert config["plugins"]["updater"] == {"pubkey": "", "endpoints": []}
+          for name in ("schema-version", "sync-r2", "stale", "labeler", "claude", "wsl2-nightly"):
+              assert not Path(f".github/workflows/{name}.yml").exists()
+          release = Path(".github/workflows/release.yml").read_text()
+          assert "cc-switch" not in release and "CC-Switch" not in release
+          workflow = yaml.safe_load(release)
+          guarded = {"Prepare Tauri signing key", "Import Apple signing certificate",
+                     "Bundle, sign and notarize (macOS)", "Prepare macOS Assets",
+                     "Notarize macOS DMG", "Verify macOS code signing and notarization",
+                     "Clean up Apple signing keychain"}
+          seen = set()
+          for job in workflow["jobs"].values():
+              for step in job.get("steps", []):
+                  if step.get("name") in guarded:
+                      assert "vars.AICLI_RELEASE_SIGNING == 'true'" in step.get("if", ""), step["name"]
+                      seen.add(step["name"])
+          assert seen == guarded
+          print("B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed")
+          PY
+      - name: B-07 verify visible copy and upstream attribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-07.txt"
+          import json
+          from pathlib import Path
+          import re
+          import subprocess
+
+          baseline = "d82605fd66a1f9c064daa000a5652351d9773aac"
+          files = sorted(Path("src/i18n/locales").glob("*.json"))
+          assert len(files) == 5
+
+          def compare(old, new):
+              assert type(old) is type(new)
+              if isinstance(old, dict):
+                  assert old.keys() == new.keys(), "translation keys changed"
+                  for key in old:
+                      compare(old[key], new[key])
+              elif isinstance(old, str):
+                  assert sorted(re.findall(r"\{\{.*?\}\}", old)) == sorted(re.findall(r"\{\{.*?\}\}", new))
+
+          expected_hits = {"en": 28, "ja": 28, "tr": 28, "zh": 29, "zh-TW": 29}
+          legacy = re.compile(r"cc switch|cc-switch", re.IGNORECASE)
+          for path in files:
+              before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:{path}"], text=True))
+              after = json.loads(path.read_text())
+              compare(before, after)
+              promotions = after["providerForm"].pop("partnerPromotion")
+              assert promotions == before["providerForm"]["partnerPromotion"], "promotion copy changed"
+              hits = sum(bool(legacy.search(value)) for value in promotions.values())
+              assert hits == expected_hits[path.stem], (path.stem, hits)
+              assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
+              print(f"{path.stem}: preserved promotion entries matching legacy brand={hits}; remainder=0")
+              assert after["app"]["title"] == "AICLI Client"
+          original_license = subprocess.check_output(["git", "show", f"{baseline}:LICENSE"])
+          license_text = Path("LICENSE").read_bytes()
+          assert license_text.startswith(original_license), "original MIT text must remain intact"
+          assert b"Copyright (c) 2025 Jason Young" in license_text
+          assert b"Copyright (c) 2026 Txy-Sky (AICLI Client modifications)" in license_text
+          for name in ("README_DE.md", "README_JA.md", "README_ZH.md", "deplink.html"):
+              assert not Path(name).exists(), name
+          attribution = "基于 farion" + "1231/cc-switch，MIT"
+          assert attribution in Path("README.md").read_text()
+          assert len(Path("README.md").read_text().splitlines()) < 70
+          for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
+              assert Path(name).is_file(), name
+          print("B-07: PASS; five locales retain all keys/interpolations; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
+          PY
+      - name: B-08 verify generated placeholder icons and debug build
         shell: bash
         run: |
           set -euo pipefail
           {
-            cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::schema::tests
-            cargo nextest run --manifest-path src-tauri/Cargo.toml database::schema::tests
-            cargo nextest run --manifest-path src-tauri/Cargo.toml database::tests
-          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-03.txt"
+            python3 scripts/aicli-placeholder-icon.py
+            pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons
+            python3 scripts/aicli-placeholder-icon.py --normalize-icns
+            git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png
+            pnpm tauri build --debug --no-bundle
+            test -x src-tauri/target/debug/aicli-client
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
 
-      - name: C1-04 verify account HTTP client mocks and redaction
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-unit.txt"
-          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-newapi-probe
-
-      - name: C1-05 verify binding unbinding and account data isolation
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::account::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-05.txt"
-
-      - name: C1-06 verify cache-first refresh behavior
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::cache::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-unit.txt"
-          cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-api.txt"
-          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-cache-probe
-
-      - name: C1-07 verify cached catalog projection
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::catalog::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-07-unit.txt"
-          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks --example aicli-catalog-probe
-
-      - name: C1-08 verify profile validation persistence and route compilation
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::profiles::tests 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-08-unit.txt"
-
+          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
+          for name in config["bundle"]["icon"]:
+              path = Path("src-tauri") / name
+              assert path.is_file() and path.stat().st_size > 0, path
+          assert Path("scripts/assets/aicli-placeholder.png").is_file()
+          print("B-08: PASS; generated icons reproducible; debug executable and all configured icons exist")
+          PY
+          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-08.txt"
       - name: B-GATE real desktop startup and loopback proxy
         shell: bash
         run: |
@@ -157,19 +318,69 @@ jobs:
           python3 scripts/aicli-b-gate.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-GATE.txt"
           git diff --exit-code -- src/index.html
           test ! -e src/aicli-b-gate-probe.js
+      - name: Save acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aicli-evidence-desktop-${{ github.sha }}
+          path: ${{ runner.temp }}/aicli-evidence/
+          if-no-files-found: warn
+          retention-days: 7
 
+  testenv:
+    name: A6 test environment (Linux)
+    if: github.ref == 'refs/heads/feat/aicli-client-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the exact acceptance revision
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up the isolated acceptance environment
+        uses: ./.github/actions/aicli-setup
+        with:
+          rust-cache-key: aicli-testenv
+      - name: Prepare the evidence directory
+        shell: bash
+        run: mkdir -p "$RUNNER_TEMP/aicli-evidence"
+      - name: Select the required test environment coverage
+        id: coverage
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Compare with the last successful *other* run, not a possibly cancelled push.
+          # A rerun must retain the same coverage as its first attempt.
+          if ! baseline=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/aicli-acceptance.yml/runs" \
+            -f branch="$GITHUB_REF_NAME" -f status=success -f per_page=100 \
+            --jq '.workflow_runs | map(select(.id != (env.GITHUB_RUN_ID | tonumber))) | .[0].head_sha // ""'); then
+            baseline=""
+          fi
+          python3 scripts/aicli-ci-scope.py --base "$baseline" --head "$GITHUB_SHA" \
+            --github-output "$GITHUB_OUTPUT" | tee "$RUNNER_TEMP/aicli-evidence/CI-OPT-coverage.txt"
+      - name: Install Python test tools
+        shell: bash
+        run: python3 -m pip install --user pytest PyYAML==6.0.3
       - name: A5-01 offline probe safety and timing tests
         shell: bash
         run: |
           set -euo pipefail
           python3 -m unittest discover -s scripts/aicli-poc -p 'test_line_probe.py' -v 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A5-01-offline.txt"
-
       - name: A5-02 offline account probe safety tests
         shell: bash
         run: |
           set -euo pipefail
           python3 -m unittest discover -s scripts/aicli-poc -p 'test_account_probe.py' -v 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A5-02-offline.txt"
-
+      - name: Build the test-hooks probes used by A6 integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks \
+            --example aicli-newapi-probe --example aicli-cache-probe --example aicli-catalog-probe \
+            2>&1 | tee "$RUNNER_TEMP/aicli-evidence/probes-build.txt"
       - name: A6-01 compose rc.34 environment and idempotent seed
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -203,7 +414,6 @@ jobs:
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 tests/aicli-testenv/seed.py
           printf 'A6-01: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/A6-01.txt"
-
       - name: A6-01 sanitized startup logs and container start times
         if: always() && steps.coverage.outputs.testenv == 'true'
         continue-on-error: true
@@ -258,7 +468,6 @@ jobs:
               results.append(inspected.returncode)
           raise SystemExit(1 if any(results) else 0)
           PY
-
       - name: A6-01 remove the isolated compose environment
         if: always() && steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -266,15 +475,12 @@ jobs:
           set -euo pipefail
           project="aicli-a6-${GITHUB_RUN_ID}"
           docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
-
       - name: A6-02 mock upstream protocol and injection tests
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --user pytest
           PYTHONPATH=tests/aicli-testenv python3 -m pytest -q tests/aicli-testenv/tests/test_mock_upstream.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-02.txt"
-
       - name: A6-03 managed token routing integration test
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -309,7 +515,6 @@ jobs:
             AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
             PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_token_routing.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-03.txt"
           A603_RESULT=0
-
       - name: A6-04 system access token boundaries in local disposable users
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -340,30 +545,6 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_newapi_client.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-04-integration.txt"
-
-      - name: C1-06 cache refresh in a separate disposable environment
-        if: steps.coverage.outputs.testenv == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Preserve rc.34 rate limits. Account-security fixtures in A6-04 must
-          # not consume the request budget of this independent cache test.
-          project="aicli-c106-${GITHUB_RUN_ID}"
-          cleanup() {
-            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
-          }
-          trap cleanup EXIT
-          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
-          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
-            AICLI_TESTENV_ADMIN_USERNAME=admin \
-            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
-            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
-            python3 tests/aicli-testenv/seed.py
-          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
-            AICLI_TESTENV_ADMIN_USERNAME=admin \
-            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
-            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-integration.txt"
-
       - name: C1-07 catalog permissions in a separate disposable environment
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -384,7 +565,6 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_catalog.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-07-integration.txt"
-
       - name: A6-05 affinity rules and streaming retry observations
         if: steps.coverage.outputs.testenv == 'true'
         shell: bash
@@ -404,189 +584,49 @@ jobs:
           AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
             AICLI_TESTENV_PROJECT="$project" \
             PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_affinity_retry.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A6-05.txt"
-
-      - name: A3-01 run the baseline acceptance commands
+      - name: C1-06 cache refresh in a separate disposable environment
+        if: steps.coverage.outputs.testenv == 'true' && steps.coverage.outputs.c106_observe == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/aicli-check.sh 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/A3-01.txt"
-
-      - name: B-01 verify the configuration directory identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -rn '"\.cc-switch"' src-tauri/src; then
-            echo 'B-01: legacy configuration directory literal remains'
-            exit 1
-          fi
-          cargo nextest run --manifest-path src-tauri/Cargo.toml --test config_identity 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-01.txt"
-
-      - name: B-02 verify the proxy port migration
-        shell: bash
-        run: |
-          set -euo pipefail
-          if grep -rn 15721 src-tauri/src src; then
-            echo 'B-02: legacy proxy port reference remains'
-            exit 1
-          fi
-          test "$(grep -R -n -o '15821' src-tauri/src src | wc -l)" -gt 0
-          cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-02-desktop.txt"
-          printf 'B-02: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-02.txt"
-
-      - name: B-03 verify product identity metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo check --manifest-path src-tauri/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-cargo.txt"
-          pnpm typecheck 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-03-typecheck.txt"
-          scan_status=0
-          grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json > "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt" || scan_status=$?
-          cat "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
-          test "$scan_status" -eq 1
-          test ! -s "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
-          test "$(grep -n 'AICLI Client' src-tauri/tauri.conf.json src-tauri/tauri.windows.conf.json | wc -l)" -gt 0
-          test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
-          test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
-          printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
-
-      - name: B-04 verify deep links and generated Linux handler
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-tests.txt"
-          sudo apt-get install -y --no-install-recommends xvfb xauth xdg-utils desktop-file-utils
-          cargo build --manifest-path src-tauri/Cargo.toml --example aicli-deeplink-probe
-          mkdir -p "$RUNNER_TEMP/aicli-deeplink-probe"
-          cp src-tauri/target/debug/examples/aicli-deeplink-probe "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"
-          xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client" 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-04-handler.txt"
-          printf 'B-04: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-04.txt"
-
-      - name: B-05 verify updater disabled and release workflow guards
-        shell: bash
-        run: |
-          set -euo pipefail
-          legacy_pattern=$(printf '%s%s\\|%s%s' 'farion' '1231' 'ccswitch' '.io')
-          scan_status=0
-          grep -n "$legacy_pattern" src-tauri/tauri.conf.json .github/workflows/* > "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt" || scan_status=$?
-          cat "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
-          test "$scan_status" -eq 1
-          test ! -s "$RUNNER_TEMP/aicli-evidence/B-05-scan.txt"
-          python3 -m pip install --user pyyaml
-          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-05.txt"
-          import json
-          from pathlib import Path
-          import yaml
-
-          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
-          assert config["bundle"]["createUpdaterArtifacts"] is False
-          assert config["plugins"]["updater"] == {"pubkey": "", "endpoints": []}
-          for name in ("schema-version", "sync-r2", "stale", "labeler", "claude", "wsl2-nightly"):
-              assert not Path(f".github/workflows/{name}.yml").exists()
-          release = Path(".github/workflows/release.yml").read_text()
-          assert "cc-switch" not in release and "CC-Switch" not in release
-          workflow = yaml.safe_load(release)
-          guarded = {"Prepare Tauri signing key", "Import Apple signing certificate",
-                     "Bundle, sign and notarize (macOS)", "Prepare macOS Assets",
-                     "Notarize macOS DMG", "Verify macOS code signing and notarization",
-                     "Clean up Apple signing keychain"}
-          seen = set()
-          for job in workflow["jobs"].values():
-              for step in job.get("steps", []):
-                  if step.get("name") in guarded:
-                      assert "vars.AICLI_RELEASE_SIGNING == 'true'" in step.get("if", ""), step["name"]
-                      seen.add(step["name"])
-          assert seen == guarded
-          print("B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed")
-          PY
-
-      - name: B-06 verify Codex identity and startup history preservation
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo nextest run --manifest-path src-tauri/Cargo.toml codex 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-codex.txt"
-          cargo nextest run --manifest-path src-tauri/Cargo.toml codex_startup_migrations_preserve_existing_history_bytes 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-06-startup.txt"
-          printf 'B-06: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-06.txt"
-
-      - name: B-07 verify visible copy and upstream attribution
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY' | tee "$RUNNER_TEMP/aicli-evidence/B-07.txt"
-          import json
-          from pathlib import Path
-          import re
-          import subprocess
-
-          baseline = "d82605fd66a1f9c064daa000a5652351d9773aac"
-          files = sorted(Path("src/i18n/locales").glob("*.json"))
-          assert len(files) == 5
-
-          def compare(old, new):
-              assert type(old) is type(new)
-              if isinstance(old, dict):
-                  assert old.keys() == new.keys(), "translation keys changed"
-                  for key in old:
-                      compare(old[key], new[key])
-              elif isinstance(old, str):
-                  assert sorted(re.findall(r"\{\{.*?\}\}", old)) == sorted(re.findall(r"\{\{.*?\}\}", new))
-
-          expected_hits = {"en": 28, "ja": 28, "tr": 28, "zh": 29, "zh-TW": 29}
-          legacy = re.compile(r"cc switch|cc-switch", re.IGNORECASE)
-          for path in files:
-              before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:{path}"], text=True))
-              after = json.loads(path.read_text())
-              compare(before, after)
-              promotions = after["providerForm"].pop("partnerPromotion")
-              assert promotions == before["providerForm"]["partnerPromotion"], "promotion copy changed"
-              hits = sum(bool(legacy.search(value)) for value in promotions.values())
-              assert hits == expected_hits[path.stem], (path.stem, hits)
-              assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
-              print(f"{path.stem}: preserved promotion entries matching legacy brand={hits}; remainder=0")
-              assert after["app"]["title"] == "AICLI Client"
-          original_license = subprocess.check_output(["git", "show", f"{baseline}:LICENSE"])
-          license_text = Path("LICENSE").read_bytes()
-          assert license_text.startswith(original_license), "original MIT text must remain intact"
-          assert b"Copyright (c) 2025 Jason Young" in license_text
-          assert b"Copyright (c) 2026 Txy-Sky (AICLI Client modifications)" in license_text
-          for name in ("README_DE.md", "README_JA.md", "README_ZH.md", "deplink.html"):
-              assert not Path(name).exists(), name
-          attribution = "基于 farion" + "1231/cc-switch，MIT"
-          assert attribution in Path("README.md").read_text()
-          assert len(Path("README.md").read_text().splitlines()) < 70
-          for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
-              assert Path(name).is_file(), name
-          print("B-07: PASS; five locales retain all keys/interpolations; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
-          PY
-
-      - name: B-08 verify generated placeholder icons and debug build
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            python3 scripts/aicli-placeholder-icon.py
-            pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons
-            python3 scripts/aicli-placeholder-icon.py --normalize-icns
-            git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png
-            pnpm tauri build --debug --no-bundle
-            test -x src-tauri/target/debug/aicli-client
-            python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
-          for name in config["bundle"]["icon"]:
-              path = Path("src-tauri") / name
-              assert path.is_file() and path.stat().st_size > 0, path
-          assert Path("scripts/assets/aicli-placeholder.png").is_file()
-          print("B-08: PASS; generated icons reproducible; debug executable and all configured icons exist")
-          PY
-          } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-08.txt"
-
+          # Preserve rc.34 rate limits. Account-security fixtures in A6-04 must
+          # not consume the request budget of this independent cache test.
+          project="aicli-c106-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-integration.txt"
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: aicli-evidence-${{ github.sha }}
+          name: aicli-evidence-testenv-${{ github.sha }}
           path: ${{ runner.temp }}/aicli-evidence/
           if-no-files-found: warn
           retention-days: 7
+
+  acceptance:
+    name: Checklist acceptance (Linux)
+    if: always() && github.ref == 'refs/heads/feat/aicli-client-v1'
+    needs: [items, baseline, desktop, testenv]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every acceptance job to succeed
+        shell: bash
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$RESULTS"
+          python3 -c 'import json, os, sys; r = {k: v["result"] for k, v in json.loads(os.environ["RESULTS"]).items()}; print(r); sys.exit(0 if r and all(v == "success" for v in r.values()) else 1)'
