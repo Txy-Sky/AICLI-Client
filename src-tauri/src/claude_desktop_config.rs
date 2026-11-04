@@ -306,6 +306,17 @@ pub fn get_status(db: &Database, proxy_running: bool) -> Result<ClaudeDesktopSta
     })
 }
 
+/// Files changed by the existing Desktop projection; snapshot before takeover.
+pub(crate) fn takeover_file_paths() -> Result<Vec<PathBuf>, AppError> {
+    let paths = current_platform_paths()?;
+    Ok(vec![
+        paths.normal_config_path,
+        paths.threep_config_path,
+        paths.profile_path,
+        paths.meta_path,
+    ])
+}
+
 pub fn get_config_library_path() -> Result<PathBuf, AppError> {
     Ok(current_platform_paths()?.config_library_path)
 }
@@ -562,7 +573,7 @@ fn has_proxy_base_url_and_key(provider: &Provider) -> bool {
         .map(str::trim)
         .is_some_and(|value| !value.is_empty());
 
-    if is_managed_oauth_proxy_provider(provider) {
+    if crate::aicli::seed::is_hidden(provider) || is_managed_oauth_proxy_provider(provider) {
         return has_base_url;
     }
 

@@ -129,6 +129,10 @@ impl ProxyServer {
         Self::new(config, db, app_handle).with_test_runtime(runtime)
     }
 
+    pub(crate) fn aicli_runtime(&self) -> Arc<crate::aicli::runtime::AicliRuntime> {
+        self.state.aicli.clone()
+    }
+
     pub async fn start(&self) -> Result<ProxyServerInfo, ProxyError> {
         // 检查是否已在运行
         if self.shutdown_tx.read().await.is_some() {

@@ -66,6 +66,14 @@ impl ProxyService {
         }
     }
 
+    pub(crate) async fn aicli_runtime(&self) -> Option<Arc<crate::aicli::runtime::AicliRuntime>> {
+        self.server
+            .read()
+            .await
+            .as_ref()
+            .map(|server| server.aicli_runtime())
+    }
+
     /// 设置 AppHandle（在应用初始化时调用）
     pub fn set_app_handle(&self, handle: tauri::AppHandle) {
         futures::executor::block_on(async {
@@ -150,8 +158,14 @@ impl ProxyService {
             return Err(e);
         }
 
+        let projection_changes = server.aicli_runtime().projection_changes();
         // 5. 保存服务器实例
         *self.server.write().await = Some(server);
+        crate::aicli::takeover::watch_projection_changes(
+            self.clone(),
+            self.db.clone(),
+            projection_changes,
+        );
 
         log::info!("代理服务器已启动: {}:{}", info.address, info.port);
         Ok(info)

@@ -13,6 +13,7 @@ pub mod runtime;
 pub(crate) mod schema;
 pub mod secrets;
 pub mod seed;
+pub mod takeover;
 pub mod tokens;
 
 #[cfg(test)]

@@ -110,6 +110,7 @@ pub struct AicliRuntime {
     db: Arc<Database>,
     remote: Arc<dyn RuntimeRemote>,
     routes: RwLock<Arc<RoutesSnapshot>>,
+    projection_changes: tokio::sync::watch::Sender<String>,
     credentials: RwLock<HashMap<i64, String>>,
     session_pins: Mutex<LruCache<String, SessionPin>>,
     pub cooldown: Cooldown,
@@ -136,6 +137,7 @@ impl AicliRuntime {
             store,
             remote,
             routes: RwLock::new(Arc::new(RoutesSnapshot::default())),
+            projection_changes: tokio::sync::watch::channel(String::new()).0,
             credentials: RwLock::new(HashMap::new()),
             session_pins: Mutex::new(LruCache::new(NonZeroUsize::new(SESSION_CAPACITY).unwrap())),
             cooldown: Cooldown::default(),
@@ -193,6 +195,10 @@ impl AicliRuntime {
             return Err(RuntimeError::Storage);
         }
         Ok(Some(provider))
+    }
+
+    pub(crate) fn projection_changes(&self) -> tokio::sync::watch::Receiver<String> {
+        self.projection_changes.subscribe()
     }
 
     pub fn snapshot(&self) -> Arc<RoutesSnapshot> {
@@ -485,6 +491,36 @@ impl AicliRuntime {
         Ok(credentials)
     }
 
+    /// Public projection facts need no model credentials or network access.
+    pub(crate) fn cached_projection(&self) -> Result<Arc<RoutesSnapshot>, RuntimeError> {
+        let binding: Option<(String, Option<String>)> = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .query_row(
+                "SELECT selected_line_id,active_profile_id FROM aicli_account WHERE id=1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| RuntimeError::Storage)?;
+        let Some((line, active)) = binding else {
+            return Ok(Arc::new(RoutesSnapshot::default()));
+        };
+        let (Some(groups), Some(pricing)) = (self.cache("groups")?, self.cache("pricing")?) else {
+            return Ok(Arc::new(RoutesSnapshot::default()));
+        };
+        self.build(
+            &groups,
+            &pricing,
+            self.cache("auto_groups")?.as_ref(),
+            line,
+            active,
+        )
+        .map(|(snapshot, _)| Arc::new(snapshot))
+    }
+
     fn load_cached(&self) -> Result<(), RuntimeError> {
         let Some((id, line, active, access)) = self.binding()? else {
             self.clear();
@@ -639,7 +675,9 @@ impl AicliRuntime {
             .map_err(|_| RuntimeError::Storage)?
             .extend(credentials);
         if !unchanged || missing {
+            let fingerprint = next.fingerprint.clone();
             *self.routes.write().map_err(|_| RuntimeError::Storage)? = Arc::new(next);
+            self.projection_changes.send_replace(fingerprint);
         }
         Ok(())
     }

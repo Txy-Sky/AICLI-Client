@@ -1373,7 +1373,9 @@ pub fn run() {
 
                 // 定下各应用的直连 / 代理模式（处理旧版遗留的接管状态），再把代理模式的
                 // 应用接上。要排在通用配置片段的自动提取之后：它读的是直连的 live。
-                crate::mode::controller::startup(&state).await;
+                if crate::aicli::takeover::startup(&state, &crate::aicli::secrets::KeyringStore::default()).await.is_err() {
+                    log::warn!("AICLI takeover recovery failed; retaining backup for recovery");
+                }
                 // #8268 测试版给 agy 装过包装脚本、改过 shell 启动文件，撤掉带标记的部分。
                 if let Err(e) =
                     crate::services::provider::agy_direct::migrate_legacy_launcher(&state.db)

@@ -60,7 +60,24 @@ fn err(error: impl std::fmt::Display) -> String {
 }
 
 fn provider(state: &AppState, app: &AppType, id: &str) -> Result<Option<Provider>, String> {
-    state.db.get_provider_by_id(id, app.as_str()).map_err(err)
+    let row = state.db.get_provider_by_id(id, app.as_str()).map_err(err)?;
+    row.map(|provider| {
+        if crate::aicli::seed::is_hidden(&provider)
+            && crate::aicli::takeover::is_managed(&state.db, app)
+        {
+            let runtime = crate::aicli::runtime::AicliRuntime::new(state.db.clone());
+            crate::aicli::takeover::prepare_projection(
+                &state.db,
+                app,
+                &runtime.cached_projection().map_err(err)?,
+                provider,
+            )
+            .map_err(err)
+        } else {
+            Ok(provider)
+        }
+    })
+    .transpose()
 }
 
 fn direct_provider(state: &AppState, app: &AppType) -> Result<Option<Provider>, String> {

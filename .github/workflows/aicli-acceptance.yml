@@ -160,10 +160,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -rn 15721 src-tauri/src src; then
-            echo 'B-02: legacy proxy port reference remains'
-            exit 1
-          fi
+          python3 scripts/aicli-check-legacy-port.py
           test "$(grep -R -n -o '15821' src-tauri/src src | wc -l)" -gt 0
           cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-02-desktop.txt"
           printf 'B-02: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-02.txt"

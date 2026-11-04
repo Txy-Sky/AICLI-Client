@@ -46,6 +46,7 @@ case "$set_name" in
     item C3-07-forwarding aicli_timeout_
     item C3-08-unit aicli::local_auth::tests
     item C3-08-guard aicli_local_credentials
+    item C3-10-unit aicli::takeover::tests
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
