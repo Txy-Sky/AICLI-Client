@@ -213,6 +213,7 @@ async fn forwards(app: AppType, wire: &str, expected_path: &str) {
     }
     db.save_provider(app.as_str(), &provider).unwrap();
     db.set_current_provider(app.as_str(), &provider.id).unwrap();
+    let local_token = crate::aicli::local_auth::token_for(&db, app.as_str()).unwrap();
     let proxy = ProxyServer::bound_forwarding_fixture(
         ProxyConfig {
             listen_port: 0,
@@ -245,6 +246,7 @@ async fn forwards(app: AppType, wire: &str, expected_path: &str) {
         .build()
         .unwrap()
         .post(format!("http://127.0.0.1:{}{endpoint}", info.port))
+        .bearer_auth(local_token)
         .header("anthropic-version", "2023-06-01")
         .json(&body)
         .send()
