@@ -114,8 +114,8 @@ fn other_clients_keep_models_unencoded_and_do_not_decode_aliases() {
 #[test]
 fn desktop_date_suffix_identity_rule_is_shared() {
     assert_eq!(
-        crate::mode::stack::desktop_model_identity("claude-fable-aicli-12345678"),
-        "claude-fable-aicli-12345678"
+        crate::mode::stack::desktop_model_identity("claude-fable-aicli-123456"),
+        "claude-fable-aicli-123456"
     );
     assert_eq!(
         crate::mode::stack::desktop_model_identity("claude-fable-aicli-123456-20260609"),
