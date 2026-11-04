@@ -1,4 +1,5 @@
 pub mod account;
+pub mod alias;
 pub mod cache;
 pub mod catalog;
 pub mod lines;

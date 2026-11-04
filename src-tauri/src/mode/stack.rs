@@ -44,6 +44,35 @@ const CODEX_SEPARATOR: char = '/';
 const DESKTOP_PREFIX: &str = "claude-fable-ccs-";
 const DESKTOP_CODE_DIGITS: usize = 6;
 
+/// Desktop drops vendor-named model ids and strips date-shaped suffixes.
+pub(crate) fn desktop_keeps_model_id(id: &str) -> bool {
+    let blacklist = regex::Regex::new(
+        r"ark-code|astron|command-r|deepseek|doubao|gemini|gemma|glm|gpt|grok|hermes|hy3|kimi|lfm|\bling\b|llama|longcat|mimo|minimax|mistral|mixtral|moonshot|nemotron|openai|phi-|qianfan|qwen|tc-code|\bunic\b|yi-|stepfun|step-3|seed-|bytedance|hunyuan|granite|amazon\.nova|nova-|devstral|ministral|ernie|codex|arcee|trinity|abab|phi\d|\bk2\.|\bm2\.|jamba|arctic|solar|mercury|zamba|kat-coder|\bds-|dpsk",
+    )
+    .expect("static Desktop model filter is valid");
+    let id = id.to_lowercase();
+    !blacklist.is_match(&id)
+        && [
+            "claude",
+            "sonnet",
+            "opus",
+            "haiku",
+            "fable",
+            "mythos",
+            "anthropic",
+        ]
+        .iter()
+        .any(|word| id.contains(word))
+}
+
+pub(crate) fn desktop_model_identity(id: &str) -> String {
+    let id = id.to_lowercase();
+    regex::Regex::new(r"[-@]\d{8}$")
+        .expect("static Desktop date suffix pattern is valid")
+        .replace(&id, "")
+        .into_owned()
+}
+
 /// key 的最大长度：只是为了模型 id 不至于太长。
 const KEY_MAX_LEN: usize = 24;
 
@@ -1415,36 +1444,9 @@ mod tests {
         use super::*;
         use crate::provider::{ClaudeDesktopMode, ClaudeDesktopModelRoute, ProviderMeta};
 
-        /// Desktop 2.31226.1 选择器的过滤（`bo`）：命中厂商黑名单就丢，否则 id 要是纯档位别名或
-        /// 含 claude 等字样。黑名单随 Desktop 版本变长，升级后从 app.asar 里重新抄一遍。
-        fn desktop_keeps(id: &str) -> bool {
-            let blacklist = regex::Regex::new(
-                r"ark-code|astron|command-r|deepseek|doubao|gemini|gemma|glm|gpt|grok|hermes|hy3|kimi|lfm|\bling\b|llama|longcat|mimo|minimax|mistral|mixtral|moonshot|nemotron|openai|phi-|qianfan|qwen|tc-code|\bunic\b|yi-|stepfun|step-3|seed-|bytedance|hunyuan|granite|amazon\.nova|nova-|devstral|ministral|ernie|codex|arcee|trinity|abab|phi\d|\bk2\.|\bm2\.|jamba|arctic|solar|mercury|zamba|kat-coder|\bds-|dpsk",
-            )
-            .unwrap();
-            let id = id.to_lowercase();
-            !blacklist.is_match(&id)
-                && [
-                    "claude",
-                    "sonnet",
-                    "opus",
-                    "haiku",
-                    "fable",
-                    "mythos",
-                    "anthropic",
-                ]
-                .iter()
-                .any(|word| id.contains(word))
-        }
-
-        /// Desktop 归一化模型身份时剥掉末尾的 `-<8 位数字>`（日期）。
-        fn desktop_identity(id: &str) -> String {
-            let id = id.to_lowercase();
-            regex::Regex::new(r"[-@]\d{8}$")
-                .unwrap()
-                .replace(&id, "")
-                .into_owned()
-        }
+        use crate::mode::stack::{
+            desktop_keeps_model_id as desktop_keeps, desktop_model_identity as desktop_identity,
+        };
 
         fn card(id: &str, name: &str, routes: &[(&str, &str, Option<&str>, bool)]) -> Provider {
             let mut provider = Provider::with_id(
