@@ -757,9 +757,14 @@ pub fn create_logged_passthrough_stream(
             None
         };
 
+        let total_deadline = (timeout_config.total_timeout > 0).then(|| tokio::time::Instant::now()+Duration::from_secs(timeout_config.total_timeout));
         tokio::pin!(stream);
 
         loop {
+            if total_deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+                yield Err(std::io::Error::other("流式响应总时长超时"));
+                break;
+            }
             // 选择超时时间：首字节超时或静默期超时
             let timeout_duration = if is_first_chunk {
                 first_byte_timeout
@@ -767,6 +772,12 @@ pub fn create_logged_passthrough_stream(
                 idle_timeout
             };
 
+            let total_remaining = total_deadline.map(|deadline|deadline.saturating_duration_since(tokio::time::Instant::now()));
+            let total_is_limit = total_remaining.is_some_and(|remaining| timeout_duration.is_none_or(|duration|remaining <= duration));
+            let timeout_duration = match (timeout_duration,total_remaining) {
+                (Some(a),Some(b)) => Some(a.min(b)),
+                (a,b) => a.or(b),
+            };
             let chunk_result = match timeout_duration {
                 Some(duration) => {
                     match tokio::time::timeout(duration, stream.next()).await {
@@ -774,7 +785,7 @@ pub fn create_logged_passthrough_stream(
                         Ok(None) => None, // 流结束
                         Err(_) => {
                             // 超时
-                            let timeout_type = if is_first_chunk { "首字节" } else { "静默期" };
+                            let timeout_type = if total_is_limit { "总时长" } else if is_first_chunk { "首字节" } else { "静默期" };
                             log::error!("[{tag}] 流式响应{}超时 ({}秒)", timeout_type, duration.as_secs());
                             yield Err(std::io::Error::other(format!("流式响应{timeout_type}超时")));
                             break;
@@ -984,6 +995,7 @@ mod tests {
             StreamingTimeoutConfig {
                 first_byte_timeout: 0,
                 idle_timeout: 0,
+                total_timeout: 0,
             },
             None,
         );

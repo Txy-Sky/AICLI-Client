@@ -376,6 +376,7 @@ pub struct RequestForwarder {
     /// 生效。见 [`Self::routing_state_enabled`]。
     stack_request: bool,
     aicli_request: bool,
+    aicli_timeouts: std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts>,
     aicli_identity: Option<(i64, String)>,
     aicli_retry_after: std::sync::Mutex<Option<std::time::Duration>>,
     aicli_runtime: Option<Arc<crate::aicli::runtime::AicliRuntime>>,
@@ -495,6 +496,7 @@ impl RequestForwarder {
             max_attempts,
             stack_request: false,
             aicli_request: false,
+            aicli_timeouts: Default::default(),
             aicli_identity: None,
             aicli_retry_after: Default::default(),
             aicli_runtime: None,
@@ -521,6 +523,29 @@ impl RequestForwarder {
     /// 这个请求读写路由状态吗：熔断器（许可、结果、健康度）、「正在使用」、代理统计
     /// （总数、成功率、故障转移次数、最近错误、活跃连接）、故障转移切换。Stack 模型的请求
     /// 和普通路由完全分开，一律不碰；只有用量日志照常按供应商记。以后新增路由状态也先问它。
+    pub fn aicli_timeouts(
+        mut self,
+        timeouts: std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts>,
+    ) -> Self {
+        self.aicli_timeouts = timeouts;
+        self
+    }
+
+    fn attempt_timeouts(&self, provider: &Provider) -> (std::time::Duration, std::time::Duration) {
+        if self.aicli_request {
+            if let Some(timeout) = self.aicli_timeouts.get(&provider.id) {
+                return (
+                    std::time::Duration::from_secs(timeout.non_stream_s),
+                    std::time::Duration::from_secs(timeout.first_byte_s),
+                );
+            }
+        }
+        (
+            self.non_streaming_timeout,
+            self.streaming_first_byte_timeout,
+        )
+    }
+
     pub fn aicli_identity(mut self, token_id: i64, model: String) -> Self {
         self.aicli_identity = Some((token_id, model));
         self
@@ -1465,6 +1490,7 @@ impl RequestForwarder {
         adapter: &dyn ProviderAdapter,
         codex_upstream_format_out: &mut Option<CodexUpstreamFormat>,
     ) -> Result<(ProxyResponse, Option<String>, Option<String>), ProxyError> {
+        let (non_streaming_timeout, first_byte_timeout) = self.attempt_timeouts(provider);
         *codex_upstream_format_out = None;
         // 使用适配器提取 base_url
         let mut base_url = adapter.extract_base_url(provider)?;
@@ -2810,10 +2836,10 @@ impl RequestForwarder {
         );
 
         // 确定超时
-        let timeout = if self.non_streaming_timeout.is_zero() {
+        let timeout = if non_streaming_timeout.is_zero() {
             std::time::Duration::from_secs(600) // 默认 600 秒
         } else {
-            self.non_streaming_timeout
+            non_streaming_timeout
         };
 
         // 获取全局代理 URL（上游是本机地址时直连，不送进代理）
@@ -2845,18 +2871,18 @@ impl RequestForwarder {
                 // reqwest 的 timeout 是整请求超时；流式请求交给 response_processor
                 // 的首包/静默期超时控制，避免长流被总时长误杀。
                 request = request.timeout(std::time::Duration::from_secs(24 * 60 * 60));
-            } else if !self.non_streaming_timeout.is_zero() {
-                request = request.timeout(self.non_streaming_timeout);
+            } else if !non_streaming_timeout.is_zero() {
+                request = request.timeout(non_streaming_timeout);
             }
             for (key, value) in &ordered_headers {
                 request = request.header(key, value);
             }
             let send = request.body(body_bytes).send();
             let send_result = if request_is_streaming {
-                let header_timeout = if self.streaming_first_byte_timeout.is_zero() {
+                let header_timeout = if first_byte_timeout.is_zero() {
                     timeout
                 } else {
-                    self.streaming_first_byte_timeout
+                    first_byte_timeout
                 };
                 tokio::time::timeout(header_timeout, send)
                     .await
@@ -2884,7 +2910,11 @@ impl RequestForwarder {
                 ordered_headers,
                 extensions.clone(),
                 body_bytes,
-                timeout,
+                if self.aicli_request && request_is_streaming {
+                    first_byte_timeout
+                } else {
+                    timeout
+                },
                 upstream_proxy_url.as_deref(),
             )
             .await?
@@ -2895,7 +2925,12 @@ impl RequestForwarder {
 
         if status.is_success() {
             let mut response = self
-                .prepare_success_response_for_failover(response, request_is_streaming)
+                .prepare_success_response_for_failover_with_timeouts(
+                    response,
+                    request_is_streaming,
+                    non_streaming_timeout,
+                    first_byte_timeout,
+                )
                 .await?;
             // Streaming requests normally return SSE. If a compatible gateway
             // explicitly returns JSON instead, buffer and validate it inside the retry
@@ -2918,7 +2953,9 @@ impl RequestForwarder {
                     // Delay committing the downstream stream until the upstream emits
                     // either productive output or a valid non-failure terminal event.
                     // A response.failed/error before output remains failover-safe.
-                    response = self.validate_responses_stream_start(response).await?;
+                    response = self
+                        .validate_responses_stream_start(response, first_byte_timeout)
+                        .await?;
                 }
             } else if matches!(app_type, AppType::Codex | AppType::GrokBuild)
                 && !codex_responses_to_chat
@@ -2929,7 +2966,7 @@ impl RequestForwarder {
                 && carries_encrypted_agent_task(&filtered_body)
             {
                 response = self
-                    .hold_encrypted_agent_task_stream(response, &filtered_body)
+                    .hold_encrypted_agent_task_stream(response, &filtered_body, first_byte_timeout)
                     .await?;
             }
             Ok((response, resolved_claude_api_format, outbound_model))
@@ -2976,22 +3013,41 @@ impl RequestForwarder {
     ///
     /// - 非流式：先把完整 body 读到内存，读超时/连接中断会回到 retry loop 尝试下一家。
     /// - 流式：至少等首个 chunk 到达，避免上游返回 200 后一直不吐 SSE 时被误记成功。
+    #[cfg(test)]
     async fn prepare_success_response_for_failover(
         &self,
         response: ProxyResponse,
         request_is_streaming: bool,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.prepare_success_response_for_failover_with_timeouts(
+            response,
+            request_is_streaming,
+            self.non_streaming_timeout,
+            self.streaming_first_byte_timeout,
+        )
+        .await
+    }
+
+    async fn prepare_success_response_for_failover_with_timeouts(
+        &self,
+        response: ProxyResponse,
+        request_is_streaming: bool,
+        non_streaming_timeout: std::time::Duration,
+        first_byte_timeout: std::time::Duration,
+    ) -> Result<ProxyResponse, ProxyError> {
         if request_is_streaming {
-            return self.prime_streaming_response(response).await;
+            return self
+                .prime_streaming_response_with_timeout(response, first_byte_timeout)
+                .await;
         }
 
-        if self.non_streaming_timeout.is_zero() {
+        if non_streaming_timeout.is_zero() {
             return Ok(response);
         }
 
         let status = response.status();
         let headers = response.headers().clone();
-        let body_timeout = self.non_streaming_timeout;
+        let body_timeout = non_streaming_timeout;
         let body = tokio::time::timeout(
             body_timeout,
             response.bytes_with_limit(MAX_RESPONSE_BODY_BYTES),
@@ -3067,6 +3123,7 @@ impl RequestForwarder {
     async fn validate_responses_stream_start(
         &self,
         response: ProxyResponse,
+        first_byte_timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
         const MAX_PRIME_BYTES: usize = 256 * 1024;
 
@@ -3078,15 +3135,15 @@ impl RequestForwarder {
         let mut utf8_remainder = Vec::new();
 
         loop {
-            let next = if self.streaming_first_byte_timeout.is_zero() {
+            let next = if first_byte_timeout.is_zero() {
                 stream.next().await
             } else {
-                tokio::time::timeout(self.streaming_first_byte_timeout, stream.next())
+                tokio::time::timeout(first_byte_timeout, stream.next())
                     .await
                     .map_err(|_| {
                         ProxyError::Timeout(format!(
                             "Responses stream produced no semantic output within {}s",
-                            self.streaming_first_byte_timeout.as_secs()
+                            first_byte_timeout.as_secs()
                         ))
                     })?
             };
@@ -3159,11 +3216,12 @@ impl RequestForwarder {
         &self,
         response: ProxyResponse,
         request: &Value,
+        first_byte_timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
         const MAX_HOLD_BYTES: usize = 256 * 1024;
         const MAX_HOLD: std::time::Duration = std::time::Duration::from_secs(10);
 
-        let window = match self.streaming_first_byte_timeout {
+        let window = match first_byte_timeout {
             timeout if timeout.is_zero() => MAX_HOLD,
             timeout => timeout.min(MAX_HOLD),
         };
@@ -3206,17 +3264,17 @@ impl RequestForwarder {
         Ok(ProxyResponse::streamed(status, headers, replay))
     }
 
-    async fn prime_streaming_response(
+    async fn prime_streaming_response_with_timeout(
         &self,
         response: ProxyResponse,
+        timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
-        if self.streaming_first_byte_timeout.is_zero() {
+        if timeout.is_zero() {
             return Ok(response);
         }
 
         let status = response.status();
         let headers = response.headers().clone();
-        let timeout = self.streaming_first_byte_timeout;
         let mut stream = Box::pin(response.bytes_stream());
 
         let first = tokio::time::timeout(timeout, stream.next())
@@ -4905,6 +4963,7 @@ mod tests {
             max_attempts: 1,
             stack_request: false,
             aicli_request: false,
+            aicli_timeouts: Default::default(),
             aicli_identity: None,
             aicli_retry_after: Default::default(),
             aicli_runtime: None,
@@ -8631,6 +8690,185 @@ mod tests {
             assert!(requests[1]
                 .to_string()
                 .contains(crate::proxy::media_sanitizer::UNSUPPORTED_IMAGE_MARKER));
+        }
+
+        async fn delayed_aicli_upstream(
+            delay_first_byte: bool,
+            idle_gap: bool,
+            delay_headers: bool,
+        ) -> (Upstream, Arc<std::sync::atomic::AtomicUsize>) {
+            let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let observed = requests.clone();
+            let base_url=serve_upstream(axum::Router::new().fallback(move || {
+                let observed=observed.clone();
+                async move {
+                    observed.fetch_add(1,std::sync::atomic::Ordering::SeqCst);
+                    if delay_headers { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                    let stream=async_stream::stream! {
+                        if delay_first_byte && !delay_headers { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                        yield Ok::<_,std::io::Error>(Bytes::from_static(b"data: {\"type\":\"ping\"}\n\n"));
+                        if idle_gap { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                        for _ in 0..20 {
+                            tokio::time::sleep(Duration::from_millis(200)).await;
+                            yield Ok(Bytes::from_static(b"data: {\"type\":\"ping\"}\n\n"));
+                        }
+                    };
+                    axum::response::Response::builder().header(http::header::CONTENT_TYPE,"text/event-stream").body(axum::body::Body::from_stream(stream)).unwrap()
+                }
+            })).await;
+            (
+                Upstream {
+                    base_url,
+                    requests: Default::default(),
+                },
+                requests,
+            )
+        }
+
+        fn aicli_test_timeouts(
+        ) -> std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts> {
+            [("aicli-main", 1), ("aicli-apac", 2)]
+                .into_iter()
+                .map(|(id, seconds)| {
+                    (
+                        id.into(),
+                        crate::aicli::resolver::LineTimeouts {
+                            first_byte_s: seconds,
+                            idle_s: seconds,
+                            stream_total_s: 10,
+                            non_stream_s: seconds,
+                        },
+                    )
+                })
+                .collect()
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_first_byte_switches_with_each_lines_own_budget() {
+            for delay_headers in [false, true] {
+                let (main, main_count) = delayed_aicli_upstream(true, false, delay_headers).await;
+                let (apac, apac_count) = delayed_aicli_upstream(true, false, delay_headers).await;
+                let fwd = forwarder(2, "aicli-main")
+                    .aicli_request(true)
+                    .aicli_timeouts(aicli_test_timeouts());
+                let mut body = plain_body();
+                body["stream"] = json!(true);
+                let result = send(
+                    &fwd,
+                    vec![provider("aicli-main", &main), provider("aicli-apac", &apac)],
+                    body,
+                )
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+                assert_eq!(result.provider.id, "aicli-apac");
+                assert_eq!(main_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                assert_eq!(apac_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                let mut stream = Box::pin(result.response.bytes_stream());
+                assert!(stream.next().await.unwrap().is_ok());
+                assert_eq!(
+                    fwd.attempt_timeouts(&provider("aicli-apac", &apac)),
+                    (Duration::from_secs(2), Duration::from_secs(2))
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_idle_after_output_never_replays() {
+            for (id, seconds, expect_timeout) in [("aicli-main", 1, true), ("aicli-apac", 2, false)]
+            {
+                let (up, count) = delayed_aicli_upstream(false, true, false).await;
+                let backup = upstream(vec![ok()]).await;
+                let fwd = forwarder(2, id)
+                    .aicli_request(true)
+                    .aicli_timeouts(aicli_test_timeouts());
+                let mut body = plain_body();
+                body["stream"] = json!(true);
+                let result = send(
+                    &fwd,
+                    vec![provider(id, &up), provider("aicli-global", &backup)],
+                    body,
+                )
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+                let stream =
+                    super::super::super::response_processor::create_logged_passthrough_stream(
+                        result
+                            .response
+                            .bytes_stream()
+                            .map(|r| r.map_err(std::io::Error::other)),
+                        "test",
+                        None,
+                        super::super::super::handler_context::StreamingTimeoutConfig {
+                            first_byte_timeout: seconds,
+                            idle_timeout: seconds,
+                            total_timeout: 10,
+                        },
+                        None,
+                    );
+                let mut stream = Box::pin(stream);
+                assert!(stream.next().await.unwrap().is_ok());
+                let next = stream.next().await.unwrap();
+                assert_eq!(next.is_err(), expect_timeout);
+                if let Err(error) = next {
+                    assert!(error.to_string().contains("静默期"));
+                }
+                assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                assert_eq!(backup.requests.lock().await.len(), 0);
+            }
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_total_limits_a_continuously_active_stream() {
+            let (up, count) = delayed_aicli_upstream(false, false, false).await;
+            let backup = upstream(vec![ok()]).await;
+            let fwd = forwarder(2, "aicli-main")
+                .aicli_request(true)
+                .aicli_timeouts(aicli_test_timeouts());
+            let mut body = plain_body();
+            body["stream"] = json!(true);
+            let result = send(
+                &fwd,
+                vec![
+                    provider("aicli-main", &up),
+                    provider("aicli-global", &backup),
+                ],
+                body,
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            let stream = super::super::super::response_processor::create_logged_passthrough_stream(
+                result
+                    .response
+                    .bytes_stream()
+                    .map(|r| r.map_err(std::io::Error::other)),
+                "test",
+                None,
+                super::super::super::handler_context::StreamingTimeoutConfig {
+                    first_byte_timeout: 2,
+                    idle_timeout: 2,
+                    total_timeout: 1,
+                },
+                None,
+            );
+            let mut stream = Box::pin(stream);
+            let mut chunks = 0;
+            let mut interrupted = false;
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(_) => chunks += 1,
+                    Err(error) => {
+                        assert!(error.to_string().contains("总时长"));
+                        interrupted = true;
+                    }
+                }
+            }
+            assert!(chunks >= 2);
+            assert!(interrupted);
+            assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
+            assert_eq!(backup.requests.lock().await.len(), 0);
         }
 
         #[tokio::test]

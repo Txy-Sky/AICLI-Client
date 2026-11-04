@@ -23,6 +23,8 @@ pub struct StreamingTimeoutConfig {
     pub first_byte_timeout: u64,
     /// 静默期超时（秒），0 表示禁用
     pub idle_timeout: u64,
+    /// 流式总时长（秒），0 表示禁用
+    pub total_timeout: u64,
 }
 
 pub enum RouteInput {
@@ -331,7 +333,13 @@ impl RequestContext {
         )
         .stack_request(self.is_stack)
         .aicli_request(self.route.is_some())
-        .aicli_runtime(state.aicli.clone());
+        .aicli_runtime(state.aicli.clone())
+        .aicli_timeouts(
+            self.route
+                .as_ref()
+                .map(|route| route.timeouts.clone())
+                .unwrap_or_default(),
+        );
         if let Some(route) = &self.route {
             forwarder.aicli_identity(route.token_id, route.upstream_model.clone())
         } else {
@@ -367,6 +375,7 @@ impl RequestContext {
             return StreamingTimeoutConfig {
                 first_byte_timeout: timeouts.first_byte_s,
                 idle_timeout: timeouts.idle_s,
+                total_timeout: timeouts.stream_total_s,
             };
         }
         if self.app_config.auto_failover_enabled {
@@ -374,12 +383,14 @@ impl RequestContext {
             StreamingTimeoutConfig {
                 first_byte_timeout: self.app_config.streaming_first_byte_timeout as u64,
                 idle_timeout: self.app_config.streaming_idle_timeout as u64,
+                total_timeout: 0,
             }
         } else {
             // 故障转移关闭：禁用流式超时检查
             StreamingTimeoutConfig {
                 first_byte_timeout: 0,
                 idle_timeout: 0,
+                total_timeout: 0,
             }
         }
     }

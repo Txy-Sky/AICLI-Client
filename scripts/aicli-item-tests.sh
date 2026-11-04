@@ -43,6 +43,7 @@ case "$set_name" in
     item C3-05-recovery aicli_error_recovery
     item C3-06-unit aicli::cooldown::tests
     item C3-06-forwarding aicli_cooldown_success
+    item C3-07-forwarding aicli_timeout_
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests

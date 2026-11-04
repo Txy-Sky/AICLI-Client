@@ -467,6 +467,7 @@ async fn aicli_context_keeps_public_identity_retries_and_line_timeouts() {
     ctx.provider = ctx.get_providers()[2].clone();
     assert_eq!(ctx.streaming_timeout_config().first_byte_timeout, 300);
     assert_eq!(ctx.streaming_timeout_config().idle_timeout, 300);
+    assert_eq!(ctx.streaming_timeout_config().total_timeout, 600);
     f.stop().await;
 }
 
