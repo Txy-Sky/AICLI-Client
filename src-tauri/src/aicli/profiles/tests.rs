@@ -540,3 +540,31 @@ fn failed_compile_preserves_baseline_and_delete_removes_only_matching_baseline()
     assert_eq!(count, 1);
     assert_eq!(store.delete("recommended", 0), Err(ProfileError::ReadOnly));
 }
+
+#[test]
+fn revoked_alias_source_does_not_publish_an_implicit_unaliased_route() {
+    let store = ProfileStore::new(Arc::new(Database::memory().unwrap()));
+    let mut profile = user();
+    profile.body.model_bindings.push(ModelBinding {
+        model: "shared".into(),
+        source_group: Some("cheap".into()),
+        alias: Some("custom".into()),
+    });
+    let profile = store.save(&profile, &catalog()).unwrap();
+    store.compile(&profile, &catalog(), 3).unwrap();
+    let mut changed = catalog();
+    changed.groups.remove("cheap");
+    for model in changed.models.values_mut() {
+        model.groups.retain(|g| g != "cheap");
+    }
+    let compiled = store.compile(&profile, &changed, 3).unwrap();
+    assert_eq!(compiled.repair.affected_models, ["custom"]);
+    assert_eq!(
+        compiled
+            .routes
+            .iter()
+            .map(|r| r.public_model.as_str())
+            .collect::<Vec<_>>(),
+        ["unique"]
+    );
+}

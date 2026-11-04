@@ -529,7 +529,14 @@ impl ProfileStore {
             });
         }
         let mut routes = compile_available(&available, catalog, max_count)?;
-        routes.retain(|r| !repair.affected_models.contains(&r.public_model));
+        routes.retain(|r| {
+            !repair.affected_models.contains(&r.public_model)
+                // Removing an affected alias binding must not implicitly expose
+                // the original, previously unpublished model name.
+                && (!profile.body.model_bindings.iter().any(|b| b.model == r.upstream_model)
+                    || profile.body.model_bindings.iter().any(|b| b.model == r.upstream_model
+                        && b.alias.as_ref().unwrap_or(&b.model) == &r.public_model))
+        });
         if !repair.needs_repair {
             let compiled_at = chrono::Utc::now().timestamp();
             let baseline_routes: BTreeMap<_, _> = routes
