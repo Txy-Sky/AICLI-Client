@@ -53,6 +53,8 @@ pub struct ProxyState {
 
 /// 代理HTTP服务器
 pub struct ProxyServer {
+    #[cfg(test)]
+    observed_requests: Arc<std::sync::atomic::AtomicU64>,
     config: ProxyConfig,
     state: ProxyState,
     shutdown_tx: Arc<RwLock<Option<oneshot::Sender<()>>>>,
@@ -94,6 +96,8 @@ impl ProxyServer {
         };
 
         Self {
+            #[cfg(test)]
+            observed_requests: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             config,
             state,
             shutdown_tx: Arc::new(RwLock::new(None)),
@@ -141,6 +145,19 @@ impl ProxyServer {
 
         // 构建路由
         let app = self.build_router();
+        #[cfg(test)]
+        let app = {
+            let observed = self.observed_requests.clone();
+            app.layer(axum::middleware::from_fn(
+                move |request: axum::extract::Request, next: axum::middleware::Next| {
+                    let observed = observed.clone();
+                    async move {
+                        observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        next.run(request).await
+                    }
+                },
+            ))
+        };
 
         // 绑定监听器
         let listener = tokio::net::TcpListener::bind(&addr)
@@ -597,7 +614,13 @@ mod tests {
             });
             db.save_provider("codex", &provider).unwrap();
             db.set_current_provider("codex", &provider.id).unwrap();
-            let before = proxy.get_status().await.total_requests;
+            // AICLI intentionally leaves legacy ProxyStatus untouched. Count
+            // actual HTTP arrivals so the loop guard and exactly-one assertion
+            // retain their original meaning without relying on legacy stats.
+            let before = proxy
+                .observed_requests
+                .load(std::sync::atomic::Ordering::SeqCst);
+            let legacy_total = proxy.get_status().await.total_requests;
             let request = client
                 .post(format!(
                     "http://{}:{}/v1/responses",
@@ -613,7 +636,7 @@ mod tests {
             let response = tokio::select! {
                 response = request.send() => response.expect("send request"),
                 _ = async {
-                    while proxy.get_status().await.total_requests < before + 8 {
+                    while proxy.observed_requests.load(std::sync::atomic::Ordering::SeqCst) < before + 8 {
                         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
                     }
                 } => {
@@ -624,7 +647,13 @@ mod tests {
             assert_eq!(response.status(), StatusCode::BAD_REQUEST);
             let error: Value = response.json().await.unwrap();
             assert!(error.to_string().contains("own proxy listener"), "{error}");
-            assert_eq!(proxy.get_status().await.total_requests, before + 1);
+            assert_eq!(
+                proxy
+                    .observed_requests
+                    .load(std::sync::atomic::Ordering::SeqCst),
+                before + 1
+            );
+            assert_eq!(proxy.get_status().await.total_requests, legacy_total);
             tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 while proxy.get_status().await.active_connections != 0 {
                     tokio::task::yield_now().await;
