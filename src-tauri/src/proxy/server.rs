@@ -844,7 +844,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
         }
 
@@ -1032,7 +1032,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["model"], "gpt-image-1");
             assert_eq!(
@@ -1048,7 +1048,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["model"], "gpt-image-1");
         assert_eq!(full_url_request.body["prompt"], "image generation full URL");
@@ -1249,7 +1249,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["model"], "gpt-image-2");
             assert_eq!(request.body["prompt"], format!("image edit alias {index}"));
@@ -1265,7 +1265,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["model"], "gpt-image-2");
         assert_eq!(full_url_request.body["prompt"], "image edit full URL");
@@ -1453,7 +1453,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["id"], format!("search-{index}"));
             assert_eq!(request.body["model"], "gpt-5.6-sol");
@@ -1467,7 +1467,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["id"], "search-full-url");
         assert_eq!(
