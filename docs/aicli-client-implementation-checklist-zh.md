@@ -484,6 +484,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 创建响应没有 id，再次 `list_tokens` 按名称取回。名称已存在但配置不同（用户改过）时，名称追加序号再建，不覆盖。
   - 明文：用 `batch_token_keys` **一次取本次缺的全部**，存 Keychain（`token:<id>`），按 A6-04 的结论补 `sk-` 前缀。遇到限流（429）时记录并按 Retry-After 延后，不得循环重试。
   - 只在编译结果变化时运行。请求时如果 Token 返回 401（被用户删除），删除本地记录，触发一次重建。
+  - 负责人于 2026-11-04 补充决定：
+    - 多分组复用额外要求 `cross_group_retry=true`，否则不复用。
+    - 同时有多个可复用 Token 时，名称以 `aicli:` 开头的优先，其次取 id 最小的。这样各设备会选中同一个。
+    - 达到 32 个上限时不自动清理客户端创建的 Token，因为其他设备可能仍在使用。`TokenLimit` 错误附上本机所有配置集都未引用的 `aicli:` Token 列表（名称和 masked），提示用户到网页清理。
 - 验收：对 A6 环境集成测试：
   - 重复调用只创建一次；已有合适的用户 Token 时不创建；用户 Token 有额度限制或模型限制时不复用。
   - 69 个模型的编译结果只产生一次 `batch_token_keys` 调用。
@@ -515,6 +519,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - Claude Desktop：`claude-fable-aicli-<6 位数字>`，数字为 `sha256(public_model)` 派生，表持久化在 `aicli_cache`（kind=`desktop_alias`），冲突时线性探测。
   - 其他客户端：不编码，原样。
   - 非别名 id 的 `decode` 返回 `None`。四档别名（`ANTHROPIC_DEFAULT_*`）指向当前配置集第一个模型的编码值。
+  - 负责人于 2026-11-04 补充决定（取代上一条中的"第一个模型"）：opus、sonnet、haiku 各档指向当前配置集中名称含该档位词（不区分大小写）的第一个模型（按编译结果顺序，即模型名字典序）；没有匹配时退回字典序第一个模型。其余档位同样退回字典序第一个模型。
 - 验收：单测覆盖往返、Desktop 不含厂商黑名单词（复用 `stack.rs` 的约束）、id 末尾不被当成 8 位日期。
 - 证据：
 
@@ -540,6 +545,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   5. 取凭证；取 `wire[client_protocol]`；compat 为 `unavailable` → `Miss::Unsupported`。
   6. 线路顺序：`model preferred_line > 配置集 line_policy > selected_line_id`，排除冷却中线路；全部冷却时只保留恢复最早的一条（probe-one）；其余按 `priority` 降序。
   7. 克隆种子 Provider（C3-02），按 wire 协议设置 meta，把 `body.model` 改写为 `upstream_model`。
+- 负责人于 2026-11-04 补充决定：
+  - 会话 id 用现有 `proxy/session.rs::extract_session_id`。`client_provided=false`（服务端生成的 UUID，例如 Gemini CLI）时不写 pin，也不发送 `X-AICLI-Session`，每次请求重新选择配置集。
+  - 代理请求不带项目信息，所以 v1 解析时跳过 `project` 作用域。表结构和代码接口保留，并在第 13 节记录。顺序实际为 `session pin > session > app > global > active_profile_id > recommended`。
 - `RouteMiss` 的错误响应按客户端协议构造（复用 `stack_miss_body`），不同原因用不同 `code`：`model_not_in_profile`、`profile_needs_repair`、`capability_unsupported`、`not_bound`。
 - 验收：表驱动单测覆盖上述每个分支，含 Gemini 从 URL 取模型；pin 后目录变更不影响该会话；probe-one。
 - 证据：
@@ -1011,6 +1019,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| C3-01 | 第 3 步列出 `project` 作用域，但代理请求不含项目信息，无法解析。 | 负责人于 2026-11-04 决定：v1 解析时跳过 `project`，保留表结构和代码接口。 | 不改表结构；有可靠的项目标识来源后再启用。 |
 | B-07（验收自命中） | B-05 扫描整个工作流目录，新增 B-07 归属声明断言含上游作者字面值导致命中命令自身。 | run 41552036556 完整基线通过后 B-05 失败；把 B-07 断言中的上游声明分段拼接，运行时字符串、README 原文、扫描范围及零命中断言均不变，最终 535a193e 完整 CI 通过。 | 与 B-05 既有表达式分段处理相同，避免扫描命令自身产生语法性命中，不新增扫描例外。 |
 | B-07（测试环境预授权） | 既有会话分组测试用当前时间减 1～4 小时造“今天”数据，UTC 午夜后落到昨天。 | run 41550716520 在 SessionManagerPage.test.tsx:303 失败，3415 passed / 1 failed；只在该测试固定 Date 为本地中午，afterEach 恢复，真实异步计时保持运行，原“今天/更早”等全部断言保留。按第 0.6 节测试环境预授权修正，最终重新跑完整 CI。 | 消除时间夹具的午夜不确定性，不修改产品逻辑或放宽验收；失败历史保留于 B-07 证据。 |
 | B-07 → G-01 | B-07 全量品牌扫描与 Provider UI 中真实优惠码冲突。 | 按负责人 2026-11-03 决定，B-07 保留五种语言 providerForm.partnerPromotion 原文，以 JSON 删除该部分后零旧品牌命中，并精确断言该部分匹配条目数 en/ja/tr=28、zh/zh-TW=29。G-01 先 grep 核查 src/tests 的引用范围，再删除该部分并恢复原全量 grep；出现范围外引用则标 [!]。README 按原要求重写，赞助商段落一并删除。 | 不编造新优惠码或合作关系，按原顺序收紧验收；本次不提前删除 Provider UI。 |
