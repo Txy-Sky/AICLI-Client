@@ -255,7 +255,31 @@ async fn exercise(api: &NewApiClient, origin: &str, access: &str) -> Result<(), 
     let first = service_a
         .ensure_compilation(&orders, true, &orders)
         .await
-        .map_err(|_| "first compilation failed")?;
+        .map_err(|error| {
+            // Only public, fixed error variants and counters reach CI logs;
+            // never print TokenLimit candidates, keys or HTTP bodies.
+            let kind = match error {
+                TokenError::Api(api) => match api {
+                    NewApiError::InvalidResponse => "invalid API response",
+                    NewApiError::Rejected => "API rejected",
+                    NewApiError::Http(_) => "HTTP status",
+                    NewApiError::TokenInvalid => "access invalid",
+                    _ => "other API error",
+                },
+                TokenError::InvalidGroups => "invalid groups",
+                TokenError::Database => "local metadata",
+                TokenError::Secret(_) => "secret storage",
+                TokenError::RateLimited { .. } => "rate limited",
+                _ => "other token error",
+            };
+            eprintln!(
+                "C1-04: FAIL; C1-09 compilation category={kind}; creates={}; batches={}; groups={}",
+                remote_a.creates.load(Ordering::SeqCst),
+                remote_a.batches.load(Ordering::SeqCst),
+                orders.first().map_or(0, Vec::len),
+            );
+            "first compilation failed"
+        })?;
     require(
         remote_a.batches.load(Ordering::SeqCst) == before + 1,
         "69 models did not use exactly one batch",
