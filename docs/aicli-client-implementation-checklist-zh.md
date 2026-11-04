@@ -617,13 +617,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：1acca3cb | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::cooldown::tests`、`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_cooldown_success`；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | 注入时钟单测 5 passed，真实转发成功清除 1 passed，路由集成 8 passed；Rust 4600 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全成功。A6 运行，601 秒观测按覆盖规则跳过；首轮失败历史见 `docs/aicli-evidence/C3-06.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41842056344
 
 ### C3-07 每次尝试的超时
-- [ ] 完成
+- [x] 完成
 - 修改：
   - `handler_context.rs:20` `StreamingTimeoutConfig` 增加 `total_timeout: u64`。
   - `forwarder.rs`：`forward` 中按当前 provider 从 `decision.timeouts` 取值（替换 `:2772`、`:3117` 处读取），hyper 路径等响应头的超时（`:2729`、`:2803`）在 `aicli_request` 时使用首字节超时。
   - `response_processor.rs::create_logged_passthrough_stream`（`:731`）：`total_timeout>0` 时检查总时长，超时按流中断处理。响应阶段按 `ctx.provider`（`handlers.rs:383`）取最终线路配置。
 - 验收：用 mock 的 `delay_first_byte`、`idle_gap` 分别测试 Cloudflare 和 CDN 线路的超时值，测试时间可通过测试专用配置缩短；首字节前超时切线路；首字节后超时只报告中断，mock 上游只收到一次请求。
-- 证据：
+- 证据：b6489438 | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_timeout_`、`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing`；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | 超时专项 3 passed，既有路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全成功。A6 Docker 和 601 秒观测按覆盖规则跳过；详见 `docs/aicli-evidence/C3-07.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41844973503
 
 ### C3-08 本地鉴权
 - [ ] 完成
@@ -1031,6 +1031,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C2-01（运行时接线） | 示例结构含固定 NewApiClient、Cooldown，启动从缓存构建后后台刷新。 | 未绑定时不存在可用访问令牌，因此按每次刷新时的账号/线路/SecretStore 构造 NewApiClient，TokenService 按账号/线路复用以保留 Retry-After 和恢复状态；ProxyState 同步加载本地缓存，监听成功后后台刷新。将 auto-groups 的 groups/max_count 作为公开缓存合入目录编译；旧快照和密钥分开保存，LRU 4096/24h；冷却这里只提供存储容器，策略仍由 C3-06 实现。 | 结构接线细化，不改 v25 表、产品行为或工作流；后台更新按 fingerprint 原子换快照，失败保留旧值，账号更换/解绑清空旧凭证和 pin；新增 lru 默认特性关闭，锁文件仅新增该依赖。Cargo 清单变化按 CI-OPT2 本轮应执行 A6 和 601 秒观测，不称跳过。 |
 | C3-01 | 第 3 步列出 `project` 作用域，但代理请求不含项目信息，无法解析。 | 负责人于 2026-11-04 决定：v1 解析时跳过 `project`，保留表结构和代码接口。 | 不改表结构；有可靠的项目标识来源后再启用。 |
 | C3-01（preferred_line） | 第 6 步线路顺序首级为 `model preferred_line`，但目录与配置集均无此字段，new-api 也不提供。 | 负责人于 2026-11-04 决定：v1 去掉该级，顺序为 `line_policy`（非 inherit）> `selected_line_id` > 其余按 priority 降序，排除冷却，全冷却时 probe-one。 | 不新增字段或表结构；有可靠来源后再加。 |
+| C3-07（超时接线） | 当前线路首字节/非流式超时需传入 hyper、reqwest 和首包准备；响应阶段用最终 ctx.provider。 | 转发器持有按 Provider id 的超时 DTO，每次 forward 重新取值；响应处理按最终 ctx.provider 取得首字节、静默、总时长。原测试用旧准备函数保留为测试包装器；旧非 AICLI 总时长保持 0。 | 定位漂移和内部参数接线，不改线路表或外部接口；使用 1s/2s 的测试专用值模拟两类线路，断言实际请求次数，不用线上账号。 |
 | C3-06（模块定位） | 冷却策略位于 `aicli/cooldown.rs`，C2-01 已在 runtime 中提供两级表。 | 将原容器迁至 cooldown 模块，runtime 重导出原类型，注入时钟并接入转发失败/429/成功路径。 | 保留原调用接口和两级隔离，不改表结构或工作流；首轮遗漏 Duration 导入已追加同编号修正，未弱化验收。 |
 | C3-05（错误载荷与接线） | 现有 UpstreamError 不保留 Retry-After；整流失败有独立旧分类，客户端断开没有显式错误变体。 | Retry-After 在 AICLI 转发器内按秒/HTTP-date 解析并保存，429 写线路＋模型首级冷却；新增 ClientAbort 分类变体，已输出后的流错误继续不重放。整流失败使用同一 AICLI 分类。401 接 C1-09 一次性恢复，不重放当前请求；既有 pin 的凭证查找随恢复更新。C3-04 备用成功夹具改为 HTML 502，新增 JSON 503 不切线的精确断言。 | 不改外部接口、v25 或旧分类行为；分类和冷却之间的接线细化，完整退避留 C3-06。首轮前缀测试预期与 Clippy 失败均保留，未放宽断言或 lint。 |
 | C3-04（计数夹具与冷却接线） | AICLI 绕过旧路由统计后，原自转发回归用 total_requests 观测 HTTP 次数会失败；完整冷却策略在后续 C3-05/C3-06。 | 按第 0.6 节隔离测试预授权增加仅 cfg(test) 的实际 HTTP 到达计数，循环防护与恰好一次断言改用该计数，并新增旧统计不变断言；HTTP 400、自转发错误和连接释放断言全部保留。失败目前只接 AicliRuntime 线路冷却首级 60s（取自 C3-06），分类、429 和重复失败退避仍按后续项实现。 | 不改产品接口、工作流或用户数据，不放宽原断言；20becc26 完整 CI success，4 项专项及既有路由/种子/基线全部通过，首轮失败历史见 C3-04.txt。 |
@@ -1082,9 +1083,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-06 验收提交 1acca3cb594a7544068629cd70be8390ae0e090f（Actions run 41842056344，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-07 验收提交 b6489438c90eee1b2981fe838822a2c05f535681（Actions run 41844973503，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：36 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-06；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-07；G 阶段统一会话迁移已决定保留）。
+完成/阻塞/跳过：37 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-07；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-08；G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1101,10 +1102,11 @@ scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01�
 最近 C3-04 验收 20becc26：转发器专项 4 passed，路由集成 8 passed / 0 skipped，种子转发 10 passed；Rust 基线 4588 passed / 原有 10 skipped，前端 3416 passed，四个并行 job 与汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；旧状态/熔断器/映射隔离通过，公开日志与下载证据长格式 sk-/Bearer 候选为 0。首轮失败及真实 HTTP 计数夹具修正已保留，下一项 C3-05；详见 C3-04.txt。
 最近 C3-05 验收 de1f95a8：错误单测 3 passed，真实转发专项 2 passed，凭证恢复 1 passed；Rust 4594 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 实际运行，601 秒观测按覆盖规则跳过；最终公开日志/证据长格式 sk-/Bearer 候选 0；首轮合成凭证断言输出及 Clippy 修正历史保留。下一项 C3-06，详见 C3-05.txt。
 最近 C3-06 验收 1acca3cb：冷却单测 5 passed，真实转发成功清除 1 passed；Rust 4600 passed / 原有 10 skipped，前端 3416 passed，四并行 job 与汇总全成功。A6 实际运行，601 秒观测按覆盖规则跳过；首轮编译失败后取消的历史保留。公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-06.txt。
+最近 C3-07 验收 b6489438：超时专项 3 passed，路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C3-08，详见 C3-07.txt。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-07；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-08；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
