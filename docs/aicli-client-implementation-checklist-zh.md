@@ -499,7 +499,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：0b0953b2 | `Rust item tests (Linux)`：`bash scripts/aicli-item-tests.sh default "$RUNNER_TEMP/aicli-evidence"`（Token 专项）；`A6 test environment (Linux)`：`python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_tokens.py`；`A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | 完整 run success，四 job 及汇总全通过；Token 单测 14 passed、独立 rc.34 集成 1 passed，API 专项 12 passed；Rust 4546/前端 3416 passed；实际 601 秒观测 39 次；多设备、解绑和删除后恢复通过，详见 `docs/aicli-evidence/C1-09.txt`；实际耗时及缓存条件已追加 CI-OPT2.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41766760053
 
 ### C2-01 运行时状态
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli/runtime.rs`：
   ```rust
   pub struct AicliRuntime {
@@ -512,7 +512,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   ```
   `ProxyState`（`proxy/server.rs:34`）增加 `pub aicli: Arc<AicliRuntime>`。启动时先从缓存构建快照，**代理立即可用**，再后台刷新；`fingerprint` 变化时重新编译并调用 C1-09。
 - 验收：单测：网络不可用时启动，缓存路由仍可解析；刷新失败保留旧快照；未绑定时为空；旧会话持有旧 `Arc<RoutesSnapshot>` 不受新快照影响。
-- 证据：
+- 证据：feddb99b | `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::runtime::tests`；同一 run 的 `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh`；`A6 test environment (Linux)`：C1-06 601 秒观测及 A6 集成检查 | 完整 CI run success，运行时专项 10 passed；Rust 基线 4556 passed/10 skipped；A6 601.63s、API 审计 39 次、30 天数据落盘通过；覆盖记录 `testenv=true`、`c106_observe=true`，不是跳过观测 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41776465133
 
 ### C2-02 模型别名
 - [ ] 完成
@@ -1074,7 +1074,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-09 验收提交 0b0953b27b4b3ce5e114884bc073558d22a4ced8（Actions run 41766760053，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：28 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；阶段 B 全部通过，C1-01～C1-09 已通过，下一项 C2-01 尚未开始，G 阶段统一会话迁移已决定保留）。
+完成/阻塞/跳过：29 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；阶段 B 全部通过，C1-01～C1-09 和 C2-01 已通过，下一项 C2-02；G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1083,10 +1083,11 @@ scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01�
 最近 C1-07 验收 1f49f685：目录专项 9 passed、真实 rc.34 对照 2 passed；Rust 4511 passed/原有 10 skipped，前端 3416 passed；Clippy、A6 和 B 回归全部通过，公开 job 日志长格式模型密钥/Bearer 候选均 0。详见 C1-07.txt。
 最近 C1-08 验收 05c80736：配置集专项 20 passed，69 个模型在两种排序下均产生 4 种分组顺序；Rust 4531 passed/原有 10 skipped（较 C1-07 增加 20 项），前端 267 文件/3416 passed；Clippy、A6、桌面启动及 B 回归全部通过，公开 job 日志长格式模型密钥/Bearer 候选均 0。基线和 affected_models/conservative 已实现，C3-01/F-05 后续接线尚未实施。详见 C1-08.txt。
 最近 C1-09 验收 0b0953b2：Token 专项 14 passed、API 专项 12 passed、独立 rc.34 集成 1 passed；多设备复用、解绑不影响其他设备及删除后恢复通过。Rust 4546 passed/原有 10 skipped，前端 3416 passed；四 job 和汇总全成功，601 秒观测 39 次、30 天落盘通过，全部 job 日志长格式密钥/Bearer 候选 0。墙钟 18m58s（末个 job 完成）/18m59s（run API updated_at），Rust baseline/testenv 缓存未命中，不作为全缓存预热普通项测速；详见 C1-09.txt、CI-OPT2.txt。
+最近 C2-01 验收 feddb99b：运行时专项 10 passed，Rust 基线 4556 passed/10 skipped；四个并行 job 和汇总 job 全部成功。A6 覆盖本轮实际执行，C1-06 观测 601.63s，API 审计 39 次、30 天数据落盘通过；覆盖日志记 `testenv=true`、`c106_observe=true`。详见 `docs/aicli-evidence/C2-01.txt`。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；C1-08 已完成验收；从 C2-01 起除 C4-05 明确跳过外尚未完成，无当前 [!] 产品项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01 已完成验收；除 C4-05 明确跳过外尚未完成项从 C2-02 起，无当前 [!] 产品项；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。

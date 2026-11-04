@@ -1,0 +1,24 @@
+C2-01 cache-first runtime snapshots
+
+Implementation: feddb99bcabd540ecdd3b99a14acdf67112fed67
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41776465133
+Result: all four parallel jobs and Checklist acceptance (Linux) succeeded.
+
+Rust item tests (Linux), job 126397887598:
+  Command: cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::runtime::tests
+  Result: 10 passed, 4556 filtered out; exit code 0.
+
+A3-01 baseline (Linux), job 126397887816:
+  Command: bash scripts/aicli-check.sh
+  Result: Rust 4556 passed, 10 skipped; frontend typecheck, format, unit tests,
+  renderer build, Clippy, and full Rust nextest baseline passed; exit code 0.
+
+A6 test environment (Linux), job 126397887901:
+  Command: PYTHONPATH=tests/aicli-testenv python3 -m pytest -q -s --tb=short
+  tests/aicli-testenv/tests/test_cache_refresh.py
+  Result: A6 passed; observed 601.63 seconds, audited 39 API requests, and
+  persisted all 30 days of usage data. CI-OPT-coverage.txt recorded
+  testenv=true and c106_observe=true, so the observation ran in this run.
+
+B stage desktop checks (Linux), job 126397887956: passed.
+Checklist acceptance (Linux), job 126403626119: passed.
