@@ -241,8 +241,10 @@ async fn exercise(api: &NewApiClient, origin: &str, access: &str) -> Result<(), 
             .models
             .insert(format!("fixture-{i:02}"), base.clone());
     }
+    // The seed exposes usable groups but does not configure an auto-group
+    // recommendation. Use the cost preset, which includes those real groups.
     let routes = compile(
-        &preset("recommended", &catalog).map_err(|_| "preset failed")?,
+        &preset("low_cost", &catalog).map_err(|_| "preset failed")?,
         &catalog,
         10,
     )

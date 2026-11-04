@@ -24,6 +24,10 @@ runs:
           echo "XDG_CONFIG_HOME=$test_home/.config"
           echo "XDG_DATA_HOME=$test_home/.local/share"
           echo "XDG_CACHE_HOME=$test_home/.cache"
+          # Keep line information without duplicating full debug data into every
+          # test/example executable on the space-limited hosted runner.
+          echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only"
+          echo "CARGO_PROFILE_TEST_DEBUG=line-tables-only"
         } >> "$GITHUB_ENV"
 
     - name: Set up the pinned pnpm version
