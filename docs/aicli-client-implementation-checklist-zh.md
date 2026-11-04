@@ -898,6 +898,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   5. `commands/provider.rs`：只保留 C3-02 和接管所需的内部函数，删除所有对外增删改命令。`services/provider/` 中直连相关（`claude_official.rs`、`codex_login.rs`、`codex_official_models.rs`、`gemini_auth.rs` 等）在没有引用后删除。
   6. Provider 导入导出、`usage_script.rs`（无引用后）。
 - **不得删除**：`proxy/providers/transform*`、`streaming*`、`gemini_*`、`inline_think.rs`、`reasoning_bridge.rs`、`responses_late_arguments.rs`，以及 `session_manager`、`mcp`、`skill`、`prompt`、各 `*_config.rs` 配置写入器。
+- 负责人于 2026-11-04 决定**保留统一会话迁移**：`codex_history_migration.rs::maybe_migrate_codex_official_history_to_unified_bucket` 及其自门控行为、`lib.rs` 启动调用和 `commands/settings.rs` 设置保存调用都不删除、不禁用，既有测试保留。删除 `codex_login.rs`、`codex_official_models.rs`、官方 Provider 等模块时，如果该迁移依赖其中的常量或函数，就把被依赖的部分保留或移入迁移模块，并在第 13 节记录。验收增加：迁移相关既有测试数不减少，结果写入证据。
 - 验收：
   - `grep -rln 'CopilotAuth\|CodexOAuth\|XaiOAuth\|kimi_oauth\|claude_account' src-tauri/src` 无结果，例外写入第 13 节。
   - `cargo nextest` 通过；`transform*`、`streaming*` 相关测试数量**不减少**（前后对比，写入证据）。
@@ -1004,7 +1005,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C1-06（测试夹具） | 2e38849b 的缓存集成在一次性用户登录收到非 JSON 响应，尚未进入观测；此前缓存 14/API 11 项和 A6-04 原有测试通过。 | 对照 rc.34 共用 CT 限流源码，将缓存测试放入独立临时 Compose 环境，保留原限流和断言，追加只含状态码的安全错误诊断；e3a70c89 的 run 41624807753 完整成功，601 秒观测 39 次、30 天落盘通过。 | 已关闭；旧错误未记录 HTTP 状态码，不声称旧响应实测 429；全部失败历史见 C1-06.txt。 |
 | C1-04 期间观察（非阻塞） | Linux lib-test 构建提示既有 `services/agy_account/keychain.rs::SystemKeychain::named` 未使用。 | 对照此前 a4445066 的已下载证据，同一告警已存在；当前 Clippy -D warnings 和完整基线仍通过，未改相关模块或测试。 | 非阻塞既有告警；后续仅按 G-03 原定模块清理范围处理，本项不顺手修复。 |
 | B-07 | 第三方优惠码及上游合作宣传与原始无命中扫描冲突。 | 负责人于 2026-11-03 决定五种语言的 providerForm.partnerPromotion 原样保留，B-07 用 JSON 精确计数与其余部分零命中验收；在 G-01 随 Provider UI 删除并恢复全量扫描。 | 已关闭并验收通过：535a193e 的 run 41554786813 完整成功，JSON 精确计数及其余部分零命中通过；不改优惠码、不新增宣传承诺。 |
-| G 阶段（待决事项） | 统一会话迁移是否保留。 | 按负责人决定，本次 B-06 保留 `maybe_migrate_codex_official_history_to_unified_bucket` 的启动及设置保存调用和自门控行为，不与前三个旧迁移一起禁用。 | G 阶段由负责人决定“统一会话迁移是否保留”；当前不阻塞 B-06，不提前实现或猜测该决定。 |
+| G 阶段（统一会话迁移） | 统一会话迁移是否保留。 | 按负责人决定，本次 B-06 保留 `maybe_migrate_codex_official_history_to_unified_bucket` 的启动及设置保存调用和自门控行为，不与前三个旧迁移一起禁用。 | 已关闭：负责人于 2026-11-04 决定保留，约束写入 G-03。 |
 | B-06 | 原清单对 48 项旧 provider 列表清理范围有歧义。 | 负责人于 2026-11-02 明确决定完整保留列表，提取启动迁移函数，以统一 false 常量跳过前三个旧迁移；函数及其既有测试不改；统一会话迁移保持原样。最终实现 `03c8c681` 的 CI run 41443239346 完整成功，Codex 1122 passed、启动保留专项 1 passed；48 项列表、三个旧迁移函数和既有测试原样保留，旧范围疑问及两次失败历史保留于证据。 | 已关闭 B-06 阻塞并验收通过；G 阶段待决事项另行登记。 |
 | B-03 | 原扫描要求无结果，但 B-04 的 scheme 和 B-05 的更新地址必须按阶段顺序修改。 | 负责人于 2026-11-02 明确要求不提前修改，B-03 用 `diff` 精确核对且只能命中 `tauri.conf.json` 当前 scheme 和 updater 两行；B-04 后只能剩 updater 行；B-05 后必须无结果。实现提交 `ed35b335` 保留后续项行为，验收工作流已按该决定调整。 | 已关闭范围冲突：负责人决定逐阶段收紧扫描；f141974e 的 run 41412991201 完整成功，两行精确 diff 通过，实际行号 61、67。后续不得追加例外。 |
 | A5-01 / C4-05 | 负责人明确决定不再测 180 秒持续输出语义；120 秒语义未实测定案。 | 保留历史探测和失败结果；负责人于 2026-11-02 另行决定 `main`、`global` 流式总时长为 `600s`（未实测），并决定不启用 C4-05。第 0.4 节已更新，两项均为 `[-]`。 | 当前采用值和是否启用 C4-05 均已由负责人决定，无待决事项；不得把采用值或跳过当成 120 秒实测结论。 |
@@ -1065,7 +1066,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-08 验收提交 05c80736615a57ce09f123c2ed4fa9a9aa6eb22b（Actions run 41747863675，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：27 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-08；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；阶段 B 全部通过，C1-01～C1-08 已通过，下一项 C1-09 尚未开始，G 阶段仍有待决事项）。
+完成/阻塞/跳过：27 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-08；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；阶段 B 全部通过，C1-01～C1-08 已通过，下一项 C1-09 尚未开始，G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1081,7 +1082,7 @@ Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
 A6-05 的流中重试结论：rc.34 中 RetryTimes=0/2 × stream_error_event/fail_after_n_chunks 四组均未观察到重复，实际上游均只请求 1 次；截断组未恢复完整内容。仅代表这两类 mock 故障的观察，不证明其他故障可安全重试。详见 A6-05.txt，H-08 仍待负责人决定。
-需要负责人提供的事项：C1-08 三处行为细节已决定，无待决范围问题（第 12 节）；B-07 已按决定完成并补证，详见第 12 节；无 B-03 待决事项；B-05 完整 CI 已通过并补证；B-06 已按新决定完整验收并补证；G 阶段待决定“统一会话迁移是否保留”，详见第 12 节。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
+需要负责人提供的事项：C1-08 三处行为细节已决定，无待决范围问题（第 12 节）；B-07 已按决定完成并补证，详见第 12 节；无 B-03 待决事项；B-05 完整 CI 已通过并补证；B-06 已按新决定完整验收并补证；G 阶段统一会话迁移已由负责人于 2026-11-04 决定保留（见 G-03）。A-GATE 的唯一例外已明确批准并核验通过。A6-01、A6-03、A6-04、A6-05、B-01、B-02 均已验收通过，无待决测试修正；A5-02/H-04 条件满足。H-08 根据 A6-05 的实际观察决定线上 RetryTimes，未代办。线上测试令牌仅用于获授权的本机子进程；本次 A6-05 仅使用隔离容器内凭证，不读取线上测试令牌。H-02～H-08 的其他事项按各自依赖阶段处理，未代办任何 HUMAN 项。
 ```
 
 验收时，我会按此摘要和各项证据抽查重跑，并核对代码是否符合本清单和方案。
