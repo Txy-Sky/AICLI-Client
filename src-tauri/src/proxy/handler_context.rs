@@ -330,6 +330,8 @@ impl RequestContext {
             max_retries,
         )
         .stack_request(self.is_stack)
+        .aicli_request(self.route.is_some())
+        .aicli_runtime(state.aicli.clone())
     }
 
     /// 获取 Provider 列表（用于故障转移）

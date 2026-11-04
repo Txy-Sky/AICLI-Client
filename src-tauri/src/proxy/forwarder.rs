@@ -375,6 +375,8 @@ pub struct RequestForwarder {
     /// Stack 模型的请求（`mode::stack`）：挂在结构体上，整流器重试再次调用 `forward()` 时照样
     /// 生效。见 [`Self::routing_state_enabled`]。
     stack_request: bool,
+    aicli_request: bool,
+    aicli_runtime: Option<Arc<crate::aicli::runtime::AicliRuntime>>,
 }
 
 impl RequestForwarder {
@@ -490,6 +492,8 @@ impl RequestForwarder {
             ),
             max_attempts,
             stack_request: false,
+            aicli_request: false,
+            aicli_runtime: None,
         }
     }
 
@@ -499,17 +503,28 @@ impl RequestForwarder {
         self
     }
 
+    /// AICLI routes keep their resolved model and never mutate legacy routing state.
+    pub fn aicli_request(mut self, enabled: bool) -> Self {
+        self.aicli_request = enabled;
+        self
+    }
+
+    pub fn aicli_runtime(mut self, runtime: Arc<crate::aicli::runtime::AicliRuntime>) -> Self {
+        self.aicli_runtime = Some(runtime);
+        self
+    }
+
     /// 这个请求读写路由状态吗：熔断器（许可、结果、健康度）、「正在使用」、代理统计
     /// （总数、成功率、故障转移次数、最近错误、活跃连接）、故障转移切换。Stack 模型的请求
     /// 和普通路由完全分开，一律不碰；只有用量日志照常按供应商记。以后新增路由状态也先问它。
     fn routing_state_enabled(&self) -> bool {
-        !self.stack_request
+        !self.stack_request && !self.aicli_request
     }
 
     /// 请求体里的模型名已经是这家的上游名（Stack 模型的请求）：不按角色映射、不换成行里配置
     /// 的模型。以后新增模型改写也先问它。
     fn keeps_resolved_model(&self) -> bool {
-        self.stack_request
+        self.stack_request || self.aicli_request
     }
 
     async fn record_success_result(
@@ -677,6 +692,27 @@ impl RequestForwarder {
         error: &ProxyError,
         last_error: String,
     ) {
+        if self.aicli_request {
+            if let Some(runtime) = &self.aicli_runtime {
+                if let Some(line) = crate::aicli::lines::LINES
+                    .iter()
+                    .find(|line| provider.id == format!("aicli-{}", line.id))
+                {
+                    // The initial 60s window is the first C3-06 backoff value.
+                    // Classification and repeated-failure backoff follow in C3-05/06.
+                    runtime
+                        .cooldown
+                        .lines
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(
+                            line.id.into(),
+                            std::time::Instant::now() + std::time::Duration::from_secs(60),
+                        );
+                }
+            }
+            return;
+        }
         if !self.routing_state_enabled() {
             return;
         }
@@ -4805,6 +4841,8 @@ mod tests {
             streaming_first_byte_timeout,
             max_attempts: 1,
             stack_request: false,
+            aicli_request: false,
+            aicli_runtime: None,
         }
     }
 
@@ -8526,6 +8564,204 @@ mod tests {
             assert!(requests[1]
                 .to_string()
                 .contains(crate::proxy::media_sanitizer::UNSUPPORTED_IMAGE_MARKER));
+        }
+
+        #[tokio::test]
+        #[serial_test::serial]
+        async fn aicli_forwarder_fallback_preserves_existing_routing_state() {
+            struct Home {
+                old: Option<std::ffi::OsString>,
+                _dir: tempfile::TempDir,
+            }
+            impl Drop for Home {
+                fn drop(&mut self) {
+                    match &self.old {
+                        Some(old) => std::env::set_var("CC_SWITCH_TEST_HOME", old),
+                        None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+                    }
+                }
+            }
+            let dir = tempfile::tempdir().unwrap();
+            let home = Home {
+                old: std::env::var_os("CC_SWITCH_TEST_HOME"),
+                _dir: dir,
+            };
+            std::env::set_var("CC_SWITCH_TEST_HOME", home._dir.path());
+            let path = crate::live::engine::DeviceStore::for_device().state_path();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let sentinel = br#"{"apps":{"claude":{"mode":"proxy","proxy_route":"legacy"}}}"#;
+            std::fs::write(&path, sentinel).unwrap();
+
+            let failed = upstream(vec![error(502, "offline fixture")]).await;
+            let backup = upstream(vec![ok()]).await;
+            let db = Arc::new(Database::memory().unwrap());
+            crate::aicli::seed::init(&db).unwrap();
+            let runtime = crate::aicli::runtime::AicliRuntime::new(db.clone());
+            let mut fwd = forwarder(3, "aicli-main")
+                .aicli_request(true)
+                .aicli_runtime(runtime.clone());
+            fwd.router = Arc::new(ProviderRouter::new(db.clone()));
+            fwd.current_providers
+                .write()
+                .await
+                .insert("claude".into(), ("legacy".into(), "Legacy".into()));
+            // AICLI must ignore even an already-open legacy breaker.
+            for _ in 0..10 {
+                fwd.router
+                    .record_result(
+                        "aicli-global",
+                        "claude",
+                        false,
+                        false,
+                        Some("seeded legacy failure".into()),
+                    )
+                    .await
+                    .unwrap();
+            }
+            let breaker_before = serde_json::to_value(
+                fwd.router
+                    .get_circuit_breaker_stats("aicli-global", "claude")
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(breaker_before["state"], "open");
+            let health_before = db
+                .get_provider_health("aicli-global", "claude")
+                .await
+                .unwrap();
+            let providers_before = fwd.current_providers.read().await.clone();
+            let status_before = serde_json::to_value(&*fwd.status.read().await).unwrap();
+            let now = std::time::Instant::now();
+            let result = send(
+                &fwd,
+                vec![
+                    provider("aicli-main", &failed),
+                    provider("aicli-global", &backup),
+                ],
+                plain_body(),
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            assert_eq!(result.provider.id, "aicli-global");
+            assert!(result.connection_guard.is_none());
+            assert_eq!(failed.requests.lock().await.len(), 1);
+            assert_eq!(backup.requests.lock().await.len(), 1);
+            assert_eq!(std::fs::read(&path).unwrap(), sentinel);
+            assert_eq!(*fwd.current_providers.read().await, providers_before);
+            assert_eq!(
+                serde_json::to_value(&*fwd.status.read().await).unwrap(),
+                status_before
+            );
+            assert_eq!(
+                serde_json::to_value(
+                    fwd.router
+                        .get_circuit_breaker_stats("aicli-global", "claude")
+                        .await
+                        .unwrap()
+                )
+                .unwrap(),
+                breaker_before
+            );
+            assert!(fwd
+                .router
+                .get_circuit_breaker_stats("aicli-main", "claude")
+                .await
+                .is_none());
+            let health_after = db
+                .get_provider_health("aicli-global", "claude")
+                .await
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(health_after).unwrap(),
+                serde_json::to_value(health_before).unwrap()
+            );
+            let count: i64 = db
+                .conn
+                .lock()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM provider_health WHERE provider_id='aicli-main'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+            let until = runtime.cooldown.lines.lock().unwrap()["main"];
+            assert!(until >= now + Duration::from_secs(60));
+            assert!(runtime.cooldown.models.lock().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn aicli_forwarder_preserves_resolved_models_through_retry() {
+            let up = upstream(vec![error(400, SIGNATURE_ERROR), ok()]).await;
+            let mut p = provider("aicli-main", &up);
+            p.settings_config["env"]["ANTHROPIC_MODEL"] = json!("must-not-map");
+            let mut body = body_with_thinking_signature();
+            body["model"] = json!("resolved-upstream");
+            let fwd = forwarder(1, "legacy").aicli_request(true);
+            send(&fwd, vec![p], body)
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+            let requests = up.requests.lock().await;
+            assert_eq!(requests.len(), 2);
+            assert_eq!(requests[0]["model"], "resolved-upstream");
+            assert_eq!(requests[1]["model"], "resolved-upstream");
+            assert!(!requests[1].to_string().contains("\"signature\""));
+            assert_eq!(books(&fwd).await, untouched());
+        }
+
+        #[tokio::test]
+        async fn aicli_forwarder_desktop_bypasses_legacy_mapping() {
+            let up = upstream(vec![ok()]).await;
+            let mut p = provider("aicli-main", &up);
+            p.meta = Some(crate::provider::ProviderMeta {
+                claude_desktop_model_routes: [(
+                    "resolved-upstream".into(),
+                    crate::provider::ClaudeDesktopModelRoute {
+                        model: "must-not-map".into(),
+                        label_override: None,
+                        supports_1m: None,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            });
+            let fwd = forwarder(1, "legacy").aicli_request(true);
+            let mut body = plain_body();
+            body["model"] = json!("resolved-upstream");
+            fwd.forward_with_retry(
+                &AppType::ClaudeDesktop,
+                http::Method::POST,
+                "/v1/messages",
+                body,
+                HeaderMap::new(),
+                Extensions::new(),
+                vec![p],
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            assert_eq!(up.requests.lock().await[0]["model"], "resolved-upstream");
+        }
+
+        #[test]
+        fn aicli_forwarder_switches_are_independent_from_stack() {
+            for (stack, aicli, routing, keep) in [
+                (false, false, true, false),
+                (true, false, false, true),
+                (false, true, false, true),
+                (true, true, false, true),
+            ] {
+                let fwd = forwarder(1, "legacy")
+                    .stack_request(stack)
+                    .aicli_request(aicli);
+                assert_eq!(fwd.routing_state_enabled(), routing);
+                assert_eq!(fwd.keeps_resolved_model(), keep);
+            }
         }
 
         // ---- Stack 模型：不读也不写任何路由状态 ----

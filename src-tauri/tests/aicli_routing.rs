@@ -192,8 +192,7 @@ impl Fixture {
             if matches!(app, AppType::ClaudeDesktop) {
                 provider.settings_config["env"]["ANTHROPIC_AUTH_TOKEN"] =
                     json!("synthetic-desktop-fixture");
-                // Until C3-04 disables the legacy mapper, make the mock mapping
-                // an identity mapping without changing the production DTO.
+                // A deliberately conflicting legacy mapping must be ignored by AICLI.
                 provider
                     .meta
                     .as_mut()
@@ -201,7 +200,7 @@ impl Fixture {
                     .claude_desktop_model_routes
                     .insert(
                         UPSTREAM.into(),
-                        serde_json::from_value(json!({"model":UPSTREAM})).unwrap(),
+                        serde_json::from_value(json!({"model":"must-not-map"})).unwrap(),
                     );
             }
             Some(provider)
