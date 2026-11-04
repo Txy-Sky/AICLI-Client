@@ -82,6 +82,7 @@ struct Captured {
     path: String,
     query: Option<String>,
     body: Value,
+    headers: http::HeaderMap,
 }
 type Capture = Arc<Mutex<Vec<Captured>>>;
 
@@ -99,6 +100,7 @@ async fn upstream(
     assert!(!req.uri().to_string().contains("aicli-local-"));
     let path = req.uri().path().to_owned();
     let query = req.uri().query().map(str::to_owned);
+    let headers = req.headers().clone();
     let bytes = axum::body::to_bytes(req.into_body(), 1024 * 1024)
         .await
         .unwrap();
@@ -111,6 +113,7 @@ async fn upstream(
         path: path.clone(),
         query,
         body,
+        headers,
     });
     Json(if path.ends_with("messages") {
         json!({"id":"msg-fixture","type":"message","role":"assistant","model":UPSTREAM,"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}})
@@ -593,5 +596,82 @@ async fn local_auth_requires_a_registered_app_token_and_never_forwards_it() {
             .status(),
         200
     );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn aicli_credentials_follow_wire_and_affinity_is_owned_by_the_decision() {
+    struct CaptureLogs(Mutex<Vec<String>>);
+    impl log::Log for CaptureLogs {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            self.0.lock().unwrap().push(record.args().to_string());
+        }
+        fn flush(&self) {}
+    }
+    static LOGS: CaptureLogs = CaptureLogs(Mutex::new(Vec::new()));
+    log::set_logger(&LOGS).unwrap();
+    log::set_max_level(log::LevelFilter::Debug);
+    let f = Fixture::new(true).await;
+    for (path, expected_header, prefix) in [
+        ("/v1/messages", "x-api-key", ""),
+        ("/v1/chat/completions", "authorization", "Bearer "),
+        ("/v1/responses", "authorization", "Bearer "),
+        (
+            "/v1beta/models/friendly-fixture:generateContent",
+            "x-goog-api-key",
+            "",
+        ),
+    ] {
+        for with_session in [false, true] {
+            f.capture.lock().unwrap().clear();
+            let mut body = json!({"model":PUBLIC,"messages":[{"role":"user","content":"hi"}],"input":"hi","contents":[{"role":"user","parts":[{"text":"hi"}]}],"max_tokens":10});
+            if with_session {
+                body["metadata"] = json!({"session_id":"wire-fixture-session"});
+            }
+            let request = f
+                .client()
+                .post(format!("{}{path}", f.origin))
+                .header("x-aicli-session", "spoofed-inbound-affinity")
+                .json(&body);
+            let response = request.send().await.unwrap();
+            assert_eq!(response.status(), 200, "{path}");
+            let captured = f.capture.lock().unwrap();
+            assert_eq!(captured.len(), 1);
+            let headers = &captured[0].headers;
+            assert_eq!(
+                headers.get(expected_header).unwrap(),
+                format!("{prefix}synthetic-routing-model-key").as_str()
+            );
+            for other in ["authorization", "x-api-key", "x-goog-api-key"] {
+                if other != expected_header {
+                    assert!(!headers.contains_key(other));
+                }
+            }
+            if with_session {
+                assert_eq!(
+                    headers.get("x-aicli-session").unwrap(),
+                    if path == "/v1/chat/completions" || path == "/v1/responses" {
+                        "custom:codex_wire-fixture-session"
+                    } else {
+                        "custom:wire-fixture-session"
+                    }
+                );
+            } else {
+                assert!(!headers.contains_key("x-aicli-session"));
+            }
+        }
+    }
+    let logs = LOGS.0.lock().unwrap().join("\n");
+    assert!(logs.contains("请求目标"));
+    for forbidden in [
+        "synthetic-routing-model-key",
+        "synthetic-routing-access",
+        "synthetic-desktop-fixture",
+    ] {
+        assert!(!logs.contains(forbidden));
+    }
     f.stop().await;
 }

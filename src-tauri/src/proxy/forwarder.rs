@@ -376,6 +376,7 @@ pub struct RequestForwarder {
     aicli_request: bool,
     aicli_timeouts: std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts>,
     aicli_identity: Option<(i64, String)>,
+    aicli_auth: Option<(String, String, String)>,
     aicli_retry_after: std::sync::Mutex<Option<std::time::Duration>>,
     aicli_runtime: Option<Arc<crate::aicli::runtime::AicliRuntime>>,
 }
@@ -496,6 +497,7 @@ impl RequestForwarder {
             aicli_request: false,
             aicli_timeouts: Default::default(),
             aicli_identity: None,
+            aicli_auth: None,
             aicli_retry_after: Default::default(),
             aicli_runtime: None,
         }
@@ -542,6 +544,11 @@ impl RequestForwarder {
             self.non_streaming_timeout,
             self.streaming_first_byte_timeout,
         )
+    }
+
+    pub fn aicli_auth(mut self, credential: String, wire: String, session: String) -> Self {
+        self.aicli_auth = Some((credential, wire, session));
+        self
     }
 
     pub fn aicli_identity(mut self, token_id: i64, model: String) -> Self {
@@ -2215,7 +2222,26 @@ impl RequestForwarder {
         // 获取认证头（提前准备，用于内联替换），同时保留仅用于日志脱敏的
         // 精确认证材料。实际日志永远不输出这些值。
         let mut log_secrets: Vec<String> = Vec::new();
-        let mut auth_headers = if let Some(mut auth) = adapter.extract_auth(provider) {
+        let resolved_auth = if self.aicli_request {
+            let (credential, wire, _) = self
+                .aicli_auth
+                .as_ref()
+                .ok_or_else(|| ProxyError::AuthError("Missing AICLI request credential".into()))?;
+            let strategy = match wire.as_str() {
+                "anthropic" => AuthStrategy::Anthropic,
+                "openai" | "openai-response" => AuthStrategy::Bearer,
+                "gemini" => AuthStrategy::Google,
+                _ => {
+                    return Err(ProxyError::ConfigError(
+                        "Unsupported AICLI wire protocol".into(),
+                    ))
+                }
+            };
+            Some(AuthInfo::new(credential.clone(), strategy))
+        } else {
+            adapter.extract_auth(provider)
+        };
+        let mut auth_headers = if let Some(mut auth) = resolved_auth {
             // GitHub Copilot 特殊处理：从 CopilotAuthManager 获取真实 token
             if auth.strategy == AuthStrategy::GitHubCopilot {
                 if let Some(app_handle) = &self.app_handle {
@@ -2533,6 +2559,10 @@ impl RequestForwarder {
 
         for (key, value) in headers {
             let key_str = key.as_str();
+            // The affinity header is owned by the resolved AICLI decision.
+            if key_str.eq_ignore_ascii_case("x-aicli-session") {
+                continue;
+            }
 
             // --- host — 原位替换为上游 host（保持客户端原始位置） ---
             if key_str.eq_ignore_ascii_case("host") {
@@ -2712,6 +2742,19 @@ impl RequestForwarder {
         if !saw_auth && !auth_headers.is_empty() {
             for (ah_name, ah_value) in &auth_headers {
                 ordered_headers.append(ah_name.clone(), ah_value.clone());
+            }
+        }
+
+        if self.aicli_request {
+            if let Some((_, _, session)) = &self.aicli_auth {
+                if !session.is_empty() {
+                    ordered_headers.append(
+                        http::HeaderName::from_static("x-aicli-session"),
+                        http::HeaderValue::from_str(session).map_err(|_| {
+                            ProxyError::ConfigError("Invalid AICLI session header".into())
+                        })?,
+                    );
+                }
             }
         }
 
@@ -4976,6 +5019,7 @@ mod tests {
             aicli_request: false,
             aicli_timeouts: Default::default(),
             aicli_identity: None,
+            aicli_auth: None,
             aicli_retry_after: Default::default(),
             aicli_runtime: None,
         }
@@ -8788,6 +8832,11 @@ mod tests {
                 let (apac, apac_count) = delayed_aicli_upstream(true, false, delay_headers).await;
                 let fwd = forwarder(2, "aicli-main")
                     .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
                     .aicli_timeouts(aicli_test_timeouts());
                 let mut body = plain_body();
                 body["stream"] = json!(true);
@@ -8819,6 +8868,11 @@ mod tests {
                 let backup = upstream(vec![ok()]).await;
                 let fwd = forwarder(2, id)
                     .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
                     .aicli_timeouts(aicli_test_timeouts());
                 let mut body = plain_body();
                 body["stream"] = json!(true);
@@ -8863,6 +8917,11 @@ mod tests {
             let backup = upstream(vec![ok()]).await;
             let fwd = forwarder(2, "aicli-main")
                 .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
                 .aicli_timeouts(aicli_test_timeouts());
             let mut body = plain_body();
             body["stream"] = json!(true);
@@ -8920,6 +8979,11 @@ mod tests {
             runtime.cooldown.fail("global", None, None);
             let fwd = forwarder(1, "aicli-main")
                 .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
                 .aicli_runtime(runtime.clone())
                 .aicli_identity(17, "fixture-model".into());
             assert!(send(&fwd, vec![provider("aicli-main", &up)], plain_body())
@@ -8977,6 +9041,11 @@ mod tests {
                     crate::aicli::runtime::AicliRuntime::new(Arc::new(Database::memory().unwrap()));
                 let fwd = forwarder(2, "aicli-main")
                     .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
                     .aicli_runtime(runtime.clone())
                     .aicli_identity(17, "fixture-model".into());
                 let before = std::time::Instant::now();
@@ -9025,7 +9094,11 @@ mod tests {
             ])
             .await;
             let backup = upstream(vec![ok()]).await;
-            let fwd = forwarder(2, "aicli-main").aicli_request(true);
+            let fwd = forwarder(2, "aicli-main").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
             let result = send(
                 &fwd,
                 vec![
@@ -9077,6 +9150,11 @@ mod tests {
             let runtime = crate::aicli::runtime::AicliRuntime::new(db.clone());
             let mut fwd = forwarder(3, "aicli-main")
                 .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
                 .aicli_runtime(runtime.clone());
             fwd.router = Arc::new(ProviderRouter::new(db.clone()));
             fwd.current_providers
@@ -9178,7 +9256,11 @@ mod tests {
             p.settings_config["env"]["ANTHROPIC_MODEL"] = json!("must-not-map");
             let mut body = body_with_thinking_signature();
             body["model"] = json!("resolved-upstream");
-            let fwd = forwarder(1, "legacy").aicli_request(true);
+            let fwd = forwarder(1, "legacy").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
             send(&fwd, vec![p], body)
                 .await
                 .map_err(|e| e.error)
@@ -9208,7 +9290,11 @@ mod tests {
                 .collect(),
                 ..Default::default()
             });
-            let fwd = forwarder(1, "legacy").aicli_request(true);
+            let fwd = forwarder(1, "legacy").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
             let mut body = plain_body();
             body["model"] = json!("resolved-upstream");
             fwd.forward_with_retry(

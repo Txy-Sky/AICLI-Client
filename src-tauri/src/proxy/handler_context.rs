@@ -341,7 +341,13 @@ impl RequestContext {
                 .unwrap_or_default(),
         );
         if let Some(route) = &self.route {
-            forwarder.aicli_identity(route.token_id, route.upstream_model.clone())
+            forwarder
+                .aicli_identity(route.token_id, route.upstream_model.clone())
+                .aicli_auth(
+                    route.credential.clone(),
+                    route.wire_protocol.clone(),
+                    route.session_key.clone(),
+                )
         } else {
             forwarder
         }
