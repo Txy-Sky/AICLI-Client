@@ -108,7 +108,7 @@ impl ProxyServer {
         self
     }
 
-    #[cfg(any(test, feature = "test-hooks"))]
+    #[cfg(feature = "test-hooks")]
     pub fn test_state(&self) -> ProxyState {
         self.state.clone()
     }

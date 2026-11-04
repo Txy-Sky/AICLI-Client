@@ -4,6 +4,9 @@ mod support;
 
 use axum::{extract::State, response::IntoResponse, Json, Router};
 use cc_switch_lib::{
+    aicli::routing_test_support::{
+        self as routing_support, ProxyConfig, ProxyServer, RequestContext, RouteInput,
+    },
     aicli::{
         alias,
         newapi::{NewApiClient, NewApiError},
@@ -13,11 +16,6 @@ use cc_switch_lib::{
         secrets::{SecretError, SecretStore},
         seed,
         tokens::{groups_hash, TokenRemote},
-    },
-    proxy::{
-        handler_context::{RequestContext, RouteInput},
-        server::ProxyServer,
-        types::ProxyConfig,
     },
     AppType, Database,
 };
@@ -145,10 +143,10 @@ impl Fixture {
             store
                 .set("token:17", "synthetic-routing-model-key")
                 .unwrap();
-            let conn = db.conn.lock().unwrap();
+            let conn = routing_support::connection(&db);
             conn.execute("INSERT INTO aicli_account(id,user_id,username,user_group) VALUES(1,17,'fixture','fixture')", []).unwrap();
             let groups = json!({"data":{"fixture":{"ratio":1}}});
-            let pricing = json!({"data":[{"model_name":UPSTREAM,"enable_groups":["fixture"],"supported_endpoint_types":["anthropic","openai","openai-response","gemini"]}]});
+            let pricing = json!({"auto_groups":["fixture"],"data":[{"model_name":UPSTREAM,"enable_groups":["fixture"],"supported_endpoint_types":["anthropic","openai","openai-response","gemini"]}]});
             for (kind, value) in [("groups", groups), ("pricing", pricing)] {
                 conn.execute(
                     "INSERT INTO aicli_cache(kind,fetched_at,body_json) VALUES(?1,1,?2)",
@@ -172,9 +170,7 @@ impl Fixture {
                 alias: Some(PUBLIC.into()),
             });
             profiles.save(&profile, catalog).unwrap();
-            db.conn
-                .lock()
-                .unwrap()
+            routing_support::connection(&db)
                 .execute("UPDATE aicli_account SET active_profile_id='custom'", [])
                 .unwrap();
             runtime = AicliRuntime::with_remote(db.clone(), store, Arc::new(Offline));
@@ -279,7 +275,7 @@ async fn all_six_handler_families_rewrite_models_and_use_the_selected_profile() 
     let f = Fixture::new(true).await;
     let claude = alias::encode(&AppType::Claude, PUBLIC, Some(&f.db)).unwrap();
     let desktop = alias::encode(&AppType::ClaudeDesktop, PUBLIC, Some(&f.db)).unwrap();
-    let gateway = cc_switch_lib::claude_desktop_config::get_or_create_gateway_token(&f.db).unwrap();
+    let gateway = routing_support::get_or_create_gateway_token(&f.db).unwrap();
     for (path, model, expected) in [
         ("/v1/messages", claude.as_str(), "/v1/messages"),
         (
@@ -346,7 +342,7 @@ async fn gemini_rewrites_action_and_get_model_urls_and_preserves_query() {
 #[tokio::test]
 async fn models_are_aliases_in_the_client_envelope_and_ignore_legacy_catalog_files() {
     let f = Fixture::new(true).await;
-    let gateway = cc_switch_lib::claude_desktop_config::get_or_create_gateway_token(&f.db).unwrap();
+    let gateway = routing_support::get_or_create_gateway_token(&f.db).unwrap();
     let codex_dir = support::ensure_test_home().join(".codex");
     std::fs::create_dir_all(&codex_dir).unwrap();
     let sentinel = "legacy catalog must remain untouched\n";
@@ -472,9 +468,7 @@ async fn discovery_follows_scope_changes_but_existing_sessions_keep_their_pin() 
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    f.db.conn
-        .lock()
-        .unwrap()
+    routing_support::connection(&f.db)
         .execute(
             "INSERT INTO aicli_scope_binding VALUES('app','claude','recommended')",
             [],

@@ -52,7 +52,7 @@ pub(crate) fn bound_provider_runtime(db: Arc<crate::Database>) -> Arc<AicliRunti
         "seed-model",
         "claude-sonnet-4-6",
     ];
-    let pricing = json!({"data":models.into_iter().map(|model| json!({"model_name":model,"enable_groups":["fixture"],"supported_endpoint_types":["anthropic","openai","openai-response","gemini"]})).collect::<Vec<_>>()});
+    let pricing = json!({"auto_groups":["fixture"],"data":models.into_iter().map(|model| json!({"model_name":model,"enable_groups":["fixture"],"supported_endpoint_types":["anthropic","openai","openai-response","gemini"]})).collect::<Vec<_>>()});
     {
         let conn = db.conn.lock().unwrap();
         conn.execute("INSERT INTO aicli_account(id,user_id,username,user_group) VALUES(1,900,'fixture','fixture')", []).unwrap();

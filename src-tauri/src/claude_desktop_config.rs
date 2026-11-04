@@ -817,6 +817,7 @@ fn next_catalog_safe_route_id(
     }
 }
 
+#[cfg(test)]
 pub fn model_list_response(provider: &Provider) -> Result<Value, AppError> {
     let routes = proxy_model_routes(provider)?;
     let data: Vec<Value> = routes

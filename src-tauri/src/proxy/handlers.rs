@@ -4485,7 +4485,9 @@ mod stack_tests {
             app,
             "legacy fixture",
             "claude",
-            target.map(RouteInput::Stack).unwrap_or(RouteInput::None),
+            target
+                .map(|target| RouteInput::Stack(Box::new(target)))
+                .unwrap_or(RouteInput::None),
         )
         .await?;
         Ok((StatusCode::OK, Json(json!({"resolved":true}))).into_response())
@@ -4510,11 +4512,11 @@ mod stack_tests {
             AppType::Codex,
             "Codex",
             "codex",
-            RouteInput::Stack(crate::mode::stack::StackTarget {
+            RouteInput::Stack(Box::new(crate::mode::stack::StackTarget {
                 provider,
                 upstream_model: "gemini-3.8-flash-high".into(),
                 original_model: model.into(),
-            }),
+            })),
         )
         .await
         .unwrap();
@@ -4646,7 +4648,7 @@ mod stack_tests {
             AppType::Claude,
             "Claude",
             "claude",
-            RouteInput::Stack(target),
+            RouteInput::Stack(Box::new(target)),
         )
         .await
         .expect("context");

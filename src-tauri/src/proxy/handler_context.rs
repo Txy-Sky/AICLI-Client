@@ -27,7 +27,9 @@ pub struct StreamingTimeoutConfig {
 
 pub enum RouteInput {
     None,
-    Stack(StackTarget),
+    // Kept as the explicit legacy input required by the checklist.
+    #[allow(dead_code)]
+    Stack(Box<StackTarget>),
     Aicli(Box<RouteDecision>),
 }
 
