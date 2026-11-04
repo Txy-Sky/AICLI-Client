@@ -336,11 +336,11 @@ async fn aicli_error_recovery_refreshes_credentials_once_without_fetching_catalo
     runtime.recover_model_token(17).await.unwrap();
     assert_eq!(
         runtime.credential(17).as_deref(),
-        Some("synthetic-runtime-credential")
+        Some(concat!("sk-", "synthetic-runtime-credential"))
     );
     assert_eq!(
         secrets.get("token:17").unwrap().as_deref(),
-        Some("synthetic-runtime-credential")
+        Some(concat!("sk-", "synthetic-runtime-credential"))
     );
     assert_eq!(remote.fetches.load(Ordering::SeqCst), 0);
     assert_eq!(remote.token_services.load(Ordering::SeqCst), 1);

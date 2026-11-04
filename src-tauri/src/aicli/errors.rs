@@ -11,9 +11,9 @@ pub fn categorize(error: &ProxyError) -> ErrorCategory {
         | ProxyError::StreamIdleTimeout(_) => ErrorCategory::Retryable,
         ProxyError::UpstreamError { status, body }
             if matches!(status, 502..=504 | 520..=527 | 530)
-                && !body
+                && body
                     .as_deref()
-                    .is_some_and(|s| serde_json::from_str::<Value>(s).is_ok()) =>
+                    .is_none_or(|s| serde_json::from_str::<Value>(s).is_err()) =>
         {
             ErrorCategory::Retryable
         }
