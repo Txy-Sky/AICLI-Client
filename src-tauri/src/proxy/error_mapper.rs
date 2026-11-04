@@ -19,6 +19,7 @@ use super::ProxyError;
 pub fn map_proxy_error_to_status(error: &ProxyError) -> u16 {
     match error {
         // 服务状态错误：与 IntoResponse 保持一致
+        ProxyError::ClientAbort => 408,
         ProxyError::AlreadyRunning => 409,
         ProxyError::NotRunning => 503,
 

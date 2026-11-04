@@ -211,6 +211,94 @@ impl AicliRuntime {
         self.credentials.read().ok()?.get(&token_id).cloned()
     }
 
+    /// Recover metadata/credentials once, without replaying the failed request.
+    pub async fn recover_model_token(&self, token_id: i64) -> Result<(), RuntimeError> {
+        let _guard = self.refresh_lock.lock().await;
+        let binding = self.binding()?.ok_or(RuntimeError::Storage)?;
+        if !self.bound_for_routing()? {
+            return Err(RuntimeError::Storage);
+        }
+        let snapshot = self.snapshot();
+        let groups = snapshot
+            .profiles
+            .values()
+            .find_map(|p| {
+                p.compiled
+                    .routes
+                    .iter()
+                    .find(|r| p.token_ids.get(&r.public_model) == Some(&token_id))
+                    .map(|r| r.ordered_groups.clone())
+            })
+            .ok_or(RuntimeError::Storage)?;
+        let mut references: Vec<_> = snapshot
+            .profiles
+            .values()
+            .flat_map(|p| p.compiled.routes.iter().map(|r| r.ordered_groups.clone()))
+            .collect();
+        let profiles = ProfileStore::new(self.db.clone());
+        for id in snapshot.profiles.keys() {
+            if let Some(baseline) = profiles.baseline(id)? {
+                references.extend(baseline.routes.into_values());
+            }
+        }
+        let service = {
+            let mut saved = self
+                .token_service
+                .lock()
+                .map_err(|_| RuntimeError::Storage)?;
+            if saved.as_ref().is_none_or(|s| {
+                s.user_id != binding.0 || s.line != binding.1 || s.access != binding.3
+            }) {
+                let api = NewApiClient::new(&binding.3, &binding.1)?;
+                *saved = Some(BoundTokenService {
+                    user_id: binding.0,
+                    line: binding.1.clone(),
+                    access: binding.3.clone(),
+                    service: Arc::new(TokenService::new(
+                        self.db.clone(),
+                        self.store.clone(),
+                        self.remote.tokens(api),
+                    )),
+                });
+            }
+            saved.as_ref().ok_or(RuntimeError::Storage)?.service.clone()
+        };
+        let new_id = service
+            .recover_unauthorized(
+                token_id,
+                &groups,
+                snapshot.catalog.as_ref().is_some_and(|c| c.auto_available),
+                &references,
+            )
+            .await?;
+        if self.binding()?.as_ref() != Some(&binding) {
+            return Err(RuntimeError::Storage);
+        }
+        let key = self
+            .store
+            .get(&format!("token:{new_id}"))?
+            .ok_or(RuntimeError::Storage)?;
+        let mut credentials = self
+            .credentials
+            .write()
+            .map_err(|_| RuntimeError::Storage)?;
+        credentials.insert(new_id, key.clone());
+        // Existing session pins retain their snapshot/token id; refresh their
+        // credential lookup too, without changing their routing facts.
+        credentials.insert(token_id, key);
+        drop(credentials);
+        let mut next = (*self.snapshot()).clone();
+        for profile in next.profiles.values_mut() {
+            for id in profile.token_ids.values_mut() {
+                if *id == token_id {
+                    *id = new_id;
+                }
+            }
+        }
+        *self.routes.write().map_err(|_| RuntimeError::Storage)? = Arc::new(next);
+        Ok(())
+    }
+
     pub(crate) fn database(&self) -> &Database {
         &self.db
     }

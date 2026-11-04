@@ -324,3 +324,29 @@ async fn rebind_clears_previous_credentials_and_session_pins_before_fetching() {
     assert!(runtime.credential(17).is_none());
     assert!(runtime.snapshot().profiles.is_empty());
 }
+
+#[tokio::test]
+async fn aicli_error_recovery_refreshes_credentials_once_without_fetching_catalog() {
+    let (runtime, _, secrets, remote) = fixture(true);
+    runtime.pin(
+        "existing-session".into(),
+        "recommended".into(),
+        runtime.snapshot(),
+    );
+    runtime.recover_model_token(17).await.unwrap();
+    assert_eq!(
+        runtime.credential(17).as_deref(),
+        Some("synthetic-runtime-credential")
+    );
+    assert_eq!(
+        secrets.get("token:17").unwrap().as_deref(),
+        Some("synthetic-runtime-credential")
+    );
+    assert_eq!(remote.fetches.load(Ordering::SeqCst), 0);
+    assert_eq!(remote.token_services.load(Ordering::SeqCst), 1);
+    assert!(matches!(
+        runtime.recover_model_token(17).await,
+        Err(RuntimeError::Token(TokenError::RecoveryExhausted))
+    ));
+    assert_eq!(remote.token_services.load(Ordering::SeqCst), 1);
+}

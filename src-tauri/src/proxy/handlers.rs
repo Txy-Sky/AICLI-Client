@@ -2560,7 +2560,8 @@ fn codex_proxy_error_code(error: &ProxyError) -> &'static str {
         ProxyError::UpstreamError { .. } => "cc_switch_upstream_error",
         ProxyError::DatabaseError(_) => "cc_switch_database_error",
         ProxyError::Internal(_) => "cc_switch_internal_error",
-        ProxyError::AlreadyRunning
+        ProxyError::ClientAbort
+        | ProxyError::AlreadyRunning
         | ProxyError::NotRunning
         | ProxyError::BindFailed(_)
         | ProxyError::StopTimeout

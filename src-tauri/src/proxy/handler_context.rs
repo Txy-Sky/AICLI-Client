@@ -310,7 +310,7 @@ impl RequestContext {
             0
         };
 
-        RequestForwarder::new(
+        let forwarder = RequestForwarder::new(
             state.provider_router.clone(),
             non_streaming_timeout,
             state.status.clone(),
@@ -331,7 +331,12 @@ impl RequestContext {
         )
         .stack_request(self.is_stack)
         .aicli_request(self.route.is_some())
-        .aicli_runtime(state.aicli.clone())
+        .aicli_runtime(state.aicli.clone());
+        if let Some(route) = &self.route {
+            forwarder.aicli_identity(route.token_id, route.upstream_model.clone())
+        } else {
+            forwarder
+        }
     }
 
     /// 获取 Provider 列表（用于故障转移）

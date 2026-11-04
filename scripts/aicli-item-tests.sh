@@ -38,6 +38,9 @@ case "$set_name" in
     item C3-02-unit aicli::seed::tests
     item C3-01-unit aicli::resolver::tests
     item C3-04-unit aicli_forwarder
+    item C3-05-unit aicli::errors::tests
+    item C3-05-forwarding aicli_error_routing
+    item C3-05-recovery aicli_error_recovery
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
