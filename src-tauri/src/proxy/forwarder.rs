@@ -377,7 +377,7 @@ pub struct RequestForwarder {
     stack_request: bool,
     aicli_request: bool,
     aicli_identity: Option<(i64, String)>,
-    aicli_retry_after: std::sync::Mutex<Option<Duration>>,
+    aicli_retry_after: std::sync::Mutex<Option<std::time::Duration>>,
     aicli_runtime: Option<Arc<crate::aicli::runtime::AicliRuntime>>,
 }
 
