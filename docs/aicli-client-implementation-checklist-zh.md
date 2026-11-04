@@ -637,10 +637,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：29aad72e | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::local_auth::tests`、`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_local_credentials`、`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing`；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | 本地鉴权 2、防泄漏 1、路由集成 9 passed；Rust 4606 passed / 原有 10 skipped，前端 3416 passed，四并行 job 和汇总全部成功。A6 本轮运行，601 秒观测按覆盖规则跳过；失败历史及接线见 `docs/aicli-evidence/C3-08.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41852363857
 
 ### C3-09 注入凭证和会话头
-- [ ] 完成
+- [x] 完成
 - 修改：`forwarder.rs:2110` 处，`aicli_request` 时用 `decision.credential` 构造 `AuthInfo`，策略按 wire 协议取：anthropic → `Anthropic`（x-api-key），openai/openai-response → `Bearer`，gemini → `x-goog-api-key` 对应策略（`providers/auth.rs:88-107`）。凭证加入 `log_secrets`。增加请求头 `X-AICLI-Session`。
 - 验收：mock 上游断言每种 wire 的鉴权头；日志捕获测试中不含凭证明文。
-- 证据：
+- 证据：091bce7c | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing aicli_credentials_follow_wire`、`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing`；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | wire 专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed，四 job 与汇总全成功。最终覆盖记录 testenv=false/c106_observe=false，Docker 与 601 秒观测跳过；失败历史和精确断言修正见 `docs/aicli-evidence/C3-09.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41858885415
 
 ### C3-10 接管和还原
 - [ ] 完成
@@ -1095,9 +1095,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-08 验收提交 29aad72eb0ce82077fc84073c190f0f49b9810e6（Actions run 41852363857，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-09 验收提交 091bce7c8013f5c38c04b690323a0d2b7cfce2d6（Actions run 41858885415，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：38 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-08；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-09；G 阶段统一会话迁移已决定保留）。
+完成/阻塞/跳过：39 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-09；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-10；G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1114,12 +1114,13 @@ scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01�
 最近 C3-04 验收 20becc26：转发器专项 4 passed，路由集成 8 passed / 0 skipped，种子转发 10 passed；Rust 基线 4588 passed / 原有 10 skipped，前端 3416 passed，四个并行 job 与汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；旧状态/熔断器/映射隔离通过，公开日志与下载证据长格式 sk-/Bearer 候选为 0。首轮失败及真实 HTTP 计数夹具修正已保留，下一项 C3-05；详见 C3-04.txt。
 最近 C3-05 验收 de1f95a8：错误单测 3 passed，真实转发专项 2 passed，凭证恢复 1 passed；Rust 4594 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 实际运行，601 秒观测按覆盖规则跳过；最终公开日志/证据长格式 sk-/Bearer 候选 0；首轮合成凭证断言输出及 Clippy 修正历史保留。下一项 C3-06，详见 C3-05.txt。
 最近 C3-06 验收 1acca3cb：冷却单测 5 passed，真实转发成功清除 1 passed；Rust 4600 passed / 原有 10 skipped，前端 3416 passed，四并行 job 与汇总全成功。A6 实际运行，601 秒观测按覆盖规则跳过；首轮编译失败后取消的历史保留。公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-06.txt。
-最近 C3-07 验收 b6489438：超时专项 3 passed，路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C3-09，详见 C3-07.txt。
+最近 C3-07 验收 b6489438：超时专项 3 passed，路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C3-10，详见 C3-07.txt。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 最近 C3-08 验收 29aad72e：本地鉴权 2、防泄漏 1、路由集成 9 passed；Rust 4606 passed / 原有 10 skipped，前端 3416 passed，四 job 及汇总全成功；A6 本轮运行，601 秒观测跳过。详见 C3-08.txt。
+最近 C3-09 验收 091bce7c：wire 鉴权/会话头专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed；四 job 及汇总成功，最终 A6 Docker/601 秒观测按覆盖规则跳过。详见 C3-09.txt。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-09；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-10；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
