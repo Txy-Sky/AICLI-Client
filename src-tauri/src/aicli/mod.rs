@@ -4,6 +4,7 @@ pub mod catalog;
 pub mod lines;
 pub mod newapi;
 pub mod profiles;
+pub mod runtime;
 pub(crate) mod schema;
 pub mod secrets;
 pub mod tokens;

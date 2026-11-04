@@ -32,6 +32,7 @@ use tokio::task::JoinHandle;
 /// 代理服务器状态（共享）
 #[derive(Clone)]
 pub struct ProxyState {
+    pub aicli: Arc<crate::aicli::runtime::AicliRuntime>,
     pub db: Arc<Database>,
     pub config: Arc<RwLock<ProxyConfig>>,
     pub status: Arc<RwLock<ProxyStatus>>,
@@ -79,6 +80,7 @@ impl ProxyServer {
         let failover_manager = Arc::new(FailoverSwitchManager::new());
 
         let state = ProxyState {
+            aicli: crate::aicli::runtime::AicliRuntime::new(db.clone()),
             db,
             config: Arc::new(RwLock::new(config.clone())),
             status: Arc::new(RwLock::new(ProxyStatus::default())),
@@ -126,6 +128,8 @@ impl ProxyServer {
         let actual_port = local_addr.port();
 
         log::info!("[{}] 代理服务器启动于 {local_addr}", log_srv::STARTED);
+
+        self.state.aicli.start_background();
 
         // 更新全局代理端口，用于系统代理检测
         crate::proxy::http_client::set_proxy_port(actual_port);
