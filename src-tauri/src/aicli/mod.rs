@@ -6,3 +6,4 @@ pub mod newapi;
 pub mod profiles;
 pub(crate) mod schema;
 pub mod secrets;
+pub mod tokens;

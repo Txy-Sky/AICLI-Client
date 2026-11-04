@@ -20,6 +20,8 @@ pub enum NewApiError {
     TokenInvalid,
     #[error("Account API returned HTTP {0}")]
     Http(u16),
+    #[error("Account API rate limited the operation; retry after {0} seconds")]
+    RateLimited(u64),
     #[error("Account API rejected the operation")]
     Rejected,
     #[error("Account API returned an invalid response")]
@@ -123,6 +125,16 @@ impl NewApiClient {
                 return Err(NewApiError::TokenInvalid);
             }
             // Reject every 4xx before interpreting a body; never change lines for auth/quota errors.
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                if let Some(delay) = response
+                    .headers()
+                    .get(reqwest::header::RETRY_AFTER)
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(retry_after_seconds)
+                {
+                    return Err(NewApiError::RateLimited(delay));
+                }
+            }
             if status.is_client_error() {
                 return Err(NewApiError::Http(status.as_u16()));
             }
@@ -406,6 +418,18 @@ impl NewApiClient {
             .and_then(Value::as_u64)
             .ok_or(NewApiError::InvalidResponse)
     }
+}
+
+fn retry_after_seconds(value: &str) -> Option<u64> {
+    value.trim().parse().ok().or_else(|| {
+        chrono::DateTime::parse_from_rfc2822(value)
+            .ok()
+            .map(|date| {
+                date.timestamp()
+                    .saturating_sub(chrono::Utc::now().timestamp())
+                    .max(0) as u64
+            })
+    })
 }
 
 #[cfg(test)]

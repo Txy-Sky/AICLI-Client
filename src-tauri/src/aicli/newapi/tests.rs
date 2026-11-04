@@ -76,6 +76,43 @@ fn client(origins: &[Url]) -> NewApiClient {
     NewApiClient::build("synthetic-access-value", origins.to_vec(), true).unwrap()
 }
 
+#[tokio::test]
+async fn retry_after_is_preserved_without_fallback_or_credential_diagnostics() {
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = calls.clone();
+    let app = Router::new().fallback(any(move || {
+        counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        async {
+            Response::builder()
+                .status(429)
+                .header("retry-after", "91")
+                .body(Body::from("synthetic-private-response"))
+                .unwrap()
+        }
+    }));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let fallback = mock(vec![ok(json!({}))]).await;
+    let error = client(&[origin, fallback.origin.clone()])
+        .batch_token_keys(&[1])
+        .await
+        .unwrap_err();
+    assert_eq!(error, NewApiError::RateLimited(91));
+    assert!(!format!("{error:?} {error}").contains("synthetic-private-response"));
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(fallback.requests.lock().unwrap().is_empty());
+    task.abort();
+    assert_eq!(retry_after_seconds("120"), Some(120));
+    assert_eq!(
+        retry_after_seconds("Thu, 01 Jan 1970 00:00:00 GMT"),
+        Some(0)
+    );
+    assert_eq!(retry_after_seconds("invalid-private-value"), None);
+}
+
 #[test]
 fn fixed_line_order_and_timeout_constants() {
     let api = NewApiClient::new("synthetic-access-value", "global").unwrap();

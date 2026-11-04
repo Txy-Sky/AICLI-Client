@@ -182,7 +182,15 @@ async fn run() -> Result<(), &'static str> {
 
 #[tokio::main]
 async fn main() {
-    if let Err(step) = run().await {
+    let result = async {
+        run().await?;
+        let origin = std::env::var("AICLI_TESTENV_BASE_URL").map_err(|_| "missing local origin")?;
+        let access = std::env::var("AICLI_LOCAL_TEST_ACCESS_TOKEN")
+            .map_err(|_| "missing local credential")?;
+        cc_switch_lib::aicli::tokens::acceptance::run(&origin, &access).await
+    }
+    .await;
+    if let Err(step) = result {
         // Fixed labels only: never print HTTP bodies, request errors or credentials.
         eprintln!("C1-04: FAIL; {step}");
         std::process::exit(1);

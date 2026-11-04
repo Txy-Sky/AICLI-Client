@@ -24,6 +24,7 @@ def test_rust_newapi_client_all_wrappers(disposable_user):
     })
     result = subprocess.run([str(probe)], env=environment, capture_output=True, text=True, timeout=90)
     expected = "C1-04: PASS; all 11 wrappers; disposable rc.34 user; mock bill/stat/count match; token deleted; invalid access mapped\n"
+    expected += "C1-09: PASS; real rc.34 reuse/restrictions; 69 models one key batch; two isolated device HOMEs; both model requests; unbind(false) leaves second device usable; deleted key recovered\n"
     # Do not forward arbitrary subprocess diagnostics to a public job log.
     if result.returncode:
         for line in result.stderr.splitlines():
