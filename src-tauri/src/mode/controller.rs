@@ -6723,7 +6723,7 @@ model_provider = "c"
                 AppType::Claude,
                 "Claude",
                 "claude",
-                None,
+                crate::proxy::handler_context::RouteInput::None,
             )
         };
         let chain = |ctx: &crate::proxy::handler_context::RequestContext| {

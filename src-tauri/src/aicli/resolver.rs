@@ -194,6 +194,54 @@ fn ordered_lines(
     lines.into_iter().min_by_key(recovery).into_iter().collect()
 }
 
+/// The selected profile's public models, using the same pin/scope precedence
+/// as inference. Discovery itself never creates or renews a session pin.
+pub fn list_models(
+    runtime: &AicliRuntime,
+    app: &AppType,
+    headers: &HeaderMap,
+) -> Result<Option<Vec<String>>, ResolveError> {
+    if !runtime.bound_for_routing()? {
+        return Ok(None);
+    }
+    let session = extract_session_id(headers, &Value::Null, app.as_str());
+    let key = serde_json::to_string(&(app.as_str(), &session.session_id))
+        .map_err(|_| ResolveError::Storage)?;
+    let pin = session
+        .client_provided
+        .then(|| runtime.session_pin(&key))
+        .flatten();
+    let (snapshot, selected) = match pin {
+        Some(pin) => (pin.snapshot, pin.profile_id),
+        None => {
+            let snapshot = runtime.snapshot();
+            let selected = profile_id(
+                runtime,
+                &snapshot,
+                app,
+                session
+                    .client_provided
+                    .then_some(session.session_id.as_str()),
+            )?;
+            (snapshot, selected)
+        }
+    };
+    Ok(Some(
+        snapshot
+            .profiles
+            .get(&selected)
+            .map(|entry| {
+                entry
+                    .compiled
+                    .routes
+                    .iter()
+                    .map(|route| route.public_model.clone())
+                    .collect()
+            })
+            .unwrap_or_default(),
+    ))
+}
+
 /// No HTTP, client-file writes or fallback to a legacy Provider. Protocol is
 /// supplied by the request endpoint, independently of the client app identity.
 pub fn resolve(
@@ -207,12 +255,11 @@ pub fn resolve(
     if !runtime.bound_for_routing()? {
         return Ok(Resolved::NotBound);
     }
+    let uri_model = (client_protocol == "gemini")
+        .then(|| crate::proxy::handler_context::extract_gemini_model_from_path(uri))
+        .flatten();
     let model = if client_protocol == "gemini" {
-        uri.split('?')
-            .next()
-            .and_then(|path| path.rsplit_once("/models/"))
-            .and_then(|(_, tail)| tail.rsplit_once(':'))
-            .map(|(model, _)| model)
+        uri_model.as_deref()
     } else {
         body.get("model").and_then(Value::as_str)
     };
@@ -326,6 +373,10 @@ fn resolve_profile(
         let Ok(provider) = seed::clone_for(app, line.id, wire) else {
             return Ok(Resolved::Miss(RouteMiss::Unsupported));
         };
+        #[cfg(any(test, feature = "test-hooks"))]
+        let provider = runtime
+            .local_test_provider(app, line.id, wire)?
+            .unwrap_or(provider);
         timeouts.insert(provider.id.clone(), LineTimeouts::from(line));
         providers.push(provider);
     }

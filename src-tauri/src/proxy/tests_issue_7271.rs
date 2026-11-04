@@ -137,7 +137,7 @@ mod tests {
         db.save_provider("claude", &provider).unwrap();
         db.set_current_provider("claude", &provider.id).unwrap();
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: false,

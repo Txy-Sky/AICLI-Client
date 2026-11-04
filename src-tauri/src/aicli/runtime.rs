@@ -104,7 +104,13 @@ impl RuntimeRemote for HttpRemote {
     }
 }
 
+#[cfg(any(test, feature = "test-hooks"))]
+type LocalProviderSource =
+    dyn Fn(&crate::AppType, &str, &str) -> Option<crate::provider::Provider> + Send + Sync;
+
 pub struct AicliRuntime {
+    #[cfg(any(test, feature = "test-hooks"))]
+    local_provider_source: RwLock<Option<Arc<LocalProviderSource>>>,
     store: Arc<dyn SecretStore>,
     db: Arc<Database>,
     remote: Arc<dyn RuntimeRemote>,
@@ -129,6 +135,8 @@ impl AicliRuntime {
         remote: Arc<dyn RuntimeRemote>,
     ) -> Arc<Self> {
         let runtime = Arc::new(Self {
+            #[cfg(any(test, feature = "test-hooks"))]
+            local_provider_source: RwLock::new(None),
             db,
             store,
             remote,
@@ -146,6 +154,50 @@ impl AicliRuntime {
             log::warn!("AICLI cached routes unavailable; starting with empty routes");
         }
         runtime
+    }
+
+    /// Isolated forwarding fixtures may substitute loopback Provider DTOs only.
+    /// Account/profile/session resolution still executes the production resolver.
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_local_test_provider_source(
+        &self,
+        source: impl Fn(&crate::AppType, &str, &str) -> Option<crate::provider::Provider>
+            + Send
+            + Sync
+            + 'static,
+    ) {
+        *self.local_provider_source.write().unwrap() = Some(Arc::new(source));
+    }
+
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub(crate) fn local_test_provider(
+        &self,
+        app: &crate::AppType,
+        line: &str,
+        wire: &str,
+    ) -> Result<Option<crate::provider::Provider>, RuntimeError> {
+        let Some(provider) = self
+            .local_provider_source
+            .read()
+            .map_err(|_| RuntimeError::Storage)?
+            .as_ref()
+            .and_then(|source| source(app, line, wire))
+        else {
+            return Ok(None);
+        };
+        let base = crate::proxy::providers::get_adapter(app)
+            .ok_or(RuntimeError::Storage)?
+            .extract_base_url(&provider)
+            .map_err(|_| RuntimeError::Storage)?;
+        let url = url::Url::parse(&base).map_err(|_| RuntimeError::Storage)?;
+        if url.scheme() != "http"
+            || !matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+            || !url.username().is_empty()
+            || url.password().is_some()
+        {
+            return Err(RuntimeError::Storage);
+        }
+        Ok(Some(provider))
     }
 
     pub fn snapshot(&self) -> Arc<RoutesSnapshot> {

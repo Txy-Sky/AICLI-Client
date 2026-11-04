@@ -101,6 +101,30 @@ impl ProxyServer {
         }
     }
 
+    /// Inject a cache-backed runtime for isolated loopback integration fixtures.
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn with_test_runtime(mut self, runtime: Arc<crate::aicli::runtime::AicliRuntime>) -> Self {
+        self.state.aicli = runtime;
+        self
+    }
+
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn test_state(&self) -> ProxyState {
+        self.state.clone()
+    }
+
+    /// Existing forwarding regressions now run with a bound in-memory account.
+    /// Only the upstream DTO is supplied by the fixture, never account routing.
+    #[cfg(test)]
+    pub(crate) fn bound_forwarding_fixture(
+        config: ProxyConfig,
+        db: Arc<Database>,
+        app_handle: Option<tauri::AppHandle>,
+    ) -> Self {
+        let runtime = crate::aicli::testing::bound_provider_runtime(db.clone());
+        Self::new(config, db, app_handle).with_test_runtime(runtime)
+    }
+
     pub async fn start(&self) -> Result<ProxyServerInfo, ProxyError> {
         // 检查是否已在运行
         if self.shutdown_tx.read().await.is_some() {
@@ -540,7 +564,7 @@ mod tests {
     #[tokio::test]
     async fn codex_upstream_self_forwarding_is_rejected() {
         let db = Arc::new(Database::memory().expect("memory database"));
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 ..ProxyConfig::default()
@@ -662,7 +686,7 @@ mod tests {
         });
 
         let db = Arc::new(Database::memory().expect("memory database"));
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 non_streaming_timeout: 10,
@@ -837,7 +861,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: true,
@@ -1047,7 +1071,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: true,
@@ -1272,7 +1296,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: false,

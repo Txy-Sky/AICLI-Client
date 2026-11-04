@@ -11,3 +11,6 @@ pub(crate) mod schema;
 pub mod secrets;
 pub mod seed;
 pub mod tokens;
+
+#[cfg(test)]
+pub(crate) mod testing;

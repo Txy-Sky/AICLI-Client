@@ -213,7 +213,7 @@ async fn forwards(app: AppType, wire: &str, expected_path: &str) {
     }
     db.save_provider(app.as_str(), &provider).unwrap();
     db.set_current_provider(app.as_str(), &provider.id).unwrap();
-    let proxy = ProxyServer::new(
+    let proxy = ProxyServer::bound_forwarding_fixture(
         ProxyConfig {
             listen_port: 0,
             enable_logging: false,
