@@ -120,7 +120,7 @@ mod tests {
     /// 一旦被 drop，服务器 accept 循环会立刻退出（请求表现为连接被重置）。
     async fn start_proxy_with_inline_think_provider(
         mock_base_url: String,
-    ) -> (ProxyServer, String) {
+    ) -> (ProxyServer, String, String) {
         let db = Arc::new(Database::memory().unwrap());
         let provider = Provider::with_id(
             "test-inline-think".to_string(),
@@ -137,6 +137,7 @@ mod tests {
         db.save_provider("claude", &provider).unwrap();
         db.set_current_provider("claude", &provider.id).unwrap();
 
+        let local_token = crate::aicli::local_auth::token_for(&db, "claude").unwrap();
         let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
@@ -150,7 +151,11 @@ mod tests {
         let info = proxy.start().await.unwrap();
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-        (proxy, format!("http://127.0.0.1:{}", info.port))
+        (
+            proxy,
+            format!("http://127.0.0.1:{}", info.port),
+            local_token,
+        )
     }
 
     fn anthropic_request_body(stream: bool) -> Value {
@@ -217,11 +222,12 @@ mod tests {
     async fn proxy_converts_inline_think_to_thinking_block_non_streaming() {
         let _home = TempHome::new();
         let (mock_base_url, captured) = start_inline_think_upstream().await;
-        let (_proxy, proxy_url) = start_proxy_with_inline_think_provider(mock_base_url).await;
+        let (_proxy, proxy_url, local_token) =
+            start_proxy_with_inline_think_provider(mock_base_url).await;
 
         let response = reqwest::Client::new()
             .post(format!("{proxy_url}/v1/messages"))
-            .header("x-api-key", "test-inline-think-key")
+            .header("x-api-key", local_token)
             .header("anthropic-version", "2023-06-01")
             .json(&anthropic_request_body(false))
             .send()
@@ -266,11 +272,12 @@ mod tests {
     async fn proxy_converts_inline_think_to_thinking_block_streaming() {
         let _home = TempHome::new();
         let (mock_base_url, captured) = start_inline_think_upstream().await;
-        let (_proxy, proxy_url) = start_proxy_with_inline_think_provider(mock_base_url).await;
+        let (_proxy, proxy_url, local_token) =
+            start_proxy_with_inline_think_provider(mock_base_url).await;
 
         let response = reqwest::Client::new()
             .post(format!("{proxy_url}/v1/messages"))
-            .header("x-api-key", "test-inline-think-key")
+            .header("x-api-key", local_token)
             .header("anthropic-version", "2023-06-01")
             .json(&anthropic_request_body(true))
             .send()
