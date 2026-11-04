@@ -159,6 +159,24 @@ impl AicliRuntime {
         self.credentials.read().ok()?.get(&token_id).cloned()
     }
 
+    pub(crate) fn database(&self) -> &Database {
+        &self.db
+    }
+
+    /// Do not serve an old account snapshot after unbind/rebind, even before
+    /// the background refresh has had a chance to clear it.
+    pub(crate) fn bound_for_routing(&self) -> Result<bool, RuntimeError> {
+        let Some((id, _, _, access)) = self.binding()? else {
+            return Ok(false);
+        };
+        Ok(self
+            .identity
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .as_ref()
+            .is_some_and(|(old_id, old_access)| *old_id == id && *old_access == access))
+    }
+
     pub fn pin(&self, key: String, profile_id: String, snapshot: Arc<RoutesSnapshot>) {
         self.session_pins
             .lock()

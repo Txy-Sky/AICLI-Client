@@ -217,7 +217,7 @@ fn resolve_stack_target(
 
 /// Stack 模型解不出来时的错误体：Claude Code、Claude Desktop 用 Anthropic 的错误信封，Codex 用
 /// OpenAI 的。
-fn stack_miss_body(app_type: &AppType, message: &str) -> Value {
+pub(crate) fn stack_miss_body(app_type: &AppType, message: &str) -> Value {
     match app_type {
         AppType::Claude | AppType::ClaudeDesktop => json!({
             "type": "error",
