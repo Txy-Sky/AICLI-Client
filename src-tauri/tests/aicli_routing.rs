@@ -175,8 +175,9 @@ impl Fixture {
                 .unwrap();
             runtime = AicliRuntime::with_remote(db.clone(), store, Arc::new(Offline));
         }
-        // Substitute only keyless transport DTOs; no resolver, binding, scope,
-        // alias, credential lookup, or handler is mocked or bypassed.
+        // Substitute loopback transport DTOs; no resolver, binding, scope, alias,
+        // credential lookup, or handler is mocked or bypassed. Desktop requires
+        // synthetic fixture auth until production credential injection in C3-09.
         runtime.set_local_test_provider_source(move |app, line, wire| {
             let mut provider = seed::clone_for(app, line, wire).unwrap();
             match app {
@@ -187,6 +188,10 @@ impl Fixture {
                     provider.settings_config["env"]["GOOGLE_GEMINI_BASE_URL"] = json!(mock_origin)
                 }
                 _ => provider.settings_config["base_url"] = json!(mock_origin),
+            }
+            if matches!(app, AppType::ClaudeDesktop) {
+                provider.settings_config["env"]["ANTHROPIC_AUTH_TOKEN"] =
+                    json!("synthetic-desktop-fixture");
             }
             Some(provider)
         });

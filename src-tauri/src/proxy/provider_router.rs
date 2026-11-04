@@ -8,6 +8,7 @@ use crate::error::AppError;
 use crate::provider::Provider;
 use crate::proxy::circuit_breaker::{AllowResult, CircuitBreaker, CircuitBreakerConfig};
 use std::collections::HashMap;
+#[cfg(test)]
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
