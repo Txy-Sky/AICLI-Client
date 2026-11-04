@@ -74,8 +74,7 @@ pub(crate) fn bound_provider_runtime(db: Arc<crate::Database>) -> Arc<AicliRunti
     }
     let runtime = AicliRuntime::with_remote(db.clone(), store, Arc::new(Offline));
     runtime.set_local_test_provider_source(move |app, _, _| {
-        let id = db.get_current_provider(app.as_str()).unwrap()?;
-        db.get_provider_by_id(&id, app.as_str()).unwrap()
+        crate::mode::current::direct_provider(&db, app).unwrap()
     });
     runtime
 }
