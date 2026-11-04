@@ -1,0 +1,92 @@
+C1-09 ordered-group TokenService acceptance (Linux; isolated HOME)
+
+Implementation: d06fd9af; corrections: 2fb70dcd,33b8c098,c6ce29a0,ca404001,0b0953b2.
+Successful acceptance revision: 0b0953b27b4b3ce5e114884bc073558d22a4ced8
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41766760053
+Result: complete run success, all four parallel jobs and summary success.
+
+Implementation coverage:
+- Ordered SHA256 group keys; SecretStore cache, public local metadata only.
+- HTTP-only list/reuse/create and one missing-key batch per compilation.
+- All reuse restrictions including ordered auto_groups/cross_group_retry;
+  deterministic aicli: then minimum-id selection; collision suffixes.
+- Thirty-two local-created limit; unused suggestions exclude every supplied
+  profile/baseline reference; never remotely update/delete user Tokens.
+- HTTP Retry-After delay (seconds/date), no busy retry; one 401 recovery attempt.
+- Test-hooks probe uses a disposable loopback rc.34 user, independent device
+  HOME directories and SecretStores, HTTP cleanup; no online credentials.
+- Runtime/request-layer hookup belongs to C2-01/C3; not claimed here.
+
+Failure history retained:
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41760122265 at d06fd9af:
+  A3-01 baseline succeeded (Rust 4546 passed / original 10 skipped; frontend
+  3416 passed; Clippy -D warnings passed). Entire run did NOT succeed.
+  A6 probe failed at "model fixture count differs": recommended preset had no
+  auto-group recommendation in seed. Use low_cost preset over the real usable
+  groups while keeping the exact routes.len()==69 assertion.
+  Desktop B-02 compilation/linking failed with No space left on device / linker
+  bus error. CI composite action switches dev/test debug data to line-tables-only;
+  source line information and every assertion remain. Superseded run cancelled.
+
+Local static verification before implementation/correction push:
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+  cargo fmt --check, locked Prettier checks, workflow/action YAML all passed.
+grep -rniE 'mysql|new_api\.' src-tauri/src/aicli src-tauri/Cargo.toml
+  exit 1, no output (no client dependency on new-api database).
+
+Additional correction history:
+- 2fb70dcd run 41761549865: desktop B-02 progressed; A6 first compilation
+  still failed. 33b8c098 run 41762927631 identified rate limited, creates=1,
+  batches=2, groups=2. Dedicated loopback Compose C1-09 step added at c6ce29a0;
+  original C1-04 expected output restored, no default limit changes or retries.
+- c6ce29a0 run 41764018779: dedicated TokenService compiled/batched/reused,
+  model request failed. ca404001 run 41765517075 fixed diagnostics identified
+  first-device HTTP503, model_not_found, channel routing. Upstream rc.34
+  AddChannel/BatchInsertChannels do not initialize memory routing cache.
+- 0b0953b2 initializes the dedicated fixture cache using create/delete of a
+  dummy local channel through management HTTP. DeleteChannel synchronously
+  initializes cache. Before/after id/name/group/models/status must be identical
+  for original three enabled seed channels. No sleep/restart/retry introduced.
+- Earlier runs superseded/cancelled or failed are NOT success evidence.
+
+Final commands/results (run 41766760053 at 0b0953b2):
+Rust item tests (Linux), job 126367001490:
+  bash scripts/aicli-item-tests.sh default "$RUNNER_TEMP/aicli-evidence"
+  -> cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::tokens::tests
+  14 passed (0.230s); filtered tests not claimed as executed.
+  bash scripts/aicli-item-tests.sh test-hooks "$RUNNER_TEMP/aicli-evidence"
+  -> cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks aicli::newapi::tests
+  12 passed, including Retry-After/no-fallback/redaction (same filter also used by C1-06).
+A6 test environment (Linux), job 126367000972:
+  docker compose -p "aicli-c109-${GITHUB_RUN_ID}" -f tests/aicli-testenv/docker-compose.yml up -d
+  python3 tests/aicli-testenv/seed.py
+  python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_tokens.py
+  1 passed in 0.59s; aicli-newapi-probe test-hooks binary actually exercised:
+  reusable user token, restrictions, 69 compiled models/one missing-key batch,
+  repeated compilation no new tokens/keys, independent HOME/SecretStore devices,
+  identical token ids and successful model calls, unbind(false) on first device
+  preserving second device requests, HTTP deletion ->401 ->one rebuild ->success.
+  Local management HTTP creates/deletes initializer; original 3 seed channels'
+  id/name/group/models/status unchanged. No server patch, online call or SQL.
+  Original A6-04 and C1-04 wrappers pass independently, no reduced assertions.
+  python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py
+  1 passed in 601.45s; observed601s, audited39 API requests (limit40),30days persisted.
+  Coverage: base40b0e795 ->head0b0953b2; testenv=true,c106_observe=true;
+  reason: test environment or its CI infrastructure changed.
+A3-01 baseline (Linux), job 126367001316:
+  bash scripts/aicli-check.sh
+  locked install/typecheck/format/frontend tests/renderer build/rustfmt/Clippy -D warnings/nextest all pass;
+  frontend267 files/3416 passed; Rust4546 passed/10 pre-existing skipped (+15 vs C1-08).
+B stage desktop checks (Linux), job 126367001365:
+  all original B checks and real desktop B-GATE pass, including prior B-02 failure location.
+Checklist acceptance (Linux), job 126373083066:
+  all four needs=success; complete run success.
+
+Artifacts downloaded using:
+  gh run download 41766760053 -R Txy-Sky/AICLI-Client --pattern 'aicli-evidence-*' --dir <private temporary directory>
+Four artifacts: aicli-evidence-{items,baseline,desktop,testenv}-0b0953b27b4b3ce5e114884bc073558d22a4ced8;
+retention7days. Evidence above uses actual job names, not summary for all commands.
+All5 job logs privately scanned: long model-key candidates0/Bearer candidates0.
+Only fixed/sanitized facts copied here; no container startup log or raw credential response.
+Timing/cache conditions are appended to CI-OPT2.txt; not an all-warm/no-observation run.
+Runtime and request forwarding wiring remain C2-01/C3 work, not claimed by C1-09.

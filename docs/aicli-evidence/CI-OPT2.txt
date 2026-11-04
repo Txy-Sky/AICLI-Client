@@ -29,3 +29,26 @@ Results identical to the previous run (no test removed or skipped):
 
 Not yet measured: an ordinary item run with warm caches and c106_observe=false. Expected to be bounded by A3-01
 (~10-12 min); the first such run's wall clock should be appended here, not assumed.
+
+C1-09 first subsequent item measurement (2026-11-04; actual cache/coverage recorded):
+  revision0b0953b27b4b3ce5e114884bc073558d22a4ced8
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/41766760053 -- complete success
+  created03:22:56Z; last summary job completed03:41:54Z =18m58s;
+  run API updated_at03:41:55Z =18m59s from creation.
+  A6 test environment (Linux)03:23:31Z--03:41:42Z =18m11s
+  A3-01 baseline (Linux)03:23:31Z--03:41:49Z =18m18s;
+    bash scripts/aicli-check.sh03:25:21Z--03:41:21Z =16m00s.
+  B stage desktop checks (Linux)03:23:32Z--03:31:47Z =8m15s
+  Rust item tests (Linux)03:23:31Z--03:33:08Z =9m37s
+  Checklist acceptance (Linux)03:41:52Z--03:41:54Z =2s
+  pnpm cache hit in all4jobs. Rust items/desktop full cache hits;
+  Rust baseline/testenv log explicitly "No cache found".
+  Debug metadata was changed to line-tables-only during C1-09 after a hosted
+  runner linker ran out of space. This changed the cache environment key;
+  superseded/failed runs did not populate every new per-job cache.
+  Coverage: base40b0e795,head0b0953b2,testenv=true,c106_observe=true,
+  reason "test environment or its CI infrastructure changed".
+  Actual601s observation passed,39 API requests,30days persisted.
+  This is the requested first subsequent C1-09 measurement, but it is NOT an
+  all-warm ordinary c106_observe=false measurement. That case remains unmeasured.
+  Failed/superseded runs and corrections: see C1-09.txt. No timing inferred.
