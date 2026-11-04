@@ -526,7 +526,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：375c5ec1 | `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::alias::tests`；`A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh`；`A6 test environment (Linux)`：A6 集成检查 | 完整 CI run success，别名专项 5 passed；Rust 基线 4566 passed/10 skipped，其他 job 和汇总全部通过；A6 覆盖运行，C1-06 601 秒观测按覆盖规则跳过（输入未变化）；公开 job 日志与 artifacts 的长密钥/Bearer 候选抽查为 0。首次实现 `6ade666e` 的 run 41783174947 因日期边界测试期望错误而失败；按真实 Desktop 规则修正为 6 位尾码保留、8 位日期剥除，最终 run 41784815814 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41784815814
 
 ### C3-01 解析器
-- [!] 阻塞：等待 C3-01 与 C3-02 的依赖定义澄清
+- [ ] 完成（负责人于 2026-11-04 已决定依赖问题；**先完成 C3-02 再做本项**）
 - 修改：`aicli/resolver.rs`：
   ```rust
   pub struct RouteDecision {
@@ -550,12 +550,16 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 负责人于 2026-11-04 补充决定：
   - 会话 id 用现有 `proxy/session.rs::extract_session_id`。`client_provided=false`（服务端生成的 UUID，例如 Gemini CLI）时不写 pin，也不发送 `X-AICLI-Session`，每次请求重新选择配置集。
   - 代理请求不带项目信息，所以 v1 解析时跳过 `project` 作用域。表结构和代码接口保留，并在第 13 节记录。顺序实际为 `session pin > session > app > global > active_profile_id > recommended`。
+- 负责人于 2026-11-04 再补充决定（解决接口依赖阻塞）：
+  - 执行顺序：先做 C3-02，C3-01 直接调用 `seed::clone_for(app, line, wire)` 生成 `providers`，不写临时 Provider 类型。线路只来自 `lines.rs` 的固定 `LINES`（main/global/apac），Provider id 为 `aicli-<line_id>`。
+  - v1 不实现 `model preferred_line`（目录和配置集都没有该来源，不新增字段），第 13 节记偏差。第 6 步线路顺序改为：首条为配置集 `line_policy`（不是 `inherit` 时）否则 `selected_line_id`；其余按 `priority` 降序；排除 `Cooldown` 中线路级或 `(line, upstream_model)` 级未到期的线路；全部冷却时只保留最早恢复的一条（probe-one）。
+  - `LineTimeouts { first_byte_s, idle_s, stream_total_s, non_stream_s }`，四个值从对应 `Line` 原样复制（第 0.4 节线路表），`timeouts` 以 Provider id 为键。C3-01 只负责填入 `RouteDecision`；映射到 `StreamingTimeoutConfig`（含新增 `total_timeout`）由 C3-03/C3-07 按各自条款完成。验收断言 `timeouts` 与线路表一致、键与 `providers` 一一对应。
 - `RouteMiss` 的错误响应按客户端协议构造（复用 `stack_miss_body`），不同原因用不同 `code`：`model_not_in_profile`、`profile_needs_repair`、`capability_unsupported`、`not_bound`。
 - 验收：表驱动单测覆盖上述每个分支，含 Gemini 从 URL 取模型；pin 后目录变更不影响该会话；probe-one。
 - 证据：尚未实现或运行验收；按负责人既定“会改变行为、接口或数据结构则标 [!]，记入第 12 节，不要猜”规则登记阻塞。
 
 ### C3-02 隐藏种子 Provider
-- [ ] 完成
+- [ ] 完成（负责人于 2026-11-04 决定：本项在 C3-01 之前执行）
 - 修改：`aicli/seed.rs`，为支持的 app 建 `aicli-main`、`aicli-global`、`aicli-apac` 三行（复用 `database/dao/providers_seed.rs` 的写法，启动时幂等执行，并以此替换 `init_default_official_providers` 的调用）。`settings_config` 按各适配器的要求写入 base URL，不写 key：Claude/Desktop `env.ANTHROPIC_BASE_URL`（`providers/claude.rs:725-745`）；Gemini `env.GOOGLE_GEMINI_BASE_URL`（`providers/gemini.rs:168`）；Codex `base_url`（`providers/codex.rs:1025`）。
   `clone_for(app, line, wire)`：按 wire 设置 Provider meta，使现有适配器选到对应转换链。Claude 的取值见 `resolve_claude_api_format`（`forwarder.rs:3167`），Codex 的见 `forwarder.rs:217` 附近的转换选择。
 - 验收：对每个 `(app, wire)` 组合写一条转发测试，对 mock 上游断言**实际命中的路径**：
@@ -1005,7 +1009,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 |---|---|---|---|
 | C1-09（CI 夹具） | 初轮推荐预设无自动分组；共用安全测试环境取钥限流；独立环境的种子渠道未同步到内存缓存；桌面链接曾耗尽磁盘。 | 失败和安全诊断记录见 C1-09.txt、第 13 节。修正夹具预设、独立 Compose 预算、HTTP 临时渠道创建/删除初始化缓存，并限制 CI 调试元数据体积。最终 0b0953b2 的 run 41766760053 四 job 及汇总全部 success。 | 已关闭并验收；未放宽任何断言，未改 new-api 或限流设置，未加入等待/重启/请求重试。 |
 | C1-08 | 原清单未明确 fallback 范围、预设冲突确认及撤销影响模型判定。 | 负责人于 2026-11-04 已决定：fallback 限所选组；复制/重置确认当时冲突，后续新冲突只拦保存；基线写 aicli_cache，缺组不覆盖，无基线整体停用，有基线拦截含缺失组（含后备）的模型。执行者确认采用后备组也拦截的保守规则。最终实现 05c80736 的 run 41747863675 完整成功，专项 20 passed，Rust 4531 passed/原有 10 skipped，前端 3416 passed。 | 负责人已决定；范围阻塞已关闭并验收通过。C3-01/F-05 后续接线仍按各自项目执行，不提前宣称完成。 |
-| C3-01（接口依赖） | 本项验收要求 RouteDecision 返回线路 Provider 克隆及每线路超时，但对应的 seed Provider 结构和 `clone_for(app,line,wire)` 在下一项 C3-02 才定义；同时清单第 6 步引用 `model preferred_line`，当前 Catalog/ModelRoute 没有该字段或来源。 | 核对 `aicli/runtime.rs`、`profiles.rs`、`catalog.rs`、`lines.rs`、`proxy/handler_context.rs` 与 C3-02 条款；没有实现解析器，也未改变请求行为或数据结构。C3-02 只描述 seed Provider 的 base URL/meta 选择，未定义 preferred_line 的持久化/下发来源，也未定义线路超时在 RouteDecision 中如何映射到现有 `StreamingTimeoutConfig`。 | 需要负责人明确：C3-01 是否允许依赖 C3-02 的类型并按 `lines.rs` 的固定线路定义全部 Provider；`preferred_line` 是否在 C3-01 暂按不存在、只使用 profile `line_policy`/selected line，还是由后续项提供；每线路超时结构具体映射规则。决定前 C3-01 不实现、不提交产品代码；其他不依赖项可继续。 |
+| C3-01（接口依赖） | 本项验收要求 RouteDecision 返回线路 Provider 克隆及每线路超时，但对应的 seed Provider 结构和 `clone_for(app,line,wire)` 在下一项 C3-02 才定义；同时清单第 6 步引用 `model preferred_line`，当前 Catalog/ModelRoute 没有该字段或来源。 | 核对 `aicli/runtime.rs`、`profiles.rs`、`catalog.rs`、`lines.rs`、`proxy/handler_context.rs` 与 C3-02 条款；没有实现解析器，也未改变请求行为或数据结构。C3-02 只描述 seed Provider 的 base URL/meta 选择，未定义 preferred_line 的持久化/下发来源，也未定义线路超时在 RouteDecision 中如何映射到现有 `StreamingTimeoutConfig`。 | 负责人于 2026-11-04 已决定：先做 C3-02，C3-01 调用 `seed::clone_for`，线路只来自 `lines.rs`；v1 不实现 `preferred_line`（第 13 节记偏差）；`LineTimeouts` 从 `Line` 复制、以 Provider id 为键，映射由 C3-03/C3-07 完成。阻塞已关闭，详见 C3-01 条款。 |
 | C1-06（测试夹具） | 2e38849b 的缓存集成在一次性用户登录收到非 JSON 响应，尚未进入观测；此前缓存 14/API 11 项和 A6-04 原有测试通过。 | 对照 rc.34 共用 CT 限流源码，将缓存测试放入独立临时 Compose 环境，保留原限流和断言，追加只含状态码的安全错误诊断；e3a70c89 的 run 41624807753 完整成功，601 秒观测 39 次、30 天落盘通过。 | 已关闭；旧错误未记录 HTTP 状态码，不声称旧响应实测 429；全部失败历史见 C1-06.txt。 |
 | C1-04 期间观察（非阻塞） | Linux lib-test 构建提示既有 `services/agy_account/keychain.rs::SystemKeychain::named` 未使用。 | 对照此前 a4445066 的已下载证据，同一告警已存在；当前 Clippy -D warnings 和完整基线仍通过，未改相关模块或测试。 | 非阻塞既有告警；后续仅按 G-03 原定模块清理范围处理，本项不顺手修复。 |
 | B-07 | 第三方优惠码及上游合作宣传与原始无命中扫描冲突。 | 负责人于 2026-11-03 决定五种语言的 providerForm.partnerPromotion 原样保留，B-07 用 JSON 精确计数与其余部分零命中验收；在 G-01 随 Provider UI 删除并恢复全量扫描。 | 已关闭并验收通过：535a193e 的 run 41554786813 完整成功，JSON 精确计数及其余部分零命中通过；不改优惠码、不新增宣传承诺。 |
@@ -1026,6 +1030,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 |---|---|---|---|
 | C2-01（运行时接线） | 示例结构含固定 NewApiClient、Cooldown，启动从缓存构建后后台刷新。 | 未绑定时不存在可用访问令牌，因此按每次刷新时的账号/线路/SecretStore 构造 NewApiClient，TokenService 按账号/线路复用以保留 Retry-After 和恢复状态；ProxyState 同步加载本地缓存，监听成功后后台刷新。将 auto-groups 的 groups/max_count 作为公开缓存合入目录编译；旧快照和密钥分开保存，LRU 4096/24h；冷却这里只提供存储容器，策略仍由 C3-06 实现。 | 结构接线细化，不改 v25 表、产品行为或工作流；后台更新按 fingerprint 原子换快照，失败保留旧值，账号更换/解绑清空旧凭证和 pin；新增 lru 默认特性关闭，锁文件仅新增该依赖。Cargo 清单变化按 CI-OPT2 本轮应执行 A6 和 601 秒观测，不称跳过。 |
 | C3-01 | 第 3 步列出 `project` 作用域，但代理请求不含项目信息，无法解析。 | 负责人于 2026-11-04 决定：v1 解析时跳过 `project`，保留表结构和代码接口。 | 不改表结构；有可靠的项目标识来源后再启用。 |
+| C3-01（preferred_line） | 第 6 步线路顺序首级为 `model preferred_line`，但目录与配置集均无此字段，new-api 也不提供。 | 负责人于 2026-11-04 决定：v1 去掉该级，顺序为 `line_policy`（非 inherit）> `selected_line_id` > 其余按 priority 降序，排除冷却，全冷却时 probe-one。 | 不新增字段或表结构；有可靠来源后再加。 |
 | C1-09（阶段接线与本地验收） | 本项先于 C2-01 运行时执行，但要求按编译变化批量取钥、跨设备及解绑集成。 | TokenService 提供整次编译的去重批量入口和一次 401 恢复入口，引用列表由后续运行时从全部配置集及修复基线汇总；本项不提前接入请求转发。按第 0.6 节本地/CI 操作预授权，扩展既有 aicli-newapi-probe 和其 pytest 入口，在一次性 rc.34 用户与两个临时 HOME 中验收；初版复用步骤，最终因实测限流改为下述独立集成环境；新增单测进入 aicli-item-tests.sh 默认特性组。HTTP 客户端保留 Retry-After 的秒数或日期，Token 服务返回延后时间、不循环重试。 | 复用现有集成接线；不改 new-api、表结构或线上设置，不使用线上令牌。newapi 与测试夹具修改按 CI-OPT2 强制 A6 和 C1-06 观测，不把本轮当作 c106_observe=false 的测速。 |
 | C1-09（失败修正） | d06fd9af 的 run 41760122265 中新增 69 模型夹具编译为空，桌面 job 链接报告 `No space left on device`。 | 夹具使用包含真实可用分组的 low_cost 预设（seed 未设置推荐自动分组）；按第 0.6 节 CI 操作预授权，在复合 action 仅将 dev/test 调试信息改为 line-tables-only，降低多份测试/示例链接产物占用，保留行号；不改任何验收断言。 | 追加 C1-09 修正提交，重新完整验收；原失败 run 不作为成功证据。 |
 | C1-09（独立集成环境） | 2fb70dcd 的 run 41761549865 仍在首次编译取钥失败；33b8c098 的 run 41762927631 固定诊断确认为 rate limited，creates=1、batches=2、groups=2。A6-04 的登录、安全验证和原 C1-04 已共用出口 IP 限流预算。 | 按第 0.6 节确需新 Docker/集成步骤的例外，新增独立 C1-09 一次性 Compose 步骤及 pytest 入口；仍用已编译的原探针，通过 CI-only 模式选择 C1-09，恢复 C1-04 原有预期。 | 不修改 rc.34、限流阈值、断言或重试逻辑，不用 sleep 或自动重启掩盖；重新完整验收。 |
@@ -1075,7 +1080,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C1-09 验收提交 0b0953b27b4b3ce5e114884bc073558d22a4ced8（Actions run 41766760053，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：30 / 1 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 因解析器接口依赖待负责人决定而阻塞；G 阶段统一会话迁移已决定保留）。
+完成/阻塞/跳过：30 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，先做 C3-02 再做 C3-01；G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1089,7 +1094,7 @@ scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01�
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；[!] C3-01，等待明确 preferred_line 来源及与 C3-02 seed Provider/timeout 类型的依赖定义。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；当前从 C3-01 开始；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；当前从 C3-02 开始，随后 C3-01；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
