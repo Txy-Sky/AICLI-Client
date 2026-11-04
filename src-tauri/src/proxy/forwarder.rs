@@ -42,7 +42,6 @@ use http::Extensions;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use std::time::Duration;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
@@ -650,6 +649,21 @@ impl RequestForwarder {
         ),
         codex_upstream_format: Option<CodexUpstreamFormat>,
     ) -> ForwardResult {
+        if self.aicli_request {
+            if let Some(runtime) = &self.aicli_runtime {
+                if let Some(line) = crate::aicli::lines::LINES
+                    .iter()
+                    .find(|line| provider.id == format!("aicli-{}", line.id))
+                {
+                    runtime.cooldown.success(
+                        line.id,
+                        self.aicli_identity
+                            .as_ref()
+                            .map(|(_, model)| model.as_str()),
+                    );
+                }
+            }
+        }
         let result = ForwardResult {
             response,
             provider: provider.clone(),
@@ -712,17 +726,7 @@ impl RequestForwarder {
                     .iter()
                     .find(|line| provider.id == format!("aicli-{}", line.id))
                 {
-                    // The initial 60s window is the first C3-06 backoff value.
-                    // Classification and repeated-failure backoff follow in C3-05/06.
-                    runtime
-                        .cooldown
-                        .lines
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .insert(
-                            line.id.into(),
-                            std::time::Instant::now() + std::time::Duration::from_secs(60),
-                        );
+                    runtime.cooldown.fail(line.id, None, None);
                 }
             }
             return;
@@ -760,21 +764,11 @@ impl RequestForwarder {
                         .iter()
                         .find(|line| provider.id == format!("aicli-{}", line.id))
                     {
-                        let delay = self
+                        let delay = *self
                             .aicli_retry_after
                             .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .unwrap_or(Duration::from_secs(60))
-                            .max(Duration::from_secs(60));
-                        runtime
-                            .cooldown
-                            .models
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .insert(
-                                (line.id.into(), model.clone()),
-                                std::time::Instant::now() + delay,
-                            );
+                            .unwrap_or_else(|e| e.into_inner());
+                        runtime.cooldown.fail(line.id, Some(model), delay);
                     }
                 }
                 if crate::aicli::errors::code(&error) == Some("invalid_token") {
@@ -8637,6 +8631,43 @@ mod tests {
             assert!(requests[1]
                 .to_string()
                 .contains(crate::proxy::media_sanitizer::UNSUPPORTED_IMAGE_MARKER));
+        }
+
+        #[tokio::test]
+        async fn aicli_cooldown_success_clears_only_successful_line_and_model() {
+            let up = upstream(vec![ok()]).await;
+            let runtime =
+                crate::aicli::runtime::AicliRuntime::new(Arc::new(Database::memory().unwrap()));
+            runtime.cooldown.fail("main", None, None);
+            runtime.cooldown.fail("main", Some("fixture-model"), None);
+            runtime.cooldown.fail("main", Some("other-model"), None);
+            runtime.cooldown.fail("global", None, None);
+            let fwd = forwarder(1, "aicli-main")
+                .aicli_request(true)
+                .aicli_runtime(runtime.clone())
+                .aicli_identity(17, "fixture-model".into());
+            assert!(send(&fwd, vec![provider("aicli-main", &up)], plain_body())
+                .await
+                .is_ok());
+            assert!(!runtime.cooldown.lines.lock().unwrap().contains_key("main"));
+            assert!(runtime
+                .cooldown
+                .lines
+                .lock()
+                .unwrap()
+                .contains_key("global"));
+            assert!(!runtime
+                .cooldown
+                .models
+                .lock()
+                .unwrap()
+                .contains_key(&("main".into(), "fixture-model".into())));
+            assert!(runtime
+                .cooldown
+                .models
+                .lock()
+                .unwrap()
+                .contains_key(&("main".into(), "other-model".into())));
         }
 
         #[tokio::test]

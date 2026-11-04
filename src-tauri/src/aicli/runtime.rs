@@ -20,12 +20,7 @@ use crate::Database;
 const SESSION_CAPACITY: usize = 4096;
 const SESSION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 
-#[derive(Default)]
-pub struct Cooldown {
-    // Storage only here; failure classification and backoff belong to C3-05/06.
-    pub lines: Mutex<HashMap<String, Instant>>,
-    pub models: Mutex<HashMap<(String, String), Instant>>,
-}
+pub use super::cooldown::Cooldown;
 
 #[derive(Debug, Clone)]
 pub struct ProfileRoutes {
