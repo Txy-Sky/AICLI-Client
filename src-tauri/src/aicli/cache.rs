@@ -407,13 +407,19 @@ impl AicliCache {
                 let quota = value.pointer("/data/quota").and_then(Value::as_i64);
                 let requests = value.pointer("/data/requests").and_then(Value::as_i64);
                 if let (Some(quota), Some(requests)) = (quota, requests) {
-                    if self.write_usage(day, quota, requests).is_ok() {
-                        if let Ok(mut errors) = self.errors.lock() {
-                            errors.remove(kind);
+                    match self.write_usage(day, quota, requests) {
+                        Ok(true) => {
+                            if let Ok(mut errors) = self.errors.lock() {
+                                errors.remove(kind);
+                            }
+                            self.events.data_updated(kind);
                         }
-                        self.events.data_updated(kind);
-                    } else {
-                        self.record_error(kind, NewApiError::Network);
+                        Ok(false) => {
+                            log::debug!(
+                                "AICLI cache dropped a stale {day} usage refresh after rebinding"
+                            );
+                        }
+                        Err(_) => self.record_error(kind, NewApiError::Network),
                     }
                 } else {
                     self.record_error(kind, NewApiError::InvalidResponse);
