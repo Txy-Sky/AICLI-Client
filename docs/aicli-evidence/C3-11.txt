@@ -1,0 +1,86 @@
+C3-11 Tauri commands for account, routing and takeover
+Initial implementation: 20d0a40b
+Final implementation: b4095f7580320d5fe7c2cfe84a3e52d8816cb21c
+(with 246dad76, a pre-push test-portability fix to aicli::runtime tests)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41992085540
+All five jobs (four parallel + Checklist acceptance) succeeded.
+
+Rust item tests (Linux), job 127126441902:
+  Default and test-hooks sets both passed.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml commands::aicli::tests
+  11 passed: backoff_follows_30_60_120_capped_at_600;
+  privacy_requires_binding_and_validates_the_failure_mode;
+  rebuild_reuses_cache_until_the_binding_changes;
+  probe_persists_results_and_backoff_skips_within_the_window;
+  bind_rebuilds_the_aggregate_and_unbind_clears_it;
+  refresh_validates_kinds_and_requires_a_binding;
+  takeover_errors_carry_distinct_codes;
+  set_active_profile_accepts_only_app_and_global_scopes;
+  serialized_outputs_carry_no_token_material;
+  select_line_updates_the_binding_and_rebuilds;
+  stale_refresh_after_rebinding_drops_old_account_writes.
+  Covers the acceptance clause: serialized command results assert the
+  synthetic access token and sk- model-key values never appear and that
+  every "sk-" occurrence is a masked "sk-…" preview; take_over returns
+  the machine-readable cc_switch_conflict code; set_active_profile
+  rejects account/session/project scopes; probe backoff 30/60/120…
+  capped at 600s with health rows carrying checked_at; refresh kind
+  validation precedes the not_bound check.
+  Default set aicli::cache::tests 15 passed including the new
+  guarded_writes_require_the_construction_time_binding (stale writes
+  dropped after token and user changes, silent drop of stale usage
+  refreshes).
+A3-01 baseline (Linux), job 127126442388:
+  bash scripts/aicli-check.sh
+  Rust 4625 passed / original 10 skipped (+12 versus C3-10); frontend
+  3416 passed. Typecheck, format, renderer build and Clippy passed.
+B stage desktop checks (Linux), job 127126441956: success.
+A6 test environment (Linux), job 127126441784: success.
+  Coverage decision: testenv=true; c106_observe=true; reasons "client
+  code exercised by A6 probes changed" and "cache refresh inputs
+  changed" (C3-11 added the binding guard to cache writes and new
+  commands wired into the item set). C1-06 observation actually ran:
+  601.45s, audited /api/* request count=39 (limit 40, includes audit
+  observers). A6-05 mock observations unchanged (upstream_attempts=1,
+  no duplicate content).
+Checklist acceptance (Linux), job 127133198809: success.
+
+Owner decisions applied (2026-11-04, checklist C3-11):
+  AicliCache captures (user_id, line, SHA-256 token fingerprint) at
+  construction and re-verifies the binding before every DB write;
+  mismatched writes are dropped so an in-flight refresh from an old
+  account cannot refill the cleared cache after rebinding. No schema
+  change. aicli_take_over(app, confirmed) returns CcSwitchConflict
+  (machine code cc_switch_conflict) while a cc-switch takeover is
+  active and confirmed=false; the frontend re-tries with confirmed=true.
+  aicli_set_active_profile accepts only app and global scopes; F-05
+  "set as default" writes the global binding; aicli_account
+  .active_profile_id keeps participating in resolution with no v1
+  write path; session/project are not exposed. aicli_bind arguments are
+  never logged. Read commands follow C1-06 cache-first semantics.
+  aicli_probe_lines uses the unauthenticated /api/status endpoint and
+  writes aicli_line_health rows with checked_at.
+
+Failure history (not acceptance):
+  Run 41988532835 (20d0a40b): Rust item tests and A3-01 baseline failed
+  — 4 commands::aicli::tests panicked with "attempt to write a readonly
+  database". Fixture::new dropped its tempfile::TempDir after
+  construction; on Linux the unlinked database makes every later write
+  fail readonly, while on Windows the open handle blocks deletion and
+  hid the bug locally. Final fix b4095f75 keeps the TempDir in the
+  Fixture. Before the first push, two local-only defects were fixed
+  without CI rounds: finish_usage_refresh emitted data_updated for
+  guard-dropped usage writes (cache/tests event count assertion), and
+  246dad76 made the runtime pin TTL injectable because backdating an
+  Instant by 24h underflows on hosts up for less than the TTL. No
+  assertion removed, weakened, ignored, or bypassed; cancelled or
+  superseded runs are not successful acceptance evidence.
+
+Security: downloaded all four job evidence artifacts (63 files) and
+scanned them plus the Rust item-test and A3-01 job logs of the final
+run for long model-key/Bearer candidates (counts only, no values
+recorded). Final count 0/0. No real credentials, production
+operations, local builds or tests beyond the offline unit suites.
+Local pre-push (WSL Ubuntu, external pinned prettier 3.6.2):
+scripts/aicli-pre-push-check.sh — cargo fmt --check, Prettier and
+workflow YAML syntax all passed; git diff --check clean.
