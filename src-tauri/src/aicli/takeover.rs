@@ -29,6 +29,10 @@ pub enum TakeoverError {
     CcSwitchConflict,
     #[error("No compatible models; select groups first")]
     NoModels,
+    /// C3-10 修正：配置集整体停用（conservative）或其全部模型都在受影响名单，
+    /// 真实原因是配置集需要修复，而不是没有可选分组；前端提示「配置集需要修复」。
+    #[error("The selected route profile needs repair; fix its groups first")]
+    ProfileNeedsRepair,
     #[error("Desktop supports at most 200 models")]
     TooManyModels,
     #[error("Unsupported client")]
@@ -370,6 +374,21 @@ pub(crate) fn prepare_projection(
     models.sort();
     models.dedup();
     if models.is_empty() {
+        // C3-10 修正：配置集被整体停用（无修复基线的 conservative 编译，routes 为空），
+        // 或其全部模型都在受影响名单里：返回 ProfileNeedsRepair 而不是 NoModels，
+        // 否则提示用户「去选分组」与真实原因（分组被撤销、需修复）不符。
+        if entry.compiled.repair.conservative
+            || (!entry.compiled.routes.is_empty()
+                && entry.compiled.routes.iter().all(|route| {
+                    entry
+                        .compiled
+                        .repair
+                        .affected_models
+                        .contains(&route.public_model)
+                }))
+        {
+            return Err(TakeoverError::ProfileNeedsRepair);
+        }
         return Err(TakeoverError::NoModels);
     }
     // Claude/Codex/Gemini retain the existing projection path.
@@ -969,5 +988,167 @@ mod tests {
             assert_eq!(snapshot(&app).unwrap().files, before.files);
             assert!(store.get(&account(&app)).unwrap().is_none());
         }
+    }
+
+    // ---------------------------------------------------------------
+    // C3-10 修正：配置集整体停用（conservative）或全部模型受影响时，
+    // 返回 ProfileNeedsRepair 而不是 NoModels。
+    // ---------------------------------------------------------------
+
+    fn hand_built_profile() -> crate::aicli::profiles::Profile {
+        serde_json::from_str(
+            r#"{"id":"p1","name":"P","source":"user","preset_id":null,"revision":1,
+                "body":{"selected_groups":[],"selection_mode":"fixed_priority",
+                "model_bindings":[],"resolved_conflicts":[],"line_policy":"inherit",
+                "allow_fallback":true}}"#,
+        )
+        .unwrap()
+    }
+
+    /// 构造只含一个配置集 p1（由 active_profile_id 选中）的快照。
+    fn hand_built_snapshot(
+        compiled: crate::aicli::profiles::CompiledProfile,
+        catalog_models: &[&str],
+    ) -> super::super::runtime::RoutesSnapshot {
+        use super::super::catalog::{Catalog, CatalogGroup, CatalogModel, Compatibility};
+        use std::collections::BTreeMap;
+        let mut models = BTreeMap::new();
+        for name in catalog_models {
+            models.insert(
+                (*name).to_owned(),
+                CatalogModel {
+                    groups: vec!["fixture".to_owned()],
+                    wire: BTreeMap::from([("openai-response".to_owned(), "x".to_owned())]),
+                    compat: BTreeMap::from([("openai-response".to_owned(), Compatibility::Full)]),
+                    pricing: serde_json::Value::Null,
+                },
+            );
+        }
+        super::super::runtime::RoutesSnapshot {
+            fingerprint: "fixture".to_owned(),
+            catalog: Some(Catalog {
+                groups: BTreeMap::from([(
+                    "fixture".to_owned(),
+                    CatalogGroup {
+                        description: String::new(),
+                        ratio: None,
+                        ratio_known: false,
+                    },
+                )]),
+                models,
+                auto_available: false,
+                auto_groups: vec!["fixture".to_owned()],
+            }),
+            profiles: BTreeMap::from([(
+                "p1".to_owned(),
+                super::super::runtime::ProfileRoutes {
+                    profile: hand_built_profile(),
+                    compiled,
+                    token_ids: BTreeMap::new(),
+                },
+            )]),
+            active_profile_id: Some("p1".to_owned()),
+            selected_line_id: "main".to_owned(),
+        }
+    }
+
+    fn hand_built_routes(names: &[&str]) -> Vec<super::super::profiles::ModelRoute> {
+        names
+            .iter()
+            .map(|name| super::super::profiles::ModelRoute {
+                public_model: (*name).to_owned(),
+                upstream_model: (*name).to_owned(),
+                ordered_groups: vec!["fixture".to_owned()],
+            })
+            .collect()
+    }
+
+    fn seed_grok_provider(db: &Arc<crate::Database>) -> crate::provider::Provider {
+        seed::init(db).unwrap();
+        db.get_provider_by_id("aicli-main", "grokbuild")
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn conservative_profile_reports_repair_needed_instead_of_no_models() {
+        let db = Arc::new(crate::Database::memory().unwrap());
+        let provider = seed_grok_provider(&db);
+        // conservative 编译：无修复基线，整体停用，routes 为空。
+        let compiled = super::super::profiles::CompiledProfile {
+            routes: vec![],
+            repair: super::super::profiles::RepairStatus {
+                conservative: true,
+                needs_repair: true,
+                missing_groups: vec!["gone".to_owned()],
+                affected_models: vec![],
+            },
+        };
+        let snapshot = hand_built_snapshot(compiled, &["m1", "m2"]);
+        let error = prepare_projection(&db, &AppType::GrokBuild, &snapshot, provider).unwrap_err();
+        assert!(
+            matches!(error, TakeoverError::ProfileNeedsRepair),
+            "expected ProfileNeedsRepair, got {error:?}"
+        );
+    }
+
+    #[test]
+    fn all_models_affected_reports_repair_needed() {
+        let db = Arc::new(crate::Database::memory().unwrap());
+        let provider = seed_grok_provider(&db);
+        let compiled = super::super::profiles::CompiledProfile {
+            routes: hand_built_routes(&["m1", "m2"]),
+            repair: super::super::profiles::RepairStatus {
+                conservative: false,
+                needs_repair: true,
+                missing_groups: vec!["fixture".to_owned()],
+                affected_models: vec!["m1".to_owned(), "m2".to_owned()],
+            },
+        };
+        let snapshot = hand_built_snapshot(compiled, &["m1", "m2"]);
+        let error = prepare_projection(&db, &AppType::GrokBuild, &snapshot, provider).unwrap_err();
+        assert!(
+            matches!(error, TakeoverError::ProfileNeedsRepair),
+            "expected ProfileNeedsRepair, got {error:?}"
+        );
+    }
+
+    #[test]
+    fn catalog_gap_still_reports_no_models() {
+        let db = Arc::new(crate::Database::memory().unwrap());
+        let provider = seed_grok_provider(&db);
+        // 路由里的 m1 不在目录（或目录有但不在快照目录表里）：这与修复无关。
+        let compiled = super::super::profiles::CompiledProfile {
+            routes: hand_built_routes(&["m1"]),
+            repair: super::super::profiles::RepairStatus::default(),
+        };
+        let snapshot = hand_built_snapshot(compiled, &["other"]);
+        let error = prepare_projection(&db, &AppType::GrokBuild, &snapshot, provider).unwrap_err();
+        assert!(
+            matches!(error, TakeoverError::NoModels),
+            "expected NoModels, got {error:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn partially_affected_profile_still_projects_the_rest() {
+        let _home = Home::new();
+        let db = Arc::new(crate::Database::memory().unwrap());
+        let provider = seed_grok_provider(&db);
+        let compiled = super::super::profiles::CompiledProfile {
+            routes: hand_built_routes(&["m1", "m2"]),
+            repair: super::super::profiles::RepairStatus {
+                conservative: false,
+                needs_repair: true,
+                missing_groups: vec!["fixture".to_owned()],
+                affected_models: vec!["m1".to_owned()],
+            },
+        };
+        let snapshot = hand_built_snapshot(compiled, &["m1", "m2"]);
+        let projected = prepare_projection(&db, &AppType::GrokBuild, &snapshot, provider).unwrap();
+        let config = projected.settings_config["config"].as_str().unwrap();
+        assert!(config.contains("m2"), "remaining model missing: {config}");
+        assert!(!config.contains("m1"), "affected model leaked: {config}");
     }
 }

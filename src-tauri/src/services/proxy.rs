@@ -74,6 +74,15 @@ impl ProxyService {
             .map(|server| server.aicli_runtime())
     }
 
+    /// C3-10 修正：同步取运行中代理的 AICLI 运行时，接管投影与代理正在使用的
+    /// 快照保持一致。代理未运行或锁状态不确定时返回 None，由调用方退回新建运行时。
+    pub(crate) fn aicli_runtime_now(&self) -> Option<Arc<crate::aicli::runtime::AicliRuntime>> {
+        self.server
+            .try_read()
+            .ok()
+            .and_then(|server| server.as_ref().map(|inner| inner.aicli_runtime()))
+    }
+
     /// 设置 AppHandle（在应用初始化时调用）
     pub fn set_app_handle(&self, handle: tauri::AppHandle) {
         futures::executor::block_on(async {

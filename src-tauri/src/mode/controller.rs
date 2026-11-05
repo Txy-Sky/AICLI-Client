@@ -65,8 +65,12 @@ fn provider(state: &AppState, app: &AppType, id: &str) -> Result<Option<Provider
         if crate::aicli::seed::is_hidden(&provider)
             && crate::aicli::takeover::is_managed(&state.db, app)
         {
-            let runtime = crate::aicli::runtime::AicliRuntime::new(state.db.clone());
-            let projection = runtime.cached_projection().map_err(err)?;
+            // C3-10 修正：优先复用运行中代理的当前快照，避免每次新建运行时重编译
+            // 导致接管投影与代理实际使用的快照漂移；代理未运行时才新建。
+            let projection = match state.proxy_service.aicli_runtime_now() {
+                Some(runtime) => runtime.snapshot(),
+                None => crate::aicli::runtime::AicliRuntime::new(state.db.clone()).snapshot(),
+            };
             crate::aicli::takeover::prepare_projection(&state.db, app, &projection, provider)
                 .map_err(err)
         } else {
@@ -9006,5 +9010,120 @@ model_provider = "c"
         assert!(err.to_string().contains("requires_openai_auth"), "{err}");
         assert!(state.db.get_provider_by_id("c", "codex").unwrap().is_none());
         assert_eq!(codex_text(), before);
+    }
+
+    // ---------------------------------------------------------------
+    // C3-10 修正：AICLI 接管投影优先使用运行中代理的快照。
+    // ---------------------------------------------------------------
+
+    #[tokio::test]
+    #[serial]
+    async fn aicli_projection_prefers_the_running_runtime_snapshot() {
+        let _home = Home::new();
+        let db = Arc::new(Database::memory().expect("memory db"));
+        crate::aicli::seed::init(&db).expect("seed aicli providers");
+        let pricing_alpha = json!({
+            "auto_groups": ["fixture"],
+            "data": [{
+                "model_name": "alpha",
+                "enable_groups": ["fixture"],
+                "supported_endpoint_types": ["anthropic", "openai-response", "gemini"]
+            }]
+        });
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO aicli_account(id,user_id,username,user_group,selected_line_id)
+                 VALUES(1,1,'t','g','main')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO aicli_takeover(app_type,state) VALUES('grokbuild','active')",
+                [],
+            )
+            .unwrap();
+            for (kind, value) in [
+                ("groups", json!({"data": {"fixture": {"ratio": 1}}})),
+                ("pricing", pricing_alpha),
+            ] {
+                conn.execute(
+                    "INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json)
+                     VALUES(?1,'fixture',1,?2)",
+                    rusqlite::params![kind, value.to_string()],
+                )
+                .unwrap();
+            }
+        }
+        db.update_proxy_config(ProxyConfig {
+            listen_port: 0,
+            ..Default::default()
+        })
+        .await
+        .expect("ephemeral port");
+        let state = AppState::new(db.clone());
+        state.proxy_service.start().await.expect("start proxy");
+        let running = state
+            .proxy_service
+            .aicli_runtime()
+            .await
+            .expect("running runtime");
+        let running_fingerprint = running.snapshot().fingerprint;
+        assert!(
+            !running_fingerprint.is_empty(),
+            "running snapshot must have compiled"
+        );
+
+        // 换掉缓存里的模型表：从数据库重新编译会得到不同的 fingerprint。
+        let pricing_beta = json!({
+            "auto_groups": ["fixture"],
+            "data": [{
+                "model_name": "beta",
+                "enable_groups": ["fixture"],
+                "supported_endpoint_types": ["openai-response"]
+            }]
+        });
+        db.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE aicli_cache SET body_json=?1 WHERE kind='pricing'",
+                rusqlite::params![pricing_beta.to_string()],
+            )
+            .unwrap();
+        let fresh_fingerprint = crate::aicli::runtime::AicliRuntime::new(db.clone())
+            .cached_projection()
+            .expect("recompile")
+            .fingerprint;
+        assert_ne!(
+            fresh_fingerprint, running_fingerprint,
+            "fixture must make the two snapshots differ"
+        );
+
+        // 接管投影跟随运行中快照：默认模型仍是 alpha。
+        let projected = provider(&state, &AppType::GrokBuild, "aicli-main")
+            .expect("projection")
+            .expect("seeded provider");
+        let config = projected.settings_config["config"].as_str().unwrap();
+        assert!(
+            config.contains("alpha"),
+            "expected the running snapshot's model (alpha): {config}"
+        );
+        assert!(
+            !config.contains("beta"),
+            "recompiled model leaked in: {config}"
+        );
+
+        // 代理停止后回退到按当前数据库重编译：默认模型变成 beta。
+        state.proxy_service.stop().await.expect("stop proxy");
+        assert!(state.proxy_service.aicli_runtime_now().is_none());
+        let fallback = provider(&state, &AppType::GrokBuild, "aicli-main")
+            .expect("projection")
+            .expect("seeded provider");
+        let config = fallback.settings_config["config"].as_str().unwrap();
+        assert!(
+            config.contains("beta"),
+            "expected the recompiled model (beta): {config}"
+        );
     }
 }

@@ -843,6 +843,10 @@ fn takeover_errors_carry_distinct_codes() {
         "no_models"
     );
     assert_eq!(
+        AicliCommandError::from(TakeoverError::ProfileNeedsRepair).code,
+        "profile_needs_repair"
+    );
+    assert_eq!(
         AicliCommandError::from(TakeoverError::TooManyModels).code,
         "too_many_models"
     );

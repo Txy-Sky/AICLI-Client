@@ -112,6 +112,7 @@ impl From<TakeoverError> for AicliCommandError {
         let code = match error {
             TakeoverError::CcSwitchConflict => "cc_switch_conflict",
             TakeoverError::NoModels => "no_models",
+            TakeoverError::ProfileNeedsRepair => "profile_needs_repair",
             TakeoverError::TooManyModels => "too_many_models",
             TakeoverError::Unsupported => "unsupported_client",
             TakeoverError::Backup => "backup_unavailable",
