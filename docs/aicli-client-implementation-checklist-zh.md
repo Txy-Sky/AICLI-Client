@@ -643,7 +643,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：091bce7c | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing aicli_credentials_follow_wire`、`cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing`；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | wire 专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed，四 job 与汇总全成功。最终覆盖记录 testenv=false/c106_observe=false，Docker 与 601 秒观测跳过；失败历史和精确断言修正见 `docs/aicli-evidence/C3-09.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41858885415
 
 ### C3-10 接管和还原
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli/takeover.rs`：
   - `take_over(app)`：先备份客户端当前配置原文到 `SecretStore`（account `takeover-backup:<app>`），写 `aicli_takeover`，再调用 `mode::controller::enter_with_route`（路由模式 + `aicli-main` 种子）。**不复用** `proxy_live_backup` 存原文。
   - `release(app)`：`mode::controller::exit`，再把备份原文原样写回，与备份逐字节比较后删除备份。
@@ -658,7 +658,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 配置集或目录变化导致快照 fingerprint 变化时，对已接管的 Desktop、Grok 用现有 `resync_route` 重新投影，不要求用户重新接管。
   - Claude、Codex、Gemini 沿用现有投影，不变。
 - 验收：对 Claude、Codex、Gemini、Grok、Desktop 分别测试：临时 HOME 下准备配置 → 接管 → 配置指向 `127.0.0.1:15821` 且 token 符合格式 → 还原 → **文件逐字节一致**。另需单测：Desktop 模型列表与配置集一致且为别名编码、配置文件中无 sk- 值；Grok 默认模型三级选择、`context_window=128000`；无可用模型时返回 `NoModels` 且文件未改动；fingerprint 变化后重新投影。崩溃中断测试：接管写到一半（用 `live-state.json` 的 pending 机制）后 `startup` 能恢复。
-- 证据：
+- 证据：95aa3cbc | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::takeover::tests`（接管专项 7 passed：五客户端逐字节还原、NoModels/超 200 不写文件、cc-switch 冲突确认、指纹变化重投影、崩溃恢复、Grok 三级默认、投影精确）；默认组解绑还原集成随 `aicli::account::tests` 12 passed；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4613 passed / 原有 10 skipped（较 C3-09 增加 7 项）、前端 267 文件 / 3416 passed，四并行 job 与汇总全成功；A6 本轮实际运行（testenv=true/c106_observe=true），C1-06 观测 601.39 秒、审计 39 次、30 天落盘通过；LEGACY 常量与 15721 精确扫描按 2026-11-02 预先决定执行；七轮失败历史（Arc 类型、宏语法、Codex auth 字段）与修正见 `docs/aicli-evidence/C3-10.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41959620296
 
 ### C3-11 Tauri 命令
 - [ ] 完成
@@ -1018,7 +1018,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C1-09（CI 夹具） | 初轮推荐预设无自动分组；共用安全测试环境取钥限流；独立环境的种子渠道未同步到内存缓存；桌面链接曾耗尽磁盘。 | 失败和安全诊断记录见 C1-09.txt、第 13 节。修正夹具预设、独立 Compose 预算、HTTP 临时渠道创建/删除初始化缓存，并限制 CI 调试元数据体积。最终 0b0953b2 的 run 41766760053 四 job 及汇总全部 success。 | 已关闭并验收；未放宽任何断言，未改 new-api 或限流设置，未加入等待/重启/请求重试。 |
 | C1-08 | 原清单未明确 fallback 范围、预设冲突确认及撤销影响模型判定。 | 负责人于 2026-11-04 已决定：fallback 限所选组；复制/重置确认当时冲突，后续新冲突只拦保存；基线写 aicli_cache，缺组不覆盖，无基线整体停用，有基线拦截含缺失组（含后备）的模型。执行者确认采用后备组也拦截的保守规则。最终实现 05c80736 的 run 41747863675 完整成功，专项 20 passed，Rust 4531 passed/原有 10 skipped，前端 3416 passed。 | 负责人已决定；范围阻塞已关闭并验收通过。C3-01/F-05 后续接线仍按各自项目执行，不提前宣称完成。 |
 | C3-01（接口依赖） | 本项验收要求 RouteDecision 返回线路 Provider 克隆及每线路超时，但对应的 seed Provider 结构和 `clone_for(app,line,wire)` 在下一项 C3-02 才定义；同时清单第 6 步引用 `model preferred_line`，当前 Catalog/ModelRoute 没有该字段或来源。 | 核对 `aicli/runtime.rs`、`profiles.rs`、`catalog.rs`、`lines.rs`、`proxy/handler_context.rs` 与 C3-02 条款；没有实现解析器，也未改变请求行为或数据结构。C3-02 只描述 seed Provider 的 base URL/meta 选择，未定义 preferred_line 的持久化/下发来源，也未定义线路超时在 RouteDecision 中如何映射到现有 `StreamingTimeoutConfig`。 | 负责人于 2026-11-04 已决定：先做 C3-02，C3-01 调用 `seed::clone_for`，线路只来自 `lines.rs`；v1 不实现 `preferred_line`（第 13 节记偏差）；`LineTimeouts` 从 `Line` 复制、以 Provider id 为键，映射由 C3-03/C3-07 完成。阻塞已关闭，详见 C3-01 条款；执行顺序 C3-02（9926c904、run 41815729786）→ C3-01（594eb8d8、run 41817318022），两轮完整 CI 均 success，本项解析器专项 13 passed，已验收闭环。 |
-| C3-10（模型投影） | 执行端接线时发现 Grok 投影要求完整模型表、Desktop 投影要求 API Key 和模型映射，而 `aicli-main` 种子只有 base URL，无法直接接管。 | 核对 `live/project/grok.rs`（只写一张表，必须有 model/api_backend/context_window/key）与 `claude_desktop_config.rs::validate_proxy_provider`（要求 key 与模型路由）。 | 负责人于 2026-11-04 已决定：接管前按当前配置集补全种子投影字段，key 写本地令牌；Desktop 列全部可用模型（别名编码），Grok 默认模型三级选择、context_window 固定 128000；无模型返回 NoModels；fingerprint 变化重投影。详见 C3-10 条款。 |
+| C3-10（模型投影） | 执行端接线时发现 Grok 投影要求完整模型表、Desktop 投影要求 API Key 和模型映射，而 `aicli-main` 种子只有 base URL，无法直接接管。 | 核对 `live/project/grok.rs`（只写一张表，必须有 model/api_backend/context_window/key）与 `claude_desktop_config.rs::validate_proxy_provider`（要求 key 与模型路由）。 | 负责人于 2026-11-04 已决定：接管前按当前配置集补全种子投影字段，key 写本地令牌；Desktop 列全部可用模型（别名编码），Grok 默认模型三级选择、context_window 固定 128000；无模型返回 NoModels；fingerprint 变化重投影。已按决定实现并验收（最终 95aa3cbc，run 41959620296 四 job 与汇总全 success），阻塞关闭。详见 C3-10 条款。 |
 | C1-06（测试夹具） | 2e38849b 的缓存集成在一次性用户登录收到非 JSON 响应，尚未进入观测；此前缓存 14/API 11 项和 A6-04 原有测试通过。 | 对照 rc.34 共用 CT 限流源码，将缓存测试放入独立临时 Compose 环境，保留原限流和断言，追加只含状态码的安全错误诊断；e3a70c89 的 run 41624807753 完整成功，601 秒观测 39 次、30 天落盘通过。 | 已关闭；旧错误未记录 HTTP 状态码，不声称旧响应实测 429；全部失败历史见 C1-06.txt。 |
 | C1-04 期间观察（非阻塞） | Linux lib-test 构建提示既有 `services/agy_account/keychain.rs::SystemKeychain::named` 未使用。 | 对照此前 a4445066 的已下载证据，同一告警已存在；当前 Clippy -D warnings 和完整基线仍通过，未改相关模块或测试。 | 非阻塞既有告警；后续仅按 G-03 原定模块清理范围处理，本项不顺手修复。 |
 | B-07 | 第三方优惠码及上游合作宣传与原始无命中扫描冲突。 | 负责人于 2026-11-03 决定五种语言的 providerForm.partnerPromotion 原样保留，B-07 用 JSON 精确计数与其余部分零命中验收；在 G-01 随 Provider UI 删除并恢复全量扫描。 | 已关闭并验收通过：535a193e 的 run 41554786813 完整成功，JSON 精确计数及其余部分零命中通过；不改优惠码、不新增宣传承诺。 |
@@ -1067,7 +1067,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | A6-05 | 清单/方案使用 `KeySources`、`SkipRetryOnFailure`、`IncludeUsingGroup`、`IncludeRuleName` 等 Go 字段名。 | HTTP 配置使用 rc.34 对应的 `key_sources`、`skip_retry_on_failure`、`include_using_group`、`include_rule_name`；通过 `channel_affinity_setting.rules` 更新规则，并保留原规则列表。新增渠道后用正常优先级更新 HTTP 接口刷新路由缓存；两次准备失败和最终通过均在证据中保留。 | 字段定位映射及测试夹具准备，不改变服务端接口、产品行为或验收要求；不增加等待、重启或工作流重试。 |
 | B-01 | 清单列出的 `.join(".cc-switch")` 示例和数据库路径不是全部引用点。 | 同用途路径也在 `database/backup.rs`、`mode/controller.rs`、`services/backup_storage.rs`、`services/env_manager.rs`、`services/skill.rs` 及关联集成测试夹具；一并换成新目录名/数据库名。删除 Windows HOME 兼容回退及其专属测试 `test_home_short_circuits_the_home_legacy_fallback`，新增两项跨平台配置身份测试。 | 按用途追踪同一配置身份，避免备份和测试仍指向旧目录；移除的测试只覆盖已删除的回退功能，没有放宽其他断言。完整 CI 与定向测试通过，见 B-01 证据。 |
 | B-02 | 旧端口替换未明确 Desktop 固定 UUID 和 PROFILE_NAME；全量扫描会命中 UUID。 | 负责人于 2026-11-02 明确决定 UUID 改为 `00000000-0000-4000-8000-000000158210`，PROFILE_NAME 改为 `AICLI Client`，验收保持原始 `grep -rn 15721 src-tauri/src src` 无结果。新增旧 Profile 写入/清理保留测试；旧 UUID 作为测试夹具存于 `src-tauri/tests/fixtures/`，不进入产品运行代码。`docs/user-manual` 不改。 | 新身份不覆盖 cc-switch 旧 Profile；验收不得排除旧 UUID 或放宽扫描。测试失败则标 `[!]`，不回退 UUID。 |
-| C3-10（预先决定，待执行） | 接管冲突检测需要识别 cc-switch，但 B-02 禁止旧端口引用。 | 负责人于 2026-11-02 预先限定：执行 C3-10 时，在 `aicli/takeover.rs` 中定义 `LEGACY_CC_SWITCH_PORT` 和 `LEGACY_CC_SWITCH_DESKTOP_PROFILE_ID`，仅用于旧端口和 Desktop 旧 UUID 的冲突检测，不得写入。该文件是产品源码中 `15721` 唯一允许重新出现的位置；届时精确调整扫描，不能泛化例外。 | 保留旧实例检测能力且不采用旧身份；当前 B-02 不提前实现 C3-10。 |
+| C3-10（预先决定，已执行） | 接管冲突检测需要识别 cc-switch，但 B-02 禁止旧端口引用。 | 负责人于 2026-11-02 预先限定：执行 C3-10 时，在 `aicli/takeover.rs` 中定义 `LEGACY_CC_SWITCH_PORT` 和 `LEGACY_CC_SWITCH_DESKTOP_PROFILE_ID`，仅用于旧端口和 Desktop 旧 UUID 的冲突检测，不得写入。该文件是产品源码中 `15721` 唯一允许重新出现的位置；届时精确调整扫描，不能泛化例外。 | 保留旧实例检测能力且不采用旧身份；当前 B-02 不提前实现 C3-10。C3-10 已按限定执行：`takeover.rs:23-24` 定义两个 LEGACY 常量仅用于冲突检测，`scripts/aicli-check-legacy-port.py` 断言全源码树仅这两处 `15721`。 |
 
 | A-GATE | 原门禁未列出 A5-01 已授权跳过的例外。 | 负责人于 2026-11-02 明确确认仅允许 A5-01 按既有决定保持 `[-]`，其他门禁条件不变；更新门禁后重新核验并通过，保留原阻塞证据。 | 按第 0.3 节取得明确授权后变更门禁；不把跳过写成实测通过。 |
 
@@ -1095,9 +1095,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
 ```text
-AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-09 验收提交 091bce7c8013f5c38c04b690323a0d2b7cfce2d6（Actions run 41858885415，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
+AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-10 验收提交 95aa3cbc01cd352801212425e7d09c83e0a546c7（Actions run 41959620296，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
 执行方式 CI-OPT：9e4dd03c 的 run 41449566786 两轮完整成功，第 0.6 节已调整；A3-01 无缓存 16m02s、冷缓存 15m40s、命中缓存 11m45s，快速步骤另计 46s；不新增产品完成项，本项不计入产品完成数。详见 docs/aicli-evidence/CI-OPT.txt。
-完成/阻塞/跳过：39 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-09；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-10；G 阶段统一会话迁移已决定保留）。
+完成/阻塞/跳过：40 / 0 / 2（完成含 A1-01、A2-01、A3-01、A5-02、A6-01～A6-05、A-GATE、B-01～B-08、B-GATE、C1-01～C1-09、C2-01～C2-02、C3-01～C3-10；不含 HUMAN 条件；负责人已明确批准 A5-01 跳过的唯一门禁例外。跳过仍为 A5-01、C4-05；C3-01 接口依赖已由负责人于 2026-11-04 决定，阻塞关闭，C3-02 → C3-01 已按指定顺序完成，下一项 C3-11；G 阶段统一会话迁移已决定保留）。
 scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01）：A6-01 最终修正 75f6e4d7 两次完整 CI success，均为 Rust 4443 passed / 原有 10 skipped，前端 266 文件 / 3415 passed；A6-03 独立实现 53567f1c、A6-05 最终实现 b16f7e51 也为相同数量；B-01 实现 6f99e807 完整 CI 为 Rust 4445 passed / 原有 10 skipped，前端 266 文件 / 3415 passed，新增配置身份测试 2 passed；B-02 实现 e78f3a7e 完整 CI 为 Rust 4446 passed / 原有 10 skipped，前端 3415 passed，Desktop 定向 1 passed（其余 4455 项按过滤条件跳过）；未减少测试或增加 ignore。B-06 最终实现 03c8c681 完整 CI 为 Rust 4449 passed / 原有 10 skipped（比 B-05 增加 1 项启动保留测试）、前端 267 文件 / 3416 passed；Codex 专项 1122 passed，启动保留专项 1 passed。
 最近合并验收 a4445066：Rust 4466 passed / 原有 10 skipped（本组新增 17 项），前端 267 文件/3416 passed；C1-01 2 passed、C1-02 10 passed、C1-03 新增 5 passed，既有 schema 14 passed、database 31 passed；A6、桌面启动及 B 回归全部通过。
 最近 C1-04 验收 d803b70f：Rust 4474 passed / 原有 10 skipped（新增 8 个默认特性测试，另 1 个 test-hooks 地址限制专项）；专项 9 passed，rc.34 Rust 客户端全部 11 个封装集成 1 passed。
@@ -1114,13 +1114,14 @@ scripts/aicli-check.sh 结果（Rust 通过数 / 前端通过数，对比 A3-01�
 最近 C3-04 验收 20becc26：转发器专项 4 passed，路由集成 8 passed / 0 skipped，种子转发 10 passed；Rust 基线 4588 passed / 原有 10 skipped，前端 3416 passed，四个并行 job 与汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；旧状态/熔断器/映射隔离通过，公开日志与下载证据长格式 sk-/Bearer 候选为 0。首轮失败及真实 HTTP 计数夹具修正已保留，下一项 C3-05；详见 C3-04.txt。
 最近 C3-05 验收 de1f95a8：错误单测 3 passed，真实转发专项 2 passed，凭证恢复 1 passed；Rust 4594 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 实际运行，601 秒观测按覆盖规则跳过；最终公开日志/证据长格式 sk-/Bearer 候选 0；首轮合成凭证断言输出及 Clippy 修正历史保留。下一项 C3-06，详见 C3-05.txt。
 最近 C3-06 验收 1acca3cb：冷却单测 5 passed，真实转发成功清除 1 passed；Rust 4600 passed / 原有 10 skipped，前端 3416 passed，四并行 job 与汇总全成功。A6 实际运行，601 秒观测按覆盖规则跳过；首轮编译失败后取消的历史保留。公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-06.txt。
-最近 C3-07 验收 b6489438：超时专项 3 passed，路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C3-10，详见 C3-07.txt。
+最近 C3-07 验收 b6489438：超时专项 3 passed，路由集成 8 passed；Rust 4603 passed / 原有 10 skipped，前端 3416 passed，四并行 job 及汇总全部成功。A6 Docker 和 601 秒观测按覆盖规则跳过；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C3-11，详见 C3-07.txt。
 tests/aicli-testenv/e2e.sh 结果：未创建、未运行；尚未进入 K-01。
 A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可用分组中，`max_count=15`，单模型最大可用分组数为 3；H-04 条件满足。
 最近 C3-08 验收 29aad72e：本地鉴权 2、防泄漏 1、路由集成 9 passed；Rust 4606 passed / 原有 10 skipped，前端 3416 passed，四 job 及汇总全成功；A6 本轮运行，601 秒观测跳过。详见 C3-08.txt。
 最近 C3-09 验收 091bce7c：wire 鉴权/会话头专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed；四 job 及汇总成功，最终 A6 Docker/601 秒观测按覆盖规则跳过。详见 C3-09.txt。
+最近 C3-10 验收 95aa3cbc：接管专项 7 passed（五客户端逐字节还原、Grok 三级默认、NoModels/超 200 不写文件、cc-switch 冲突确认、指纹变化重投影、崩溃恢复）；Rust 4613 passed / 原有 10 skipped（较 C3-09 增加 7 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.39s、审计 39 次、30 天落盘通过；七轮失败历史与修正详见 C3-10.txt。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-10；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，当前下一项 C3-11；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
