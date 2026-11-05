@@ -66,13 +66,9 @@ fn provider(state: &AppState, app: &AppType, id: &str) -> Result<Option<Provider
             && crate::aicli::takeover::is_managed(&state.db, app)
         {
             let runtime = crate::aicli::runtime::AicliRuntime::new(state.db.clone());
-            crate::aicli::takeover::prepare_projection(
-                &state.db,
-                app,
-                &runtime.cached_projection().map_err(err)?,
-                provider,
-            )
-            .map_err(err)
+            let projection = runtime.cached_projection().map_err(err)?;
+            crate::aicli::takeover::prepare_projection(&state.db, app, &projection, provider)
+                .map_err(err)
         } else {
             Ok(provider)
         }

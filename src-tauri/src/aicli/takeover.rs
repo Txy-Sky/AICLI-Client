@@ -184,14 +184,10 @@ pub async fn take_over(
         .get_provider_by_id("aicli-main", app.as_str())
         .map_err(|_| TakeoverError::State)?
         .ok_or(TakeoverError::State)?;
-    prepare_projection(
-        &state.db,
-        app,
-        &runtime
-            .cached_projection()
-            .map_err(|_| TakeoverError::State)?,
-        seed,
-    )?;
+    let projection = runtime
+        .cached_projection()
+        .map_err(|_| TakeoverError::State)?;
+    prepare_projection(&state.db, app, &projection, seed)?;
     let previous = current(state, app)?;
     if matches!(previous.as_deref(), Some("releasing")) {
         return Err(TakeoverError::State);
@@ -411,7 +407,7 @@ pub(crate) fn prepare_projection(
         let chosen =
             choose_grok_model(&models, old_model.as_deref()).ok_or(TakeoverError::NoModels)?;
         let token =
-            super::local_auth::token_for(&db, app.as_str()).map_err(|_| TakeoverError::State)?;
+            super::local_auth::token_for(db, app.as_str()).map_err(|_| TakeoverError::State)?;
         let mut doc = toml::map::Map::new();
         doc.insert(
             "models".into(),
