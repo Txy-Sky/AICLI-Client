@@ -215,6 +215,11 @@ pub async fn take_over(
     controller::enter_with_route(state, app, false, Some("aicli-main"))
         .await
         .map_err(|error| {
+            #[cfg(test)]
+            eprintln!(
+                "AICLI client takeover failed: {}",
+                crate::error_for_log(&error)
+            );
             log::error!(
                 "AICLI client takeover failed: {}",
                 crate::error_for_log(&error)
