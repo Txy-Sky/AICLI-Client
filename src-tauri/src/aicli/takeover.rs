@@ -549,7 +549,17 @@ mod tests {
         {
             let conn = db.conn.lock().unwrap();
             conn.execute("INSERT INTO aicli_account(id,user_id,username,user_group) VALUES(1,123,'takeover','fixture')",[]).unwrap();
-            let pricing = json!({"auto_groups":["fixture"],"data":["grok-z","alpha","sonnet-model"].into_iter().map(|m|json!({"model_name":m,"enable_groups":["fixture"],"supported_endpoint_types":["anthropic","openai-response","gemini"]})).collect::<Vec<_>>()});
+            let data = ["grok-z", "alpha", "sonnet-model"]
+                .into_iter()
+                .map(|model| {
+                    json!({
+                        "model_name": model,
+                        "enable_groups": ["fixture"],
+                        "supported_endpoint_types": ["anthropic", "openai-response", "gemini"]
+                    })
+                })
+                .collect::<Vec<_>>();
+            let pricing = json!({"auto_groups":["fixture"],"data":data});
             for (kind, value) in [
                 ("groups", json!({"data":{"fixture":{"ratio":1}}})),
                 ("pricing", pricing),
