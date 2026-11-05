@@ -76,3 +76,45 @@ No real credentials, production operations, local builds or tests.
 Local pre-push (WSL Ubuntu, external pinned prettier 3.6.2):
 scripts/aicli-pre-push-check.sh — cargo fmt --check, Prettier and workflow
 YAML syntax all passed; git diff --check clean.
+
+=====================================================================
+负责人复核修正（2026-11-05，见清单第 12 节）
+=====================================================================
+最终验收提交：eaf90fa5（bdfbb1b2、da8a5796、eaf90fa5；与 C3-11 修正合并验收）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42037730010（五 job 全 success）
+
+一、运行中快照优先（mode/controller.rs provider()）
+- 新增 ProxyService::aicli_runtime_now()（try_read 同步取运行中代理运行时）。
+- provider() 解析隐藏种子时优先用运行中运行时的 snapshot()；代理未运行才新建运行时，
+  回退分支保持 cached_projection()（构造期 load_cached 依赖钥匙串令牌，无令牌时
+  快照为空，cached_projection 只读数据库——这正是中间两轮失败的原因，见下）。
+- 新测试 mode::controller::mode_tests::aicli_projection_prefers_the_running_runtime_snapshot：
+  运行中快照与重编译 fingerprint 必须不同（夹具保证），接管投影默认模型跟随运行中
+  快照（alpha），代理停止后回退重编译（beta）。
+
+二、ProfileNeedsRepair（takeover.rs prepare_projection）
+- 新增 TakeoverError::ProfileNeedsRepair：配置集整体停用（conservative 编译，routes
+  为空）或所选配置集全部模型都在受影响名单时返回；命令错误码 profile_needs_repair
+  （前端提示「配置集需要修复」随 F-04 落地）。目录缺失等与修复无关的原因仍返回
+  NoModels。
+- 新测试 4 项（aicli::takeover::tests）：conservative、全部受影响、目录缺失仍
+  NoModels、部分受影响仍投影剩余模型。
+
+三、专项与基线
+- job Rust item tests：aicli::takeover::tests 11 passed（原 7 + 新 4）；mode::controller
+  新测试随 A3-01 基线 PASS（日志可见）。
+- job A3-01 baseline：Rust 4539 passed / 原有 10 skipped、前端 264 文件 3360 passed，
+  clippy -D warnings 通过。
+
+四、失败历史（4 轮，不作成功证据）
+1. run 42025328511（bdfbb1b2）：测试夹具类型错误（with_remote 需 Arc<dyn CacheRemote>、
+   fingerprint 不能移出 Arc），E0308/E0507×4。
+2. run 42028275514（8f768bca）：takeover 三个既有用例 Err(Client)——回退分支误用
+   snapshot()，夹具无钥匙串令牌时快照为空；另 C3-11 的 finish_usage_refresh 漏改
+   （丢弃写入仍发事件，计数 2≠1）。
+3. run 42031200035（63a99c27）：同 Client 根因未除——enter 启动代理后的二次 provider
+   解析走运行中运行时；修正：夹具向 KeyringStore（隔离 HOME 文件回退）播种访问令牌，
+   resync 测试改由真实运行时的 projection_changes 驱动（新增测试钩子
+   reload_from_cache_for_test，等价 refresh 的本地部分）；误提交的 E0507（钩子内
+   fingerprint 未 clone）在 run 42034772591 暴露。
+4. 最终 eaf90fa5 全绿。

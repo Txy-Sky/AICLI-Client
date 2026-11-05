@@ -84,3 +84,23 @@ operations, local builds or tests beyond the offline unit suites.
 Local pre-push (WSL Ubuntu, external pinned prettier 3.6.2):
 scripts/aicli-pre-push-check.sh — cargo fmt --check, Prettier and
 workflow YAML syntax all passed; git diff --check clean.
+
+=====================================================================
+负责人复核修正（2026-11-05，见清单第 12 节）
+=====================================================================
+最终验收提交：63a99c27（09d08775、63a99c27；与 C3-10 修正合并验收，见 C3-10.txt 的
+run 42037730010，五 job 全 success）
+
+一、绑定代数守卫（aicli/cache.rs）
+- 新增进程内绑定代数 BINDING_GENERATION：AccountService::bind、unbind、
+  AicliServices::select_line 在提交成功后 bump_binding_generation()。
+- BindingGuard 只记 (generation, user_id, line)；写入路径（write_cache、write_usage）
+  在同一次数据库锁内先比代数、再核对账户行，不再逐次读钥匙串；不确定（锁中毒、行
+  缺失、代数或行不一致）一律保守丢弃。丢弃的 usage 写入不再发 data_updated 事件
+  （write_usage 返回是否写入）。
+- guarded()/install_guard() 去掉 secrets 参数；CacheBinding 去掉 secrets 字段。
+- 测试：guarded_writes_require_the_construction_time_binding 改为经 bump 模拟换绑
+  （原用直接改钥匙串模拟，新设计下令牌更换必然伴随 bind+bump）；新增
+  concurrent_rebind_drops_the_old_aggregates_inflight_writes（在途刷新被换绑打断：
+  旧聚合写入被代数守卫丢弃，新聚合正常写入，account-7 数据不落库）。
+- job Rust item tests：aicli::cache::tests 16 passed（原 15 + 新 1）。
