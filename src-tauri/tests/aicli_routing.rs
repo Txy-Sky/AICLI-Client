@@ -735,9 +735,7 @@ async fn bill_backfill_tags_the_row_and_fills_server_side_billing() {
 
     // 请求完成：行内先写入上游请求 id。
     let tagged = |db: &Arc<Database>| {
-        db.conn
-            .lock()
-            .unwrap()
+        routing_support::connection(db)
             .query_row(
                 "SELECT upstream_request_id FROM proxy_request_logs
                  WHERE app_type='codex' AND provider_id='aicli-main'",
@@ -758,9 +756,7 @@ async fn bill_backfill_tags_the_row_and_fills_server_side_billing() {
 
     // 回填：第 2 次查询命中，写入服务端记账字段。
     let billed = |db: &Arc<Database>| {
-        db.conn
-            .lock()
-            .unwrap()
+        routing_support::connection(db)
             .query_row(
                 "SELECT server_group,billed_quota,billed_at FROM proxy_request_logs
                  WHERE app_type='codex' AND provider_id='aicli-main'",

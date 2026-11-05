@@ -19,7 +19,6 @@ use rusqlite::OptionalExtension;
 use serde_json::Value;
 
 use super::newapi::{NewApiClient, NewApiError};
-use super::secrets::SecretStore;
 use crate::database::Database;
 
 pub(crate) const QUEUE_LIMIT: usize = 1000;
