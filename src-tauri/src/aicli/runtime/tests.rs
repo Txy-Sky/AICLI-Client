@@ -207,14 +207,14 @@ fn pins_are_bounded_lru_and_expire_after_twenty_four_hours() {
     assert!(runtime.session_pin("1").is_none());
     assert!(runtime.session_pin("0").is_some());
     assert_eq!(runtime.session_pins.lock().unwrap().len(), SESSION_CAPACITY);
-    runtime
-        .session_pins
-        .lock()
-        .unwrap()
-        .get_mut("0")
-        .unwrap()
-        .created_at = Instant::now() - SESSION_TTL;
+    // Expiry is exercised through the injectable TTL: `Instant::now() - TTL`
+    // overflows on hosts whose uptime is shorter than the TTL, because the
+    // monotonic clock epoch is boot time.
+    assert_eq!(SESSION_TTL, Duration::from_secs(24 * 60 * 60));
+    *runtime.session_ttl.lock().unwrap() = Duration::from_secs(0);
     assert!(runtime.session_pin("0").is_none());
+    *runtime.session_ttl.lock().unwrap() = SESSION_TTL;
+    assert!(runtime.session_pin("last").is_some());
 }
 
 #[tokio::test]

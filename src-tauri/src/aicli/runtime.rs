@@ -113,6 +113,11 @@ pub struct AicliRuntime {
     projection_changes: tokio::sync::watch::Sender<String>,
     credentials: RwLock<HashMap<i64, String>>,
     session_pins: Mutex<LruCache<String, SessionPin>>,
+    /// Injectable (behind a lock because tests share the runtime through an
+    /// `Arc`) so tests can exercise expiry without backdating an `Instant`
+    /// past the boot-time epoch, which is unrepresentable on hosts that have
+    /// been up for less than the TTL.
+    session_ttl: Mutex<Duration>,
     pub cooldown: Cooldown,
     refresh_lock: tokio::sync::Mutex<()>,
     background_started: std::sync::atomic::AtomicBool,
@@ -140,6 +145,7 @@ impl AicliRuntime {
             projection_changes: tokio::sync::watch::channel(String::new()).0,
             credentials: RwLock::new(HashMap::new()),
             session_pins: Mutex::new(LruCache::new(NonZeroUsize::new(SESSION_CAPACITY).unwrap())),
+            session_ttl: Mutex::new(SESSION_TTL),
             cooldown: Cooldown::default(),
             refresh_lock: Default::default(),
             background_started: Default::default(),
@@ -334,9 +340,10 @@ impl AicliRuntime {
 
     pub fn session_pin(&self, key: &str) -> Option<SessionPin> {
         let mut pins = self.session_pins.lock().unwrap_or_else(|e| e.into_inner());
+        let ttl = *self.session_ttl.lock().unwrap_or_else(|e| e.into_inner());
         if pins
             .peek(key)
-            .is_some_and(|p| p.created_at.elapsed() >= SESSION_TTL)
+            .is_some_and(|p| p.created_at.elapsed() >= ttl)
         {
             pins.pop(key);
             return None;
