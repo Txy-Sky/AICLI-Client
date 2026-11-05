@@ -84,6 +84,9 @@ fn seeds_are_keyless_idempotent_hidden_and_do_not_touch_client_files() {
                 provider.settings_config,
                 base_provider(&app, line.id).unwrap().settings_config
             );
+            if app == AppType::Codex {
+                assert_eq!(provider.settings_config["auth"], json!({}));
+            }
             assert_eq!(
                 get_adapter(&app)
                     .unwrap()
