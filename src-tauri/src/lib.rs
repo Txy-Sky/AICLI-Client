@@ -66,7 +66,7 @@ pub use commands::open_provider_terminal;
 pub use commands::*;
 pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file, APP_DIR_NAME};
 pub use database::{Database, Profile};
-pub use deeplink::{import_provider_from_deeplink, parse_deeplink_url, DeepLinkImportRequest};
+pub use deeplink::{parse_deeplink_url, BindRequest};
 pub use error::AppError;
 pub use grok_config::get_grok_config_path;
 pub use mcp::{
@@ -355,33 +355,11 @@ fn runtime_log_level_allows(level: log::Level, max_level: log::LevelFilter) -> b
     max_level.to_level().is_some_and(|maximum| level <= maximum)
 }
 
-fn pending_deeplink_from_url(url_str: &str) -> crate::deeplink::PendingDeepLink {
-    match crate::deeplink::parse_deeplink_url(url_str) {
-        Ok(request) => {
-            log::info!(
-                "✓ Successfully parsed deep link: resource={}, app={:?}, name={:?}",
-                request.resource,
-                request.app,
-                request.name
-            );
-            crate::deeplink::PendingDeepLink::Import {
-                request: Box::new(request),
-            }
-        }
-        Err(e) => {
-            log::error!("✗ Failed to parse deep link URL: {e}");
-            crate::deeplink::PendingDeepLink::Error {
-                url: url_for_log(url_str).to_string(),
-                error: e.to_string(),
-            }
-        }
-    }
-}
-
 /// 统一处理 aicliapi:// 深链接 URL
 ///
-/// - 解析 URL，把结果（或错误）暂存为待处理深链接，再发 `deeplink-pending` 通知前端来读
-///   （前端可能还没挂载，见 `deeplink::PendingDeepLink`）
+/// - 解析成功：暂存为待处理深链接（冷启动也能被前端读到），发空负载事件
+///   `aicli-open-bind`，由前端打开绑定窗口；不带任何 URL 参数值
+/// - 解析失败：只记日志，不暂存、不发事件（修复旧实现把原始 URL 交给前端的缺陷）
 /// - 可选：聚焦主窗口
 fn handle_deeplink_url(
     app: &tauri::AppHandle,
@@ -398,11 +376,21 @@ fn handle_deeplink_url(
         url_for_log(url_str)
     );
 
-    let pending = pending_deeplink_from_url(url_str);
-    crate::deeplink::set_pending_deeplink(pending);
-
-    if let Err(e) = app.emit("deeplink-pending", ()) {
-        log::error!("✗ Failed to emit deeplink-pending event: {e}");
+    match crate::deeplink::parse_deeplink_url(url_str) {
+        Ok(request) => {
+            // 日志不写参数值（`line` 也是链接参数）；线路只进待处理条目
+            log::info!("✓ Bind deep link accepted");
+            crate::deeplink::set_pending_deeplink(crate::deeplink::PendingDeepLink::Bind {
+                request: Box::new(request),
+            });
+            if let Err(e) = app.emit("aicli-open-bind", ()) {
+                log::error!("✗ Failed to emit aicli-open-bind event: {e}");
+            }
+        }
+        Err(e) => {
+            // 错误信息只含参数名，不含参数值；URL 只经 `url_for_log`（剥 query）记录
+            log::error!("✗ Failed to parse deep link URL: {e}");
+        }
     }
 
     if focus_main_window {
@@ -1709,11 +1697,6 @@ pub fn run() {
             commands::delete_db_backup,
             commands::sync_current_providers_live,
             // Deep link import
-            commands::parse_deeplink,
-            commands::merge_deeplink_config,
-            commands::fetch_deeplink_icon,
-            commands::import_from_deeplink,
-            commands::import_from_deeplink_unified,
             commands::peek_pending_deeplink,
             commands::ack_pending_deeplink,
             update_tray_menu,
