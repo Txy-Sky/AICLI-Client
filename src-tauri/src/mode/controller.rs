@@ -9068,7 +9068,7 @@ model_provider = "c"
             .aicli_runtime()
             .await
             .expect("running runtime");
-        let running_fingerprint = running.snapshot().fingerprint;
+        let running_fingerprint = running.snapshot().fingerprint.clone();
         assert!(
             !running_fingerprint.is_empty(),
             "running snapshot must have compiled"
@@ -9094,7 +9094,8 @@ model_provider = "c"
         let fresh_fingerprint = crate::aicli::runtime::AicliRuntime::new(db.clone())
             .cached_projection()
             .expect("recompile")
-            .fingerprint;
+            .fingerprint
+            .clone();
         assert_ne!(
             fresh_fingerprint, running_fingerprint,
             "fixture must make the two snapshots differ"

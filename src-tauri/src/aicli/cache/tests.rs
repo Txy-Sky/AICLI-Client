@@ -455,8 +455,11 @@ async fn concurrent_rebind_drops_the_old_aggregates_inflight_writes() {
     .unwrap();
     let events = Arc::new(Events::default());
     let gate = Arc::new(tokio::sync::Notify::new());
-    let mut old_cache =
-        AicliCache::with_remote(db.clone(), Held { gate: gate.clone() }, events.clone());
+    let mut old_cache = AicliCache::with_remote(
+        db.clone(),
+        Arc::new(Held { gate: gate.clone() }),
+        events.clone(),
+    );
     old_cache.install_guard(7, "main");
     let old = Arc::new(old_cache);
 
@@ -476,7 +479,9 @@ async fn concurrent_rebind_drops_the_old_aggregates_inflight_writes() {
 
     let mut fresh_cache = AicliCache::with_remote(
         db.clone(),
-        Remote::new(Ok(serde_json::json!({"data":{"fresh":"account-8"}}))),
+        Arc::new(Remote::new(Ok(
+            serde_json::json!({"data":{"fresh":"account-8"}}),
+        ))),
         events.clone(),
     );
     fresh_cache.install_guard(8, "global");
