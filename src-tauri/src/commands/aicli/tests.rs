@@ -110,6 +110,11 @@ struct Fixture {
     account_remote: Arc<AccountFake>,
     built: Arc<Mutex<Vec<(i64, String, String)>>>,
     caches: Arc<Mutex<Vec<Arc<AicliCache>>>>,
+    /// Keeps the database file alive for the fixture's lifetime: once the
+    /// directory is removed SQLite cannot open the journal by path anymore
+    /// and every write fails as readonly (observed on Linux CI; on Windows
+    /// the open handle blocks deletion, hiding the bug).
+    _temp: tempfile::TempDir,
 }
 
 impl Fixture {
@@ -170,6 +175,7 @@ impl Fixture {
             account_remote,
             built,
             caches,
+            _temp: temp,
         }
     }
 
