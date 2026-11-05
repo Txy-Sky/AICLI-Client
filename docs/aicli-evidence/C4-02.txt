@@ -1,0 +1,56 @@
+C4-02 绑定后自动接管验收记录
+
+最终验收提交：0ceb8304（实现 3ab98b5e + 修复 0ceb8304）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42019413559
+五 job（A3-01 baseline / Rust item tests / B stage desktop checks / A6 test environment /
+Checklist acceptance 汇总）全部 success。
+
+一、专项测试（job `Rust item tests (Linux)`，aicli-item-tests.sh 新增 C4-02-unit 组）
+命令：cargo nextest run --manifest-path src-tauri/Cargo.toml
+      commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure
+      commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips
+      commands::aicli::tests::proxy_start_failure_is_reported
+结果：6 tests run: 6 passed, 4537 skipped（0.443s；含前缀命中的既有
+bind_rebuilds_the_aggregate_and_unbind_clears_it）
+覆盖：
+- bind_takes_over_all_installed_tier1_clients_and_emits_results：五客户端全部接管
+  （配置含代理 URL 与各自本地令牌、无 sk-）、代理与刷新接缝各调一次、事件只发一次、
+  事件负载与命令返回序列化均无令牌材质（assert_no_secret_material）。
+- one_client_failure_neither_breaks_the_others_nor_rolls_back_the_binding：Grok 的
+  config.toml 被同名目录占用（读原文件即失败）时仅该项失败
+  （client_write_failed，错误码与文案逐项可见），其余四项成功、aicli_takeover 4 行、
+  绑定不回滚（账户行与 access-token 仍在）。
+- rebind_targets_only_previously_managed_tier1_clients：非首次只接管 aicli_takeover
+  现有行中的 Tier 1（无效非 Tier 1 行被过滤）。
+- first_bind_skips_clients_that_are_not_installed：仅已安装客户端进入目标。
+- proxy_start_failure_is_reported_without_touching_clients：代理启动失败时
+  proxy_error 记录、不刷新、不接管、不回滚绑定，事件仍发出（takeovers 为空）。
+
+二、基线（job `A3-01 baseline (Linux)`）
+命令：bash scripts/aicli-check.sh
+结果：Rust 4533 passed / 原有 10 skipped（较 C4-01 增加 5 项，即上述新增测试）、
+前端 264 文件 3360 passed（与 C4-01 持平）、clippy -D warnings、typecheck、
+format:check、build:renderer 全部通过。
+
+三、实现要点与口径（详见第 13 节偏差记录）
+- 接缝：EnsureProxyFn / RuntimeRefreshFn 注入，生产实现分别调 ProxyService
+  is_running/start 与代理运行时 AicliRuntime::refresh（拉取→编译含默认配置集在内
+  的全部配置集→批量 ensure Token）；测试注入假实现，不真占用固定端口。
+- 目标选择 takeover::bind_targets：首次绑定（aicli_takeover 无行）= 已安装的全部
+  Tier 1；非首次 = 该表现有行 ∩ Tier 1。已安装以配置目录判定（Desktop 用
+  detect_installed），绑定路径不跑 shell 探测。
+- 自动接管固定 confirmed=false：检测到 cc-switch 残留时该项记 cc_switch_conflict，
+  交由 C3-11 既有手动确认流程。
+- aicli_bind 返回 AicliBindResult（account 视图 + proxyStarted/proxyError/
+  runtimeRefreshError + 逐项 takeovers）；事件名 aicli-takeover-results，负载同结构。
+- 失败注入位置：客户端配置读写阶段（config.toml 被目录占用），断言逐项独立与不回滚。
+
+四、失败历史（不作成功证据，保留）
+1. run 42017183125（3ab98b5e）：
+   - A6 job 构建 aicli-cache-probe 失败 E0046（examples 的 CacheEvents 缺新方法
+     takeover_results）；修复：0ceb8304 补空实现。
+   - A3-01 与 Rust item tests 中 first_bind_skips、one_client_failure 两个用例失败：
+     controller::enter_with_route 会真实启动代理监听，绑定测试夹具未像 takeover 夹具
+     一样设 listen_port=0，跨 nextest 进程并行绑默认端口冲突（Address already in use）。
+     修复：0ceb8304 夹具改 listen_port=0。
+   - 另有 Fixture::with_post_bind 参数被局部 let 遮蔽的 unused 警告，一并消除。

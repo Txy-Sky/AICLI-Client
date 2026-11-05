@@ -678,10 +678,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：a0c3bfdc | job `B stage desktop checks (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink`（bind 专项 10 passed：合法/三线路、密钥参数拒绝且错误不回显值、未知/重复/空 line 拒绝、旧 v1/import 拒绝、待处理条目序列化不含 URL 与参数值；`aicli-open-bind` 以空负载发出、URL 日志均经 `url_for_log` 剥 query）；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4528 passed / 原有 10 skipped、前端 264 文件 3360 passed，四并行 job 与汇总全成功；A6 本轮实际运行；两轮中间失败（顶层 tests/ 前端测试漏删、clippy 死代码）及删除清单见 `docs/aicli-evidence/C4-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42011725834
 
 ### C4-02 绑定后自动接管
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli_bind` 成功后：刷新数据 → 启动代理（若未启动）→ 编译默认配置集并取得 Token → **只接管用户已启用的 Tier 1 客户端**（首次绑定默认全部已安装的 Tier 1）→ 发事件。任一客户端接管失败不影响其他客户端，也不回滚绑定，结果逐项返回。
 - 验收：集成测试：绑定成功时代理已启动，客户端配置已写入；一个客户端写入失败时其余正常，错误逐项可见。
-- 证据：
+- 证据：0ceb8304 | job `Rust item tests (Linux)`（aicli-item-tests.sh 新增 C4-02-unit 组）：`cargo nextest run --manifest-path src-tauri/Cargo.toml commands::aicli::tests::bind_ …`（6 passed：五客户端全接管且配置含代理 URL 与本地令牌、Grok 写入失败仅该项错（client_write_failed）其余四项成功且绑定不回滚、非首次仅接管既有行、未安装不入目标、代理启动失败不接管不刷新不回滚、事件只发一次且负载无令牌材质）；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4533 passed / 原有 10 skipped（较 C4-01 增 5 项）、前端 264 文件 3360 passed，五 job 全成功；A6 本轮实际运行；首轮失败（探针缺新 trait 方法、固定端口跨进程冲突）见 `docs/aicli-evidence/C4-02.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42019413559
 
 ### C4-03 账单回填
 - [ ] 完成
@@ -1042,6 +1042,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| C4-02（目标与已安装判定） | 清单只说「用户已启用的 Tier 1」「首次绑定默认全部已安装」，未定义存储与探测方式。 | 「已启用」= `aicli_takeover` 表现有行（解绑会清空该表，重新绑定按首次处理）；「已安装」= 各 Tier 1 CLI 首次运行即建的配置目录存在，Desktop 用状态页同一套 `detect_installed`；绑定路径不跑 shell 探测。 | 不新增表或设置项；F-04 接管 UI 上线后可再引入显式偏好。 |
+| C4-02（顺序与接缝） | 清单步骤为「刷新数据 → 启动代理 → 编译默认配置集并取得 Token → 接管 → 发事件」。 | 账户服务 bind 已触发 C1-06 生命周期刷新（刷新数据）；EnsureProxyFn/RuntimeRefreshFn 两个注入接缝分别承接代理启动与 `AicliRuntime::refresh`（其批量 ensure 覆盖含默认配置集在内的全部配置集与 Token）；代理启动失败时不接管（逐项结果为空、proxyError 记录）但不回滚绑定；自动接管固定 `confirmed=false`，cc-switch 冲突单项记 `cc_switch_conflict` 交由 C3-11 确认流。 | 不改产品外部行为；测试不占用固定端口。 |
+| C4-02（返回与事件） | 清单未指定 `aicli_bind` 返回形状与事件名。 | 返回 `AicliBindResult`（account 视图 + proxyStarted/proxyError/runtimeRefreshError + 逐项 takeovers）；事件名 `aicli-takeover-results`，负载同结构，无令牌材质；前端尚未调用该命令，无破坏面。 | 逐项结果同时从命令返回与事件下发，供 F 阶段绑定页与客户端页使用。 |
 | C4-01（utils.rs 连带删除） | 删除清单未列 `deeplink/utils.rs`。 | 随 provider 等引用方删除后无剩余调用者，连带删除，避免 dead_code 触发 clippy -D warnings。 | 只删死代码，不改行为或接口。 |
 | C4-01（解析失败不暂存） | 旧实现解析失败时把脱敏 URL 存入 `PendingDeepLink::Error` 交给前端；清单只规定成功发 `aicli-open-bind`。 | 失败只记日志（URL 经 `url_for_log` 剥 query，错误信息只含参数名不含参数值），不暂存、不发事件；`PendingDeepLink` 仅剩 `Bind` 变体，成功链接的 line 进待处理条目供 F 阶段绑定窗口预选，事件负载保持为空。 | 方案 6.2 要求修复该缺陷，此为其落地；待处理机制保留用于冷启动。 |
 | C4-01（前端范围） | 清单只列 Rust 修改与测试。 | 为保 CI 前端 typecheck 通过，删除仅被深链导入 UI 引用的前端文件及测试（清单见 C4-01.txt）；i18n deeplink 键与 msw peek/ack mock 保留。 | 删除功能连带删除其测试（第 0.2 节第 7 条）；文案与 mock 清理归 F/G 阶段，不提前扩大范围。 |
@@ -1129,9 +1132,10 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C3-09 验收 091bce7c：wire 鉴权/会话头专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed；四 job 及汇总成功，最终 A6 Docker/601 秒观测按覆盖规则跳过。详见 C3-09.txt。
 最近 C3-10 验收 95aa3cbc：接管专项 7 passed（五客户端逐字节还原、Grok 三级默认、NoModels/超 200 不写文件、cc-switch 冲突确认、指纹变化重投影、崩溃恢复）；Rust 4613 passed / 原有 10 skipped（较 C3-09 增加 7 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.39s、审计 39 次、30 天落盘通过；七轮失败历史与修正详见 C3-10.txt。
 最近 C3-11 验收 b4095f75：命令专项 11 passed（序列化输出无令牌材质、cc_switch_conflict 机器码、scope 仅 app/global、探测退避封顶 600s、换绑守卫丢弃旧写入），缓存守卫随 aicli::cache::tests 15 passed；Rust 4625 passed / 原有 10 skipped（较 C3-10 增加 12 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.45s、审计 39 次、30 天落盘通过。首轮 Linux 专属失败（fixture TempDir 提前删除导致 readonly）已修正，另有推送前本地修复（守卫丢弃 usage 写入仍发事件、runtime TTL 注入化）；公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-11.txt。
-最近 C4-01 验收 a0c3bfdc：bind 专项 10 passed（合法/三线路、密钥参数拒绝且错误不回显值、旧 v1/import 拒绝、待处理条目不含 URL 与参数值；`aicli-open-bind` 空负载、日志经 `url_for_log` 剥 query）；Rust 4528 passed / 原有 10 skipped（净减源于删除旧深链导入测试并新增 10 项）、前端 264 文件 3360 passed；四并行 job 与汇总全成功；A6 本轮实际运行。两轮中间失败（顶层 tests/ 前端测试漏删、clippy 孤儿符号）及删除清单详见 C4-01.txt。下一项 C4-02。
+最近 C4-01 验收 a0c3bfdc：bind 专项 10 passed（合法/三线路、密钥参数拒绝且错误不回显值、旧 v1/import 拒绝、待处理条目不含 URL 与参数值；`aicli-open-bind` 空负载、日志经 `url_for_log` 剥 query）；Rust 4528 passed / 原有 10 skipped（净减源于删除旧深链导入测试并新增 10 项）、前端 264 文件 3360 passed；四并行 job 与汇总全成功；A6 本轮实际运行。两轮中间失败（顶层 tests/ 前端测试漏删、clippy 孤儿符号）及删除清单详见 C4-01.txt。
+最近 C4-02 验收 0ceb8304：C4-02-unit 专项 6 passed（五客户端全接管、单项失败隔离且不回滚、非首次仅既有行、未安装跳过、代理失败不接管）；Rust 4533 passed / 原有 10 skipped（增 5 项）、前端 264 文件 3360 passed；五 job 全成功；A6 本轮实际运行。首轮失败（探针缺新 trait 方法、固定端口跨 nextest 进程冲突）详见 C4-02.txt。下一项 C4-03。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01 已验收，当前下一项 C4-02；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01、C4-02 已验收，当前下一项 C4-03；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
