@@ -123,6 +123,8 @@ pub struct AicliRuntime {
     background_started: std::sync::atomic::AtomicBool,
     token_service: Mutex<Option<BoundTokenService>>,
     identity: Mutex<Option<(i64, String)>>,
+    /// C4-03 账单回填：内存队列 + 后台 worker，随运行时销毁而清空。
+    bills: crate::aicli::usage::BillBackfill,
 }
 
 impl AicliRuntime {
@@ -135,6 +137,8 @@ impl AicliRuntime {
         store: Arc<dyn SecretStore>,
         remote: Arc<dyn RuntimeRemote>,
     ) -> Arc<Self> {
+        let bill_db = db.clone();
+        let bill_store = store.clone();
         let runtime = Arc::new(Self {
             #[cfg(any(test, feature = "test-hooks"))]
             local_provider_source: RwLock::new(None),
@@ -151,8 +155,10 @@ impl AicliRuntime {
             background_started: Default::default(),
             token_service: Default::default(),
             identity: Default::default(),
+            bills: crate::aicli::usage::BillBackfill::new(db.clone()),
         });
         // No network, task spawn, or block_on during construction.
+        runtime.bills.wire_production(bill_db, bill_store);
         if runtime.load_cached().is_err() {
             log::warn!("AICLI cached routes unavailable; starting with empty routes");
         }
@@ -216,6 +222,29 @@ impl AicliRuntime {
 
     pub fn credential(&self, token_id: i64) -> Option<String> {
         self.credentials.read().ok()?.get(&token_id).cloned()
+    }
+
+    /// C4-03：请求完成时记录上游请求 id 并入队账单回填（1s/3s/10s 三次查询，
+    /// 命中写 server_group/billed_quota/billed_at，未命中保持 NULL）。
+    pub fn record_upstream_request(&self, request_id: &str, upstream_request_id: &str) {
+        self.bills.record(request_id, upstream_request_id);
+    }
+
+    /// 仅测试：缩短回填重试延迟。
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_bill_delays_for_test(&self, delays: [std::time::Duration; 3]) {
+        self.bills.set_delays_for_test(delays);
+    }
+
+    /// 仅测试 / test-hooks：注入脚本化 new-api 查询与绑定上下文。
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_bill_query_for_test(
+        &self,
+        query: crate::aicli::usage::BillQuery,
+        context: crate::aicli::usage::BillContext,
+    ) {
+        self.bills.set_query_for_test(query);
+        self.bills.set_context_for_test(context);
     }
 
     /// Recover metadata/credentials once, without replaying the failed request.

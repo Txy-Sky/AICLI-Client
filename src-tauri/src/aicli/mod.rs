@@ -15,6 +15,7 @@ pub mod secrets;
 pub mod seed;
 pub mod takeover;
 pub mod tokens;
+pub mod usage;
 
 #[cfg(test)]
 pub(crate) mod testing;

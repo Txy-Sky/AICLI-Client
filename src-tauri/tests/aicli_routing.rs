@@ -20,6 +20,7 @@ use cc_switch_lib::{
     AppType, Database,
 };
 use futures::future::BoxFuture;
+use rusqlite::OptionalExtension;
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
@@ -115,7 +116,7 @@ async fn upstream(
         body,
         headers,
     });
-    Json(if path.ends_with("messages") {
+    let mut response = Json(if path.ends_with("messages") {
         json!({"id":"msg-fixture","type":"message","role":"assistant","model":UPSTREAM,"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}})
     } else if path.ends_with("chat/completions") {
         json!({"id":"chatcmpl-fixture","object":"chat.completion","model":UPSTREAM,"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}})
@@ -125,7 +126,13 @@ async fn upstream(
         json!({"data":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}})
     } else {
         json!({"id":"resp-fixture","object":"response","model":UPSTREAM,"status":"completed","output":[{"id":"msg-fixture","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}})
-    }).into_response()
+    })
+    .into_response();
+    // C4-03：new-api 网关在响应头带上的游请求 id；流式在头部即可取到。
+    response
+        .headers_mut()
+        .insert("x-oneapi-request-id", "up-fixture".parse().unwrap());
+    response
 }
 
 struct Fixture {
@@ -138,6 +145,10 @@ struct Fixture {
 }
 impl Fixture {
     async fn new(bound: bool) -> Self {
+        Self::with_logging(bound, false).await
+    }
+
+    async fn with_logging(bound: bool, enable_logging: bool) -> Self {
         support::ensure_test_home();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let mock_origin = format!("http://{}", listener.local_addr().unwrap());
@@ -219,7 +230,7 @@ impl Fixture {
         let proxy = ProxyServer::new(
             ProxyConfig {
                 listen_port: 0,
-                enable_logging: false,
+                enable_logging,
                 ..Default::default()
             },
             db.clone(),
@@ -673,5 +684,109 @@ async fn aicli_credentials_follow_wire_and_affinity_is_owned_by_the_decision() {
     ] {
         assert!(!logs.contains(forbidden));
     }
+    f.stop().await;
+}
+
+/// C4-03 账单回填（mock 上游带 `X-Oneapi-Request-Id`，mock new-api 第 2 次查询才命中）：
+/// 请求完成时行内先出现上游 id，随后服务端 group/quota/时间补进账单字段。
+#[tokio::test]
+async fn bill_backfill_tags_the_row_and_fills_server_side_billing() {
+    let f = Fixture::with_logging(true, true).await;
+    f.runtime.set_bill_delays_for_test([
+        std::time::Duration::from_millis(1),
+        std::time::Duration::from_millis(1),
+        std::time::Duration::from_millis(1),
+    ]);
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let calls_for_query = calls.clone();
+    f.runtime.set_bill_query_for_test(
+        std::sync::Arc::new(move |access: &str, line: &str, upstream: &str| {
+            assert_eq!(access, "synthetic-routing-access");
+            assert_eq!(line, "main");
+            assert_eq!(upstream, "up-fixture");
+            let calls = calls_for_query.clone();
+            Box::pin(async move {
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if calls.load(std::sync::atomic::Ordering::SeqCst) >= 2 {
+                    Ok(Some(json!({
+                        "request_id": "up-fixture", "group": "g-pro", "quota": 321,
+                        "created_at": 4242
+                    })))
+                } else {
+                    Ok(None)
+                }
+            })
+        }),
+        std::sync::Arc::new(|| Some(("synthetic-routing-access".to_owned(), "main".to_owned()))),
+    );
+
+    let gateway = routing_support::get_or_create_gateway_token(&f.db).unwrap();
+    let response = f
+        .client()
+        .post(format!("{}/v1/responses", f.origin))
+        .header("x-api-key", &gateway)
+        .json(&json!({"model": PUBLIC, "stream": false, "input": "hi"}))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    assert!(status.is_success(), "{status} {text}");
+
+    // 请求完成：行内先写入上游请求 id。
+    let tagged = |db: &Arc<Database>| {
+        db.conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT upstream_request_id FROM proxy_request_logs
+                 WHERE app_type='codex' AND provider_id='aicli-main'",
+                [],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .unwrap()
+            .flatten()
+    };
+    for _ in 0..2000 {
+        if tagged(&f.db).as_deref() == Some("up-fixture") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    assert_eq!(tagged(&f.db).as_deref(), Some("up-fixture"));
+
+    // 回填：第 2 次查询命中，写入服务端记账字段。
+    let billed = |db: &Arc<Database>| {
+        db.conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT server_group,billed_quota,billed_at FROM proxy_request_logs
+                 WHERE app_type='codex' AND provider_id='aicli-main'",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .unwrap()
+    };
+    for _ in 0..2000 {
+        if billed(&f.db).is_some_and(|(_, quota, _)| quota.is_some()) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    assert_eq!(
+        billed(&f.db),
+        Some((Some("g-pro".to_owned()), Some(321), Some(4242))),
+        "server-side billing must land after the second query"
+    );
+    assert!(calls.load(std::sync::atomic::Ordering::SeqCst) >= 2);
     f.stop().await;
 }

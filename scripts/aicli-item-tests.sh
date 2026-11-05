@@ -49,12 +49,14 @@ case "$set_name" in
     item C3-10-unit aicli::takeover::tests
     item C3-11-unit commands::aicli::tests
     item C4-02-unit commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips commands::aicli::tests::proxy_start_failure_is_reported
+    item C4-03-unit aicli::usage::tests
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
     item C1-06-api --features test-hooks aicli::newapi::tests
     item C3-03-routing --features test-hooks --test aicli_routing
     item C3-09-wire --features test-hooks --test aicli_routing aicli_credentials_follow_wire
+    item C4-03-routing --features test-hooks --test aicli_routing bill_backfill
     ;;
   *)
     echo "unknown feature set: $set_name" >&2

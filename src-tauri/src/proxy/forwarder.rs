@@ -292,6 +292,9 @@ pub struct ForwardResult {
     /// 活跃连接 RAII guard：随响应一起流转到 response_processor / handle_claude_transform，
     /// 最终被 move 进流式 body future（或非流式响应作用域），覆盖整个响应生命周期。
     pub(crate) connection_guard: Option<ActiveConnectionGuard>,
+    /// C4-03：AICLI 请求从上游响应头取到的 `X-Oneapi-Request-Id`（流式在头部即可取到），
+    /// 由 usage 落库时写入 `proxy_request_logs.upstream_request_id` 并入队账单回填。
+    pub aicli_upstream_request_id: Option<String>,
 }
 
 pub struct ForwardError {
@@ -694,6 +697,11 @@ impl RequestForwarder {
                 }
             }
         }
+        let aicli_upstream_request_id = if self.aicli_request {
+            crate::aicli::usage::upstream_request_id(response.headers())
+        } else {
+            None
+        };
         let result = ForwardResult {
             response,
             provider: provider.clone(),
@@ -701,6 +709,7 @@ impl RequestForwarder {
             codex_upstream_format,
             outbound_model,
             connection_guard: None,
+            aicli_upstream_request_id,
         };
         if !self.routing_state_enabled() {
             return result;

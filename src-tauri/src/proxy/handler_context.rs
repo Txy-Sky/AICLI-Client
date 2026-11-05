@@ -86,6 +86,9 @@ pub struct RequestContext {
     pub is_stack: bool,
     /// Immutable resolution retained for per-line timeouts and later credential injection.
     pub route: Option<Box<RouteDecision>>,
+    /// C4-03：AICLI 请求的上游 `X-Oneapi-Request-Id`（forward 成功后回填），
+    /// usage 落库时写入行并触发账单回填。
+    pub aicli_upstream_request_id: Option<String>,
 }
 
 impl RequestContext {
@@ -260,6 +263,7 @@ impl RequestContext {
             copilot_optimizer_config,
             is_stack,
             route: decision,
+            aicli_upstream_request_id: None,
         })
     }
 

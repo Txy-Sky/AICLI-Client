@@ -401,6 +401,7 @@ async fn handle_messages_for_app(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let resolved_api_format = result.claude_api_format.is_some();
     let api_format = result
         .claude_api_format
@@ -534,6 +535,8 @@ struct ClaudeUsageLog {
     latency_ms: u64,
     status_code: u16,
     is_streaming: bool,
+    /// C4-03：AICLI 上游请求 id，None 表示非 AICLI 请求。
+    upstream_request_id: Option<String>,
 }
 
 fn prepare_claude_usage_log(
@@ -567,6 +570,7 @@ fn prepare_claude_usage_log(
         latency_ms: ctx.latency_ms(),
         status_code,
         is_streaming,
+        upstream_request_id: ctx.aicli_upstream_request_id.clone(),
     })
 }
 
@@ -584,6 +588,7 @@ async fn write_claude_usage_log(state: &ProxyState, log: ClaudeUsageLog) {
         log.is_streaming,
         log.status_code,
         Some(log.session_id),
+        log.upstream_request_id,
     )
     .await;
 }
@@ -690,6 +695,7 @@ async fn handle_claude_transform(
             let status_code = status.as_u16();
             let start_time = ctx.start_time;
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
             // 用 ctx 的 app_type：Claude Desktop 网关也走此转换路径，硬编码
             // "claude" 会把 claude-desktop 的行错记到 claude 名下
             let app_type_str = ctx.app_type_str;
@@ -710,6 +716,7 @@ async fn handle_claude_transform(
                         let session_id = session_id.clone();
                         let request_model = request_model.clone();
                         let outbound_model = fallback_model.clone();
+                        let upstream_request_id = upstream_request_id.clone();
 
                         tokio::spawn(async move {
                             log_usage(
@@ -725,6 +732,7 @@ async fn handle_claude_transform(
                                 true,
                                 status_code,
                                 Some(session_id),
+                                upstream_request_id,
                             )
                             .await;
                         });
@@ -1050,6 +1058,7 @@ pub async fn handle_chat_completions(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     process_response(
@@ -1183,6 +1192,7 @@ async fn handle_responses_for_app(
     let codex_upstream_format = result.codex_upstream_format;
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     if codex_upstream_format == Some(CodexUpstreamFormat::Anthropic) {
@@ -1419,6 +1429,7 @@ async fn handle_codex_standalone_passthrough(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
 
     process_response(
         result.response,
@@ -1524,6 +1535,7 @@ async fn handle_responses_compact_for_app(
     let codex_upstream_format = result.codex_upstream_format;
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     if codex_upstream_format == Some(CodexUpstreamFormat::Anthropic) {
@@ -1727,6 +1739,7 @@ async fn handle_codex_xai_native_responses_rewrite(
                     let state = state.clone();
                     let provider_id = ctx.provider.id.clone();
                     let session_id = ctx.session_id.clone();
+                    let upstream_request_id = ctx.aicli_upstream_request_id.clone();
                     let latency_ms = ctx.latency_ms();
                     async move {
                         log_usage(
@@ -1742,6 +1755,7 @@ async fn handle_codex_xai_native_responses_rewrite(
                             false,
                             status.as_u16(),
                             Some(session_id),
+                            upstream_request_id,
                         )
                         .await;
                     }
@@ -1804,6 +1818,7 @@ async fn handle_codex_chat_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let request_model = ctx.request_model.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
             // 接管/模型覆写场景的归因兜底：出站真值优先于客户端请求别名
             let fallback_model = ctx
                 .outbound_model
@@ -1840,6 +1855,7 @@ async fn handle_codex_chat_to_responses_transform(
                     let request_model = request_model.clone();
                     let outbound_model = fallback_model.clone();
                     let session_id = session_id.clone();
+                    let upstream_request_id = upstream_request_id.clone();
 
                     tokio::spawn(async move {
                         log_usage(
@@ -1855,6 +1871,7 @@ async fn handle_codex_chat_to_responses_transform(
                             true,
                             status.as_u16(),
                             Some(session_id),
+                            upstream_request_id,
                         )
                         .await;
                     });
@@ -1961,6 +1978,7 @@ async fn handle_codex_chat_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -1976,6 +1994,7 @@ async fn handle_codex_chat_to_responses_transform(
                     false,
                     status.as_u16(),
                     Some(session_id),
+                    upstream_request_id,
                 )
                 .await;
             }
@@ -2126,6 +2145,7 @@ async fn handle_codex_anthropic_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -2141,6 +2161,7 @@ async fn handle_codex_anthropic_to_responses_transform(
                     false,
                     status.as_u16(),
                     Some(session_id),
+                    upstream_request_id,
                 )
                 .await;
             }
@@ -2191,6 +2212,7 @@ fn build_codex_anthropic_sse_response(
         let app_type_str = ctx.app_type_str;
         let start_time = ctx.start_time;
         let session_id = ctx.session_id.clone();
+        let upstream_request_id = ctx.aicli_upstream_request_id.clone();
 
         Some(SseUsageCollector::new(
             start_time,
@@ -2213,6 +2235,7 @@ fn build_codex_anthropic_sse_response(
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
                 let session_id = session_id.clone();
+                let upstream_request_id = upstream_request_id.clone();
 
                 tokio::spawn(async move {
                     log_usage(
@@ -2228,6 +2251,7 @@ fn build_codex_anthropic_sse_response(
                         true,
                         status.as_u16(),
                         Some(session_id),
+                        upstream_request_id,
                     )
                     .await;
                 });
@@ -2666,6 +2690,7 @@ pub async fn handle_gemini(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     process_response(
@@ -3380,6 +3405,7 @@ async fn log_usage(
     is_streaming: bool,
     status_code: u16,
     session_id: Option<String>,
+    upstream_request_id: Option<String>,
 ) {
     use super::usage::logger::UsageLogger;
 
@@ -3389,6 +3415,8 @@ async fn log_usage(
 
     let dedup_scope = super::usage::parser::dedup_scope_for_app(app_type, provider_id);
     let request_id = usage.dedup_request_id(dedup_scope);
+    // C4-03：行写入后按同一 id 回填账单；闭包会 move 走 request_id，先留一份。
+    let bill_request_id = request_id.clone();
 
     // #7818：使用量写入要拿 Database 的单把 std::sync::Mutex<Connection> 并做
     // 磁盘 IO，同步执行会卡住 tokio worker，移到阻塞线程池执行。计费模式
@@ -3432,6 +3460,11 @@ async fn log_usage(
         )))
     }) {
         log::warn!("[USG-001] 记录使用量失败: {e}");
+    } else if let Some(upstream) = upstream_request_id.filter(|id| !id.is_empty()) {
+        // C4-03：AICLI 请求完成——写上游请求 id 并入队账单回填（1s/3s/10s）。
+        state
+            .aicli
+            .record_upstream_request(&bill_request_id, &upstream);
     }
 }
 
