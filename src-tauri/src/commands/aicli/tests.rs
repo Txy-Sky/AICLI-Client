@@ -253,7 +253,6 @@ impl Fixture {
             let result: Result<(u16, Value), NewApiError> = Err(NewApiError::Network);
             Box::pin(async move { result })
         });
-        let proxy_control = ProxyControlFake::ok();
         let runtime_refresh = Arc::new(RuntimeRefreshFake {
             calls: AtomicUsize::new(0),
         });
@@ -940,6 +939,11 @@ async fn bind_fixture(
     proxy_control: Arc<ProxyControlFake>,
 ) -> Fixture {
     let fixture = Fixture::with_post_bind(events, proxy_control);
+    // 接管会真的启动代理监听；固定端口会在并行测试进程间冲突，与
+    // `aicli/takeover.rs` 夹具一样改用系统分配的临时端口。
+    let mut config = fixture.db.get_proxy_config().await.unwrap();
+    config.listen_port = 0;
+    fixture.db.update_proxy_config(config).await.unwrap();
     crate::aicli::seed::init(&fixture.db).unwrap();
     let pricing = json!({
         "auto_groups": ["fixture"],

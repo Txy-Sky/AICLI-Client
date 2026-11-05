@@ -9,6 +9,8 @@ struct Events;
 
 impl CacheEvents for Events {
     fn data_updated(&self, _: &str) {}
+
+    fn takeover_results(&self, _: &str) {}
 }
 
 async fn run() -> Result<(), &'static str> {
