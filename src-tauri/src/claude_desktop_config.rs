@@ -1503,6 +1503,13 @@ fn detect_installed(paths: &ClaudeDesktopPaths, app_bundles: &[PathBuf]) -> bool
         || app_bundles.iter().any(|bundle| bundle.is_dir())
 }
 
+/// C4-02 首次绑定的「已安装」推断：与状态页同一套 `detect_installed`。
+pub(crate) fn is_installed() -> bool {
+    current_platform_paths()
+        .map(|paths| detect_installed(&paths, &macos_app_bundle_candidates()))
+        .unwrap_or(false)
+}
+
 fn macos_app_bundle_candidates() -> Vec<PathBuf> {
     if cfg!(target_os = "macos") {
         vec![

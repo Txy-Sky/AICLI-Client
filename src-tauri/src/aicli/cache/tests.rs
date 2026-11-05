@@ -11,6 +11,8 @@ impl CacheEvents for Events {
     fn data_updated(&self, _: &str) {
         self.0.fetch_add(1, Ordering::SeqCst);
     }
+
+    fn takeover_results(&self, _: &str) {}
 }
 
 struct Remote {

@@ -17,6 +17,7 @@ use super::secrets::SecretStore;
 use crate::database::Database;
 
 pub const EVENT_DATA_UPDATED: &str = "aicli-data-updated";
+pub const EVENT_TAKEOVER_RESULTS: &str = "aicli-takeover-results";
 pub(crate) const ACCOUNT_KINDS: [&str; 3] = ["account", "groups", "pricing"];
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -35,6 +36,8 @@ pub trait CacheRemote: Send + Sync {
 
 pub trait CacheEvents: Send + Sync {
     fn data_updated(&self, kind: &str);
+    /// C4-02：绑定后自动接管的逐项结果（不含任何令牌材质）。
+    fn takeover_results(&self, payload: &str);
 }
 
 pub struct AppCacheEvents(pub tauri::AppHandle);
@@ -43,6 +46,12 @@ impl CacheEvents for AppCacheEvents {
     fn data_updated(&self, kind: &str) {
         if let Err(error) = self.0.emit(EVENT_DATA_UPDATED, kind) {
             log::warn!("Could not emit AICLI cache update event: {error}");
+        }
+    }
+
+    fn takeover_results(&self, payload: &str) {
+        if let Err(error) = self.0.emit(EVENT_TAKEOVER_RESULTS, payload) {
+            log::warn!("Could not emit AICLI takeover results event: {error}");
         }
     }
 }

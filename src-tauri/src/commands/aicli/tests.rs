@@ -11,11 +11,82 @@ const ACCESS: &str = "synthetic-system-access-canary";
 const SECOND_ACCESS: &str = "synthetic-system-access-canary-2";
 const MODEL_KEY: &str = concat!("sk-", "c311-model-canary");
 
+/// 捕获 C4-02 事件负载，便于断言只发一次且不含令牌材质。
+#[derive(Default)]
+struct RecordingEvents {
+    takeover_payloads: Mutex<Vec<String>>,
+}
+
+impl CacheEvents for RecordingEvents {
+    fn data_updated(&self, _: &str) {}
+
+    fn takeover_results(&self, payload: &str) {
+        self.takeover_payloads
+            .lock()
+            .unwrap()
+            .push(payload.to_owned());
+    }
+}
+
+/// C4-02 接缝假实现：记录调用并可选注入失败。
+struct ProxyControlFake {
+    calls: AtomicUsize,
+    fail: bool,
+}
+
+impl ProxyControlFake {
+    fn ok() -> Arc<Self> {
+        Arc::new(Self {
+            calls: AtomicUsize::new(0),
+            fail: false,
+        })
+    }
+    fn failing() -> Arc<Self> {
+        Arc::new(Self {
+            calls: AtomicUsize::new(0),
+            fail: true,
+        })
+    }
+    fn seam(self: &Arc<Self>) -> EnsureProxyFn {
+        let inner = self.clone();
+        Arc::new(move || {
+            let inner = inner.clone();
+            Box::pin(async move {
+                inner.calls.fetch_add(1, Ordering::SeqCst);
+                if inner.fail {
+                    Err("synthetic proxy start failure".to_owned())
+                } else {
+                    Ok(true)
+                }
+            })
+        })
+    }
+}
+
+struct RuntimeRefreshFake {
+    calls: AtomicUsize,
+}
+
+impl RuntimeRefreshFake {
+    fn seam(self: &Arc<Self>) -> RuntimeRefreshFn {
+        let inner = self.clone();
+        Arc::new(move || {
+            let inner = inner.clone();
+            Box::pin(async move {
+                inner.calls.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        })
+    }
+}
+
 #[derive(Default)]
 struct NoEvents;
 
 impl CacheEvents for NoEvents {
     fn data_updated(&self, _: &str) {}
+
+    fn takeover_results(&self, _: &str) {}
 }
 
 struct AccountFake {
@@ -57,11 +128,14 @@ impl AccountRemote for AccountFake {
 
 /// Scripted cache remote: default replies are inert JSON; `hold_next` parks one
 /// fetch until the test opens the gate so in-flight rebinding races are real.
+/// `overrides` fixes per-kind replies (C4-02: keep takeover projections stable
+/// while scheduled background refreshes race the bind flow).
 struct ScriptedRemote {
     queue: Mutex<VecDeque<Result<Value, NewApiError>>>,
     hold_next: AtomicBool,
     gate: Notify,
     fetches: AtomicUsize,
+    overrides: Mutex<std::collections::HashMap<String, Value>>,
 }
 
 impl Default for ScriptedRemote {
@@ -71,7 +145,17 @@ impl Default for ScriptedRemote {
             hold_next: AtomicBool::new(false),
             gate: Notify::new(),
             fetches: AtomicUsize::new(0),
+            overrides: Mutex::new(std::collections::HashMap::new()),
         }
+    }
+}
+
+impl ScriptedRemote {
+    fn set_override(&self, kind: &str, value: Value) {
+        self.overrides
+            .lock()
+            .unwrap()
+            .insert(kind.to_owned(), value);
     }
 }
 
@@ -79,6 +163,9 @@ impl CacheRemote for ScriptedRemote {
     fn fetch<'a>(&'a self, kind: &'a str) -> BoxFuture<'a, Result<Value, NewApiError>> {
         Box::pin(async move {
             self.fetches.fetch_add(1, Ordering::SeqCst);
+            if let Some(value) = self.overrides.lock().unwrap().get(kind) {
+                return Ok(value.clone());
+            }
             // Take the reply before parking so a held fetch owns its own result
             // and later fetches cannot consume it.
             let reply = self.queue.lock().unwrap().pop_front().unwrap_or_else(|| {
@@ -104,12 +191,15 @@ impl CacheRemote for ScriptedRemote {
 
 struct Fixture {
     services: Arc<AicliServices>,
+    app_state: AppState,
     db: Arc<Database>,
     secrets: Arc<MemoryStore>,
     _remote: Arc<ScriptedRemote>,
     account_remote: Arc<AccountFake>,
     built: Arc<Mutex<Vec<(i64, String, String)>>>,
     caches: Arc<Mutex<Vec<Arc<AicliCache>>>>,
+    proxy_control: Arc<ProxyControlFake>,
+    runtime_refresh: Arc<RuntimeRefreshFake>,
     /// Keeps the database file alive for the fixture's lifetime: once the
     /// directory is removed SQLite cannot open the journal by path anymore
     /// and every write fails as readonly (observed on Linux CI; on Windows
@@ -119,6 +209,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::with_post_bind(Arc::new(NoEvents), ProxyControlFake::ok())
+    }
+
+    fn with_post_bind(events: Arc<dyn CacheEvents>, proxy_control: Arc<ProxyControlFake>) -> Self {
         let temp = tempfile::tempdir().unwrap();
         let conn = Connection::open(temp.path().join("aicli-commands.db")).unwrap();
         Database::create_tables_on_conn(&conn).unwrap();
@@ -159,22 +253,31 @@ impl Fixture {
             let result: Result<(u16, Value), NewApiError> = Err(NewApiError::Network);
             Box::pin(async move { result })
         });
+        let proxy_control = ProxyControlFake::ok();
+        let runtime_refresh = Arc::new(RuntimeRefreshFake {
+            calls: AtomicUsize::new(0),
+        });
         let services = AicliServices::for_test(
-            app_state,
+            app_state.clone(),
             secrets.clone(),
-            Arc::new(NoEvents),
+            events,
             builder,
             probe,
             account_remote.clone(),
+            proxy_control.seam(),
+            runtime_refresh.seam(),
         );
         Self {
             services,
+            app_state,
             db,
             secrets,
             _remote: remote,
             account_remote,
             built,
             caches,
+            proxy_control,
+            runtime_refresh,
             _temp: temp,
         }
     }
@@ -757,4 +860,337 @@ fn takeover_errors_carry_distinct_codes() {
         AicliCommandError::from(AccountError::WrongCredentialType).code,
         "wrong_credential_type"
     );
+}
+
+// ---------------------------------------------------------------------------
+// C4-02: automatic post-bind takeover of Tier 1 clients
+// ---------------------------------------------------------------------------
+
+/// C4-02 的 HOME 隔离与 `aicli/takeover.rs` 测试同一套：接管会写真实客户端
+/// 配置文件，必须落在临时目录里。
+struct BindHome {
+    _dir: tempfile::TempDir,
+    saved: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    root: std::path::PathBuf,
+}
+
+impl BindHome {
+    fn new() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        let saved = [
+            "HOME",
+            "USERPROFILE",
+            "LOCALAPPDATA",
+            "CC_SWITCH_TEST_HOME",
+            "XDG_CONFIG_HOME",
+        ]
+        .into_iter()
+        .map(|key| {
+            let old = std::env::var_os(key);
+            std::env::set_var(
+                key,
+                if key == "XDG_CONFIG_HOME" {
+                    dir.path().join(".config")
+                } else {
+                    dir.path().to_path_buf()
+                },
+            );
+            (key, old)
+        })
+        .collect();
+        crate::settings::reload_settings().unwrap();
+        Self {
+            root: dir.path().to_path_buf(),
+            _dir: dir,
+            saved,
+        }
+    }
+
+    /// 让对应 Tier 1 客户端被判定为「已安装」。
+    fn install(&self, app: &AppType) {
+        let dir = match app {
+            AppType::Claude => self.root.join(".claude"),
+            AppType::Codex => self.root.join(".codex"),
+            AppType::Gemini => self.root.join(".gemini"),
+            AppType::GrokBuild => self.root.join(".grok"),
+            AppType::ClaudeDesktop => self.root.join(".config").join("Claude"),
+            _ => unreachable!("not a Tier 1 client"),
+        };
+        std::fs::create_dir_all(dir).unwrap();
+    }
+}
+
+impl Drop for BindHome {
+    fn drop(&mut self) {
+        for (key, old) in self.saved.drain(..) {
+            if let Some(old) = old {
+                std::env::set_var(key, old)
+            } else {
+                std::env::remove_var(key)
+            }
+        }
+        crate::settings::reload_settings().unwrap();
+    }
+}
+
+/// 组装能走到真实接管的绑定夹具：种子 Provider、可投影的缓存行、逐 kind
+/// 覆盖的远端回复（后台刷新竞态不会破坏投影）、账号校验应答。
+async fn bind_fixture(
+    events: Arc<dyn CacheEvents>,
+    proxy_control: Arc<ProxyControlFake>,
+) -> Fixture {
+    let fixture = Fixture::with_post_bind(events, proxy_control);
+    crate::aicli::seed::init(&fixture.db).unwrap();
+    let pricing = json!({
+        "auto_groups": ["fixture"],
+        "data": [
+            {
+                "model_name": "alpha",
+                "enable_groups": ["fixture"],
+                "supported_endpoint_types": ["anthropic", "openai-response", "gemini"]
+            }
+        ]
+    });
+    let groups = json!({"data": {"fixture": {"ratio": 1}}});
+    {
+        let conn = fixture.db.conn.lock().unwrap();
+        for (kind, value) in [("groups", groups.clone()), ("pricing", pricing.clone())] {
+            conn.execute(
+                "INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json)
+                 VALUES(?1,'fixture',1,?2)
+                 ON CONFLICT(kind) DO UPDATE SET body_json=excluded.body_json",
+                rusqlite::params![kind, value.to_string()],
+            )
+            .unwrap();
+        }
+    }
+    fixture._remote.set_override("groups", groups);
+    fixture._remote.set_override("pricing", pricing);
+    fixture.account_remote.replies.lock().unwrap().push_back(Ok(
+        json!({"success":true,"data":{"id":8,"username":"fixture-8","group":"default"}}),
+    ));
+    fixture
+}
+
+fn active_takeovers(fixture: &Fixture) -> Vec<(String, String)> {
+    let conn = fixture.db.conn.lock().unwrap();
+    let mut statement = conn
+        .prepare("SELECT app_type,state FROM aicli_takeover ORDER BY app_type")
+        .unwrap();
+    statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn bind_takes_over_all_installed_tier1_clients_and_emits_results() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events.clone(), ProxyControlFake::ok()).await;
+    for app in [
+        AppType::Claude,
+        AppType::Codex,
+        AppType::Gemini,
+        AppType::GrokBuild,
+        AppType::ClaudeDesktop,
+    ] {
+        _home.install(&app);
+    }
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    // Data refresh + proxy + compile/token seams all ran once.
+    assert_eq!(fixture.proxy_control.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(fixture.runtime_refresh.calls.load(Ordering::SeqCst), 1);
+    assert!(result.proxy_started);
+    assert!(result.proxy_error.is_none());
+    assert!(result.runtime_refresh_error.is_none());
+    assert_eq!(result.takeovers.len(), 5);
+    assert!(result.takeovers.iter().all(|outcome| outcome.success));
+
+    // Every client file now points at the proxy with its own local token.
+    let (proxy_url, _) = fixture
+        .app_state
+        .proxy_service
+        .build_proxy_urls()
+        .await
+        .unwrap();
+    let rows = active_takeovers(&fixture);
+    assert_eq!(rows.len(), 5);
+    assert!(rows.iter().all(|(_, state)| state == "active"));
+    for app in [
+        AppType::Claude,
+        AppType::Codex,
+        AppType::Gemini,
+        AppType::GrokBuild,
+        AppType::ClaudeDesktop,
+    ] {
+        let text = crate::aicli::takeover::managed_client_text(&app);
+        assert!(text.contains(&proxy_url), "{}", app.as_str());
+        let token = crate::aicli::local_auth::token_for(&fixture.db, app.as_str()).unwrap();
+        assert!(text.contains(&token), "{}", app.as_str());
+        assert!(!text.contains("sk-"), "{}", app.as_str());
+    }
+
+    // One event with the per-item results; nothing sensitive inside.
+    let payloads = events.takeover_payloads.lock().unwrap().clone();
+    assert_eq!(payloads.len(), 1);
+    assert!(payloads[0].contains("\"takeovers\":["));
+    assert!(payloads[0].contains("\"proxyStarted\":true"));
+    assert_no_secret_material(&payloads[0]);
+    assert_no_secret_material(&serde_json::to_string(&result).unwrap());
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn one_client_failure_neither_breaks_the_others_nor_rolls_back_the_binding() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events, ProxyControlFake::ok()).await;
+    for app in [
+        AppType::Claude,
+        AppType::Codex,
+        AppType::Gemini,
+        AppType::GrokBuild,
+        AppType::ClaudeDesktop,
+    ] {
+        _home.install(&app);
+    }
+    // Grok 的 config.toml 被一个同名目录占用：读取原文件即失败，接管必然失败，
+    // 其余客户端不受影响。
+    std::fs::create_dir_all(_home.root.join(".grok").join("config.toml")).unwrap();
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    assert_eq!(result.takeovers.len(), 5);
+    let grok = result
+        .takeovers
+        .iter()
+        .find(|outcome| outcome.app == "grokbuild")
+        .unwrap();
+    assert!(!grok.success);
+    assert_eq!(grok.error_code.as_deref(), Some("client_write_failed"));
+    assert!(grok.error_message.is_some());
+    assert!(result
+        .takeovers
+        .iter()
+        .filter(|outcome| outcome.app != "grokbuild")
+        .all(|outcome| outcome.success));
+
+    // Only the four healthy clients are under management; the binding stays.
+    let rows = active_takeovers(&fixture);
+    assert_eq!(rows.len(), 4);
+    assert!(rows.iter().all(|(app, _)| app != "grokbuild"));
+    assert_eq!(result.account.state, BindingState::Bound);
+    assert_eq!(result.account.user_id, Some(8));
+    assert!(fixture.secrets.get("access-token").unwrap().is_some());
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn rebind_targets_only_previously_managed_tier1_clients() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events, ProxyControlFake::ok()).await;
+    for app in [
+        AppType::Claude,
+        AppType::Codex,
+        AppType::Gemini,
+        AppType::GrokBuild,
+        AppType::ClaudeDesktop,
+    ] {
+        _home.install(&app);
+    }
+    // 非首次：只有 claude 处于接管下（另有一条非 Tier 1 的无效行，被过滤）；
+    // 既有接管要求备份仍存在，否则 take_over 返回 backup_unavailable。
+    fixture
+        .secrets
+        .set("takeover-backup:claude", "{\"version\":1,\"files\":[null]}")
+        .unwrap();
+    fixture
+        .db
+        .conn
+        .lock()
+        .unwrap()
+        .execute_batch(
+            "INSERT INTO aicli_takeover(app_type,state,backup_ref,taken_over_at)
+             VALUES('claude','active','takeover-backup:claude',1);
+             INSERT INTO aicli_takeover(app_type,state,backup_ref,taken_over_at)
+             VALUES('opencode','active','takeover-backup:opencode',1);",
+        )
+        .unwrap();
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    assert_eq!(result.takeovers.len(), 1);
+    assert_eq!(result.takeovers[0].app, "claude");
+    assert!(result.takeovers[0].success);
+    let rows = active_takeovers(&fixture);
+    assert!(rows
+        .iter()
+        .all(|(app, _)| app == "claude" || app == "opencode"));
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn first_bind_skips_clients_that_are_not_installed() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events, ProxyControlFake::ok()).await;
+    _home.install(&AppType::Codex);
+    // 其余 Tier 1 目录不存在：不接管。
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    assert_eq!(result.takeovers.len(), 1);
+    assert_eq!(result.takeovers[0].app, "codex");
+    assert!(result.takeovers[0].success);
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn proxy_start_failure_is_reported_without_touching_clients() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events.clone(), ProxyControlFake::failing()).await;
+    _home.install(&AppType::Claude);
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    assert!(!result.proxy_started);
+    assert_eq!(
+        result.proxy_error.as_deref(),
+        Some("synthetic proxy start failure")
+    );
+    assert!(result.takeovers.is_empty());
+    assert_eq!(fixture.runtime_refresh.calls.load(Ordering::SeqCst), 0);
+    // 客户端文件一个都没动，绑定本身保持成功。
+    assert!(active_takeovers(&fixture).is_empty());
+    assert_eq!(result.account.state, BindingState::Bound);
+    let payloads = events.takeover_payloads.lock().unwrap().clone();
+    assert_eq!(payloads.len(), 1);
+    assert!(payloads[0].contains("\"takeovers\":[]"));
 }

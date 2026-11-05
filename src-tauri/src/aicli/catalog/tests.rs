@@ -170,6 +170,10 @@ fn reads_only_persisted_snapshots_and_preserves_missing_cache() {
         fn data_updated(&self, _: &str) {
             panic!("reading catalog must not publish an update");
         }
+
+        fn takeover_results(&self, _: &str) {
+            panic!("reading catalog must not publish takeover results");
+        }
     }
     let db = Arc::new(crate::Database::memory().unwrap());
     let cache = AicliCache::with_remote(db.clone(), Arc::new(NoNetwork), Arc::new(NoNetwork));

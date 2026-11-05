@@ -479,6 +479,67 @@ pub(crate) fn is_managed(db: &crate::Database, app: &AppType) -> bool {
         .is_some_and(|state| state == "taking_over" || state == "active")
 }
 
+/// C4-02 绑定后自动接管的目标（仅 Tier 1）：
+/// - 首次绑定（`aicli_takeover` 无任何行）：本机已安装的全部 Tier 1；
+/// - 非首次：仅当前已处于 AICLI 接管下的客户端（解绑会清空该表，重新绑定按首次处理）。
+pub(crate) fn bind_targets(db: &crate::Database) -> Vec<AppType> {
+    let managed: Vec<String> = db
+        .conn
+        .lock()
+        .ok()
+        .and_then(|conn| {
+            conn.prepare("SELECT app_type FROM aicli_takeover")
+                .ok()
+                .and_then(|mut statement| {
+                    statement
+                        .query_map([], |row| row.get::<_, String>(0))
+                        .ok()?
+                        .collect::<Result<Vec<_>, _>>()
+                        .ok()
+                })
+        })
+        .unwrap_or_default();
+    controller::PROXY_APPS
+        .iter()
+        .filter(|app| {
+            if managed.is_empty() {
+                tier1_installed(app)
+            } else {
+                managed.iter().any(|id| id == app.as_str())
+            }
+        })
+        .cloned()
+        .collect()
+}
+
+/// 「已安装」以各客户端首次运行即创建的配置目录判定，避免绑定路径跑 shell 探测；
+/// Desktop 无 CLI，用状态页同一套 `detect_installed` 推断。
+fn tier1_installed(app: &AppType) -> bool {
+    let home = crate::config::get_home_dir();
+    match app {
+        AppType::Claude => home.join(".claude").is_dir(),
+        AppType::Codex => home.join(".codex").is_dir(),
+        AppType::Gemini => home.join(".gemini").is_dir(),
+        AppType::GrokBuild => home.join(".grok").is_dir(),
+        AppType::ClaudeDesktop => crate::claude_desktop_config::is_installed(),
+        _ => false,
+    }
+}
+
+/// 测试辅助：拼接某客户端当前全部配置文件的文本，便于断言接管写入结果。
+#[cfg(test)]
+pub(crate) fn managed_client_text(app: &AppType) -> String {
+    files(app)
+        .map(|paths| {
+            paths
+                .iter()
+                .filter_map(|path| std::fs::read_to_string(path).ok())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
+}
+
 pub(crate) fn watch_projection_changes(
     service: crate::services::ProxyService,
     db: std::sync::Arc<crate::Database>,

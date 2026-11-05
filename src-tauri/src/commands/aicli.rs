@@ -184,6 +184,27 @@ pub struct AicliAccountView {
     pub managed_tokens: Vec<AicliManagedTokenView>,
 }
 
+/// C4-02：绑定后自动接管单个 Tier 1 客户端的结果；错误只有机器码和短文案，不含令牌材质。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AicliTakeoverOutcome {
+    pub app: String,
+    pub success: bool,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+}
+
+/// C4-02：绑定命令的返回与 `aicli-takeover-results` 事件负载。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AicliBindResult {
+    pub account: AicliAccountView,
+    pub proxy_started: bool,
+    pub proxy_error: Option<String>,
+    pub runtime_refresh_error: Option<String>,
+    pub takeovers: Vec<AicliTakeoverOutcome>,
+}
+
 #[derive(Serialize)]
 pub struct AicliLineHealthView {
     pub checked_at: i64,
@@ -356,6 +377,14 @@ fn consecutive_failures(conn: &Connection, line_id: &str) -> Result<u32, AicliCo
 type ProbeFn =
     Arc<dyn Fn(&str) -> BoxFuture<'static, Result<(u16, Value), NewApiError>> + Send + Sync>;
 
+/// C4-02 接缝：确保代理运行。返回 `true` 表示本次启动，`false` 表示已在运行；
+/// 测试注入假实现，不真的监听端口。
+type EnsureProxyFn = Arc<dyn Fn() -> BoxFuture<'static, Result<bool, String>> + Send + Sync>;
+
+/// C4-02 接缝：代理运行时的刷新（拉取账户/分组/价格 → 编译含默认配置集在内的全部
+/// 配置集 → 批量取得 Token，见 `AicliRuntime::refresh`）。
+type RuntimeRefreshFn = Arc<dyn Fn() -> BoxFuture<'static, Result<(), String>> + Send + Sync>;
+
 pub(crate) struct CacheBinding {
     pub db: Arc<Database>,
     pub user_id: i64,
@@ -385,6 +414,33 @@ fn real_probe() -> ProbeFn {
     Arc::new(|line_id| {
         let line_id = line_id.to_owned();
         Box::pin(async move { newapi::public_status(&line_id).await })
+    })
+}
+
+fn real_proxy_control(app_state: &AppState) -> EnsureProxyFn {
+    let service = app_state.proxy_service.clone();
+    Arc::new(move || {
+        let service = service.clone();
+        Box::pin(async move {
+            if service.is_running().await {
+                Ok(false)
+            } else {
+                service.start().await.map(|_| true)
+            }
+        })
+    })
+}
+
+fn real_runtime_refresh(app_state: &AppState) -> RuntimeRefreshFn {
+    let service = app_state.proxy_service.clone();
+    Arc::new(move || {
+        let service = service.clone();
+        Box::pin(async move {
+            match service.aicli_runtime().await {
+                Some(runtime) => runtime.refresh().await.map_err(|error| error.to_string()),
+                None => Err("AICLI proxy runtime unavailable".to_owned()),
+            }
+        })
     })
 }
 
@@ -463,6 +519,8 @@ pub struct AicliServices {
     events: Arc<dyn CacheEvents>,
     cache_builder: CacheBuilder,
     probe: ProbeFn,
+    ensure_proxy: EnsureProxyFn,
+    runtime_refresh: RuntimeRefreshFn,
     inner: Mutex<Inner>,
 }
 
@@ -495,6 +553,7 @@ impl AicliServices {
     }
 
     #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn for_test(
         app_state: AppState,
         secrets: Arc<dyn SecretStore>,
@@ -502,14 +561,18 @@ impl AicliServices {
         cache_builder: CacheBuilder,
         probe: ProbeFn,
         account_remote: Arc<dyn AccountRemote>,
+        ensure_proxy: EnsureProxyFn,
+        runtime_refresh: RuntimeRefreshFn,
     ) -> Arc<Self> {
-        Self::build(
+        Self::build_with_post_bind(
             app_state,
             secrets,
             events,
             cache_builder,
             probe,
             account_remote,
+            ensure_proxy,
+            runtime_refresh,
         )
     }
 
@@ -520,6 +583,31 @@ impl AicliServices {
         cache_builder: CacheBuilder,
         probe: ProbeFn,
         account_remote: Arc<dyn AccountRemote>,
+    ) -> Arc<Self> {
+        let ensure_proxy = real_proxy_control(&app_state);
+        let runtime_refresh = real_runtime_refresh(&app_state);
+        Self::build_with_post_bind(
+            app_state,
+            secrets,
+            events,
+            cache_builder,
+            probe,
+            account_remote,
+            ensure_proxy,
+            runtime_refresh,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_with_post_bind(
+        app_state: AppState,
+        secrets: Arc<dyn SecretStore>,
+        events: Arc<dyn CacheEvents>,
+        cache_builder: CacheBuilder,
+        probe: ProbeFn,
+        account_remote: Arc<dyn AccountRemote>,
+        ensure_proxy: EnsureProxyFn,
+        runtime_refresh: RuntimeRefreshFn,
     ) -> Arc<Self> {
         let db = app_state.db.clone();
         let release: Arc<ReleaseAll> = {
@@ -547,6 +635,8 @@ impl AicliServices {
                 events,
                 cache_builder,
                 probe,
+                ensure_proxy,
+                runtime_refresh,
                 inner: Mutex::new(Inner {
                     key: None,
                     cache: None,
@@ -735,14 +825,78 @@ impl AicliServices {
     }
 
     /// `access_token` and `line` are never logged anywhere in this path.
+    ///
+    /// C4-02：绑定成功后刷新数据（账户服务已触发 C1-06 生命周期刷新）→ 确保代理运行
+    /// → 运行时刷新（编译含默认配置集在内的全部配置集并批量取得 Token）→ 只接管
+    /// 目标 Tier 1 客户端 → 发 `aicli-takeover-results` 事件。任一客户端失败不影响
+    /// 其他客户端，也不回滚绑定；结果逐项返回。
     pub async fn bind(
         &self,
         access_token: String,
         line_id: String,
-    ) -> Result<AicliAccountView, AicliCommandError> {
+    ) -> Result<AicliBindResult, AicliCommandError> {
         self.account_service().bind(&access_token, &line_id).await?;
         self.rebuild()?;
-        self.get_account()
+
+        let mut proxy_started = false;
+        let mut proxy_error = None;
+        match (self.ensure_proxy)().await {
+            Ok(started) => proxy_started = started,
+            Err(error) => {
+                log::error!("AICLI post-bind proxy start failed: {error}");
+                proxy_error = Some(error);
+            }
+        }
+        let mut runtime_refresh_error = None;
+        let mut takeovers = Vec::new();
+        if proxy_error.is_none() {
+            if let Err(error) = (self.runtime_refresh)().await {
+                // 缓存投影仍可能可用；逐项接管自行成败，不阻断绑定。
+                log::warn!("AICLI post-bind runtime refresh failed: {error}");
+                runtime_refresh_error = Some(error);
+            }
+            for app in takeover::bind_targets(&self.db) {
+                let outcome =
+                    match takeover::take_over(&self.app_state, self.secrets.as_ref(), &app, false)
+                        .await
+                    {
+                        Ok(()) => AicliTakeoverOutcome {
+                            app: app.as_str().to_owned(),
+                            success: true,
+                            error_code: None,
+                            error_message: None,
+                        },
+                        Err(error) => {
+                            let mapped = AicliCommandError::from(error);
+                            log::warn!(
+                                "AICLI post-bind takeover failed for {}: {}",
+                                app.as_str(),
+                                mapped.code
+                            );
+                            AicliTakeoverOutcome {
+                                app: app.as_str().to_owned(),
+                                success: false,
+                                error_code: Some(mapped.code),
+                                error_message: Some(mapped.message),
+                            }
+                        }
+                    };
+                takeovers.push(outcome);
+            }
+        }
+
+        let result = AicliBindResult {
+            account: self.get_account()?,
+            proxy_started,
+            proxy_error,
+            runtime_refresh_error,
+            takeovers: takeovers.clone(),
+        };
+        match serde_json::to_string(&result) {
+            Ok(payload) => self.events.takeover_results(&payload),
+            Err(error) => log::warn!("Could not serialize AICLI bind result event: {error}"),
+        }
+        Ok(result)
     }
 
     pub async fn unbind(&self, delete_created_tokens: bool) -> Result<(), AicliCommandError> {
@@ -1376,7 +1530,7 @@ pub async fn aicli_bind(
     state: State<'_, AicliState>,
     access_token: String,
     line: String,
-) -> Result<AicliAccountView, AicliCommandError> {
+) -> Result<AicliBindResult, AicliCommandError> {
     state.0.bind(access_token, line).await
 }
 

@@ -48,6 +48,7 @@ case "$set_name" in
     item C3-08-guard aicli_local_credentials
     item C3-10-unit aicli::takeover::tests
     item C3-11-unit commands::aicli::tests
+    item C4-02-unit commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips commands::aicli::tests::proxy_start_failure_is_reported
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
