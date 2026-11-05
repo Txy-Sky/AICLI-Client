@@ -684,10 +684,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：0ceb8304 | job `Rust item tests (Linux)`（aicli-item-tests.sh 新增 C4-02-unit 组）：`cargo nextest run --manifest-path src-tauri/Cargo.toml commands::aicli::tests::bind_ …`（6 passed：五客户端全接管且配置含代理 URL 与本地令牌、Grok 写入失败仅该项错（client_write_failed）其余四项成功且绑定不回滚、非首次仅接管既有行、未安装不入目标、代理启动失败不接管不刷新不回滚、事件只发一次且负载无令牌材质）；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4533 passed / 原有 10 skipped（较 C4-01 增 5 项）、前端 264 文件 3360 passed，五 job 全成功；A6 本轮实际运行；首轮失败（探针缺新 trait 方法、固定端口跨进程冲突）见 `docs/aicli-evidence/C4-02.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42019413559
 
 ### C4-03 账单回填
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli/usage.rs`：请求完成时从响应头取 `X-Oneapi-Request-Id` 写入 `upstream_request_id`。流式在头部即可取到。入队后台任务，按 1s、3s、10s 调 `log_by_request_id`，命中后写 `server_group`（`group` 字段）、`billed_quota`（`quota` 字段）、`billed_at`。三次都查不到时保持 NULL，UI 显示"等待服务端记账"；账户关闭消费日志时同样如此。队列上限 1000，不落盘。**不得用本地估算值覆盖这些字段。**
 - 验收：mock 上游和 mock new-api：第 2 次查询才命中；三次都未命中；队列满时丢弃最旧并记一次警告。
-- 证据：
+- 证据：403e4d89 | job `Rust item tests (Linux)`：C4-03-unit `aicli::usage::tests` 8 passed（第 2 次命中补 group/quota/created_at、三次未命中保持 NULL 且无第四次查询、满 1000 丢最旧且警告只记一次、IS NULL 守卫不覆盖、字段不全不补估算、绑定消失保守放弃、头部大小写不敏感提取、生产绑定上下文含并发读）；C4-03-routing `--features test-hooks --test aicli_routing bill_backfill` 1 passed（mock 上游响应头 + mock new-api，真实代理全链路：行先记 upstream_request_id，再落 g-pro/321/4242）；job `A3-01 baseline (Linux)`：Rust 4547 passed / 原有 10 skipped、前端 264 文件 3360 passed，五 job 全成功；A6 本轮实际运行；两轮失败（swap 漏 Ordering/构造 move 顺序/漏补测试参数、集成测试直取私有字段/多余导入）见 `docs/aicli-evidence/C4-03.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42053749069
 
 ### C4-04 用量记录补字段
 - [ ] 完成
@@ -1043,6 +1043,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| C4-03（接线面） | 清单只提 `aicli/usage.rs` 与响应头。 | 头部在 forwarder 成功汇聚点捕获（aicli_request 时），经 `ForwardResult` → `RequestContext`（6 个协议 handler 汇聚点）→ 8 个 usage 落库点统一入队；mock new-api 为查询函数注入接缝（生产走 `NewApiClient::log_by_request_id`，该函数已有 C1-04 的本地 mock 服务器测试）；重试延迟可注入。 | 不改既有落库行为；错误响应与关闭 usage 记账时不入队；「UI 显示等待记账」属 F 阶段。 |
 | C3-10 修正（运行中快照） | 负责人复核指定 provider() 优先用 proxy_service.aicli_runtime() 的当前快照。 | 新增 aicli_runtime_now()（try_read）；优先运行中运行时 snapshot()；回退分支保持 cached_projection()（构造期 load_cached 依赖钥匙串令牌，无令牌时快照为空）；resync 测试改由真实运行时的 projection_changes 驱动，新增测试钩子 reload_from_cache_for_test（cfg(test)，等价 refresh 的本地部分）。 | 运行中运行时与代理服务请求同一快照，一致性优先；中间两轮失败（回退误用 snapshot、夹具未播种钥匙串令牌）均由该语义差异导致，已修复并留档。 |
 | C3-10 修正（ProfileNeedsRepair） | 清单原定义仅 NoModels。 | 新增 TakeoverError::ProfileNeedsRepair（conservative 或全部模型受影响时返回），命令码 profile_needs_repair；目录缺失等仍 NoModels。 | 前端「配置集需要修复」文案随 F-04 客户端页落地。 |
 | C3-11 修正（绑定代数） | 负责人复核指定守卫改为绑定代数，同锁内核对。 | 进程内 BINDING_GENERATION，bind/unbind/select_line 提交后 +1；守卫记 (generation,user_id,line)，write_cache/write_usage 在同一次数据库锁内比较；不再逐次读钥匙串；丢弃的 usage 写入不发事件。 | 保守丢弃语义保留；中间一轮因 finish_usage_refresh 漏改（丢弃仍发事件）失败，已修复。 |
@@ -1138,9 +1139,10 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C3-11 验收 b4095f75：命令专项 11 passed（序列化输出无令牌材质、cc_switch_conflict 机器码、scope 仅 app/global、探测退避封顶 600s、换绑守卫丢弃旧写入），缓存守卫随 aicli::cache::tests 15 passed；Rust 4625 passed / 原有 10 skipped（较 C3-10 增加 12 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.45s、审计 39 次、30 天落盘通过。首轮 Linux 专属失败（fixture TempDir 提前删除导致 readonly）已修正，另有推送前本地修复（守卫丢弃 usage 写入仍发事件、runtime TTL 注入化）；公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-11.txt。
 最近 C4-01 验收 a0c3bfdc：bind 专项 10 passed（合法/三线路、密钥参数拒绝且错误不回显值、旧 v1/import 拒绝、待处理条目不含 URL 与参数值；`aicli-open-bind` 空负载、日志经 `url_for_log` 剥 query）；Rust 4528 passed / 原有 10 skipped（净减源于删除旧深链导入测试并新增 10 项）、前端 264 文件 3360 passed；四并行 job 与汇总全成功；A6 本轮实际运行。两轮中间失败（顶层 tests/ 前端测试漏删、clippy 孤儿符号）及删除清单详见 C4-01.txt。
 最近 C4-02 验收 0ceb8304：C4-02-unit 专项 6 passed（五客户端全接管、单项失败隔离且不回滚、非首次仅既有行、未安装跳过、代理失败不接管）；Rust 4533 passed / 原有 10 skipped（增 5 项）、前端 264 文件 3360 passed；五 job 全成功；A6 本轮实际运行。首轮失败（探针缺新 trait 方法、固定端口跨 nextest 进程冲突）详见 C4-02.txt。
-最近负责人复核修正（C3-10/C3-11，合并验收）eaf90fa5：运行中快照优先（fingerprint 一致性专项 + resync 改真实运行时通道）、ProfileNeedsRepair 专项 4 项、绑定代数守卫（含并发换绑专项）；takeover 11 / cache 16 passed，Rust 4539 passed / 原有 10 skipped，五 job 全成功；四轮失败历史见 C3-10.txt、C3-11.txt。下一项 C4-03。
+最近负责人复核修正（C3-10/C3-11，合并验收）eaf90fa5：运行中快照优先（fingerprint 一致性专项 + resync 改真实运行时通道）、ProfileNeedsRepair 专项 4 项、绑定代数守卫（含并发换绑专项）；takeover 11 / cache 16 passed，Rust 4539 passed / 原有 10 skipped，五 job 全成功；四轮失败历史见 C3-10.txt、C3-11.txt。
+最近 C4-03 验收 403e4d89：usage 专项 8 passed（第 2 次命中/三次未命中/满 1000 丢最旧警告一次/不覆盖/不补估算/绑定消失放弃/头部提取/绑定上下文并发读）+ routing 集成 1 passed（mock 上游+mock new-api 全链路）；Rust 4547 passed / 原有 10 skipped（增 8）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-03.txt。下一项 C4-04。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01、C4-02 已验收，当前下一项 C4-03；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01～C4-03 已验收，当前下一项 C4-04；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。

@@ -1,0 +1,52 @@
+C4-03 账单回填验收记录
+
+最终验收提交：403e4d89（实现 0d9954af + 修复 3890a7f3、403e4d89）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42053749069
+五 job（A3-01 baseline / Rust item tests / B stage desktop checks / A6 test environment /
+Checklist acceptance 汇总）全部 success。
+
+一、实现
+- 新增 `aicli/usage.rs`：内存队列 `BillBackfill`（上限 1000，满丢最旧、只记一次警告，
+  不落盘，随运行时销毁清空）。请求完成先写 `proxy_request_logs.upstream_request_id`，
+  再按 1s/3s/10s 调 `NewApiClient::log_by_request_id`（C1-04 既有接口，延迟可注入测试
+  缩短）；命中写 `server_group`（group）、`billed_quota`（quota）、`billed_at`
+  （created_at，缺失用当前时间），`billed_at IS NULL` 守卫只补一次；三次未命中或
+  字段不全保持 NULL——绝不用本地估算值补位；绑定消失（未绑定/钥匙串不可读）保守放弃。
+- 取头部：forwarder 成功汇聚点（`aicli_request` 时从响应头取 `X-Oneapi-Request-Id`，
+  大小写不敏感、流式在头部即得）→ `ForwardResult.aicli_upstream_request_id` →
+  `RequestContext`（6 个协议 handler 汇聚点）→ response_processor 两条路径与
+  handlers 内联转换路径的 usage 落库尾部统一入队（共 8 个落库点）。
+- `AicliRuntime` 持有并接线生产查询/绑定上下文；worker 首次入队才 spawn，
+  持 Weak 引用随运行时回收。
+
+二、专项测试（job `Rust item tests (Linux)`）
+1. C4-03-unit `aicli::usage::tests`：8 passed（0.306s）
+   - second_query_hit_fills_group_quota_and_billed_at（mock new-api 第 2 次命中）
+   - three_misses_keep_the_bill_columns_null（三次未命中保持 NULL、无第四次查询）
+   - full_queue_drops_the_oldest_entry_and_warns_once（满 1000 丢最旧、警告标志只置一次）
+   - existing_server_result_is_never_overwritten（IS NULL 守卫不覆盖）
+   - incomplete_hit_keeps_null_instead_of_filling_estimates（字段不全不补估算）
+   - missing_binding_gives_up_without_touching_columns
+   - header_extraction_is_case_insensitive_and_skips_empty
+   - production_context_reads_the_current_binding（含并发读）
+2. C4-03-routing `--features test-hooks --test aicli_routing bill_backfill`：1 passed
+   （mock 上游响应头带 up-fixture + mock new-api 第 2 次命中：真实代理 → 真实
+   forwarder/handler/response_processor → 行内先出现 upstream_request_id，随后
+   g-pro/321/4242 落账单字段）
+
+三、基线（job `A3-01 baseline (Linux)`）
+Rust 4547 passed / 原有 10 skipped（较复核修正后 +8，即 usage 组件测试）、
+前端 264 文件 3360 passed、clippy -D warnings 通过。
+
+四、失败历史（2 轮，不作成功证据）
+1. run 42044533239（0d9954af）：`AtomicU64::swap` 两处漏 Ordering 参数（E0061）、
+   `with_remote` 构造字面量先 move db 后再取 db.clone()（E0382）、response_processor
+   一处测试调用漏补第 13 参。
+2. run 42046730415（3890a7f3）：集成测试直取 `Database::conn` 私有字段（改用
+   routing_test_support::connection）；usage.rs 一个多余 trait 导入触发 -D warnings。
+3. 最终 403e4d89 全绿。
+
+五、范围说明
+- 错误响应与 usage 记账关闭时无回填（不计费请求）；清单「UI 显示等待服务端记账」
+  属 F 阶段请求详情页，本项只保证字段语义（NULL = 未记账）。
+- 账单查询失败与未命中同待遇：按剩余次数重试，用尽保持 NULL。
