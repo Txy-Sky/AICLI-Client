@@ -5,10 +5,6 @@ use std::path::PathBuf;
 use crate::config::get_home_dir;
 use crate::error::AppError;
 
-pub const DEFAULT_MODEL: &str = "grok-4.5";
-pub const DEFAULT_API_BACKEND: &str = "responses";
-pub const DEFAULT_CONTEXT_WINDOW: i64 = 500_000;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrokModelConfig {
     pub profile: String,
