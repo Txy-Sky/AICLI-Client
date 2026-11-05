@@ -672,10 +672,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：b4095f75 | job `Rust item tests (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml commands::aicli::tests`（命令专项 11 passed：序列化输出不含令牌材质与未掩码 sk-、cc_switch_conflict 独立机器码、scope 只接受 app/global、探测退避 30/60/120…封顶 600s、刷新 kind 校验先于 not_bound、换绑后旧聚合在途写入被守卫丢弃）；缓存守卫随 `aicli::cache::tests` 15 passed；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4625 passed / 原有 10 skipped（较 C3-10 增加 12 项）、前端 3416 passed，四并行 job 与汇总全成功；A6 本轮实际运行（testenv=true/c106_observe=true），C1-06 观测 601.45 秒、审计 39 次、30 天落盘通过；首轮 Linux 专属 readonly 失败（fixture 临时目录被提前删除）及修正见 `docs/aicli-evidence/C3-11.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41992085540
 
 ### C4-01 深链
-- [ ] 完成
+- [x] 完成
 - 修改：`deeplink/parser.rs`：只接受 `aicliapi://v1/bind`，可选参数 `line`（必须是线路 id）。**带任何其他参数都拒绝，包括 `accessKey`、`apiKey`、`ticket`。** `DeepLinkImportRequest` 改成 `BindRequest`。成功时只发事件 `aicli-open-bind`，由前端打开绑定窗口。删除 `deeplink/{provider,codex_link,grok_link,mcp,prompt,skill,icon_fetch}.rs` 及相关测试、`tests/deeplink_import.rs` 中对应用例。日志用 `url_for_log`。
 - 验收：测试覆盖合法、带密钥参数被拒、旧 `v1/import` 被拒；捕获日志和事件负载中不含 URL 参数值。
-- 证据：
+- 证据：a0c3bfdc | job `B stage desktop checks (Linux)`：`cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink`（bind 专项 10 passed：合法/三线路、密钥参数拒绝且错误不回显值、未知/重复/空 line 拒绝、旧 v1/import 拒绝、待处理条目序列化不含 URL 与参数值；`aicli-open-bind` 以空负载发出、URL 日志均经 `url_for_log` 剥 query）；job `A3-01 baseline (Linux)`：`bash scripts/aicli-check.sh` | Rust 4528 passed / 原有 10 skipped、前端 264 文件 3360 passed，四并行 job 与汇总全成功；A6 本轮实际运行；两轮中间失败（顶层 tests/ 前端测试漏删、clippy 死代码）及删除清单见 `docs/aicli-evidence/C4-01.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42011725834
 
 ### C4-02 绑定后自动接管
 - [ ] 完成
@@ -1042,6 +1042,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| C4-01（utils.rs 连带删除） | 删除清单未列 `deeplink/utils.rs`。 | 随 provider 等引用方删除后无剩余调用者，连带删除，避免 dead_code 触发 clippy -D warnings。 | 只删死代码，不改行为或接口。 |
+| C4-01（解析失败不暂存） | 旧实现解析失败时把脱敏 URL 存入 `PendingDeepLink::Error` 交给前端；清单只规定成功发 `aicli-open-bind`。 | 失败只记日志（URL 经 `url_for_log` 剥 query，错误信息只含参数名不含参数值），不暂存、不发事件；`PendingDeepLink` 仅剩 `Bind` 变体，成功链接的 line 进待处理条目供 F 阶段绑定窗口预选，事件负载保持为空。 | 方案 6.2 要求修复该缺陷，此为其落地；待处理机制保留用于冷启动。 |
+| C4-01（前端范围） | 清单只列 Rust 修改与测试。 | 为保 CI 前端 typecheck 通过，删除仅被深链导入 UI 引用的前端文件及测试（清单见 C4-01.txt）；i18n deeplink 键与 msw peek/ack mock 保留。 | 删除功能连带删除其测试（第 0.2 节第 7 条）；文案与 mock 清理归 F/G 阶段，不提前扩大范围。 |
 | C2-01（运行时接线） | 示例结构含固定 NewApiClient、Cooldown，启动从缓存构建后后台刷新。 | 未绑定时不存在可用访问令牌，因此按每次刷新时的账号/线路/SecretStore 构造 NewApiClient，TokenService 按账号/线路复用以保留 Retry-After 和恢复状态；ProxyState 同步加载本地缓存，监听成功后后台刷新。将 auto-groups 的 groups/max_count 作为公开缓存合入目录编译；旧快照和密钥分开保存，LRU 4096/24h；冷却这里只提供存储容器，策略仍由 C3-06 实现。 | 结构接线细化，不改 v25 表、产品行为或工作流；后台更新按 fingerprint 原子换快照，失败保留旧值，账号更换/解绑清空旧凭证和 pin；新增 lru 默认特性关闭，锁文件仅新增该依赖。Cargo 清单变化按 CI-OPT2 本轮应执行 A6 和 601 秒观测，不称跳过。 |
 | C3-01 | 第 3 步列出 `project` 作用域，但代理请求不含项目信息，无法解析。 | 负责人于 2026-11-04 决定：v1 解析时跳过 `project`，保留表结构和代码接口。 | 不改表结构；有可靠的项目标识来源后再启用。 |
 | C3-01（preferred_line） | 第 6 步线路顺序首级为 `model preferred_line`，但目录与配置集均无此字段，new-api 也不提供。 | 负责人于 2026-11-04 决定：v1 去掉该级，顺序为 `line_policy`（非 inherit）> `selected_line_id` > 其余按 priority 降序，排除冷却，全冷却时 probe-one。 | 不新增字段或表结构；有可靠来源后再加。 |
@@ -1125,9 +1128,10 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C3-08 验收 29aad72e：本地鉴权 2、防泄漏 1、路由集成 9 passed；Rust 4606 passed / 原有 10 skipped，前端 3416 passed，四 job 及汇总全成功；A6 本轮运行，601 秒观测跳过。详见 C3-08.txt。
 最近 C3-09 验收 091bce7c：wire 鉴权/会话头专项 1、路由集成 10 passed；Rust 4606 passed / 原有 10 skipped、前端 3416 passed；四 job 及汇总成功，最终 A6 Docker/601 秒观测按覆盖规则跳过。详见 C3-09.txt。
 最近 C3-10 验收 95aa3cbc：接管专项 7 passed（五客户端逐字节还原、Grok 三级默认、NoModels/超 200 不写文件、cc-switch 冲突确认、指纹变化重投影、崩溃恢复）；Rust 4613 passed / 原有 10 skipped（较 C3-09 增加 7 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.39s、审计 39 次、30 天落盘通过；七轮失败历史与修正详见 C3-10.txt。
-最近 C3-11 验收 b4095f75：命令专项 11 passed（序列化输出无令牌材质、cc_switch_conflict 机器码、scope 仅 app/global、探测退避封顶 600s、换绑守卫丢弃旧写入），缓存守卫随 aicli::cache::tests 15 passed；Rust 4625 passed / 原有 10 skipped（较 C3-10 增加 12 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.45s、审计 39 次、30 天落盘通过。首轮 Linux 专属失败（fixture TempDir 提前删除导致 readonly）已修正，另有推送前本地修复（守卫丢弃 usage 写入仍发事件、runtime TTL 注入化）；公开日志/下载证据长格式 sk-/Bearer 候选 0。下一项 C4-01，详见 C3-11.txt。
+最近 C3-11 验收 b4095f75：命令专项 11 passed（序列化输出无令牌材质、cc_switch_conflict 机器码、scope 仅 app/global、探测退避封顶 600s、换绑守卫丢弃旧写入），缓存守卫随 aicli::cache::tests 15 passed；Rust 4625 passed / 原有 10 skipped（较 C3-10 增加 12 项）、前端 3416 passed；四 job 及汇总全成功。A6 本轮实际运行（testenv=true、c106_observe=true），C1-06 观测 601.45s、审计 39 次、30 天落盘通过。首轮 Linux 专属失败（fixture TempDir 提前删除导致 readonly）已修正，另有推送前本地修复（守卫丢弃 usage 写入仍发事件、runtime TTL 注入化）；公开日志/下载证据长格式 sk-/Bearer 候选 0。详见 C3-11.txt。
+最近 C4-01 验收 a0c3bfdc：bind 专项 10 passed（合法/三线路、密钥参数拒绝且错误不回显值、旧 v1/import 拒绝、待处理条目不含 URL 与参数值；`aicli-open-bind` 空负载、日志经 `url_for_log` 剥 query）；Rust 4528 passed / 原有 10 skipped（净减源于删除旧深链导入测试并新增 10 项）、前端 264 文件 3360 passed；四并行 job 与汇总全成功；A6 本轮实际运行。两轮中间失败（顶层 tests/ 前端测试漏删、clippy 孤儿符号）及删除清单详见 C4-01.txt。下一项 C4-02。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11 已验收，当前下一项 C4-01；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01 已验收，当前下一项 C4-02；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。

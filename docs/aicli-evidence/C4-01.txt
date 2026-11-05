@@ -1,0 +1,48 @@
+C4-01 深链（bind-only deep link）验收记录
+
+最终验收提交：a0c3bfdc（实现 6e24d19e + 修复 af001112、a0c3bfdc）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42011725834
+四并行 job（A3-01 baseline / Rust item tests / B stage desktop checks / A6 test environment）与汇总 job Checklist acceptance 全部 success。
+
+一、专项测试（job `B stage desktop checks (Linux)`，步骤 B-04）
+命令：cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink
+结果：10 tests run: 10 passed, 4528 skipped（0.137s）
+覆盖：裸 /bind、line=main/global/apac 三线路；accessKey/apiKey/ticket 拒绝且错误信息不回显
+参数值；未知/重复/空 line 拒绝；旧 v1/import 拒绝（错误指向 /bind 且不回显 apiKey 值）；
+scheme/版本/路径错误拒绝；待处理条目序列化只含 kind/version/line，不含 URL 与任何参数值。
+事件负载为空：lib.rs 对 `aicli-open-bind` 以 `app.emit(name, ())` 发出（编译期即定形，
+测试由构造保证）；所有 URL 日志经 `url_for_log`（剥掉整个 query/fragment）输出。
+
+二、基线（job `A3-01 baseline (Linux)`）
+命令：bash scripts/aicli-check.sh
+结果：Rust 4528 passed / 原有 10 skipped（workspace 共 4538 项，较 C3-11 的 4625 passed
+净减 97+8：删除旧深链导入测试并新增 10 项）；前端 264 个测试文件 3360 passed（较
+C3-11 的 3416 净减 56：删除 DeepLinkImportDialog/deepLinkConfigPreview/deeplinkRisk 前端
+测试）；pnpm typecheck、format:check、build:renderer、cargo fmt --check、clippy -D warnings
+全部通过。
+
+三、随功能删除的测试与代码（均因引用方删除而失去对象）
+- src-tauri/src/deeplink/tests.rs：原 2257 行导入解析套件整体替换为上述 10 项 bind 测试。
+- src-tauri/tests/deeplink_import.rs：4 个集成用例（opencode/claude/codex/agy 导入）。
+- src-tauri/tests/golden/import_rows.rs：7 个 deeplink_* 快照测试及
+  snapshots/rows/deeplink-*.txt 6 个快照；first_run_* 4 项保留。
+- tests/components/DeepLinkImportDialog.test.tsx、tests/utils/deepLinkConfigPreview.test.ts、
+  src/utils/deeplinkRisk.test.ts。
+- 孤儿符号：grok_config.rs 的 DEFAULT_MODEL/DEFAULT_API_BACKEND/DEFAULT_CONTEXT_WINDOW、
+  services/coding_plan.rs 的 detect_provider_id（detect_provider 本体仍被套餐查询使用，保留）。
+- deeplink/{provider,codex_link,grok_link,mcp,prompt,skill,icon_fetch}.rs 按清单删除；
+  utils.rs 无剩余引用连带删除（第 13 节记偏差）。
+
+四、失败历史（不作成功证据，保留）
+1. run 42008139663（6e24d19e）：A3-01 与 B stage 的 typecheck 失败——顶层 tests/ 目录中
+   DeepLinkImportDialog.test.tsx、deepLinkConfigPreview.test.ts 引用已删除模块；
+   Rust item tests 与 A6 当轮已 success。修复：af001112 删除该两文件。
+2. run 42009773217（af001112）：A3-01 的 clippy -D warnings 失败——删除引用方后
+   grok_config 三个常量与 coding_plan::detect_provider_id 成为 dead code。修复：a0c3bfdc
+   删除四个符号；前端 264 文件 3360 passed 当轮已通过。
+
+五、范围说明
+- i18n 的 deeplink 键保留（localeCoverage 测试 piKeysOutsideNamespace 引用 deeplink.api；
+  文案清理归 F/G 阶段）；msw 中 peek/ack_pending_deeplink mock 保留（对应命令仍存在），
+  fetch_deeplink_icon 一行 mock 成为无调用者的死代码，无害，未扩清理范围。
+- 本地推送前检查（bash scripts/aicli-pre-push-check.sh）每轮推送前通过。
