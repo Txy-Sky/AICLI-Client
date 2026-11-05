@@ -637,6 +637,12 @@ mod tests {
     async fn fixture() -> AppState {
         let db = Arc::new(crate::Database::memory().unwrap());
         seed::init(&db).unwrap();
+        // 代理运行时的 load_cached 从钥匙串读绑定令牌（隔离 HOME 下退到
+        // ~/.aicli-client/secrets.json）；没有令牌时快照为空，接管会报 NoModels。
+        use super::super::secrets::SecretStore as _;
+        super::super::secrets::KeyringStore::default()
+            .set("access-token", "fixture-access-token")
+            .unwrap();
         {
             let conn = db.conn.lock().unwrap();
             conn.execute("INSERT INTO aicli_account(id,user_id,username,user_group) VALUES(1,123,'takeover','fixture')",[]).unwrap();
@@ -892,9 +898,14 @@ mod tests {
         }
         let backups = [AppType::GrokBuild, AppType::ClaudeDesktop]
             .map(|app| store.get(&account(&app)).unwrap());
-        let runtime = super::super::runtime::AicliRuntime::new(state.db.clone());
-        let old = runtime.cached_projection().unwrap().fingerprint.clone();
-        let (changes, receiver) = tokio::sync::watch::channel(old.clone());
+        // 生产语义：投影变更事件由代理运行时发布；resync 读同一个运行时的当前快照
+        // （C3-10 修正后接管投影优先跟随运行中快照）。
+        let running = state
+            .proxy_service
+            .aicli_runtime()
+            .await
+            .expect("running runtime");
+        let receiver = running.projection_changes();
         watch_projection_changes(state.proxy_service.clone(), state.db.clone(), receiver);
         // Ensure the subscriber has captured the old fingerprint before publication.
         tokio::task::yield_now().await;
@@ -909,9 +920,9 @@ mod tests {
                 [pricing.to_string()],
             )
             .unwrap();
-        let next = runtime.cached_projection().unwrap().fingerprint.clone();
-        assert_ne!(old, next);
-        changes.send_replace(next);
+        let next = running.cached_projection().unwrap().fingerprint.clone();
+        assert!(!next.is_empty());
+        running.reload_from_cache_for_test().unwrap();
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let grok =

@@ -689,6 +689,16 @@ impl AicliRuntime {
         Ok(())
     }
 
+    /// 仅测试：从本地缓存重载快照并发布指纹，等价于 refresh 的本地部分
+    /// （refresh 需要联网，测试里用它模拟运行时发布新投影）。
+    #[cfg(test)]
+    pub(crate) fn reload_from_cache_for_test(&self) -> Result<(), RuntimeError> {
+        self.load_cached()?;
+        let fingerprint = self.snapshot().fingerprint;
+        self.projection_changes.send_replace(fingerprint);
+        Ok(())
+    }
+
     pub fn start_background(self: &Arc<Self>) {
         use std::sync::atomic::Ordering;
         if self.background_started.swap(true, Ordering::SeqCst) {

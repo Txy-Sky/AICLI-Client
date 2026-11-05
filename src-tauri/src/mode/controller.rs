@@ -67,9 +67,13 @@ fn provider(state: &AppState, app: &AppType, id: &str) -> Result<Option<Provider
         {
             // C3-10 修正：优先复用运行中代理的当前快照，避免每次新建运行时重编译
             // 导致接管投影与代理实际使用的快照漂移；代理未运行时才新建。
+            // 回退分支保持 cached_projection：构造期 load_cached 依赖钥匙串里的
+            // 访问令牌，无令牌时快照为空，而 cached_projection 只读数据库。
             let projection = match state.proxy_service.aicli_runtime_now() {
                 Some(runtime) => runtime.snapshot(),
-                None => crate::aicli::runtime::AicliRuntime::new(state.db.clone()).snapshot(),
+                None => crate::aicli::runtime::AicliRuntime::new(state.db.clone())
+                    .cached_projection()
+                    .map_err(err)?,
             };
             crate::aicli::takeover::prepare_projection(&state.db, app, &projection, provider)
                 .map_err(err)
@@ -9020,6 +9024,12 @@ model_provider = "c"
     #[serial]
     async fn aicli_projection_prefers_the_running_runtime_snapshot() {
         let _home = Home::new();
+        // 运行时构造时的 load_cached 需要从钥匙串读到绑定令牌；隔离 HOME 下
+        // KeyringStore 会退到 ~/.aicli-client/secrets.json。
+        use crate::aicli::secrets::SecretStore as _;
+        crate::aicli::secrets::KeyringStore::default()
+            .set("access-token", "synthetic-controller-fixture-token")
+            .expect("seed access token");
         let db = Arc::new(Database::memory().expect("memory db"));
         crate::aicli::seed::init(&db).expect("seed aicli providers");
         let pricing_alpha = json!({

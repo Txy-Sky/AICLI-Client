@@ -943,6 +943,12 @@ async fn bind_fixture(
     let mut config = fixture.db.get_proxy_config().await.unwrap();
     config.listen_port = 0;
     fixture.db.update_proxy_config(config).await.unwrap();
+    // 代理运行时（KeyringStore，与测试聚合的 MemoryStore 是两个存储）的
+    // load_cached 需要钥匙串里有绑定令牌，否则运行中快照为空、接管报 NoModels。
+    use crate::aicli::secrets::SecretStore as _;
+    crate::aicli::secrets::KeyringStore::default()
+        .set("access-token", ACCESS)
+        .unwrap();
     crate::aicli::seed::init(&fixture.db).unwrap();
     let pricing = json!({
         "auto_groups": ["fixture"],
