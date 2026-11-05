@@ -171,7 +171,7 @@ impl BillBackfill {
             let mut queue = self.inner.queue.lock().unwrap();
             if queue.len() >= QUEUE_LIMIT {
                 if let Some(dropped) = queue.pop_front() {
-                    if self.inner.overflow_warned.swap(true) {
+                    if self.inner.overflow_warned.swap(true, Ordering::SeqCst) {
                         log::debug!(
                             "AICLI bill backfill queue full; dropping {}",
                             dropped.request_id
@@ -196,7 +196,7 @@ impl BillBackfill {
     }
 
     fn start_worker(&self) {
-        if self.inner.started.swap(true) {
+        if self.inner.started.swap(true, Ordering::SeqCst) {
             return;
         }
         let weak: Weak<Inner> = Arc::downgrade(&self.inner);

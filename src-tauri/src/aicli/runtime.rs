@@ -155,7 +155,7 @@ impl AicliRuntime {
             background_started: Default::default(),
             token_service: Default::default(),
             identity: Default::default(),
-            bills: crate::aicli::usage::BillBackfill::new(db.clone()),
+            bills: crate::aicli::usage::BillBackfill::new(bill_db.clone()),
         });
         // No network, task spawn, or block_on during construction.
         runtime.bills.wire_production(bill_db, bill_store);
