@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 mod agy_account;
+mod aicli;
 mod auth;
 mod balance;
 mod claude_account;
@@ -44,6 +45,7 @@ mod webdav_sync;
 mod workspace;
 
 pub use agy_account::*;
+pub use aicli::*;
 pub use auth::*;
 pub use balance::*;
 pub use claude_account::*;

@@ -13,10 +13,11 @@ use tauri::Emitter;
 use tokio::sync::{Notify, Semaphore};
 
 use super::newapi::{NewApiClient, NewApiError};
+use super::secrets::SecretStore;
 use crate::database::Database;
 
 pub const EVENT_DATA_UPDATED: &str = "aicli-data-updated";
-const ACCOUNT_KINDS: [&str; 3] = ["account", "groups", "pricing"];
+pub(crate) const ACCOUNT_KINDS: [&str; 3] = ["account", "groups", "pricing"];
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CachedValue {
@@ -110,6 +111,22 @@ pub struct AicliCache {
     idle: Notify,
     usage_slots: Arc<Semaphore>,
     periodic_started: AtomicBool,
+    /// Owner decision 2026-11-04: a refresh task created under one binding must
+    /// never write rows belonging to another account after rebinding. `None`
+    /// keeps the unguarded fixture behaviour; production wiring always guards.
+    guard: Option<BindingGuard>,
+}
+
+struct BindingGuard {
+    user_id: i64,
+    line: String,
+    /// SHA-256 fingerprint; the raw token is never retained here.
+    token: String,
+    secrets: Arc<dyn SecretStore>,
+}
+
+pub(crate) fn token_fingerprint(token: &str) -> String {
+    format!("{:x}", Sha256::digest(token.as_bytes()))
 }
 
 impl AicliCache {
@@ -156,6 +173,71 @@ impl AicliCache {
             idle: Notify::new(),
             usage_slots: Arc::new(Semaphore::new(2)),
             periodic_started: AtomicBool::new(false),
+            guard: None,
+        }
+    }
+
+    /// Production constructor: captures `(user_id, line, token fingerprint)` at
+    /// construction and re-verifies the binding before every write.
+    pub fn guarded(
+        db: Arc<Database>,
+        user_id: i64,
+        access_token: &str,
+        selected_line: &str,
+        secrets: Arc<dyn SecretStore>,
+        events: Arc<dyn CacheEvents>,
+    ) -> Result<Self, NewApiError> {
+        let mut cache = Self::new(db, access_token, selected_line, events)?;
+        cache.install_guard(user_id, access_token, selected_line, secrets);
+        Ok(cache)
+    }
+
+    pub(crate) fn install_guard(
+        &mut self,
+        user_id: i64,
+        access_token: &str,
+        selected_line: &str,
+        secrets: Arc<dyn SecretStore>,
+    ) {
+        self.guard = Some(BindingGuard {
+            user_id,
+            line: selected_line.to_owned(),
+            token: token_fingerprint(access_token),
+            secrets,
+        });
+    }
+
+    /// True when the current binding no longer matches construction time.
+    /// Unbound or unverifiable states fail closed: the write is dropped.
+    fn stale_binding(&self) -> bool {
+        let Some(guard) = &self.guard else {
+            return false;
+        };
+        let current = self
+            .db
+            .conn
+            .lock()
+            .ok()
+            .and_then(|conn| {
+                conn.query_row(
+                    "SELECT user_id,selected_line_id FROM aicli_account WHERE id=1",
+                    [],
+                    |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, String>(1)?)),
+                )
+                .optional()
+                .ok()
+                .flatten()
+            })
+            .and_then(|(user_id, line)| {
+                let token = guard.secrets.get("access-token").ok().flatten()?;
+                Some((user_id?, line, token_fingerprint(&token)))
+            });
+        match current {
+            Some((user_id, line, token)) => {
+                (user_id, line.as_str(), token.as_str())
+                    != (guard.user_id, guard.line.as_str(), guard.token.as_str())
+            }
+            None => true,
         }
     }
 
@@ -325,7 +407,11 @@ impl AicliCache {
                 let quota = value.pointer("/data/quota").and_then(Value::as_i64);
                 let requests = value.pointer("/data/requests").and_then(Value::as_i64);
                 if let (Some(quota), Some(requests)) = (quota, requests) {
-                    if self.write_usage(day, quota, requests).is_ok() {
+                    if self.stale_binding() {
+                        log::debug!(
+                            "AICLI cache dropped a stale {day} usage refresh after rebinding"
+                        );
+                    } else if self.write_usage(day, quota, requests).is_ok() {
                         if let Ok(mut errors) = self.errors.lock() {
                             errors.remove(kind);
                         }
@@ -349,6 +435,10 @@ impl AicliCache {
     }
 
     fn write_cache(&self, kind: &str, value: &Value) -> Result<bool, NewApiError> {
+        if self.stale_binding() {
+            log::debug!("AICLI cache dropped a stale {kind} refresh after rebinding");
+            return Ok(false);
+        }
         let mut canonical = value.clone();
         canonical.sort_all_objects();
         let body = serde_json::to_string(&canonical).map_err(|_| NewApiError::InvalidResponse)?;
@@ -412,6 +502,10 @@ impl AicliCache {
     }
 
     fn write_usage(&self, day: &str, quota: i64, requests: i64) -> Result<(), NewApiError> {
+        if self.stale_binding() {
+            log::debug!("AICLI cache dropped a stale {day} usage refresh after rebinding");
+            return Ok(());
+        }
         let final_day = day < Utc::now().format("%Y-%m-%d").to_string().as_str();
         let conn = self.db.conn.lock().map_err(|_| NewApiError::Network)?;
         conn.execute(

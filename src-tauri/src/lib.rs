@@ -1266,6 +1266,22 @@ pub fn run() {
             let skill_service = SkillService::new();
             app.manage(commands::skill::SkillServiceState(Arc::new(skill_service)));
 
+            // C3-11：AICLI 命令聚合服务（绑定、缓存、线路、配置集、接管、用量）
+            {
+                use crate::aicli::cache::{AppCacheEvents, CacheEvents};
+                use crate::aicli::secrets::{KeyringStore, SecretStore};
+
+                // Clone the managed AppState (all fields are Arc-based) so the
+                // aggregate shares the same proxy runtime and caches.
+                let app_state = app.state::<AppState>().inner().clone();
+                let secrets: Arc<dyn SecretStore> = Arc::new(KeyringStore::default());
+                let events: Arc<dyn CacheEvents> = Arc::new(AppCacheEvents(app.handle().clone()));
+                let services = commands::AicliServices::new(app_state, secrets, events);
+                services.startup();
+                app.manage(commands::AicliState(services));
+                log::info!("✓ AICLI command services initialized");
+            }
+
             // 初始化 CopilotAuthManager
             {
                 use crate::proxy::providers::copilot_auth::CopilotAuthManager;
@@ -1948,6 +1964,27 @@ pub fn run() {
             commands::enter_lightweight_mode,
             commands::exit_lightweight_mode,
             commands::is_lightweight_mode,
+            // AICLI account, routing and takeover commands (C3-11)
+            commands::aicli_get_account,
+            commands::aicli_bind,
+            commands::aicli_unbind,
+            commands::aicli_refresh,
+            commands::aicli_get_catalog,
+            commands::aicli_get_routes,
+            commands::aicli_list_lines,
+            commands::aicli_select_line,
+            commands::aicli_probe_lines,
+            commands::aicli_get_profiles,
+            commands::aicli_save_profile,
+            commands::aicli_delete_profile,
+            commands::aicli_set_active_profile,
+            commands::aicli_takeover_status,
+            commands::aicli_take_over,
+            commands::aicli_release,
+            commands::aicli_get_usage_summary,
+            commands::aicli_get_request_bill,
+            commands::aicli_get_privacy,
+            commands::aicli_set_privacy,
         ]);
 
     let app = builder

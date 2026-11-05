@@ -53,7 +53,7 @@ pub trait AccountLifecycle: Send + Sync {
     fn release_all(&self) -> BoxFuture<'_, Result<(), AccountError>>;
 }
 
-trait AccountRemote: Send + Sync {
+pub(crate) trait AccountRemote: Send + Sync {
     fn verify<'a>(
         &'a self,
         access: &'a str,
@@ -91,6 +91,10 @@ impl AccountRemote for HttpRemote {
     }
 }
 
+pub(crate) fn http_remote() -> Arc<dyn AccountRemote> {
+    Arc::new(HttpRemote)
+}
+
 type CredentialChange = (String, Option<String>);
 
 struct Binding {
@@ -121,6 +125,16 @@ impl AccountService {
         secrets: Arc<dyn SecretStore>,
         lifecycle: Arc<dyn AccountLifecycle>,
     ) -> Result<Self, AccountError> {
+        Self::with_remote(db, secrets, lifecycle, http_remote())
+    }
+
+    /// Production wiring uses [`Self::new`]; command-layer tests inject fakes here.
+    pub(crate) fn with_remote(
+        db: Arc<Database>,
+        secrets: Arc<dyn SecretStore>,
+        lifecycle: Arc<dyn AccountLifecycle>,
+        remote: Arc<dyn AccountRemote>,
+    ) -> Result<Self, AccountError> {
         let account_exists = db
             .conn
             .lock()
@@ -145,7 +159,7 @@ impl AccountService {
             db,
             secrets,
             lifecycle,
-            remote: Arc::new(HttpRemote),
+            remote,
             operation: tokio::sync::Mutex::new(()),
             state: Mutex::new(Binding {
                 state,

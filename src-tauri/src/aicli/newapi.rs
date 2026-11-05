@@ -432,5 +432,38 @@ fn retry_after_seconds(value: &str) -> Option<u64> {
     })
 }
 
+/// Unauthenticated `/api/status` reachability probe for `aicli_probe_lines`.
+/// Deliberately not a `NewApiClient` method: it must work while unbound, target
+/// exactly one line (no failover to neighbours), and never attach auth headers.
+pub async fn public_status(line_id: &str) -> Result<(u16, Value), NewApiError> {
+    let entry = line(line_id).ok_or(NewApiError::UnknownLine)?;
+    let client = Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| NewApiError::Network)?;
+    let url = Url::parse(entry.base_url)
+        .map_err(|_| NewApiError::InvalidInput)?
+        .join("/api/status")
+        .map_err(|_| NewApiError::InvalidInput)?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|_| NewApiError::Network)?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(NewApiError::Http(status.as_u16()));
+    }
+    let bytes = response.bytes().await.map_err(|_| NewApiError::Network)?;
+    let value: Value = serde_json::from_slice(&bytes).map_err(|_| NewApiError::InvalidResponse)?;
+    match value.get("success").and_then(Value::as_bool) {
+        Some(true) => Ok((status.as_u16(), value)),
+        Some(false) => Err(NewApiError::Rejected),
+        None => Err(NewApiError::InvalidResponse),
+    }
+}
+
 #[cfg(test)]
 mod tests;

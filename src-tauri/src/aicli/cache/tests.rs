@@ -363,3 +363,68 @@ async fn periodic_worker_does_not_keep_a_replaced_cache_alive() {
     drop(cache);
     assert!(weak.upgrade().is_none());
 }
+
+#[tokio::test]
+async fn guarded_writes_require_the_construction_time_binding() {
+    use crate::aicli::secrets::{MemoryStore, SecretStore};
+    let conn = Connection::open_in_memory().unwrap();
+    crate::database::Database::create_tables_on_conn(&conn).unwrap();
+    let db = Arc::new(Database {
+        conn: Mutex::new(conn),
+        log_count_cache: Mutex::new(None),
+    });
+    let secrets = Arc::new(MemoryStore::default());
+    secrets.set("access-token", "first-binding-token").unwrap();
+    db.conn.lock().unwrap().execute(
+        "INSERT INTO aicli_account(id,user_id,username,user_group,selected_line_id) VALUES(1,7,'u','g','main')",
+        [],
+    ).unwrap();
+    let events = Arc::new(Events::default());
+    let cache = Arc::new(
+        AicliCache::guarded(
+            db.clone(),
+            7,
+            "first-binding-token",
+            "main",
+            secrets.clone(),
+            events.clone(),
+        )
+        .unwrap(),
+    );
+
+    // Matching binding: the write lands.
+    cache.finish_account_refresh("groups", Ok(serde_json::json!({"data":{}})));
+    assert!(cache.read("groups").unwrap().is_some());
+
+    // Same account rebinds with a different access token: old refresh is dropped.
+    secrets.set("access-token", "second-binding-token").unwrap();
+    cache.finish_account_refresh("pricing", Ok(serde_json::json!({"data":{}})));
+    assert!(cache.read("pricing").unwrap().is_none());
+    assert!(
+        db.conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM aicli_cache WHERE kind='pricing'",
+                [],
+                |row| { row.get::<_, i64>(0) }
+            )
+            .unwrap()
+            == 0
+    );
+
+    // A different user id also drops, and unbinding drops usage writes.
+    db.conn
+        .lock()
+        .unwrap()
+        .execute("UPDATE aicli_account SET user_id=9 WHERE id=1", [])
+        .unwrap();
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    cache.finish_usage_refresh(
+        &today,
+        &format!("usage:{today}"),
+        Ok(serde_json::json!({"data":{"quota":5,"requests":2}})),
+    );
+    assert!(cache.read_usage(&today).unwrap().is_none());
+    assert_eq!(events.0.load(Ordering::SeqCst), 1);
+}
