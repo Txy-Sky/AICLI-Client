@@ -694,7 +694,7 @@ impl AicliRuntime {
     #[cfg(test)]
     pub(crate) fn reload_from_cache_for_test(&self) -> Result<(), RuntimeError> {
         self.load_cached()?;
-        let fingerprint = self.snapshot().fingerprint;
+        let fingerprint = self.snapshot().fingerprint.clone();
         self.projection_changes.send_replace(fingerprint);
         Ok(())
     }
