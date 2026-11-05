@@ -583,7 +583,7 @@ mod tests {
             }
         }
         let mut config = db.get_proxy_config().await.unwrap();
-        config.listen_port = 15821;
+        config.listen_port = 0;
         db.update_proxy_config(config).await.unwrap();
         AppState::new(db)
     }
