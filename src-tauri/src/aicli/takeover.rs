@@ -214,7 +214,13 @@ pub async fn take_over(
     }
     controller::enter_with_route(state, app, false, Some("aicli-main"))
         .await
-        .map_err(|_| TakeoverError::Client)?;
+        .map_err(|error| {
+            log::error!(
+                "AICLI client takeover failed: {}",
+                crate::error_for_log(&error)
+            );
+            TakeoverError::Client
+        })?;
     set_state(state, app, "active")
 }
 
@@ -845,7 +851,6 @@ mod tests {
             assert_eq!(store.get(&account(&app)).unwrap(), backup);
             release(&state, &store, &app).await.unwrap();
         }
-        state.proxy_service.stop().await.unwrap();
     }
 
     #[tokio::test]
