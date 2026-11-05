@@ -390,7 +390,6 @@ pub(crate) struct CacheBinding {
     pub user_id: i64,
     pub access: String,
     pub line: String,
-    pub secrets: Arc<dyn SecretStore>,
     pub events: Arc<dyn CacheEvents>,
 }
 
@@ -403,7 +402,6 @@ fn production_cache_builder() -> CacheBuilder {
             binding.user_id,
             &binding.access,
             &binding.line,
-            binding.secrets,
             binding.events,
         )?;
         Ok(Arc::new(cache))
@@ -698,7 +696,6 @@ impl AicliServices {
                     user_id,
                     access: access.clone(),
                     line: selected_line.clone(),
-                    secrets: self.secrets.clone(),
                     events: self.events.clone(),
                 })?;
                 // CacheAccountLifecycle::new starts the 600s periodic refresh.
@@ -1052,6 +1049,8 @@ impl AicliServices {
         if changed == 0 {
             return Err(AicliCommandError::not_bound());
         }
+        // C3-11 修正：换线路改变绑定，旧聚合的在途写入按新代数丢弃。
+        crate::aicli::cache::bump_binding_generation();
         self.rebuild()?;
         spawn_runtime_refresh(&self.app_state);
         Ok(())

@@ -368,38 +368,29 @@ async fn periodic_worker_does_not_keep_a_replaced_cache_alive() {
 
 #[tokio::test]
 async fn guarded_writes_require_the_construction_time_binding() {
-    use crate::aicli::secrets::{MemoryStore, SecretStore};
     let conn = Connection::open_in_memory().unwrap();
     crate::database::Database::create_tables_on_conn(&conn).unwrap();
     let db = Arc::new(Database {
         conn: Mutex::new(conn),
         log_count_cache: Mutex::new(None),
     });
-    let secrets = Arc::new(MemoryStore::default());
-    secrets.set("access-token", "first-binding-token").unwrap();
     db.conn.lock().unwrap().execute(
         "INSERT INTO aicli_account(id,user_id,username,user_group,selected_line_id) VALUES(1,7,'u','g','main')",
         [],
-    ).unwrap();
+    )
+    .unwrap();
     let events = Arc::new(Events::default());
     let cache = Arc::new(
-        AicliCache::guarded(
-            db.clone(),
-            7,
-            "first-binding-token",
-            "main",
-            secrets.clone(),
-            events.clone(),
-        )
-        .unwrap(),
+        AicliCache::guarded(db.clone(), 7, "first-binding-token", "main", events.clone()).unwrap(),
     );
 
     // Matching binding: the write lands.
     cache.finish_account_refresh("groups", Ok(serde_json::json!({"data":{}})));
     assert!(cache.read("groups").unwrap().is_some());
 
-    // Same account rebinds with a different access token: old refresh is dropped.
-    secrets.set("access-token", "second-binding-token").unwrap();
+    // Rebind (same account, new token): AccountService::bind commits and bumps the
+    // binding generation, so the old aggregate's in-flight refresh is dropped.
+    super::bump_binding_generation();
     cache.finish_account_refresh("pricing", Ok(serde_json::json!({"data":{}})));
     assert!(cache.read("pricing").unwrap().is_none());
     assert!(
@@ -415,7 +406,8 @@ async fn guarded_writes_require_the_construction_time_binding() {
             == 0
     );
 
-    // A different user id also drops, and unbinding drops usage writes.
+    // A guard that missed the bump still drops on a mismatched account row, and
+    // unbound rows drop usage writes: uncertain means stale.
     db.conn
         .lock()
         .unwrap()
@@ -429,4 +421,89 @@ async fn guarded_writes_require_the_construction_time_binding() {
     );
     assert!(cache.read_usage(&today).unwrap().is_none());
     assert_eq!(events.0.load(Ordering::SeqCst), 1);
+}
+
+/// C3-11 修正：换绑发生在在途刷新之间时，旧聚合的写入被丢弃；新代数的聚合正常写入。
+/// 模拟 AccountService::bind 与 AicliServices::select_line 的代数递增。
+#[tokio::test]
+async fn concurrent_rebind_drops_the_old_aggregates_inflight_writes() {
+    struct Held {
+        gate: Arc<tokio::sync::Notify>,
+    }
+    impl CacheRemote for Held {
+        fn fetch<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<Value, NewApiError>> {
+            let gate = self.gate.clone();
+            Box::pin(async move {
+                gate.notified().await;
+                Ok(serde_json::json!({"data":{"stale":"account-7"}}))
+            })
+        }
+        fn fetch_usage<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<Value, NewApiError>> {
+            Box::pin(async { Ok(serde_json::json!({"data":{"quota":1,"requests":1}})) })
+        }
+    }
+    let conn = Connection::open_in_memory().unwrap();
+    crate::database::Database::create_tables_on_conn(&conn).unwrap();
+    let db = Arc::new(Database {
+        conn: Mutex::new(conn),
+        log_count_cache: Mutex::new(None),
+    });
+    db.conn.lock().unwrap().execute(
+        "INSERT INTO aicli_account(id,user_id,username,user_group,selected_line_id) VALUES(1,7,'u','g','main')",
+        [],
+    )
+    .unwrap();
+    let events = Arc::new(Events::default());
+    let gate = Arc::new(tokio::sync::Notify::new());
+    let mut old_cache =
+        AicliCache::with_remote(db.clone(), Held { gate: gate.clone() }, events.clone());
+    old_cache.install_guard(7, "main");
+    let old = Arc::new(old_cache);
+
+    // The old aggregate starts a refresh that stalls in flight.
+    old.schedule_refresh("groups".to_owned());
+
+    // Rebind commits: the account row changes and the generation is bumped.
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE aicli_account SET user_id=8,selected_line_id='global' WHERE id=1",
+            [],
+        )
+        .unwrap();
+    super::bump_binding_generation();
+
+    let mut fresh_cache = AicliCache::with_remote(
+        db.clone(),
+        Remote::new(Ok(serde_json::json!({"data":{"fresh":"account-8"}}))),
+        events.clone(),
+    );
+    fresh_cache.install_guard(8, "global");
+    let fresh = Arc::new(fresh_cache);
+    fresh.finish_account_refresh(
+        "groups",
+        Ok(serde_json::json!({"data":{"fresh":"account-8"}})),
+    );
+    assert!(fresh.read("groups").unwrap().is_some());
+
+    // Releasing the stalled old refresh must not overwrite the new account data:
+    // the guard compares the generation inside the same database lock as the write.
+    gate.notify_one();
+    old.wait_for_idle().await;
+    let body = db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT body_json FROM aicli_cache WHERE kind='groups'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap();
+    assert!(
+        !body.contains("account-7"),
+        "a stale refresh leaked another account's data: {body}"
+    );
+    assert!(body.contains("account-8"), "fresh write missing: {body}");
 }

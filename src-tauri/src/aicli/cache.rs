@@ -1,6 +1,6 @@
 //! Cache-first account data loading backed by the AICLI-owned SQLite tables.
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use chrono::{NaiveDate, Utc};
@@ -13,7 +13,6 @@ use tauri::Emitter;
 use tokio::sync::{Notify, Semaphore};
 
 use super::newapi::{NewApiClient, NewApiError};
-use super::secrets::SecretStore;
 use crate::database::Database;
 
 pub const EVENT_DATA_UPDATED: &str = "aicli-data-updated";
@@ -127,11 +126,19 @@ pub struct AicliCache {
 }
 
 struct BindingGuard {
+    /// 构造时的绑定代数：bind、unbind、换线路时 +1（内存计数），令牌更换只可能伴随
+    /// bind，因此代数 + 账户行足以判定绑定是否已换，写入路径不再逐次读钥匙串。
+    generation: u64,
     user_id: i64,
     line: String,
-    /// SHA-256 fingerprint; the raw token is never retained here.
-    token: String,
-    secrets: Arc<dyn SecretStore>,
+}
+
+/// 绑定代数：进程内存计数，bind / unbind / 换线路时递增。C3-11 修正。
+static BINDING_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// 账户服务与线路切换在改变绑定的事务提交成功后调用。
+pub(crate) fn bump_binding_generation() {
+    BINDING_GENERATION.fetch_add(1, Ordering::SeqCst);
 }
 
 pub(crate) fn token_fingerprint(token: &str) -> String {
@@ -186,67 +193,51 @@ impl AicliCache {
         }
     }
 
-    /// Production constructor: captures `(user_id, line, token fingerprint)` at
-    /// construction and re-verifies the binding before every write.
+    /// Production constructor: captures the binding generation and account row
+    /// at construction and re-verifies both before every write, inside the same
+    /// database lock as the write itself (C3-11 fix).
     pub fn guarded(
         db: Arc<Database>,
         user_id: i64,
         access_token: &str,
         selected_line: &str,
-        secrets: Arc<dyn SecretStore>,
         events: Arc<dyn CacheEvents>,
     ) -> Result<Self, NewApiError> {
         let mut cache = Self::new(db, access_token, selected_line, events)?;
-        cache.install_guard(user_id, access_token, selected_line, secrets);
+        cache.install_guard(user_id, selected_line);
         Ok(cache)
     }
 
-    pub(crate) fn install_guard(
-        &mut self,
-        user_id: i64,
-        access_token: &str,
-        selected_line: &str,
-        secrets: Arc<dyn SecretStore>,
-    ) {
+    pub(crate) fn install_guard(&mut self, user_id: i64, selected_line: &str) {
         self.guard = Some(BindingGuard {
+            generation: BINDING_GENERATION.load(Ordering::SeqCst),
             user_id,
             line: selected_line.to_owned(),
-            token: token_fingerprint(access_token),
-            secrets,
         });
     }
 
-    /// True when the current binding no longer matches construction time.
-    /// Unbound or unverifiable states fail closed: the write is dropped.
-    fn stale_binding(&self) -> bool {
+    /// 在持有数据库锁的写入路径内调用：先比代数（bind/unbind/换线路都会 +1），
+    /// 再在同一次锁内核对账户行。不确定（锁中毒、行缺失、代数或行不一致）一律
+    /// 视为已换绑，保守丢弃写入。
+    fn binding_stale_locked(&self, conn: &rusqlite::Connection) -> bool {
         let Some(guard) = &self.guard else {
             return false;
         };
-        let current = self
-            .db
-            .conn
-            .lock()
-            .ok()
-            .and_then(|conn| {
-                conn.query_row(
-                    "SELECT user_id,selected_line_id FROM aicli_account WHERE id=1",
-                    [],
-                    |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, String>(1)?)),
-                )
-                .optional()
-                .ok()
-                .flatten()
-            })
-            .and_then(|(user_id, line)| {
-                let token = guard.secrets.get("access-token").ok().flatten()?;
-                Some((user_id?, line, token_fingerprint(&token)))
-            });
+        if BINDING_GENERATION.load(Ordering::SeqCst) != guard.generation {
+            return true;
+        }
+        let current = conn
+            .query_row(
+                "SELECT user_id,selected_line_id FROM aicli_account WHERE id=1",
+                [],
+                |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional();
         match current {
-            Some((user_id, line, token)) => {
-                (user_id, line.as_str(), token.as_str())
-                    != (guard.user_id, guard.line.as_str(), guard.token.as_str())
+            Ok(Some((Some(user_id), line))) => {
+                (user_id, line.as_str()) != (guard.user_id, guard.line.as_str())
             }
-            None => true,
+            _ => true,
         }
     }
 
@@ -416,11 +407,7 @@ impl AicliCache {
                 let quota = value.pointer("/data/quota").and_then(Value::as_i64);
                 let requests = value.pointer("/data/requests").and_then(Value::as_i64);
                 if let (Some(quota), Some(requests)) = (quota, requests) {
-                    if self.stale_binding() {
-                        log::debug!(
-                            "AICLI cache dropped a stale {day} usage refresh after rebinding"
-                        );
-                    } else if self.write_usage(day, quota, requests).is_ok() {
+                    if self.write_usage(day, quota, requests).is_ok() {
                         if let Ok(mut errors) = self.errors.lock() {
                             errors.remove(kind);
                         }
@@ -444,16 +431,17 @@ impl AicliCache {
     }
 
     fn write_cache(&self, kind: &str, value: &Value) -> Result<bool, NewApiError> {
-        if self.stale_binding() {
-            log::debug!("AICLI cache dropped a stale {kind} refresh after rebinding");
-            return Ok(false);
-        }
         let mut canonical = value.clone();
         canonical.sort_all_objects();
         let body = serde_json::to_string(&canonical).map_err(|_| NewApiError::InvalidResponse)?;
         let fingerprint = format!("{:x}", Sha256::digest(body.as_bytes()));
         let now = Utc::now().timestamp();
+        // C3-11 修正：守卫复核与写入在同一次数据库锁内完成，不存在两段锁之间的竞态窗口。
         let conn = self.db.conn.lock().map_err(|_| NewApiError::Network)?;
+        if self.binding_stale_locked(&conn) {
+            log::debug!("AICLI cache dropped a stale {kind} refresh after rebinding");
+            return Ok(false);
+        }
         let old = conn
             .query_row(
                 "SELECT fingerprint FROM aicli_cache WHERE kind=?1",
@@ -510,13 +498,14 @@ impl AicliCache {
         .map_err(|_| NewApiError::Network)
     }
 
-    fn write_usage(&self, day: &str, quota: i64, requests: i64) -> Result<(), NewApiError> {
-        if self.stale_binding() {
-            log::debug!("AICLI cache dropped a stale {day} usage refresh after rebinding");
-            return Ok(());
-        }
+    /// 返回 `true` 表示已写入，`false` 表示绑定已换、保守丢弃。
+    fn write_usage(&self, day: &str, quota: i64, requests: i64) -> Result<bool, NewApiError> {
         let final_day = day < Utc::now().format("%Y-%m-%d").to_string().as_str();
+        // 同 write_cache：复核与写入共用一次数据库锁。
         let conn = self.db.conn.lock().map_err(|_| NewApiError::Network)?;
+        if self.binding_stale_locked(&conn) {
+            return Ok(false);
+        }
         conn.execute(
             "INSERT INTO aicli_usage_daily(day,quota,requests,is_final,fetched_at) VALUES(?1,?2,?3,?4,?5)
              ON CONFLICT(day) DO UPDATE SET quota=excluded.quota,requests=excluded.requests,
@@ -524,7 +513,7 @@ impl AicliCache {
             rusqlite::params![day, quota, requests, final_day, Utc::now().timestamp()],
         )
         .map_err(|_| NewApiError::Network)?;
-        Ok(())
+        Ok(true)
     }
 }
 

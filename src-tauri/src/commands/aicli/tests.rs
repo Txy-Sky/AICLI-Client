@@ -238,12 +238,7 @@ impl Fixture {
                 ));
                 let mut cache =
                     AicliCache::with_remote(binding.db, remote.clone(), binding.events.clone());
-                cache.install_guard(
-                    binding.user_id,
-                    &binding.access,
-                    &binding.line,
-                    binding.secrets.clone(),
-                );
+                cache.install_guard(binding.user_id, &binding.line);
                 let cache = Arc::new(cache);
                 caches.lock().unwrap().push(cache.clone());
                 Ok(cache)

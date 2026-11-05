@@ -359,6 +359,8 @@ impl AccountService {
             }
             self.set_state(BindingState::Bound);
         }
+        // C3-11 修正：绑定成功（含同账号换令牌）递增绑定代数，旧聚合在途写入按代数丢弃。
+        crate::aicli::cache::bump_binding_generation();
         self.lifecycle.refresh();
         Ok(info)
     }
@@ -410,6 +412,8 @@ impl AccountService {
             return Err(AccountError::Database);
         }
         self.set_state(BindingState::NotBound);
+        // C3-11 修正：解绑同样递增绑定代数。
+        crate::aicli::cache::bump_binding_generation();
         Ok(())
     }
 }
