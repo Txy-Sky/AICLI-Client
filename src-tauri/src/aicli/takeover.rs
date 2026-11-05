@@ -634,7 +634,8 @@ mod tests {
                 .map(|b| String::from_utf8_lossy(b))
                 .collect::<Vec<_>>()
                 .join("\n");
-            assert!(text.contains("127.0.0.1:15821"), "{}", app.as_str());
+            let (proxy_url, _) = state.proxy_service.build_proxy_urls().await.unwrap();
+            assert!(text.contains(&proxy_url), "{}", app.as_str());
             let token = super::super::local_auth::token_for(&state.db, app.as_str()).unwrap();
             assert!(text.contains(&token));
             assert!(!text.contains("sk-"));
