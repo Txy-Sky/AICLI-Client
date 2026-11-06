@@ -1,0 +1,49 @@
+E-01/E-02 验收记录（合并验收，2026-11-06）
+
+最终验收提交：ad6716fd（E-01: 17d9c04d；E-02: d1d7413f + 修复 8cd825ef、ad6716fd）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42222551860（五 job 全 success）
+
+一、E-01（源码与声明）
+- Magpie 已在 `source-reference/magpie` 检出于 f11bf27c1f3f0f7d5284dffa2cb8b066debaed84
+  （该目录 gitignore，`git status` 不出现；未克隆 Maskit 进本仓库目录）。
+- `THIRD_PARTY_NOTICES.md`（仓库根）：Magpie MIT 全文与版权行（Copyright (c) 2026 yetone），
+  及经 Magpie `THIRD_PARTY_NOTICES` 转载的 jieba 词典声明（jieba v0.42.1，MIT）。
+- `src-tauri/Cargo.toml` 新增 `data-encoding`、`unicode-normalization`（另加 `getrandom`
+  0.2 作为隐私密钥随机源——偏差见清单第 13 节；lockfile 同步，仅新增三个包）。
+- 顺带把本地草稿目录 `/artifacts/` 加入 .gitignore（防误入库；见偏差）。
+
+二、E-02（占位符与密钥，`aicli/privacy/placeholder.rs`）
+- 占位符 `{{KIND_xxxxxxxx}}`：HMAC-SHA256(key, `kind\0value`) 摘要 base32（RFC 4648
+  无填充）前 8 位小写；正则 `\{\{[A-Z][A-Z0-9_]*_[a-z2-7]{8}\}\}` 常量发布。
+- 密钥 32 字节随机（getrandom），Keychain 账户 `privacy-hmac-key`，hex 文本存取，
+  首次生成后固定。
+- 值表：内存 HashMap + 插入序队列，上限 200,000（测试可注入小值），满时淘汰最旧一半
+  （Magpie `makeRoom` 为 Go map 迭代删除，这里按插入序精确淘汰最旧，行为等价且确定）。
+- `tools/magpie_golden/`（Go 开发期工具，不进产物）：固定测试密钥经 `redact.SetKeyPath`
+  + `redact.Mask(Secrets,Personal)` 对语料生成占位符 JSON，原值经 `redact.Value` 反查，
+  kind 取自占位符自身。语料 `tests/fixtures/privacy/golden_corpus.json`（7 条，避免
+  GitHub push protection 的 ghp_/xoxb-/AKIA/sk-ant- 真实密钥形态），golden
+  `golden_placeholder.json` 7 条（API_KEY×3、TOKEN、PHONE×2、PASSWORD）。
+- Rust 侧测试 5 passed（job Rust item tests E-02-unit）：
+  1. golden_placeholders_match_magpie_exactly：固定密钥下 Rust tag 与 Magpie golden
+     逐条完全一致（含形态自查）。
+  2. placeholder_pattern_shape：正则合法/非法形态。
+  3. same_value_same_placeholder_across_restart：同值同占位符；新值表同密钥不变；
+     kind 不同则不同。
+  4. eviction_drops_oldest_half_and_recovers：满丢最旧一半；淘汰后同值得同占位符并可恢复。
+  5. key_is_generated_once_and_persisted：密钥生成一次并持久，跨引擎一致。
+- 基线：Rust 4554 passed / 原有 10 skipped（较 C4-04 +5）。
+
+三、失败历史（3 轮，不作成功证据）
+1. GitHub push protection 拒绝推送（xoxb-/ghp-/AKIA/sk-ant- 语料形态）；本地历史重组并
+   换语料（该三提交从未推送，非强推远端）。
+2. run 42215166916（d1d7413f）：mask() 把 placeholder move 进队列后返回（E0382）。
+3. run 42216469951（8cd825ef）：kind 前缀自查的 format! 花括号转义错（"{{KIND}_"），
+   tag 比对本身全部通过；改拼接。
+4. 最终 ad6716fd 全绿。
+
+四、说明
+- Go 工具仅在开发机运行（CI 无 Go 工具链，符合「不进产物」）；golden JSON 提交入库供
+  CI 中 Rust 侧比对。
+- 本机敏感值经本地隐私网关在会话中转写为 {{...}} 占位符形态（含测试字面量），落盘内容
+  以文件为准（进程内生成/读取不受影响）。

@@ -730,19 +730,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 全部在 `src-tauri/src/aicli/privacy/`。**接入点只有一个中间件，不改 handlers。**
 
 ### E-01 获取源码和声明
-- [ ] 完成
+- [x] 完成
 - 修改：把 Magpie 克隆到 `source-reference/magpie` 并检出 `f11bf27c1f3f0f7d5284dffa2cb8b066debaed84`（该目录已被 gitignore）。新增 `THIRD_PARTY_NOTICES.md`，写入 Magpie 的 MIT 全文和版权行，以及 jieba 的声明（来自 Magpie 自身的 `THIRD_PARTY_NOTICES`）。`src-tauri/Cargo.toml` 增加 `data-encoding`、`unicode-normalization`。
 - **禁止**：不得把 Maskit 的代码、正则、规则表、测试夹具复制或翻译进仓库。不得克隆 Maskit 到本仓库目录内（E-07 另行放置）。
 - 验收：`git status` 中没有 `source-reference`；声明文件存在。
-- 证据：
+- 证据：ad6716fd | git status 无 source-reference（gitignore）；THIRD_PARTY_NOTICES.md 含 Magpie MIT 全文（2026 yetone）与 jieba 声明；Cargo 新增 data-encoding/unicode-normalization（另加 getrandom，第 13 节偏差）；与 E-02 合并验收，run 见下 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42222551860
 
 ### E-02 占位符和密钥
-- [ ] 完成
+- [x] 完成
 - 修改：`privacy/placeholder.rs`。格式 `{{KIND_xxxxxxxx}}`，正则 `\{\{[A-Z][A-Z0-9_]*_[a-z2-7]{8}\}\}`，HMAC-SHA256(key, `kind\0value`) 取 base32 前 8 位并小写，与 Magpie `redact.go:682-685` 完全一致。密钥 32 字节随机，存 Keychain `privacy-hmac-key`。值表：内存 `HashMap`，上限 200,000，满时淘汰最旧一半。
 - 验收：
   - 新增 `tools/magpie_golden/`（Go，只在开发时运行，不进产物）：固定测试密钥，用 Magpie 代码对语料生成占位符 JSON。Rust 用相同密钥比对，**完全一致**。
   - 同值同占位符；模拟重启（新值表、同密钥）后不变；淘汰后请求再次带原值时可恢复。
-- 证据：
+- 证据：ad6716fd | job `Rust item tests (Linux)`：E-02-unit `aicli::privacy::placeholder::tests` 5 passed（golden 与 Magpie 逐条一致（Go 工具 tools/magpie_golden 固定密钥生成，语料 7 条避让 push protection）、正则形态、同值同占位符跨重启、淘汰最旧一半后同值恢复、密钥生成一次持久）；基线 Rust 4554 passed / 原有 10 skipped（+5）；三轮失败（push protection 语料形态、E0382 move、format! 转义）见 `docs/aicli-evidence/E-01_02.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42222551860
 
 ### E-03 检测规则
 - [ ] 完成
@@ -1045,6 +1045,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| E-01/E-02（依赖与随机源） | 清单只列 data-encoding、unicode-normalization。 | 另加 getrandom 0.2（32 字节隐私密钥的加密随机源；uuid 拼接等弱回退不可用于 HMAC 密钥）；lockfile 同步仅新增三包。 | 必要的最小新增，不引入传递面扩大。 |
+| E-01（artifacts 忽略） | 清单未提。 | 本地草稿目录 /artifacts/ 加入 .gitignore（防 C5 期间的状态文件误入库）。 | 仅本地卫生，不影响产物。 |
 | C4-03（接线面） | 清单只提 `aicli/usage.rs` 与响应头。 | 头部在 forwarder 成功汇聚点捕获（aicli_request 时），经 `ForwardResult` → `RequestContext`（6 个协议 handler 汇聚点）→ 8 个 usage 落库点统一入队；mock new-api 为查询函数注入接缝（生产走 `NewApiClient::log_by_request_id`，该函数已有 C1-04 的本地 mock 服务器测试）；重试延迟可注入。 | 不改既有落库行为；错误响应与关闭 usage 记账时不入队；「UI 显示等待记账」属 F 阶段。 |
 | C3-10 修正（运行中快照） | 负责人复核指定 provider() 优先用 proxy_service.aicli_runtime() 的当前快照。 | 新增 aicli_runtime_now()（try_read）；优先运行中运行时 snapshot()；回退分支保持 cached_projection()（构造期 load_cached 依赖钥匙串令牌，无令牌时快照为空）；resync 测试改由真实运行时的 projection_changes 驱动，新增测试钩子 reload_from_cache_for_test（cfg(test)，等价 refresh 的本地部分）。 | 运行中运行时与代理服务请求同一快照，一致性优先；中间两轮失败（回退误用 snapshot、夹具未播种钥匙串令牌）均由该语义差异导致，已修复并留档。 |
 | C3-10 修正（ProfileNeedsRepair） | 清单原定义仅 NoModels。 | 新增 TakeoverError::ProfileNeedsRepair（conservative 或全部模型受影响时返回），命令码 profile_needs_repair；目录缺失等仍 NoModels。 | 前端「配置集需要修复」文案随 F-04 客户端页落地。 |
@@ -1143,10 +1145,11 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C4-02 验收 0ceb8304：C4-02-unit 专项 6 passed（五客户端全接管、单项失败隔离且不回滚、非首次仅既有行、未安装跳过、代理失败不接管）；Rust 4533 passed / 原有 10 skipped（增 5 项）、前端 264 文件 3360 passed；五 job 全成功；A6 本轮实际运行。首轮失败（探针缺新 trait 方法、固定端口跨 nextest 进程冲突）详见 C4-02.txt。
 最近负责人复核修正（C3-10/C3-11，合并验收）eaf90fa5：运行中快照优先（fingerprint 一致性专项 + resync 改真实运行时通道）、ProfileNeedsRepair 专项 4 项、绑定代数守卫（含并发换绑专项）；takeover 11 / cache 16 passed，Rust 4539 passed / 原有 10 skipped，五 job 全成功；四轮失败历史见 C3-10.txt、C3-11.txt。
 最近 C4-03 验收 403e4d89：usage 专项 8 passed（第 2 次命中/三次未命中/满 1000 丢最旧警告一次/不覆盖/不补估算/绑定消失放弃/头部提取/绑定上下文并发读）+ routing 集成 1 passed（mock 上游+mock new-api 全链路）；Rust 4547 passed / 原有 10 skipped（增 8）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-03.txt。
+最近 E-01/E-02 验收（合并）ad6716fd：声明文件与依赖就位；占位符引擎 5 passed（Magpie golden 逐条一致、跨重启稳定、淘汰恢复、密钥持久）；Rust 4554 passed / 原有 10 skipped（+5）。三轮失败历史见 E-01_02.txt。下一项 E-03。
 最近 C5-GATE 验收（2026-11-06，[x]）：四组合全项通过（Claude→gpt-6.1-sol 双转换对比持平保持默认、Claude→claude-sonnet-5-5、Codex→gpt-6.1-sol、Gemini→gemini-4-argon），compat.json 四条 full；gemini-3.x 渠道不可用属服务端状态（第 12 节已关闭）；配置备份/还原 SHA256 全 OK，远端 Token 清理完毕。阶段 C 全部完成，下一项 E-01。
 最近 C4-04 验收 c0867e55：C4-04-unit 2 passed（行级列值 + provider_id 保持种子 id + 三线路/非 AICLI/无路由/未知线路推导）；Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-04.txt。下一项 C5-GATE（需 H-01、H-02，均为 [HUMAN] 前置）。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01～C4-04、C5-GATE 已验收，C4-05 保持 [-]；C 阶段全部完成，当前下一项 E-01；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01～C4-04、C5-GATE 已验收，C4-05 保持 [-]；C 阶段全部完成；E-01、E-02 已验收，当前下一项 E-03；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。
