@@ -125,7 +125,10 @@ fn phone_name_marks() {
 #[test]
 fn name_start_ascii_and_cjk() {
     let s = "abc手机号:";
-    assert_eq!(name_start(s, s.len()), 3);
+    assert_eq!(name_start(s, 12), 0, "abc + CJK 全部匹配回起点");
+    assert_eq!(name_start(s, s.len()), 13, "冒号不在集合内停在自身");
+    let s = "abc def:";
+    assert_eq!(name_start(s, 7), 4, "空格截断");
     let s = "我的手机号是:";
-    assert_eq!(name_start(s, s.len()), 0);
+    assert_eq!(name_start(s, 15), 0, "全 CJK 回起点");
 }
