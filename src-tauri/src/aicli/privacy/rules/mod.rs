@@ -42,6 +42,7 @@ pub(crate) enum FoundBy {
 
 /// 字符集常量（Magpie `alnum`/`tokenCh`/`digits`）。
 pub(crate) const ALNUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+#[allow(dead_code)] // redact.rs 引擎（后续批次）使用
 pub(crate) const TOKEN_CH: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
 pub(crate) const DIGITS: &[u8] = b"0123456789";
@@ -62,7 +63,7 @@ pub(crate) fn name_words(name: &str) -> Vec<String> {
     let bytes = name.as_bytes();
     let mut out = Vec::new();
     let mut word: Vec<u8> = Vec::new();
-    let mut flush = |word: &mut Vec<u8>, out: &mut Vec<String>| {
+    let flush = |word: &mut Vec<u8>, out: &mut Vec<String>| {
         if !word.is_empty() {
             out.push(String::from_utf8_lossy(word).into_owned());
             word.clear();
