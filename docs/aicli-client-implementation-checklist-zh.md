@@ -156,8 +156,8 @@ CI-OPT2 证据：40b0e795 | 四个并行 job 加汇总 job `Checklist acceptance
 
 模型不得代办。缺哪一项，只阻塞依赖它的项目，其余继续做。
 
-- [ ] **H-01** 测试账号：一个 AICLI 账号，至少能用两个倍率不同且都含同一模型的分组，账户有小额额度。通过环境变量 `AICLI_TEST_ACCESS_TOKEN`（网页个人设置生成的系统访问令牌）提供。依赖项：A5-01、C5-GATE。
-  证据：
+- [x] **H-01** 测试账号：一个 AICLI 账号，至少能用两个倍率不同且都含同一模型的分组，账户有小额额度。通过环境变量 `AICLI_TEST_ACCESS_TOKEN`（网页个人设置生成的系统访问令牌）提供。依赖项：A5-01、C5-GATE。
+  证据：负责人于 2026-11-06 提供；已装入仓库 Actions secret `AICLI_TEST_ACCESS_TOKEN`（gh secret list 可见，2026-11-06T04:16:52Z）；本机只读验证 `GET https://aicliapi.com/api/user/self` 返回 200、success=true、username=aicli、group=vip、quota>0，满足「小额额度」；令牌值未写入代码/日志/证据/提交。global、apac 两条线路本机直连被重置（与 A5-01 直连观察一致，非令牌问题），CI 侧可达。分组倍率条件与 A5-02 已核对结论一致（auto 可用、含两个倍率不同分组）。
 - [ ] **H-02** 真实客户端：可运行 Claude Code、Codex CLI、Gemini CLI 的环境及其版本号。依赖项：C5-GATE、J。
   证据：
 - [ ] **H-03** macOS、Windows 测试机，可操作图形界面的人。依赖项：L。
