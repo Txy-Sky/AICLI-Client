@@ -295,3 +295,39 @@ async fn production_context_reads_the_current_binding() {
     store.delete("access-token").unwrap();
     assert!(context().is_none());
 }
+
+/// C4-04：线路取「最终成功的 provider」——故障切换后传入切换后的 provider id
+/// 即记录实际线路；非 AICLI provider、无路由决定、未知线路都返回 None。
+#[test]
+fn route_follows_the_final_provider_and_decision() {
+    use super::super::resolver::RouteDecision;
+    let decision = RouteDecision {
+        public_model: "alias".to_owned(),
+        upstream_model: "up".to_owned(),
+        profile_id: "custom".to_owned(),
+        token_id: 17,
+        credential: String::new(),
+        session_key: String::new(),
+        wire_protocol: "anthropic".to_owned(),
+        providers: Vec::new(),
+        timeouts: std::collections::HashMap::new(),
+    };
+    assert_eq!(
+        super::route_of("aicli-main", Some(&decision)),
+        Some(("main".to_owned(), "custom".to_owned()))
+    );
+    // 故障切换后的实际成功线路
+    assert_eq!(
+        super::route_of("aicli-global", Some(&decision)),
+        Some(("global".to_owned(), "custom".to_owned()))
+    );
+    assert_eq!(
+        super::route_of("aicli-apac", Some(&decision)),
+        Some(("apac".to_owned(), "custom".to_owned()))
+    );
+    // 非 AICLI provider / 无路由决定 / 未知线路
+    assert_eq!(super::route_of("kimi", Some(&decision)), None);
+    assert_eq!(super::route_of("aicli-main", None), None);
+    assert_eq!(super::route_of("aicli-unknown", Some(&decision)), None);
+    assert_eq!(super::super::lines::line_id_of_provider("aicli-nope"), None);
+}

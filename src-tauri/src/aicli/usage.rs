@@ -371,3 +371,15 @@ fn write_bill(inner: &Arc<Inner>, request_id: &str, item: &Value) {
 
 #[cfg(test)]
 mod tests;
+
+/// C4-04：由「最终成功的 provider」与解析出的路由决定推导 `(line, profile)`，
+/// 供用量记录补 `aicli_line_id` / `aicli_profile_id`。非 AICLI 请求（无线路
+/// provider 或无路由决定）返回 None；故障切换后传入的 provider 即实际成功线路。
+pub fn route_of(
+    provider_id: &str,
+    route: Option<&super::resolver::RouteDecision>,
+) -> Option<(String, String)> {
+    let line = super::lines::line_id_of_provider(provider_id)?;
+    let profile = route.map(|decision| decision.profile_id.clone())?;
+    Some((line.to_owned(), profile))
+}

@@ -84,6 +84,11 @@ pub struct RequestLog {
     pub is_streaming: bool,
     /// 成本倍数
     pub cost_multiplier: String,
+    /// C4-04：AICLI 请求的线路 id（来自最终成功的 provider，故障切换后是实际线路）
+    /// 与解析出的配置集 id；非 AICLI 行为 NULL。provider_id 保持种子 provider id，
+    /// usage_stats 的供应商名称 JOIN 不受影响。
+    pub aicli_line_id: Option<String>,
+    pub aicli_profile_id: Option<String>,
 }
 
 /// 使用量记录器
@@ -172,8 +177,9 @@ impl<'a> UsageLogger<'a> {
                 input_token_semantics,
                 input_cost_usd, output_cost_usd, cache_read_cost_usd, cache_creation_cost_usd, total_cost_usd,
                 latency_ms, first_token_ms, status_code, error_message, session_id,
-                provider_type, is_streaming, cost_multiplier, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)"
+                provider_type, is_streaming, cost_multiplier, created_at,
+                aicli_line_id, aicli_profile_id
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)"
         );
         let affected_rows = conn
             .execute(
@@ -204,6 +210,8 @@ impl<'a> UsageLogger<'a> {
                     log.is_streaming as i64,
                     log.cost_multiplier,
                     created_at,
+                    log.aicli_line_id,
+                    log.aicli_profile_id,
                 ],
             )
             .map_err(|e| AppError::Database(format!("记录请求日志失败: {e}")))?;
@@ -285,6 +293,8 @@ impl<'a> UsageLogger<'a> {
             provider_type: None,
             is_streaming: false,
             cost_multiplier: "1.0".to_string(),
+            aicli_line_id: None,
+            aicli_profile_id: None,
         };
 
         self.log_request(&log)
@@ -326,6 +336,8 @@ impl<'a> UsageLogger<'a> {
             provider_type,
             is_streaming,
             cost_multiplier: "1.0".to_string(),
+            aicli_line_id: None,
+            aicli_profile_id: None,
         };
 
         self.log_request(&log)
@@ -386,6 +398,7 @@ impl<'a> UsageLogger<'a> {
         session_id: Option<String>,
         provider_type: Option<String>,
         is_streaming: bool,
+        aicli_route: Option<(&str, &str)>,
     ) -> Result<(), AppError> {
         let pricing = self.get_model_pricing(&pricing_model)?;
 
@@ -422,6 +435,8 @@ impl<'a> UsageLogger<'a> {
             provider_type,
             is_streaming,
             cost_multiplier: "1".to_string(),
+            aicli_line_id: aicli_route.map(|(line, _)| line.to_owned()),
+            aicli_profile_id: aicli_route.map(|(_, profile)| profile.to_owned()),
         };
 
         self.log_request(&log)
@@ -458,7 +473,99 @@ mod tests {
             provider_type: Some("codex".to_string()),
             is_streaming: true,
             cost_multiplier: "1".to_string(),
+            aicli_line_id: None,
+            aicli_profile_id: None,
         }
+    }
+
+    /// C4-04：AICLI 行补 aicli_line_id / aicli_profile_id；provider_id 保持种子 id
+    /// （usage_stats 的供应商名称 JOIN 依赖它），非 AICLI 行两列为 NULL。
+    #[test]
+    fn aicli_route_columns_are_written_and_provider_id_keeps_the_seed_id() -> Result<(), AppError> {
+        let db = Database::memory()?;
+        let logger = UsageLogger::new(&db);
+        let usage = TokenUsage {
+            input_tokens: 3,
+            output_tokens: 4,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            cache_creation_1h_tokens: 0,
+            model: None,
+            message_id: Some("aicli-row".to_string()),
+        };
+        logger.log_with_calculation(
+            "aicli-row".to_string(),
+            "aicli-apac".to_string(),
+            "codex".to_string(),
+            "up-model".to_string(),
+            "req-model".to_string(),
+            "up-model".to_string(),
+            usage,
+            10,
+            None,
+            200,
+            None,
+            None,
+            false,
+            Some(("apac", "custom")),
+        )?;
+        let (provider_id, line, profile): (String, Option<String>, Option<String>) =
+            db.conn.lock()?.query_row(
+                "SELECT provider_id,aicli_line_id,aicli_profile_id FROM proxy_request_logs
+                 WHERE request_id='aicli-row'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+        assert_eq!(provider_id, "aicli-apac", "seed provider id must stay");
+        assert_eq!(
+            line.as_deref(),
+            Some("apac"),
+            "line column mismatch: {line:?}"
+        );
+        assert_eq!(
+            profile.as_deref(),
+            Some("custom"),
+            "profile column mismatch: {profile:?}"
+        );
+
+        // 非 AICLI 行：两列保持 NULL。
+        let plain = TokenUsage {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            cache_creation_1h_tokens: 0,
+            model: None,
+            message_id: Some("plain-row".to_string()),
+        };
+        logger.log_with_calculation(
+            "plain-row".to_string(),
+            "provider-1".to_string(),
+            "claude".to_string(),
+            "m".to_string(),
+            "m".to_string(),
+            "m".to_string(),
+            plain,
+            10,
+            None,
+            200,
+            None,
+            None,
+            false,
+            None,
+        )?;
+        let (line, profile): (Option<String>, Option<String>) = db.conn.lock().unwrap().query_row(
+            "SELECT aicli_line_id,aicli_profile_id FROM proxy_request_logs
+             WHERE request_id='plain-row'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        assert_eq!(
+            (line, profile),
+            (None, None),
+            "non-AICLI rows must stay NULL"
+        );
+        Ok(())
     }
 
     #[test]
@@ -502,6 +609,7 @@ mod tests {
             None,
             Some("claude".to_string()),
             false,
+            None,
         )?;
 
         // 验证记录已插入

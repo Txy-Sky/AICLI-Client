@@ -50,6 +50,7 @@ case "$set_name" in
     item C3-11-unit commands::aicli::tests
     item C4-02-unit commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips commands::aicli::tests::proxy_start_failure_is_reported
     item C4-03-unit aicli::usage::tests
+    item C4-04-unit aicli_route_columns_are_written provider_id_keeps_the_seed_id route_follows_the_final_provider
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests

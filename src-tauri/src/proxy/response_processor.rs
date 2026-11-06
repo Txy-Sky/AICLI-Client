@@ -527,6 +527,7 @@ pub(crate) fn create_usage_collector(
     let model_extractor = parser_config.model_extractor;
     let session_id = ctx.session_id.clone();
     let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+    let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
     Some(SseUsageCollector::new(
         start_time,
@@ -542,6 +543,7 @@ pub(crate) fn create_usage_collector(
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
                 let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage_internal(
@@ -558,6 +560,7 @@ pub(crate) fn create_usage_collector(
                         status_code,
                         Some(session_id),
                         upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -570,6 +573,7 @@ pub(crate) fn create_usage_collector(
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
                 let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage_internal(
@@ -586,6 +590,7 @@ pub(crate) fn create_usage_collector(
                         status_code,
                         Some(session_id),
                         upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -625,6 +630,7 @@ fn spawn_log_usage(
     let latency_ms = ctx.latency_ms();
     let session_id = ctx.session_id.clone();
     let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+    let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
     tokio::spawn(async move {
         log_usage_internal(
@@ -641,6 +647,7 @@ fn spawn_log_usage(
             status_code,
             Some(session_id),
             upstream_request_id,
+            aicli_route,
         )
         .await;
     });
@@ -675,6 +682,7 @@ async fn log_usage_internal(
     status_code: u16,
     session_id: Option<String>,
     upstream_request_id: Option<String>,
+    aicli_route: Option<(String, String)>,
 ) {
     use super::usage::logger::UsageLogger;
 
@@ -682,6 +690,9 @@ async fn log_usage_internal(
     let request_id = usage.dedup_request_id(dedup_scope);
     // C4-03：行写入后按同一 id 回填账单；闭包会 move 走 request_id，先留一份。
     let bill_request_id = request_id.clone();
+    let aicli_route_ref = aicli_route
+        .as_ref()
+        .map(|(line, profile)| (line.as_str(), profile.as_str()));
 
     log::debug!(
         "[{app_type}] 记录请求日志: id={request_id}, provider={provider_id}, model={model}, streaming={is_streaming}, status={status_code}, latency_ms={latency_ms}, first_token_ms={first_token_ms:?}, session={}, input={}, output={}, cache_read={}, cache_creation={}",
@@ -726,6 +737,7 @@ async fn log_usage_internal(
             session_id,
             None, // provider_type
             is_streaming,
+            aicli_route_ref,
         )
     });
     if let Err(e) = write.await.unwrap_or_else(|e| {
@@ -1306,6 +1318,7 @@ mod tests {
             200,
             None,
             None,
+            None,
         )
         .await;
 
@@ -1372,6 +1385,7 @@ mod tests {
             None,
             false,
             200,
+            None,
             None,
             None,
         )
@@ -1467,6 +1481,7 @@ mod tests {
                 None,
                 false,
                 200,
+                None,
                 None,
                 None,
             )

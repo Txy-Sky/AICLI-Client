@@ -53,6 +53,12 @@ pub fn line(id: &str) -> Option<&'static Line> {
     LINES.iter().find(|candidate| candidate.id == id)
 }
 
+/// C4-04：种子 provider id（`aicli-<line>`）反推线路 id；仅认注册表里的固定值。
+pub fn line_id_of_provider(provider_id: &str) -> Option<&'static str> {
+    let id = provider_id.strip_prefix("aicli-")?;
+    LINES.iter().find(|line| line.id == id).map(|line| line.id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

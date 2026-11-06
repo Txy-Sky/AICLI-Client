@@ -537,6 +537,8 @@ struct ClaudeUsageLog {
     is_streaming: bool,
     /// C4-03：AICLI 上游请求 id，None 表示非 AICLI 请求。
     upstream_request_id: Option<String>,
+    /// C4-04：(line, profile)，None 表示非 AICLI 请求。
+    aicli_route: Option<(String, String)>,
 }
 
 fn prepare_claude_usage_log(
@@ -571,6 +573,7 @@ fn prepare_claude_usage_log(
         status_code,
         is_streaming,
         upstream_request_id: ctx.aicli_upstream_request_id.clone(),
+        aicli_route: crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref()),
     })
 }
 
@@ -589,6 +592,7 @@ async fn write_claude_usage_log(state: &ProxyState, log: ClaudeUsageLog) {
         log.status_code,
         Some(log.session_id),
         log.upstream_request_id,
+        log.aicli_route,
     )
     .await;
 }
@@ -696,6 +700,7 @@ async fn handle_claude_transform(
             let start_time = ctx.start_time;
             let session_id = ctx.session_id.clone();
             let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             // 用 ctx 的 app_type：Claude Desktop 网关也走此转换路径，硬编码
             // "claude" 会把 claude-desktop 的行错记到 claude 名下
             let app_type_str = ctx.app_type_str;
@@ -717,6 +722,7 @@ async fn handle_claude_transform(
                         let request_model = request_model.clone();
                         let outbound_model = fallback_model.clone();
                         let upstream_request_id = upstream_request_id.clone();
+                        let aicli_route = aicli_route.clone();
 
                         tokio::spawn(async move {
                             log_usage(
@@ -733,6 +739,7 @@ async fn handle_claude_transform(
                                 status_code,
                                 Some(session_id),
                                 upstream_request_id,
+                                aicli_route,
                             )
                             .await;
                         });
@@ -1740,6 +1747,8 @@ async fn handle_codex_xai_native_responses_rewrite(
                     let provider_id = ctx.provider.id.clone();
                     let session_id = ctx.session_id.clone();
                     let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+                    let aicli_route =
+                        crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
                     let latency_ms = ctx.latency_ms();
                     async move {
                         log_usage(
@@ -1756,6 +1765,7 @@ async fn handle_codex_xai_native_responses_rewrite(
                             status.as_u16(),
                             Some(session_id),
                             upstream_request_id,
+                            aicli_route,
                         )
                         .await;
                     }
@@ -1819,6 +1829,7 @@ async fn handle_codex_chat_to_responses_transform(
             let provider_id = ctx.provider.id.clone();
             let request_model = ctx.request_model.clone();
             let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             // 接管/模型覆写场景的归因兜底：出站真值优先于客户端请求别名
             let fallback_model = ctx
                 .outbound_model
@@ -1856,6 +1867,7 @@ async fn handle_codex_chat_to_responses_transform(
                     let outbound_model = fallback_model.clone();
                     let session_id = session_id.clone();
                     let upstream_request_id = upstream_request_id.clone();
+                    let aicli_route = aicli_route.clone();
 
                     tokio::spawn(async move {
                         log_usage(
@@ -1872,6 +1884,7 @@ async fn handle_codex_chat_to_responses_transform(
                             status.as_u16(),
                             Some(session_id),
                             upstream_request_id,
+                            aicli_route,
                         )
                         .await;
                     });
@@ -1979,6 +1992,7 @@ async fn handle_codex_chat_to_responses_transform(
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
             let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -1995,6 +2009,7 @@ async fn handle_codex_chat_to_responses_transform(
                     status.as_u16(),
                     Some(session_id),
                     upstream_request_id,
+                    aicli_route,
                 )
                 .await;
             }
@@ -2146,6 +2161,7 @@ async fn handle_codex_anthropic_to_responses_transform(
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
             let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -2162,6 +2178,7 @@ async fn handle_codex_anthropic_to_responses_transform(
                     status.as_u16(),
                     Some(session_id),
                     upstream_request_id,
+                    aicli_route,
                 )
                 .await;
             }
@@ -2213,6 +2230,7 @@ fn build_codex_anthropic_sse_response(
         let start_time = ctx.start_time;
         let session_id = ctx.session_id.clone();
         let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+        let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
         Some(SseUsageCollector::new(
             start_time,
@@ -2236,6 +2254,7 @@ fn build_codex_anthropic_sse_response(
                 let outbound_model = fallback_model.clone();
                 let session_id = session_id.clone();
                 let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage(
@@ -2252,6 +2271,7 @@ fn build_codex_anthropic_sse_response(
                         status.as_u16(),
                         Some(session_id),
                         upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -3406,6 +3426,7 @@ async fn log_usage(
     status_code: u16,
     session_id: Option<String>,
     upstream_request_id: Option<String>,
+    aicli_route: Option<(String, String)>,
 ) {
     use super::usage::logger::UsageLogger;
 
@@ -3452,6 +3473,9 @@ async fn log_usage(
             session_id,
             None, // provider_type
             is_streaming,
+            aicli_route
+                .as_ref()
+                .map(|(line, profile)| (line.as_str(), profile.as_str())),
         )
     });
     if let Err(e) = write.await.unwrap_or_else(|e| {
