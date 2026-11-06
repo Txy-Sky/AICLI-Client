@@ -88,7 +88,10 @@ pub(crate) fn ssn_ok(v: &str) -> bool {
 /// 护照号校验（Magpie `passportOK`）：≥5 位数字、非单字符重复。
 pub(crate) fn passport_ok(v: &str) -> bool {
     let n = v.bytes().filter(|c| c.is_ascii_digit()).count();
-    n >= 5 && v.chars().any(|c| v.chars().next() != Some(c))
+    n >= 5 && {
+        let first = v.chars().next().unwrap_or_default();
+        v.chars().any(|c| c != first)
+    }
 }
 
 /// 各国 IBAN 长度（Magpie `ibanLen`）。
@@ -219,9 +222,10 @@ pub(crate) fn mac_ok(v: &str) -> bool {
 
 /// 序列号校验（Magpie `serialOK`）。
 pub(crate) fn serial_ok(v: &str) -> bool {
-    v.len() >= 6
-        && v.bytes().any(|c| c.is_ascii_digit())
-        && v.chars().any(|c| v.chars().next() != Some(c))
+    v.len() >= 6 && v.bytes().any(|c| c.is_ascii_digit()) && {
+        let first = v.chars().next().unwrap_or_default();
+        v.chars().any(|c| c != first)
+    }
 }
 
 /// 日期是否可能是生日（Magpie `dateOK`）：1900-2099 年、一年以上前。
