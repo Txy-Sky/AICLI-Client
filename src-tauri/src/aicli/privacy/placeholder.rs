@@ -111,7 +111,7 @@ impl PlaceholderEngine {
         if !self.values.contains_key(&placeholder) {
             self.make_room();
             self.values.insert(placeholder.clone(), value.to_owned());
-            self.order.push_back(placeholder);
+            self.order.push_back(placeholder.clone());
         }
         placeholder
     }
