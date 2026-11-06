@@ -7,5 +7,8 @@
   },
   "openai-response|gpt-6.1-sol": {
     "compat": "full"
+  },
+  "gemini|gemini-4-argon": {
+    "compat": "full"
   }
 }

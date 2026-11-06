@@ -18,13 +18,17 @@
 | Claude Code → gpt-6.1-sol（服务端转换 wire=anthropic，默认） | ✅ `aicli-claude-gpt-6.1-sol`（/v1/models 带 anthropic-version 65 项别名） | ✅ SMOKE-OK-1；API 直连 stream 32 行 SSE / 非 stream end_turn | ✅ 两命令并行 echo AAA-111/BBB-222 均执行并回报 | ✅ PINEAPPLE-77 跨会话续接 | ✅ red_box.png → Red | ✅ 1.1MB/2 万行定位 UNICORN-42 第 13778 行 | ✅ 400 Model is not in the selected profile，客户端干净报错 | ✅ SIGINT 正常退出，服务端行正常落库 |
 | Claude Code → claude-sonnet-5-5（原生 anthropic） | ✅ | ✅ NATIVE-OK | ✅ NATIVE-TOOL-99 | ✅ MANGO-33 | ✅ 红色 | ✅ 13778 行 | ✅ 同上 | ✅（同机制） |
 | Codex → gpt-6.1-sol（原生 openai-response） | ✅（/v1/models 裸名） | ✅ CODEX-OK | ✅ CODEX-TOOL-77（shell 工具） | ✅ resume --last ORCHID-55 | ✅ Red | ✅ rg 定位 13778 行 | ✅ invalid_request_error/model_not_in_profile 干净显示 | ✅（进程可中断，行落库） |
-| Gemini CLI → gemini-3.1-pro / 3-pro-preview / 3.6-flash | — | ❌ 上游 503「分组 Gemini-Ultra 下模型 … 无可用渠道(distributor)」 | — | — | — | — | — | — |
+| Gemini CLI → gemini-3.1-pro / 3-pro-preview / 3.6-flash 等目录模型 | — | ❌ 上游 503「分组 Gemini-Ultra 下模型 … 无可用渠道(distributor)」（渠道临时不可用，见下） | — | — | — | — | — | — |
+| Gemini CLI → gemini-4-argon（原生 gemini，负责人指定） | ✅（/v1/models 含该模型） | ✅ GEMINI-OK（CLI 流式） | ✅ GEMINI-TOOL-33（shell 工具） | ✅ CITRUS-44 | ✅ Red | ✅ 13778 行定位 | ✅ model_not_found / model_not_in_profile 干净显示（见首轮失败记录） | ✅ 中断于 158/3000 行，服务端行正常落库 |
 
-Gemini 组合：代理侧行为正确（别名解析、转发、错误干净回显给 CLI），但直接用编译出的
-auto 组 sk- 令牌以 openai 与 gemini 两种 wire 直连线路复测，上游均返回同一 distributor
-错误——目录里的 gemini 模型在服务端当前无可用渠道，属服务端可用性问题，客户端侧无法
-继续验证。按清单规则，Tier 1 原生协议组合 Gemini→gemini 必须 full，C5-GATE 标 `[!]`，
-已在第 12 节登记，待负责人开通渠道后仅补测该组合。
+Gemini 组合补充（2026-11-06 下午）：目录中的 gemini-3.x 系列在服务端渠道分组
+Gemini-Ultra 下无可用渠道（auto 组与 gemini-cli 单组 Token、openai 与 gemini 双协议直连
+均复现同一 distributor 错误；/v1/models 能列出但无渠道）。负责人指定改用
+`gemini-4-argon`（目录内、gemini-cli 组、双 wire）：openai 与 gemini 原生直连均 200，
+随后经代理跑完全部用例（文本/工具/多轮/图片/长上下文/错误格式/取消），全项通过。
+Tier 1 原生协议组合 Gemini→gemini 以 gemini-4-argon 达成 full；gemini-3.x 渠道不可用
+属服务端渠道状态，记录备查，不构成门禁阻塞。为验证单组路由，本轮曾插入临时配置集
+gemini-only（仅 gemini-cli 组）并绑定 gemini 应用作用域，测试后随解绑清空。
 
 额度不足场景未注入（账户 quota 充足）；错误格式以「模型不存在」为代表验证。
 
@@ -49,7 +53,7 @@ auto 组 sk- 令牌以 openai 与 gemini 两种 wire 直连线路复测，上游
 - `anthropic|gpt-6.1-sol`：full（双 wire 均全过）
 - `anthropic|claude-sonnet-5-5`：full
 - `openai-response|gpt-6.1-sol`：full
-- `gemini|gemini-*`：无条目（服务端无渠道，未验证，unverified 默认）
+- `gemini|gemini-4-argon`：full（其余 gemini-3.x 渠道不可用，未验证，不写条目）
 
 ## 清理与还原
 
@@ -60,5 +64,6 @@ auto 组 sk- 令牌以 openai 与 gemini 两种 wire 直连线路复测，上游
 
 ## 结论
 
-- Claude Code（两个组合）、Codex 全项通过；Gemini 组合因服务端无渠道未验证。
-- C5-GATE 状态：`[!]`（仅剩 Gemini→gemini 原生组合，等服务端渠道），其余全部通过。
+- Claude Code（两个组合）、Codex、Gemini CLI（gemini-4-argon）全项通过。
+- C5-GATE 状态：`[x]`（2026-11-06 下午解除 [!]：gemini 原生组合以 gemini-4-argon 验证 full；
+  gemini-3.x 渠道不可用为服务端状态，已记录备查）。

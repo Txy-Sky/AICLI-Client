@@ -142,6 +142,13 @@ fn compatibility_overrides_apply_only_to_exact_protocol_and_model() {
                     compat: Some(Compatibility::Full),
                 },
             ),
+            (
+                "gemini|gemini-4-argon".to_owned(),
+                Override {
+                    wire: None,
+                    compat: Some(Compatibility::Full),
+                },
+            ),
         ]),
         "compat.json must stay exactly the C5-GATE verified set"
     );
