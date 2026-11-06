@@ -258,8 +258,13 @@ mod tests {
     #[test]
     fn element_token_shape() {
         let s = b"\"element_token\": \"s0000002a:14\"";
-        assert!(element_token(s, 19, 28));
-        assert!(!element_token(s, 19, 20));
+        // s 在位置 18；s0000002a (9 字节) 到 27；s0000002a:14 到 30
+        assert!(element_token(s, 18, 30), "full token with index");
+        assert!(
+            element_token(s, 18, 27),
+            "snapshot part alone with element field"
+        );
+        assert!(!element_token(s, 18, 20), "partial hex");
     }
 
     #[test]

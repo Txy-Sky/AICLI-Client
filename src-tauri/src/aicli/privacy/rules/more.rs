@@ -234,10 +234,17 @@ pub(crate) fn date_ok(v: &str) -> bool {
     let num = |s: &str| -> i32 { s.parse().unwrap_or(0) };
     // 一年前的大致时刻：今天减 366 天的年份即可（精度足够判定）
     let year_ago_min = 1900i32; // 生日必须使年份 + 年龄有意义
+                                // 今天减一年（近似：年 -1 即可，精度对生日判定足够）
+    let current_year = chrono::Utc::now()
+        .format("%Y")
+        .to_string()
+        .parse::<i32>()
+        .unwrap_or(2026);
     let valid = |y: i32, m: i32, d: i32| -> bool {
         (1900..=2099).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&d)
-            && y < year_ago_min + 200 // 不在未来
-            && y <= 2099
+            && y < current_year // 过去年份
+            && (y < current_year - 1 || y == current_year - 1 && m <= 12 && d <= 31)
+        // 至少约一年前
     };
     let _ = year_ago_min;
     if nums.len() == 2 {
