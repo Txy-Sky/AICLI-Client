@@ -96,7 +96,7 @@ pub(crate) fn field_words<'a>(s: &'a [u8], at: usize) -> Vec<String> {
         i -= 1;
     }
     let mut j = i;
-    while j > 0 && in_set(ALNUM, s[j - 1]) || j > 0 && b"_.".contains(&s[j - 1]) {
+    while j > 0 && (in_set(ALNUM, s[j - 1]) || b"_.".contains(&s[j - 1])) {
         j -= 1;
     }
     name_words(&String::from_utf8_lossy(&s[j..i]))

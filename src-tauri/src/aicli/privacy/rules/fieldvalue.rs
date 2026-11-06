@@ -76,7 +76,7 @@ pub(crate) fn not_a_slug(v: &str) -> bool {
     // 8 个连续辅音（无元音）→ 随机串
     let mut run = 0;
     for &c in b {
-        if c.is_ascii_alphabetic() && !"aeiouAEIOU".contains(&c) {
+        if c.is_ascii_alphabetic() && !b"aeiouAEIOU".contains(&c) {
             run += 1;
             if run >= 8 {
                 return true;
@@ -127,7 +127,7 @@ pub(crate) fn file_field(s: &str, a: usize) -> bool {
 }
 
 /// 代码/文档/配置扩展名（Magpie `sourceExt`）。不含 .env/.txt/.key/.pem。
-const SOURCE_EXT: [&str; 55] = [
+const SOURCE_EXT: [&str; 69] = [
     "go", "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "py", "pyi", "rb", "rs", "java",
     "kt", "kts", "swift", "c", "h", "cc", "cpp", "cxx", "hpp", "hh", "m", "mm", "cs", "fs", "php",
     "scala", "dart", "lua", "zig", "nim", "ex", "exs", "erl", "hs", "ml", "clj", "r", "jl", "sh",

@@ -95,7 +95,7 @@ pub(crate) fn passport_ok(v: &str) -> bool {
 }
 
 /// 各国 IBAN 长度（Magpie `ibanLen`）。
-const IBAN_LEN: [(&str, usize); 82] = [
+const IBAN_LEN: [(&str, usize); 89] = [
     ("AD", 24),
     ("AE", 23),
     ("AL", 28),

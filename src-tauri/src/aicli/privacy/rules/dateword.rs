@@ -163,7 +163,11 @@ fn date_forms(y: i32, m: usize, d: usize, w: &str) -> String {
         format!("{ys}{sep}{ms}{sep}{ds}", sep = DATE_SEP),
         format!("{ys}[ \\t]*年[ \\t]*{ms}[ \\t]*月[ \\t]*{ds}(?:[ \\t]*[日号號])?"),
         format!("{ys}[ \\t]*년[ \\t]*{ms}[ \\t]*월[ \\t]*{ds}(?:[ \\t]*일)?"),
-        format!("{ys}{}{}", 100 + m).replace("1", "") + &format!("{:02}", d),
+        format!(
+            "{ys}{}{}",
+            (100 + m).to_string().trim_start_matches('1').to_string(),
+            format!("{:02}", d)
+        ),
         format!("{name}[ \\t]+{ds}{ord},?[ \\t]+{ys}"),
         format!("{ds}{ord}(?:[ \\t]+|-){name},?(?:[ \\t]+|-){ys}"),
     ];

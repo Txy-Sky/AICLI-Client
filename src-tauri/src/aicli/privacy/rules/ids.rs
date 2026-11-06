@@ -3,7 +3,7 @@
 //! 后端生成的 id（UUID、≥32 位十六进制）原样放行；只有整体或作为凭据字段的
 //! 值才遮盖，绝不允许遮一半。
 
-use super::{field_words, in_set, word_byte, FoundBy, Span, ALNUM};
+use super::{field_words, word_byte, FoundBy, Span};
 
 /// 元素 token 字段（cua-driver）：element + token 两词。
 fn element_field(words: &[String]) -> bool {
