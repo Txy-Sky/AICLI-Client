@@ -1,0 +1,37 @@
+[
+  {
+    "kind": "API_KEY",
+    "value": "sk-Zx9QvLtYb3Nc8UmKe4Hd7Pw2Ra5Sf6Tg1B",
+    "placeholder": "{{API_KEY_jnxw63lt}}"
+  },
+  {
+    "kind": "API_KEY",
+    "value": "sk-q7Wv3Nx8Tc2Mb6RjKf9Hs4Pd1Ly5UgOnEwZt8Aa3Bc6Df2Gh",
+    "placeholder": "{{API_KEY_7girrkec}}"
+  },
+  {
+    "kind": "TOKEN",
+    "value": "eyJeyJhbGciOiJIUzI1NiJ9.eyJeyJzdWIiOiJ1MSJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJVadQssw5c",
+    "placeholder": "{{TOKEN_tw4jwipp}}"
+  },
+  {
+    "kind": "PHONE",
+    "value": "13812345678",
+    "placeholder": "{{PHONE_cvkecvu2}}"
+  },
+  {
+    "kind": "PHONE",
+    "value": "+86-15900213344",
+    "placeholder": "{{PHONE_ua32pxed}}"
+  },
+  {
+    "kind": "PASSWORD",
+    "value": "hunter2s3cret!",
+    "placeholder": "{{PASSWORD_uwvpfc2q}}"
+  },
+  {
+    "kind": "API_KEY",
+    "value": "zbx_sk_Qw8Er5Ty2Ui3Op6As1Df0Gh9Jk4Lz7Xc5Vb1Nm",
+    "placeholder": "{{API_KEY_qe3dko43}}"
+  }
+]

@@ -7,6 +7,7 @@ pub mod errors;
 pub mod lines;
 pub mod local_auth;
 pub mod newapi;
+pub mod privacy;
 pub mod profiles;
 pub mod resolver;
 pub mod runtime;
