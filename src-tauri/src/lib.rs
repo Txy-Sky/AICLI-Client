@@ -64,7 +64,9 @@ pub use codex_config::{
 };
 pub use commands::open_provider_terminal;
 pub use commands::*;
-pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file, APP_DIR_NAME};
+pub use config::{
+    get_claude_mcp_path, get_claude_settings_path, get_home_dir, read_json_file, APP_DIR_NAME,
+};
 pub use database::{Database, Profile};
 pub use deeplink::{parse_deeplink_url, BindRequest};
 pub use error::AppError;

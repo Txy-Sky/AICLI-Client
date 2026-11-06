@@ -1,1 +1,11 @@
-{}
+{
+  "anthropic|gpt-6.1-sol": {
+    "compat": "full"
+  },
+  "anthropic|claude-sonnet-5-5": {
+    "compat": "full"
+  },
+  "openai-response|gpt-6.1-sol": {
+    "compat": "full"
+  }
+}
