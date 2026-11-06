@@ -44,7 +44,7 @@ pub struct Catalog {
     pub auto_groups: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Override {
     wire: Option<String>,

@@ -114,10 +114,36 @@ fn compatibility_overrides_apply_only_to_exact_protocol_and_model() {
             Compatibility::Unverified
         );
     }
-    assert!(
-        serde_json::from_str::<BTreeMap<String, Override>>(include_str!("../compat.json"))
-            .unwrap()
-            .is_empty()
+    // C5-GATE 后 compat.json 不再为空：锁定为实测定案的三条 full（gemini 未验证
+    // 不写条目），防止未经验证的条目混入。
+    let shipped: BTreeMap<String, Override> =
+        serde_json::from_str(include_str!("../compat.json")).unwrap();
+    assert_eq!(
+        shipped,
+        BTreeMap::from([
+            (
+                "anthropic|gpt-6.1-sol".to_owned(),
+                Override {
+                    wire: None,
+                    compat: Some(Compatibility::Full),
+                },
+            ),
+            (
+                "anthropic|claude-sonnet-5-5".to_owned(),
+                Override {
+                    wire: None,
+                    compat: Some(Compatibility::Full),
+                },
+            ),
+            (
+                "openai-response|gpt-6.1-sol".to_owned(),
+                Override {
+                    wire: None,
+                    compat: Some(Compatibility::Full),
+                },
+            ),
+        ]),
+        "compat.json must stay exactly the C5-GATE verified set"
     );
 }
 
