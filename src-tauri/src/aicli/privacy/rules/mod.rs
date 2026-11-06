@@ -11,6 +11,8 @@
 //!   `[[:alpha:]]`、无反引用限制）在出现处以注释注明。
 //! - Go 的 `strings.EqualFold` 仅用于 ASCII 场景时以 `eq_ignore_ascii_case` 对应。
 
+#![allow(dead_code)] // E-03 WIP：各叶子模块在 redact.rs 引擎接线前暂无调用方
+
 pub mod dateword;
 pub mod fieldvalue;
 pub mod ids;
@@ -19,7 +21,6 @@ pub mod phone;
 
 /// 找到的一段值（Magpie `span`）：字节区间 [start, end)。
 /// 引擎（redact.rs）与各规则模块使用；当前批次尚未接线的字段允许未用。
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Span {
     pub start: usize,
@@ -30,7 +31,6 @@ pub(crate) struct Span {
 }
 
 /// 哪个发现器找到的（Magpie `By*` 常量）。
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FoundBy {
     Rule,
@@ -42,7 +42,6 @@ pub(crate) enum FoundBy {
 
 /// 字符集常量（Magpie `alnum`/`tokenCh`/`digits`）。
 pub(crate) const ALNUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-#[allow(dead_code)] // redact.rs 引擎（后续批次）使用
 pub(crate) const TOKEN_CH: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
 pub(crate) const DIGITS: &[u8] = b"0123456789";
