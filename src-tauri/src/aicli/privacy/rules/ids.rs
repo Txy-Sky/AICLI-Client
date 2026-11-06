@@ -231,7 +231,7 @@ mod tests {
     fn hex32() -> String {
         // 运行时组装，避免会话管道对敏感形状的转写
         ["d", "e", "a", "d", "b", "e", "e", "f"]
-            .iter()
+            .into_iter()
             .cycle()
             .take(32)
             .collect::<String>()

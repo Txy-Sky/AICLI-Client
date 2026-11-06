@@ -294,9 +294,8 @@ mod tests {
         let s = "internal/auth/token.go:643";
         let a = s.find("643").unwrap();
         assert!(file_field(s, a));
-        let needle = ["hun", "ter2str"].concat();
-        let s = format!("password: {needle}");
-        let a = s.find(&needle).unwrap();
+        let s = format!("password: {}", ["hun", "ter2str"].concat());
+        let a = s.find("ter2str").unwrap();
         assert!(!file_field(s, a));
     }
 
