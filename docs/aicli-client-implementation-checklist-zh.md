@@ -690,10 +690,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：403e4d89 | job `Rust item tests (Linux)`：C4-03-unit `aicli::usage::tests` 8 passed（第 2 次命中补 group/quota/created_at、三次未命中保持 NULL 且无第四次查询、满 1000 丢最旧且警告只记一次、IS NULL 守卫不覆盖、字段不全不补估算、绑定消失保守放弃、头部大小写不敏感提取、生产绑定上下文含并发读）；C4-03-routing `--features test-hooks --test aicli_routing bill_backfill` 1 passed（mock 上游响应头 + mock new-api，真实代理全链路：行先记 upstream_request_id，再落 g-pro/321/4242）；job `A3-01 baseline (Linux)`：Rust 4547 passed / 原有 10 skipped、前端 264 文件 3360 passed，五 job 全成功；A6 本轮实际运行；两轮失败（swap 漏 Ordering/构造 move 顺序/漏补测试参数、集成测试直取私有字段/多余导入）见 `docs/aicli-evidence/C4-03.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42053749069
 
 ### C4-04 用量记录补字段
-- [ ] 完成
+- [x] 完成
 - 修改：`proxy/usage/logger.rs:100` 一带写入 `aicli_line_id`（来自最终 provider）、`aicli_profile_id`。`provider_id` 保持种子 id，这样 `usage_stats.rs:441` 的 JOIN 能显示线路名称。
 - 验收：单测断言写入值；故障切换后记录的是实际成功线路。
-- 证据：
+- 证据：c0867e55 | job `Rust item tests (Linux)`：C4-04-unit `aicli_route_columns_are_written provider_id_keeps_the_seed_id route_follows_the_final_provider` 2 passed（行级：aicli 行 provider_id 保持种子 id、aicli_line_id=apac、aicli_profile_id=custom，非 AICLI 行两列 NULL；推导：main/global/apac 三线路正确（global/apac 即故障切换后取实际成功线路的直接断言）、非 AICLI/无路由/未知线路均 None）；job `A3-01 baseline (Linux)`：Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed，五 job 全成功；A6 本轮实际运行；两轮失败（'static 闭包借用、漏补一个测试构造）见 `docs/aicli-evidence/C4-04.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42154309380
 
 ### C4-05 流式首选线路（条件项）
 - [-] 按负责人于 2026-11-02 的决定不启用；依据是本决定，不是 A5-01 已测出 120 秒结论。
@@ -1140,9 +1140,10 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C4-01 验收 a0c3bfdc：bind 专项 10 passed（合法/三线路、密钥参数拒绝且错误不回显值、旧 v1/import 拒绝、待处理条目不含 URL 与参数值；`aicli-open-bind` 空负载、日志经 `url_for_log` 剥 query）；Rust 4528 passed / 原有 10 skipped（净减源于删除旧深链导入测试并新增 10 项）、前端 264 文件 3360 passed；四并行 job 与汇总全成功；A6 本轮实际运行。两轮中间失败（顶层 tests/ 前端测试漏删、clippy 孤儿符号）及删除清单详见 C4-01.txt。
 最近 C4-02 验收 0ceb8304：C4-02-unit 专项 6 passed（五客户端全接管、单项失败隔离且不回滚、非首次仅既有行、未安装跳过、代理失败不接管）；Rust 4533 passed / 原有 10 skipped（增 5 项）、前端 264 文件 3360 passed；五 job 全成功；A6 本轮实际运行。首轮失败（探针缺新 trait 方法、固定端口跨 nextest 进程冲突）详见 C4-02.txt。
 最近负责人复核修正（C3-10/C3-11，合并验收）eaf90fa5：运行中快照优先（fingerprint 一致性专项 + resync 改真实运行时通道）、ProfileNeedsRepair 专项 4 项、绑定代数守卫（含并发换绑专项）；takeover 11 / cache 16 passed，Rust 4539 passed / 原有 10 skipped，五 job 全成功；四轮失败历史见 C3-10.txt、C3-11.txt。
-最近 C4-03 验收 403e4d89：usage 专项 8 passed（第 2 次命中/三次未命中/满 1000 丢最旧警告一次/不覆盖/不补估算/绑定消失放弃/头部提取/绑定上下文并发读）+ routing 集成 1 passed（mock 上游+mock new-api 全链路）；Rust 4547 passed / 原有 10 skipped（增 8）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-03.txt。下一项 C4-04。
+最近 C4-03 验收 403e4d89：usage 专项 8 passed（第 2 次命中/三次未命中/满 1000 丢最旧警告一次/不覆盖/不补估算/绑定消失放弃/头部提取/绑定上下文并发读）+ routing 集成 1 passed（mock 上游+mock new-api 全链路）；Rust 4547 passed / 原有 10 skipped（增 8）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-03.txt。
+最近 C4-04 验收 c0867e55：C4-04-unit 2 passed（行级列值 + provider_id 保持种子 id + 三线路/非 AICLI/无路由/未知线路推导）；Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-04.txt。下一项 C5-GATE（需 H-01、H-02，均为 [HUMAN] 前置）。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。
-未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01～C4-03 已验收，当前下一项 C4-04；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
+未完成项（[!] 和 [-] 全部列出）：[-] A5-01，负责人决定跳过 180 秒持续输出语义测量，120 秒语义未实测定案；[-] C4-05，负责人于 2026-11-02 决定不启用，依据是本决定；C3-01 阻塞已关闭（无 [!] 项）。A-GATE 已按负责人明确授权的例外通过；C1-08、C2-01～C2-02 已完成验收；C3-02 → C3-01 已按指定顺序完成，C3-11、C4-01～C4-04 已验收，C4-05 保持 [-]；C 阶段待办仅剩 C5-GATE（需 H-01、H-02 [HUMAN] 前置，当前未提供）；B-07 已验收。A6-04 已完成；两个敏感调用均 403、success:false、message=安全验证状态无效，原令牌与用户状态正常；batch/keys 不带 sk- 前缀，删除模型 Token 后首个检查即 401（0.001169s）。
 Tier 2 支持结论：未测试。
 compat 表结论：C1-07 已创建空 compat.json，默认 unverified；尚未进行 C5-GATE 真实兼容性测试，不填入已验证等级。
 A5-01 的 120 秒结论及采用的超时：120 秒语义未实测定案；第 0.4 节 main、global 的流式总时长均采用负责人 2026-11-02 决定的 600s（未实测）。C4-05 按同一决定不启用，标 [-]；A5-01 仍为 [-]，两项决定都不是测量结论。

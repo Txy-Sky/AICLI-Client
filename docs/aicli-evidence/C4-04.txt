@@ -1,0 +1,40 @@
+C4-04 用量记录补字段验收记录
+
+最终验收提交：c0867e55（实现 a0a282aa + 修复 d2116217、c0867e55）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42154309380
+五 job 全部 success。
+
+一、实现
+- `proxy_request_logs` 成功行新增写入 `aicli_line_id`（来自最终成功的 provider：
+  `aicli-<line>` 反推，仅认线路注册表）与 `aicli_profile_id`（解析出的
+  RouteDecision.profile_id）。`provider_id` 保持种子 provider id 不变，
+  `usage_stats.rs` 的供应商名称 JOIN（providers 表主键 (id, app_type)）不受影响。
+- 推导入口 `aicli::usage::route_of(provider_id, route)`：非 AICLI provider、
+  无路由决定或未知线路一律 None（行两列 NULL）；故障切换后 ctx.provider 已是
+  实际成功线路，取值即实际线路。
+- 接线面：`RequestLog` 增两字段（错误行构造补 None）；`log_with_calculation`
+  增 `aicli_route: Option<(&str, &str)>` 参数；response_processor 两条路径
+  （spawn_log_usage、create_usage_collector 闭包）与 handlers 的 log_usage
+  （8 个落库点，含 ClaudeUsageLog）统一从 ctx 推导后传入。错误路径（log_error*）
+  保持 NULL，不扩范围。
+
+二、专项测试（job `Rust item tests (Linux)`，C4-04-unit 组）
+命令：cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_route_columns_are_written provider_id_keeps_the_seed_id route_follows_the_final_provider
+结果：2 tests run: 2 passed（aicli_route_columns_are_written_and_provider_id_keeps_the_seed_id
+在 aicli::usage::tests::route_follows_the_final_provider_and_decision 前缀组中，实际覆盖
+logger 行级断言 + 推导断言；PASS 日志可见两用例）
+- logger 行级：aicli 行 provider_id='aicli-apac' 不变、aicli_line_id='apac'、
+  aicli_profile_id='custom'；非 AICLI 行两列 NULL。
+- 推导：main/global/apac 三线路均正确（global/apac 即「故障切换后记录实际成功线路」
+  的直接断言）；'kimi'、无路由、未知线路均 None。
+
+三、基线（job `A3-01 baseline (Linux)`）
+Rust 4549 passed / 原有 10 skipped（较 C4-03 +2，即新增两用例）、前端 264 文件
+3360 passed、clippy -D warnings 通过。
+
+四、失败历史（2 轮，不作成功证据）
+1. run 42147794985（a0a282aa）：log_usage_internal 在 spawn_blocking（'static）
+   闭包外预借 aicli_route 引用（E0597）；修正为把 owned 元组 move 进闭包内取引用。
+2. run 42150876870（d2116217）：logger.rs 测试里还有一个 RequestLog 构造漏补
+   两个新字段（E0063，grokbuild 语义用例）。
+3. 最终 c0867e55 全绿。
