@@ -234,7 +234,7 @@ mod tests {
             .iter()
             .cycle()
             .take(32)
-            .collect()
+            .collect::<String>()
     }
 
     #[test]
@@ -257,9 +257,6 @@ mod tests {
 
     #[test]
     fn element_token_shape() {
-        let s = b"element_token s0000002a:14 end";
-        let a = s.windows(1).rposition(|w| w == b"s").unwrap();
-        // s0000002a 在位置 14..23
         let s = b"\"element_token\": \"s0000002a:14\"";
         assert!(element_token(s, 19, 28));
         assert!(!element_token(s, 19, 20));

@@ -18,6 +18,8 @@ pub mod more;
 pub mod phone;
 
 /// 找到的一段值（Magpie `span`）：字节区间 [start, end)。
+/// 引擎（redact.rs）与各规则模块使用；当前批次尚未接线的字段允许未用。
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Span {
     pub start: usize,
@@ -28,6 +30,7 @@ pub(crate) struct Span {
 }
 
 /// 哪个发现器找到的（Magpie `By*` 常量）。
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FoundBy {
     Rule,
