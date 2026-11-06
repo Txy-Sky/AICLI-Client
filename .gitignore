@@ -32,3 +32,4 @@ mainWindow.js
 
 # Upstream reference snapshots
 /source-reference/
+/artifacts/

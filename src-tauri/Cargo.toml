@@ -50,6 +50,9 @@ tauri-plugin-store = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-window-state = "2"
 dirs = "5.0"
+# E 阶段隐私引擎：占位符 base32 编码与 NFKC/零宽归一化
+data-encoding = "2"
+unicode-normalization = "0.1"
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
 toml = "0.8"
 toml_edit = "0.22"
