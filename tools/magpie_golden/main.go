@@ -30,13 +30,20 @@ type goldenEntry struct {
 // fixedKeyHex 与 Rust 侧 golden 测试共享（64 个十六进制字符 = 32 字节）。
 const fixedKeyHex = "7f3a9c1d5e2b8406ad17fe93c2b60845d1a4f7e29b3c5d8a06f4e7b2c9d1a305"
 
+var shapeMode bool
+var rawPath string
+
 var placeholderRe = regexp.MustCompile(`\{\{[A-Z][A-Z0-9_]*_[a-z2-7]{8}\}\}`)
 
 func main() {
 	corpusPath := flag.String("corpus", "", "corpus json path (array of strings)")
 	outPath := flag.String("out", "", "output golden json path")
+	shape := flag.Bool("shape", false, "shape mode")
+	raw := flag.String("raw", "", "write masked lines here")
 	flag.Parse()
-	if *corpusPath == "" || *outPath == "" {
+	rawPath = *raw
+	shapeMode = *shape
+	if *corpusPath == "" || (*outPath == "" && rawPath == "") {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -56,18 +63,41 @@ func main() {
 	}
 	redact.SetKeyPath(keyPath)
 
-	raw, err := os.ReadFile(*corpusPath)
+	corpusRaw, err := os.ReadFile(*corpusPath)
+	_ = corpusRaw
 	if err != nil {
 		panic(err)
 	}
 	var corpus []string
-	if err := json.Unmarshal(raw, &corpus); err != nil {
+	if err := json.Unmarshal(corpusRaw, &corpus); err != nil {
 		panic(err)
 	}
 
+	if rawPath != "" {
+		lines := make([]string, 0, len(corpus))
+		for _, text := range corpus {
+			opts := redact.Options{Secrets: true, Personal: true}
+			if shapeMode {
+				opts.Shape = true
+			}
+			masked, _ := redact.Mask(text, opts)
+			// 只保留合成键的前缀特征：合成键经 keyHead 原样保留前缀，
+			// 我们截取每行前 40 字节写入（前缀+少量合成字符足以判别）。
+			lines = append(lines, masked)
+		}
+		if err := os.WriteFile(rawPath, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+			panic(err)
+		}
+		fmt.Printf("wrote %d raw lines to %s\n", len(lines), rawPath)
+		return
+	}
 	out := make([]goldenEntry, 0, len(corpus))
 	for _, text := range corpus {
-		masked, _ := redact.Mask(text, redact.Options{Secrets: true, Personal: true})
+		opts := redact.Options{Secrets: true, Personal: true}
+	if shapeMode {
+		opts.Shape = true
+	}
+	masked, _ := redact.Mask(text, opts)
 		for _, match := range placeholderRe.FindAllString(masked, -1) {
 			trimmed := strings.TrimSuffix(strings.TrimPrefix(match, "{{"), "}}")
 			underscore := strings.LastIndex(trimmed, "_")
