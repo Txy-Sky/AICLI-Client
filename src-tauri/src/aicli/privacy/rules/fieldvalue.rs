@@ -296,7 +296,7 @@ mod tests {
         assert!(file_field(s, a));
         let s = format!("password: {}", ["hun", "ter2str"].concat());
         let a = s.find("ter2str").unwrap();
-        assert!(!file_field(s, a));
+        assert!(!file_field(&s, a));
     }
 
     #[test]
