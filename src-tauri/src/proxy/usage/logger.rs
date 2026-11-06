@@ -825,6 +825,8 @@ mod tests {
             provider_type: Some("grokbuild".to_string()),
             is_streaming: false,
             cost_multiplier: "1".to_string(),
+            aicli_line_id: None,
+            aicli_profile_id: None,
         };
 
         logger.log_request(&log)?;
