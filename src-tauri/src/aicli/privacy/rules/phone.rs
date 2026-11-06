@@ -131,9 +131,7 @@ pub(crate) fn field_name(s: &str, a: usize) -> Option<(String, String)> {
     if i > 0 && bytes[i - 1] == b'>' {
         // <tel>138…</tel>：元素名
         let lo = i.saturating_sub(65);
-        let Some(k) = bytes[lo..i - 1].iter().rposition(|&c| c == b'<') else {
-            return None;
-        };
+        let k = bytes[lo..i - 1].iter().rposition(|&c| c == b'<')?;
         let tag_bytes = &bytes[lo + k + 1..i - 1];
         let mut tag = tag_bytes;
         if let Some(sp) = tag.iter().position(|&c| c == b' ' || c == b'\t') {

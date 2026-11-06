@@ -86,7 +86,7 @@ pub(crate) fn name_words(name: &str) -> Vec<String> {
 }
 
 /// 值起始处 s[at] 前面字段名的词（Magpie `fieldWords`）：冒号或等号之前。
-pub(crate) fn field_words<'a>(s: &'a [u8], at: usize) -> Vec<String> {
+pub(crate) fn field_words(s: &[u8], at: usize) -> Vec<String> {
     let mut i = at;
     while i > 0 && b" \t\"'\\".contains(&s[i - 1]) {
         i -= 1;

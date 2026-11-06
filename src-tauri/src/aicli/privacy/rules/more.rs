@@ -64,10 +64,7 @@ pub(crate) const CATEGORIES: [Category; 10] = [
 
 /// 类别默认开关表。
 pub(crate) fn category_on(id: &str) -> bool {
-    CATEGORIES
-        .iter()
-        .find(|c| c.id == id)
-        .map_or(false, |c| c.on)
+    CATEGORIES.iter().find(|c| c.id == id).is_some_and(|c| c.on)
 }
 
 // ---- 校验函数 ----
@@ -91,7 +88,7 @@ pub(crate) fn ssn_ok(v: &str) -> bool {
 /// 护照号校验（Magpie `passportOK`）：≥5 位数字、非单字符重复。
 pub(crate) fn passport_ok(v: &str) -> bool {
     let n = v.bytes().filter(|c| c.is_ascii_digit()).count();
-    n >= 5 && v.chars().any(|c| Some(c) != v.chars().next())
+    n >= 5 && v.chars().any(|c| v.chars().next() != Some(c))
 }
 
 /// 各国 IBAN 长度（Magpie `ibanLen`）。
@@ -224,7 +221,7 @@ pub(crate) fn mac_ok(v: &str) -> bool {
 pub(crate) fn serial_ok(v: &str) -> bool {
     v.len() >= 6
         && v.bytes().any(|c| c.is_ascii_digit())
-        && v.chars().any(|c| Some(c) != v.chars().next())
+        && v.chars().any(|c| v.chars().next() != Some(c))
 }
 
 /// 日期是否可能是生日（Magpie `dateOK`）：1900-2099 年、一年以上前。
