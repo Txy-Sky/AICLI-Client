@@ -42,10 +42,9 @@ fn golden_placeholders_match_magpie_exactly() {
             entry.kind
         );
         // 占位符形态自查。
+        let expected_prefix = ["{{", entry.kind.as_str(), "_"].concat();
         assert!(
-            entry
-                .placeholder
-                .starts_with(&format!("{{{{{}}}_", entry.kind)),
+            entry.placeholder.starts_with(&expected_prefix),
             "kind prefix missing: {}",
             entry.placeholder
         );
