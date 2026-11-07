@@ -54,3 +54,34 @@ format:check、build:renderer 全部通过。
      一样设 listen_port=0，跨 nextest 进程并行绑默认端口冲突（Address already in use）。
      修复：0ceb8304 夹具改 listen_port=0。
    - 另有 Fixture::with_post_bind 参数被局部 let 遮蔽的 unused 警告，一并消除。
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：73de4dc1 fix(aicli): C4-02 never widen takeover on unreadable targets
+
+一、读接管目标失败不扩大范围（aicli/takeover.rs）
+- 修正前：bind_targets 用 .ok()/unwrap_or_default() 吞掉锁中毒与 SQL 错误，读表失败
+  得到空列表，被当成首次绑定，接管全部已安装 Tier 1，越过用户此前的选择。
+- 修正后：bind_targets 返回 Result；失败时 bind 一个都不接管，错误记入
+  AicliBindResult.takeover_targets_error（事件负载 takeoverTargetsError），绑定不回滚。
+二、账户视图失败不丢逐项结果（commands/aicli.rs）
+- 修正前：末尾 self.get_account()? 在代理已启动、客户端已接管之后失败，命令整体报错，
+  逐项结果不返回、事件不发。
+- 修正后：AicliBindResult.account 改 Option，失败时为 None 并记 account_error（错误码）；
+  逐项结果照常返回并下发。前端尚未调用 aicli_bind，C5 runner 只用 takeovers，无破坏面。
+- 去掉多余的 takeovers.clone()。
+三、测试（加入 C4-02-unit 组）
+- unreadable_takeover_targets_take_over_nothing：运行时刷新接缝里把 aicli_takeover
+  改名制造读表失败；两个已安装客户端都不接管、配置文件前后逐字节不变、错误随结果
+  与事件返回、账户视图正常。
+- account_view_failure_keeps_takeover_results：同一时刻隐藏 aicli_managed_token，
+  读账户视图失败；命令仍 Ok，account=None、account_error="database"，codex 的逐项
+  结果保留且事件含该项。
+- RuntimeRefreshFake 增加 on_call 钩子用于注入故障。
+
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42379059331（73de4dc1，六 job 全 success）
+- job `Rust item tests (Linux)`：C4-02-unit 8 passed（原 6 + 新 2）。
+- job `A3-01 baseline (Linux)`：cargo clippy -D warnings 通过；Rust 4688 passed /
+  11 skipped（较 ea9cd2b8 增 2）；前端 264 文件 3360 passed。
+- 推送前本地仅 rustfmt --check（完整 Tauri 工程本地无法编译），编译与测试以本 run 为准。
