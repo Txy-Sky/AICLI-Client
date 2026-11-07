@@ -12,13 +12,13 @@ use std::sync::OnceLock;
 use super::super::placeholder::PlaceholderEngine;
 use super::dateword;
 use super::fieldvalue;
+use super::fieldvalue::not_a_slug;
 use super::ids;
 use super::known;
 use super::more;
 use super::phone;
 use super::shape;
 use super::{FoundBy, Span};
-use crate::aicli::privacy::rules::fieldvalue::not_a_slug;
 
 // ---- 字符集 ----
 
@@ -61,23 +61,22 @@ pub(crate) struct Rule {
 
 impl Rule {
     /// 编译正则（懒加载）。
-    fn re(&self) -> &Regex {
-        static CACHE: OnceLock<HashMap<&'static str, Regex>> = OnceLock::new();
-        let cache = CACHE.get_or_init(HashMap::new);
-        // 每条规则编译一次（用 pattern 做 key）
-        // OnceLock 不能 per-instance，改用线程局部缓存或全局 Map
-        // 简化：每次编译（后续优化可加全局缓存）
-        // 实际上用 Box::leak + OnceLock per rule 更好，但这里先用 thread_local
-        thread_local! {
-            static LOCAL: std::cell::RefCell<HashMap<usize, Regex>> =
-                std::cell::RefCell::new(HashMap::new());
+    /// 编译并缓存（leak 后全局存活，每条规则仅编译一次）。
+    fn re(&self) -> &'static Regex {
+        static CACHE: std::sync::Mutex<Option<HashMap<&'static str, &'static Regex>>> =
+            std::sync::Mutex::new(None);
+        let mut guard = CACHE.lock().unwrap_or_else(|p| p.into_inner());
+        let cache = guard.get_or_insert_with(HashMap::new);
+        if let Some(re) = cache.get(self.pattern) {
+            return re;
         }
-        LOCAL.with(|cell| {
-            let key = self.pattern as *const str as usize;
-            cell.borrow_mut()
-                .entry(key)
-                .or_insert_with(|| Regex::new(self.pattern).expect("rule regex compiles"))
-        })
+        let re: &'static Regex = Box::leak(
+            Regex::new(self.pattern)
+                .expect("rule regex compiles")
+                .into(),
+        );
+        cache.insert(self.pattern, re);
+        re
     }
 
     /// 哪个发现器（Magpie `rule.by()`）。
@@ -317,7 +316,7 @@ pub(crate) fn hidden_in_url(s: &str, a: usize, b: usize) -> bool {
 
 /// realEmail（Magpie）。
 pub(crate) fn real_email(v: &str) -> bool {
-    let at = v.rfind('@')?;
+    let Some(at) = v.rfind('@') else { return false };
     let local = &v[..at];
     if local.eq_ignore_ascii_case("git") {
         return false;
@@ -421,7 +420,9 @@ const COMMON_TLDS: [&str; 30] = [
 ];
 
 fn file_host(host: &str) -> bool {
-    let dot = host.rfind('.')?;
+    let Some(dot) = host.rfind('.') else {
+        return false;
+    };
     let ext = &host[dot + 1..];
     FILE_EXT.contains(&ext)
         || (dot > 0
@@ -482,6 +483,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: "",
             yours: false,
             any_group: false,
@@ -497,6 +499,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: "",
             yours: false,
             any_group: false,
@@ -512,6 +515,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: "",
             yours: false,
             any_group: false,
@@ -527,6 +531,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: "",
             yours: false,
             any_group: false,
@@ -542,6 +547,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: "",
             yours: false,
             any_group: false,
@@ -557,6 +563,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: more::CAT_PERSONAL,
             yours: false,
             any_group: false,
@@ -572,6 +579,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: more::CAT_PERSONAL,
             yours: false,
             any_group: false,
@@ -587,6 +595,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: more::CAT_PERSONAL,
             yours: false,
             any_group: false,
@@ -602,6 +611,7 @@ fn core_rules() -> Vec<Rule> {
             fix: None,
             back: 0,
             ahead: 0,
+            fold: &[],
             cat: more::CAT_PERSONAL,
             yours: false,
             any_group: false,
