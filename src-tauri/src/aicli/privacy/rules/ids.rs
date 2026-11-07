@@ -250,9 +250,9 @@ mod tests {
         let good = ["5d41402abc4b2a7", "6"].concat(); // 16 chars
         assert!(digest_shaped(&good));
         // 全数字不是
-        assert!(!digest_shaped(&"1234567890123456".to_string()));
+        assert!(!digest_shaped("1234567890123456"));
         // 太短
-        assert!(!digest_shaped(&"abc123".to_string()));
+        assert!(!digest_shaped("abc123"));
     }
 
     #[test]

@@ -278,7 +278,7 @@ mod tests {
         ];
         for (word, want) in cases {
             let got = parse_date_word(word).map(|p| (p.y, p.m, p.d));
-            assert_eq!(got, want.map(|(y, m, d)| (y as i32, m, d)), "word={word}");
+            assert_eq!(got, want, "word={word}");
         }
     }
 
