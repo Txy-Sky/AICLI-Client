@@ -918,12 +918,16 @@ impl AicliServices {
             Ok(payload) => self.events.takeover_results(&payload),
             Err(error) => log::warn!("Could not serialize AICLI bind result event: {error}"),
         }
+        // E-06：账户状态已变，隐私设置的内存缓存按修订号失效。
+        crate::aicli::privacy::layer::bump_revision();
         Ok(result)
     }
 
     pub async fn unbind(&self, delete_created_tokens: bool) -> Result<(), AicliCommandError> {
         self.account_service().unbind(delete_created_tokens).await?;
         self.rebuild()?;
+        // E-06：解绑后隐私设置回到未绑定（关闭），同样失效缓存。
+        crate::aicli::privacy::layer::bump_revision();
         Ok(())
     }
 

@@ -57,12 +57,31 @@ fn ai_paths_and_media_paths() {
 
 #[test]
 fn unscannable_media_shapes() {
+    // data: URL 与文件字段
     assert!(contains_unscannable_media(
         r#"{"content":[{"type":"image","source":{"data":"data:image/png;base64,iVBOR"}}]}"#
     ));
     assert!(contains_unscannable_media(r#"{"file_data":"AAAA"}"#));
+    // Claude source{type:"base64",data}：image 与 document 同形
+    assert!(contains_unscannable_media(
+        r#"{"messages":[{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBOR"}}]}]}"#
+    ));
+    assert!(contains_unscannable_media(
+        r#"{"messages":[{"content":[{"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"ZG9j"}}]}]}"#
+    ));
+    // Gemini inlineData / inline_data
+    assert!(contains_unscannable_media(
+        r#"{"contents":[{"parts":[{"inlineData":{"mimeType":"image/png","data":"iVBOR"}}]}]}"#
+    ));
+    assert!(contains_unscannable_media(
+        r#"{"contents":[{"parts":[{"inline_data":{"mime_type":"image/png","data":"iVBOR"}}]}]}"#
+    ));
+    // 纯文本与无媒体 URL 形态
     assert!(!contains_unscannable_media(
         r#"{"content":[{"type":"text","text":"plain"}]}"#
+    ));
+    assert!(!contains_unscannable_media(
+        r#"{"messages":[{"content":[{"type":"image","source":{"type":"url","url":"https://x/a.png"}}]}]}"#
     ));
     assert!(!contains_unscannable_media("not json"));
 }
@@ -143,4 +162,53 @@ fn unbound_defaults_to_disabled() {
     let gate = gate();
     let settings = gate.settings();
     assert!(!settings.enabled && settings.block);
+}
+
+/// 查库出错（连接互斥量中毒）时：有上一次成功快照就保留，隐私不会被
+/// 悄悄关掉；从未成功过则 fail-closed 按开启 + block。
+#[test]
+fn refresh_error_keeps_last_good_settings() {
+    let gate = gate_bound(true, true, false);
+    assert!(gate.settings().enabled, "first read succeeds");
+    // 中毒 db.conn：此后一切查库都出错
+    let db = gate.db.clone();
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _guard = db.conn.lock().unwrap();
+        panic!("poison the connection mutex");
+    }));
+    // bump 触发重读 → 出错 → 保留上一次快照（仍开启 + block）
+    bump_revision();
+    let settings = gate.settings();
+    assert!(settings.enabled, "db error must not disable privacy");
+    assert!(settings.block);
+}
+
+#[test]
+fn refresh_error_without_snapshot_fails_closed() {
+    // 构造后从未读过设置，直接中毒：fail-closed 开启 + block
+    let gate = gate_bound(false, false, false);
+    let db = gate.db.clone();
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _guard = db.conn.lock().unwrap();
+        panic!("poison the connection mutex");
+    }));
+    let settings = gate.settings();
+    assert!(settings.enabled, "no snapshot: fail closed");
+    assert!(settings.block);
+}
+
+/// 未绑定（无账户行）= 关闭。
+#[test]
+fn unbound_row_means_disabled() {
+    let db = Arc::new(Database::memory().unwrap());
+    crate::aicli::seed::init(&db).unwrap();
+    // seed 不一定建账户行；删掉确保没有
+    db.conn
+        .lock()
+        .unwrap()
+        .execute("DELETE FROM aicli_account", [])
+        .unwrap();
+    let store: Arc<dyn SecretStore> = Arc::new(MemoryStore::default());
+    let gate = PrivacyGate::new(db, store);
+    assert!(!gate.settings().enabled);
 }

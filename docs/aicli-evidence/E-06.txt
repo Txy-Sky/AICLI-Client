@@ -76,3 +76,49 @@ fail-closed。日志捕获断言。
   scripts/aicli-item-tests.sh
 - 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42390385298
   （五 job 全 success）
+
+七、验收打回修正（2026-11-08，第二轮）
+1. 媒体识别补齐（必须修 1）：contains_unscannable_media 增补 Claude
+   source{type:"base64","data":…}（image 与 document 同形，按路径
+   *.source.data 判定）与 Gemini inlineData/inline_data.data；e2e 新增
+   claude_and_gemini_media_shapes_block_and_pass（两种格式 × block/pass，
+   block 未放行 → 422 privacy_media_blocked 且上游零新增捕获）
+2. pass 模式明文回退（必须修 2）：mask 失败/非 UTF-8 时发**解压后的明文**
+   （content-encoding 已删，不再发压缩字节）；e2e 新增
+   pass_mode_mask_failure_forwards_decompressed_plaintext（gzip 请求 +
+   FAULT_MASK + pass：上游收到可解析明文 JSON、无 content-encoding 头）
+3. 流式 pass 缓存字节放出（必须修 3）：StreamRestorer 新增
+   take_pending_raw（扣留事件原文 + 未切帧 buf）；RestoreStream panic 后
+   先放 buffered+当前块再透传（注入点在第 N 块才触发，N>1）。e2e
+   stream_pass_mode_fault_at_nth_chunk_keeps_frames_intact：块 1 留半个
+   占位符被扣留，第 2 块故障 → 客户端收到的 SSE 与上游原文逐字节一致
+   （不重不漏）
+4. 流式 block 可见失败（必须修 4）：panic 后返回 Err 断开连接（或截断），
+   客户端能看出失败；block 不计入 degraded，新增 engine_blocked 计数，
+   日志文案按模式区分（note_engine_failure）。e2e
+   stream_block_mode_fault_at_nth_chunk_is_visible_failure 断言 degraded=0、
+   engine_blocked≥1
+5. refresh 语义（必须修 5）：修订号查库**前**读；查不到行=未绑定=关闭；
+   其他查库错误保留上一次成功快照（推进缓存修订号避免反复打库）；
+   无快照 fail-closed 开启+block。单元测试
+   refresh_error_keeps_last_good_settings / without_snapshot_fails_closed /
+   unbound_row_means_disabled（互斥量中毒模拟查库错误）
+6. 全链路串行化（核实 6）：**multi_thread(4 workers) 下复现**（关闭隐私、
+   真实代理 + 真实 mock）。定位（逐级探针）：
+   - mock 并发正常：SSE 挂着时直接打 mock 的 JSON 请求立即返回；
+   - 排队请求的**上游往返已完成**（mock 已捕获并响应、响应头已收到），
+     之后卡在 RequestForwarder::forward 成功分支的
+     prepare_success_response_for_failover_with_timeouts →
+     ProxyResponse::bytes_with_limit（读上游响应体，chat 类经共享连接池
+     http_client::direct_client()，Anthropic 类经 hyper raw 连接，两条
+     路径都复现），直到前一个流式响应结束才放行；
+   - 影响：同一上游任一流式响应进行中，后续请求的响应体读取排队——
+     Claude Code 多个子代理并发时第二个请求要等第一个流结束。
+   按验收指示**未修，报给负责人**；隐私层并发 [验收] 项以 mini app 直测
+   （不跨 .await 持锁），第 12 节偏差行已更新
+7. 顺手项（7/8）：bind/unbind 成功后 bump_revision；RestoreStream 上游
+   错误分支先发 finish 尾部再传播错误（注释与行为一致）；删 let _ = gate；
+   contains_unscannable_media 只调用一次
+- 测试：e2e 15 个（+4）、layer 单元 10 个（+3）、privacy 合计 145，全过；
+  clippy -D warnings（lib）与 --all-targets --features test-hooks 干净
+- 提交：见 CI 行（下方）

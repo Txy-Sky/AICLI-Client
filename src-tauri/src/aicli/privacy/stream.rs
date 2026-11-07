@@ -107,6 +107,22 @@ impl<'a> StreamRestorer<'a> {
         out
     }
 
+    /// 取出全部尚未输出的**原始字节**（被扣留事件的原文 + 未切帧的 buf），
+    /// 状态清空。E-06 pass 模式引擎失败后先用它把缓存字节放干净再进入
+    /// 原样透传：SSE 帧不重不漏（当前块尚未入 buf 时由调用方补上）。
+    pub fn take_pending_raw(&mut self) -> String {
+        let mut out = String::new();
+        if let Some(p) = self.pending.take() {
+            out.push_str(&p.full);
+        }
+        if !self.buf.is_empty() {
+            out.push_str(&String::from_utf8_lossy(&self.buf));
+        }
+        self.buf.clear();
+        self.scanned = 0;
+        out
+    }
+
     /// 流结束（错误、取消同样调用）：放出全部扣留，剩余缓冲按纯文本还原。
     pub fn finish(&mut self) -> String {
         let mut out = String::new();

@@ -333,7 +333,7 @@ impl Fixture {
             )
             .unwrap();
         }
-        let mut runtime = AicliRuntime::with_remote(db.clone(), store.clone(), Arc::new(Offline));
+        let runtime = AicliRuntime::with_remote(db.clone(), store.clone(), Arc::new(Offline));
         let profiles = ProfileStore::new(db.clone());
         let catalog = runtime.snapshot().catalog.clone().unwrap();
         let mut profile = profiles
@@ -349,16 +349,19 @@ impl Fixture {
             .execute("UPDATE aicli_account SET active_profile_id='custom'", [])
             .unwrap();
         let runtime = AicliRuntime::with_remote(db.clone(), store.clone(), Arc::new(Offline));
+        let mock_origin_for_closure = mock_origin.clone();
         runtime.set_local_test_provider_source(move |app, line, wire| {
             let mut provider = seed::clone_for(app, line, wire).unwrap();
             match app {
                 AppType::Claude | AppType::ClaudeDesktop => {
-                    provider.settings_config["env"]["ANTHROPIC_BASE_URL"] = json!(mock_origin)
+                    provider.settings_config["env"]["ANTHROPIC_BASE_URL"] =
+                        json!(mock_origin_for_closure)
                 }
                 AppType::Gemini => {
-                    provider.settings_config["env"]["GOOGLE_GEMINI_BASE_URL"] = json!(mock_origin)
+                    provider.settings_config["env"]["GOOGLE_GEMINI_BASE_URL"] =
+                        json!(mock_origin_for_closure)
                 }
-                _ => provider.settings_config["base_url"] = json!(mock_origin),
+                _ => provider.settings_config["base_url"] = json!(mock_origin_for_closure),
             }
             if conversion && matches!(app, AppType::Claude | AppType::ClaudeDesktop) {
                 // Claude 客户端走 Responses 线（协议转换链路）
@@ -829,19 +832,27 @@ async fn fault_injection_matrix() {
     );
     let stream_req =
         json!({"model": PUBLIC, "stream": true, "messages":[{"role":"user","content":"hi"}]});
-    // block 模式：流立即结束，不透传占位符文本
+    // block 模式：返回错误断开连接（或无占位符的截断流），客户端能看出失败
     f.set_mode(UpstreamMode::Sse(sse.clone(), vec![60]));
     f.gate().inject_failure(FAULT_STREAM);
-    let out = f
+    match f
         .client()
         .post(format!("{}/v1/chat/completions", f.origin))
         .json(&stream_req)
         .send()
         .await
-        .unwrap();
-    assert_eq!(out.status(), 200);
-    let text = out.text().await.unwrap();
-    assert!(!text.contains("{{EMAIL_"), "block mode ends stream: {text}");
+    {
+        Err(_) => { /* 连接中断：失败可见 ✓ */ }
+        Ok(out) => match out.text().await {
+            Err(_) => { /* body 中断：失败可见 ✓ */ }
+            Ok(text) => {
+                assert!(
+                    !text.contains("{{EMAIL_"),
+                    "no placeholder forwarded: {text}"
+                )
+            }
+        },
+    }
     f.gate().inject_failure(0);
     // pass 模式：原样透传（占位符），不挂起
     let degraded_before = f.gate().stats().degraded;
@@ -892,10 +903,11 @@ async fn unauthorized_requests_skip_privacy_layer() {
 
 // ---- 8. 流式响应进行中，另一个请求能完成遮盖（隐私层不跨流持锁） ----
 //
-// 全链路（含 forwarder/usage 记录）对流式响应与并发请求的串行化是既有
-// 行为：关闭隐私后同样的双请求同样阻塞（诊断记录见 E-06.txt 偏差）。
-// 本测试直接针对隐私层 [验收] 项：只挂隐私中间件的 app 上，一个 SSE
-// 流挂着时，另一个请求能拿到引擎写锁完成遮盖。
+// 全链路串行化已复现且定位（multi_thread 4 workers + 关闭隐私，详见
+// E-06.txt「验收打回修正」与第 12 节偏差行）：排队请求卡在 forward 的
+// prepare_success_response_for_failover_with_timeouts → bytes_with_limit
+// （读上游响应体），直到前一个流式响应结束。隐私层 [验收] 项以本
+// mini app 直测：只挂隐私中间件，一个 SSE 流挂着时另一请求能完成遮盖。
 
 #[tokio::test]
 async fn masking_works_while_stream_is_open() {
@@ -1095,5 +1107,238 @@ async fn disabled_privacy_never_reads_bodies() {
         before,
         "no body read when off"
     );
+    f.stop().await;
+}
+
+// ---- 12. 媒体形态补齐：Claude source base64（image/document）与 Gemini
+//      inlineData —— block 未放行 → 422 + 上游零新增捕获；pass 放行 ----
+
+#[tokio::test]
+async fn claude_and_gemini_media_shapes_block_and_pass() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    let email = email_value();
+    let claude_image = json!({"model": claude_alias(&f.db), "max_tokens": 8, "messages": [
+        {"role":"user","content":[
+            {"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}},
+            {"type":"text","text": format!("mail {email}")}]}]});
+    let claude_document = json!({"model": claude_alias(&f.db), "max_tokens": 8, "messages": [
+        {"role":"user","content":[
+            {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"ZG9j"}},
+            {"type":"text","text": format!("mail {email}")}]}]});
+    let gemini_inline = json!({"contents":[{"role":"user","parts":[
+        {"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}},
+        {"text": format!("mail {email}")}]}]});
+
+    for (name, path, body) in [
+        ("claude-image", "/v1/messages", &claude_image),
+        ("claude-document", "/v1/messages", &claude_document),
+        (
+            "gemini-inline",
+            &format!("/v1beta/models/{PUBLIC}:generateContent"),
+            &gemini_inline,
+        ),
+    ] {
+        // block 且未放行：422 + 上游零新增捕获
+        let before = f.capture.lock().unwrap().len();
+        let out = f
+            .client()
+            .post(format!("{}{path}", f.origin))
+            .json(body)
+            .send()
+            .await
+            .unwrap();
+        let status = out.status();
+        let text = out.text().await.unwrap();
+        assert_eq!(status, 422, "{name}: {text}");
+        assert!(text.contains("privacy_media_blocked"), "{name}: {text}");
+        assert_eq!(
+            f.capture.lock().unwrap().len(),
+            before,
+            "{name}: nothing forwarded"
+        );
+        // pass 模式：放行（文本遮盖、data 原样）并计数
+        f.set_privacy(true, "pass", false);
+        let out = f
+            .client()
+            .post(format!("{}{path}", f.origin))
+            .json(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(out.status(), 200, "{name}");
+        let captured = f.bodies().pop().unwrap();
+        let text = std::str::from_utf8(captured.as_slice()).unwrap().to_owned();
+        assert!(!text.contains(&email), "{name}: {text}");
+        f.set_privacy(true, "block", false);
+    }
+    f.stop().await;
+}
+
+// ---- 13. pass 模式 mask 失败：发解压后的明文（不是压缩字节） ----
+
+#[tokio::test]
+async fn pass_mode_mask_failure_forwards_decompressed_plaintext() {
+    use flate2::write::GzEncoder;
+    use std::io::Write;
+
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    f.set_privacy(true, "pass", false);
+    f.gate().inject_failure(FAULT_MASK);
+    let email = email_value();
+    let body =
+        json!({"model": PUBLIC, "messages":[{"role":"user","content": format!("mail {email}")}]});
+    let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(body.to_string().as_bytes()).unwrap();
+    let compressed = encoder.finish().unwrap();
+    let out = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .header("content-encoding", "gzip")
+        .header("content-type", "application/json")
+        .body(compressed)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(out.status(), 200);
+    f.gate().inject_failure(0);
+    // 上游收到**可解析的明文**（原文放行；content-encoding 已删）
+    let captured = f.bodies().pop().unwrap();
+    let text = std::str::from_utf8(captured.as_slice()).unwrap().to_owned();
+    let parsed: Value = serde_json::from_str(&text).expect("upstream got plaintext JSON");
+    assert!(parsed["messages"][0]["content"]
+        .as_str()
+        .unwrap()
+        .contains(&email));
+    // 且发往上游的请求没有 content-encoding 头
+    let headers = f.capture.lock().unwrap().last().unwrap().headers.clone();
+    assert!(
+        !headers.contains_key("content-encoding"),
+        "header removed: {headers:?}"
+    );
+    f.stop().await;
+}
+
+// ---- 14. 流式 pass 模式第 N 块故障：缓存的原始字节先放出，SSE 帧不重不漏 ----
+
+#[tokio::test]
+async fn stream_pass_mode_fault_at_nth_chunk_keeps_frames_intact() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    let email = email_value();
+    // 请求遮盖同值，拿到占位符
+    let request =
+        json!({"model": PUBLIC, "messages":[{"role":"user","content": format!("mail {email}")}]});
+    let _ = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(&request)
+        .send()
+        .await
+        .unwrap();
+    let placeholder = first_placeholder(
+        &std::str::from_utf8(f.take_capture(0).body.as_slice())
+            .unwrap()
+            .to_owned(),
+    );
+    let (head, tail) = placeholder.split_at(placeholder.len() / 2);
+    // 三块：块 1 = 完整事件（结尾半个占位符 → 被扣留），块 2 触发故障，块 3 = 其余
+    let ev1 = format!(
+        "data: {{\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"见 {head}\"}}}}]}}
+
+"
+    );
+    let ev2 = format!(
+        "data: {{\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"{tail} 吧\"}}}}]}}
+
+"
+    );
+    let sse = format!(
+        "{ev1}{ev2}data: [DONE]
+
+"
+    );
+    f.set_mode(UpstreamMode::Sse(
+        sse.clone(),
+        vec![ev1.len(), ev2.len(), 6],
+    ));
+    // pass 模式 + 故障在第 2 块
+    f.set_privacy(true, "pass", false);
+    f.gate().set_stream_fault_chunk(2);
+    f.gate().inject_failure(FAULT_STREAM);
+    let out = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(
+            &json!({"model": PUBLIC, "stream": true, "messages":[{"role":"user","content":"hi"}]}),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(out.status(), 200);
+    let received = out.text().await.unwrap();
+    f.gate().inject_failure(0);
+    // 块 1 的事件被扣留（未输出）→ 故障后随缓存放出；之后原样透传：
+    // 客户端收到的 SSE 与上游原文逐字节一致（每个事件完整、不重不漏）
+    assert_eq!(received, sse, "frames intact, no dup/loss");
+}
+
+// ---- 15. 流式 block 模式第 N 块故障：失败可见、不透传占位符 ----
+
+#[tokio::test]
+async fn stream_block_mode_fault_at_nth_chunk_is_visible_failure() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    let email = email_value();
+    let request =
+        json!({"model": PUBLIC, "messages":[{"role":"user","content": format!("mail {email}")}]});
+    let _ = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(&request)
+        .send()
+        .await
+        .unwrap();
+    let placeholder = first_placeholder(
+        &std::str::from_utf8(f.take_capture(0).body.as_slice())
+            .unwrap()
+            .to_owned(),
+    );
+    let (head, tail) = placeholder.split_at(placeholder.len() / 2);
+    let ev1 = format!(
+        "data: {{\"choices\":[{{\"delta\":{{\"content\":\"见 {head}\"}}}}]}}
+
+"
+    );
+    let ev2 = format!(
+        "data: {{\"choices\":[{{\"delta\":{{\"content\":\"{tail}\"}}}}]}}
+
+"
+    );
+    let sse = format!(
+        "{ev1}{ev2}data: [DONE]
+
+"
+    );
+    f.set_mode(UpstreamMode::Sse(sse, vec![ev1.len(), ev2.len(), 6]));
+    f.gate().set_stream_fault_chunk(2);
+    f.gate().inject_failure(FAULT_STREAM);
+    match f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(
+            &json!({"model": PUBLIC, "stream": true, "messages":[{"role":"user","content":"hi"}]}),
+        )
+        .send()
+        .await
+    {
+        Err(_) => { /* 连接中断 ✓ */ }
+        Ok(out) => match out.text().await {
+            Err(_) => { /* body 中断 ✓ */ }
+            Ok(text) => assert!(!text.contains(&placeholder), "no full placeholder: {text}"),
+        },
+    }
+    f.gate().inject_failure(0);
+    // block 模式不计入 degraded（单独计数 engine_blocked）
+    let stats = f.gate().stats();
+    assert_eq!(stats.degraded, 0, "block failures are not degradations");
+    assert!(stats.engine_blocked >= 1);
     f.stop().await;
 }
