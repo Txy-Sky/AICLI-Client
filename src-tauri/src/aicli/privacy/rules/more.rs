@@ -586,10 +586,7 @@ pub(crate) fn public_ip(addr: &str) -> bool {
         }
         IpAddr::V6(o) => {
             let seg = o.segments();
-            !is_private_v6(seg)
-                && seg[0] != 0
-                && seg[0] & 0xff00 == 0xff00  // multicast
-                && (seg[0] & 0xe000) == 0x2000 // 仅 2000::/3 全球单播
+            !is_private_v6(seg) && seg[0] != 0 && (seg[0] >> 8) & 0xe0 == 0x20 // 仅 2000::/3 全球单播（含多播、保留段）
         }
     }
 }
@@ -744,7 +741,7 @@ mod tests {
 
     #[test]
     fn public_ips() {
-        assert!(public_ip("8.8.4.4") || true); // 8.8.4.4 是解析器被排除
+        assert!(!public_ip("8.8.4.4")); // 8.8.4.4 是解析器，被排除
         assert!(!public_ip("8.8.8.8"));
         assert!(!public_ip("10.0.0.1"));
         assert!(!public_ip("192.168.1.1"));

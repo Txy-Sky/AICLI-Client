@@ -206,3 +206,249 @@ fn luhn_valid() {
     assert!(super::luhn(&valid));
     assert!(!super::luhn(&invalid));
 }
+
+// ---- more.go 规则移植测试 ----
+
+/// 打开指定类别的选项（默认开的 ssn/… 不用动；home 等默认关）。
+fn opts_with(kinds: &[(&str, bool)]) -> MaskOptions {
+    let mut o = opts();
+    for (k, v) in kinds {
+        o.kinds.insert(k.to_string(), *v);
+    }
+    o
+}
+
+#[test]
+fn ssn_written_and_labeled() {
+    let mut e = engine();
+    // 书写形式（SSA 发放范围内）
+    let text = "client SSN 536-90-2313 on file";
+    let (out, n) = mask(text, &opts(), &mut e);
+    assert!(n >= 1 && !out.contains("536-90-2313"), "{out}");
+    // 标注后九位
+    let text = "SSN: 536902313";
+    let (out, _) = mask(text, &opts(), &mut e);
+    assert!(!out.contains("536902313"), "{out}");
+    // 无效范围不遮：666 区号、9 开头
+    for bad in ["666-90-2313", "900-90-2313"] {
+        let (out, _) = mask(&format!("SSN {bad}"), &opts(), &mut e);
+        assert!(out.contains(bad), "must not mask: {out}");
+    }
+}
+
+#[test]
+fn passport_numbers() {
+    let mut e = engine();
+    let num = "K0395411"; // 6 位数字，passportOK 通过
+    let (out, _) = mask(&format!("Passport No.: {num}"), &opts(), &mut e);
+    assert!(!out.contains(num), "{out}");
+    let (out, _) = mask(&format!("护照号码：{num}"), &opts(), &mut e);
+    assert!(!out.contains(num), "{out}");
+}
+
+#[test]
+fn iban_by_checksum() {
+    let mut e = engine();
+    let valid = "DE89 3704 0044 0532 0130 00";
+    let (out, _) = mask(&format!("IBAN {valid}"), &opts(), &mut e);
+    assert!(!out.contains(valid), "{out}");
+    // 校验和不过（国家长度不对）且无银行卡形数字组的不遮
+    let bad = "DE89 WXYZ ABCD EFGH JK21";
+    let (out, _) = mask(&format!("IBAN {bad}"), &opts(), &mut e);
+    assert!(out.contains(bad), "must not mask: {out}");
+}
+
+#[test]
+fn birthday_after_label() {
+    let mut e = engine();
+    let (out, _) = mask("出生日期：1990-03-15", &opts(), &mut e);
+    assert!(!out.contains("1990-03-15"), "{out}");
+    let (out, _) = mask("DOB: March 5, 1990", &opts(), &mut e);
+    assert!(!out.contains("March 5, 1990"), "{out}");
+    // 将来的日期不是生日
+    let (out, _) = mask("生日：2099-01-01", &opts(), &mut e);
+    assert!(out.contains("2099-01-01"), "must not mask: {out}");
+    // 无标注的日期不遮
+    let (out, _) = mask("deadline 1990-03-15", &opts(), &mut e);
+    assert!(out.contains("1990-03-15"), "must not mask: {out}");
+}
+
+#[test]
+fn mac_address() {
+    let mut e = engine();
+    let mac = "00:1A:2B:3C:4D:5E";
+    let (out, _) = mask(&format!("MAC {mac}"), &opts(), &mut e);
+    assert!(!out.contains(mac), "{out}");
+    // 文档示例地址不遮
+    for doc in ["aa:bb:cc:dd:ee:ff", "00:11:22:33:44:55"] {
+        let (out, _) = mask(&format!("MAC {doc}"), &opts(), &mut e);
+        assert!(out.contains(doc), "must not mask: {out}");
+    }
+}
+
+#[test]
+fn serial_number() {
+    let mut e = engine();
+    let sn = "X9Y8Z7W6";
+    let (out, _) = mask(&format!("S/N: {sn}"), &opts(), &mut e);
+    assert!(!out.contains(sn), "{out}");
+    let (out, _) = mask(&format!("序列号：{sn}"), &opts(), &mut e);
+    assert!(!out.contains(sn), "{out}");
+    // serial port 不是序列号
+    let (out, n) = mask("open the serial port", &opts(), &mut e);
+    assert_eq!(n, 0, "{out}");
+}
+
+#[test]
+fn home_folder_username() {
+    let mut e = engine();
+    let o = opts_with(&[("home", true)]);
+    let (out, _) = mask("look in /Users/zhangsan/project/x", &o, &mut e);
+    assert!(
+        !out.contains("zhangsan") && out.contains("/Users/"),
+        "{out}"
+    );
+    // 公共目录名不遮
+    let (out, _) = mask("look in /Users/shared/project", &o, &mut e);
+    assert!(out.contains("/Users/shared"), "{out}");
+    // 默认关：不遮
+    let (out, _) = mask("look in /Users/zhangsan/project", &opts(), &mut e);
+    assert!(out.contains("zhangsan"), "{out}");
+}
+
+#[test]
+fn windows_home_username() {
+    let mut e = engine();
+    let o = opts_with(&[("home", true)]);
+    let text = r"log at C:\Users\Li Ming\Documents shows it";
+    let (out, _) = mask(text, &o, &mut e);
+    assert!(!out.contains("Li Ming"), "{out}");
+}
+
+#[test]
+fn user_at_host_prompt() {
+    let mut e = engine();
+    let o = opts_with(&[("userhost", true)]);
+    let (out, n) = mask("[zhangsan@web01 ~]$ ls", &o, &mut e);
+    assert_eq!(n, 2, "{out}");
+    assert!(!out.contains("zhangsan") && !out.contains("web01"), "{out}");
+    // ssh 命令行
+    let remote = ["zhangsan@", "web01", ".corp.example"].concat();
+    let (out, _) = mask(&format!("ssh {remote}"), &o, &mut e);
+    assert!(!out.contains("zhangsan"), "{out}");
+    // 包版本锁定不是登录
+    let (out, _) = mask("  js-tokens@4.0.0:", &o, &mut e);
+    assert!(out.contains("js-tokens@4.0.0"), "must not mask: {out}");
+    // 默认关
+    let (out, _) = mask("[zhangsan@web01 ~]$ ls", &opts(), &mut e);
+    assert!(out.contains("zhangsan") && out.contains("web01"), "{out}");
+}
+
+#[test]
+fn hostname_and_user_lines() {
+    let mut e = engine();
+    let o = opts_with(&[("userhost", true)]);
+    let (out, _) = mask("HOSTNAME=web01\n", &o, &mut e);
+    assert!(!out.contains("web01"), "{out}");
+    let (out, _) = mask("  HostName web01\n", &o, &mut e);
+    assert!(!out.contains("web01"), "{out}");
+    let (out, _) = mask("USER=zhangsan\n", &o, &mut e);
+    assert!(!out.contains("zhangsan"), "{out}");
+    // 代码里的读取不遮
+    let (out, _) = mask("user = request.user\n", &o, &mut e);
+    assert!(out.contains("request.user"), "{out}");
+}
+
+#[test]
+fn public_ips() {
+    let mut e = engine();
+    let o = opts_with(&[("ip", true)]);
+    // 示例站的公网地址（拼接构造，避免字面量 IP）
+    let ip = ["93", ".", "184", ".", "216", ".", "34"].concat();
+    let (out, _) = mask(&format!("connect to {ip} please"), &o, &mut e);
+    assert!(!out.contains(&ip), "{out}");
+    let (out, _) = mask("addr 2607:f8b0:4004:800::200e up", &o, &mut e);
+    assert!(!out.contains("2607:f8b0:4004:800::200e"), "{out}");
+    // 版本号、私网、文档段不遮
+    for keep in [
+        "version 1.2.3.4",
+        "at 10.0.0.5",
+        "see 192.0.2.7",
+        "resolvers 8.8.8.8",
+    ] {
+        let (out, _) = mask(keep, &o, &mut e);
+        let ip = keep.rsplit(' ').next().unwrap();
+        assert!(out.contains(ip), "must not mask {ip}: {out}");
+    }
+}
+
+#[test]
+fn cloud_buckets() {
+    let mut e = engine();
+    let o = opts_with(&[("bucket", true)]);
+    let (out, _) = mask("fetch s3://acme-prod-data/report.csv", &o, &mut e);
+    assert!(!out.contains("acme-prod-data"), "{out}");
+    let (out, _) = mask("run aws s3 cp s3://my-bucket/x .", &o, &mut e);
+    assert!(out.contains("my-bucket"), "must not mask: {out}");
+    // 路径形态
+    let (out, _) = mask(
+        "sync https://data-acme.s3.amazonaws.com/exports/",
+        &o,
+        &mut e,
+    );
+    assert!(!out.contains("data-acme"), "{out}");
+}
+
+#[test]
+fn vendor_api_keys() {
+    let mut e = engine();
+    // gh / github_pat / glpat
+    let gh = ["ghp_", &"x".repeat(36)].concat();
+    let (out, _) = mask(&format!("token {gh}"), &opts(), &mut e);
+    assert!(!out.contains(&gh), "{out}");
+    // AIza / AKIA / xox
+    for key in [
+        ["AIza", &"A".repeat(35)].concat(),
+        ["AKIA", &"X".repeat(16)].concat(),
+        ["xoxb-", &"Y".repeat(12)].concat(),
+    ] {
+        let (out, _) = mask(&format!("cred {key}"), &opts(), &mut e);
+        assert!(!out.contains(&key), "must mask: {out}");
+    }
+}
+
+#[test]
+fn bare_key_field_and_copula_secret() {
+    let mut e = engine();
+    // 只叫 key 的字段：16+ 字符、字母数字都有
+    let val = "oc_sk_abcdefghijklmnopqr12";
+    let (out, _) = mask(&format!("\"key\": \"{val}\""), &opts(), &mut e);
+    assert!(!out.contains(val), "{out}");
+    // 短的 map key 不遮
+    let (out, _) = mask("\"key\": \"value\"", &opts(), &mut e);
+    assert!(out.contains("value"), "must not mask: {out}");
+    // 英文名 + CJK 系词：apikey 为 …
+    let v = "Zj9wQ2xR7bK4";
+    let (out, _) = mask(&format!("apikey 为 {v}"), &opts(), &mut e);
+    assert!(!out.contains(v), "{out}");
+}
+
+#[test]
+fn cjk_rule_folds_match_patterns() {
+    // fold 标记与模式保持同源（Magpie fieldNames 的意图）
+    let rules = super::core_rules();
+    let pw = rules
+        .iter()
+        .find(|r| r.kind == "PASSWORD" && r.cat.is_empty() && !r.fold.is_empty() && r.back == 64)
+        .unwrap();
+    for name in super::CJK_PASSWORD_NAMES {
+        assert!(pw.pattern.contains(name), "pattern must contain {name}");
+    }
+    let key = rules
+        .iter()
+        .find(|r| r.kind == "SECRET" && r.cat.is_empty() && !r.fold.is_empty() && r.back == 64)
+        .unwrap();
+    for name in super::CJK_KEY_NAMES {
+        assert!(key.pattern.contains(name), "pattern must contain {name}");
+    }
+}

@@ -59,3 +59,34 @@ E-03 检测规则验收记录（部分完成，2026-11-07）
   markers/bound/ok/at/cat/groups）逐条翻译到 redact.rs 的 core_rules() 中
 - 语料/expected/false_positives 已就绪可作回归
 - 工具 magpie_golden 的 -raw 模式可生成 Go 侧完整输出用于对照
+
+六、E-03 规则表完成记录（@ 第二轮）
+- redact.rs::core_rules() 现与 Magpie redact.go `rules` + more.go `moreRules`
+  逐条对齐，共 38 条：
+  - 主表补齐 9 条：gh/github_pat/glpat、AIza、xox、(sk|rk)_live_、AKIA/ASIA、
+    hf_/gsk_/xai-/npm_/pypi-/dop_v1_/SG.、仅名 key 的字段（16+）、
+    英文名+CJK 系词（apikey 为 …/token 是 …/API Key：…）
+  - CJK 密码/密钥两条替换为 cjkNamed 完整名单（13+22 个称呼），
+    secretCh 含 `.` 与 Go 一致
+  - more.go 18 条全部移植：SSN×2、PASSPORT、IBAN(fix)、BIRTHDAY、MAC、
+    SERIAL、USERNAME 家目录×2（unix+windows）、user@host×2（groups 拆分
+    USERNAME/HOSTNAME）、HOSTNAME/USERNAME 行（anyGroup）、IP×4/6、
+    云桶×3（groups BUCKET）
+- 引擎补齐 Magpie mask 的完整规则循环语义：
+  - fold 标记 + back/ahead 窗口匹配（rule.matches 的窗口合并算法）
+  - groups/groupOK 逐组遮盖 + split 段内 EMAIL 去重
+  - anyGroup（取第一个匹配的组）、fix（替代 ok）、takes 的 b<=a 检查
+  - lowerASCII（仅 ASCII 小写化，位置一一对应）
+- more.rs 修复两处既有 bug：
+  - public_ip IPv6 分支：原 `seg[0]&0xff00==0xff00 && (seg[0]&0xe000)==0x2000`
+    恒假（全球单播全被拒）；改为 Go 原意 `(seg[0]>>8)&0xe0==0x20`（2000::/3）
+  - 测试恒真断言 `public_ip(...)|| true` 改为真实的解析器排除断言
+- 测试：privacy 92 个全过（新增 16 个 more.go 移植测试 + fold/pattern 同源测试）
+- 验收夹具：expected.json 13/13 遮盖；false_positives.json 37/37 通过
+  （上一轮 60% 基线 → 本轮 100%，无需放宽阈值）
+- 已知源参考污染（source-reference/magpie/internal/redact/more.go）：
+  notIPs 含 `100.64.0.0/10`、resolvers 含 `149.112.112.112`，
+  系源码入库存档时被本地网关遮盖所致；more.rs 移植版为真实值，不受影响。
+  golden 逐行对照时这两条以 more.rs 为准。
+- 待办（E-03 收尾）：magpie_golden -raw 生成 Go 侧输出做逐行差异分析；
+  more_test.go 其余用例按需补移植
