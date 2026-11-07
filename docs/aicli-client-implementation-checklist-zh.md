@@ -766,7 +766,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 必须扫描：`tool_use.input`、`functionCall.args`、工具结果文本，即使里面出现同名字段 `signature`。
   - 不改变 JSON 键顺序，未命中规则时**字节不变**。
 - 验收：四种协议各写一份真实结构的请求夹具（含工具调用、thinking、图片），断言上述每条；Codex 真实请求样本取自 Magpie `testdata/codex-0.162.1-request.json`（MIT）。无敏感内容时输出与输入逐字节相同。
-- 证据：2026-11-07 完成。privacy/walker.rs 约 760 行：walk 字节保持遍历（jsonEscape 与 Go SetEscapeHTML(false) 逐点一致）、keepIn/kept/isID、scan（signed/args/defs 三类路径，含 Responses additional_tools）、MaskJSON（正文→defs→封签块重遮 replacer+known）、escaped 工具参数三件套（unescapedView/outsideEscapes/inStrings/bare 引号，redact.rs 加 mask_with/mask_escaped/apply_with）、RestoreJSON（canonical/braces/typeOf）。22 个测试全过，覆盖四协议夹具（Anthropic/Chat/Responses/Gemini，含工具调用/thinking/图片）、call_id 内 Luhn 卡号不遮、data: URL 保留、未命中逐字节相同、Codex 真实样本（codex_request.json 31KB，n=0 逐字节相同）、mask→restore 闭环、裸值带引号、值内转义引号；发现并修复 in_strings 闭引号标记 bug。偏差（defs 不跑模型、Shape restore 待 E-05/06）见 docs/aicli-evidence/E-04.txt | CI run 见 E-04.txt 第五节
+- 证据：2026-11-07 完成。privacy/walker.rs 约 760 行：walk 字节保持遍历（jsonEscape 与 Go SetEscapeHTML(false) 逐点一致）、keepIn/kept/isID、scan（signed/args/defs 三类路径，含 Responses additional_tools）、MaskJSON（正文→defs→封签块重遮 replacer+known）、escaped 工具参数三件套（unescapedView/outsideEscapes/inStrings/bare 引号，redact.rs 加 mask_with/mask_escaped/apply_with）、RestoreJSON（canonical/braces/typeOf）。22 个测试全过，覆盖四协议夹具（Anthropic/Chat/Responses/Gemini，含工具调用/thinking/图片）、call_id 内 Luhn 卡号不遮、data: URL 保留、未命中逐字节相同、Codex 真实样本（codex_request.json 31KB，n=0 逐字节相同）、mask→restore 闭环、裸值带引号、值内转义引号；发现并修复 in_strings 闭引号标记 bug。偏差（defs 不跑模型、Shape restore 待 E-05/06）见 docs/aicli-evidence/E-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42367413849
 
 ### E-05 流式还原（方案 PoC C）
 - [ ] 完成

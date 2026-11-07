@@ -62,6 +62,7 @@ E-04 JSON 遍历与协议保护验收记录（2026-11-07）
 4. bare 值还原后遮盖时加的引号保留（Go 亦然，行为一致非缺陷）
 
 五、CI
-- 提交：<待填>；item E-04-unit aicli::privacy::walker::tests 已加入
+- 提交：2617246e；item E-04-unit aicli::privacy::walker::tests 已加入
   scripts/aicli-item-tests.sh
-- 运行：<待推送后填写>
+- 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42367413849
+  （五 job 全 success，含 E-04-unit 22 passed）
