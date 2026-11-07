@@ -29,9 +29,16 @@ struct Held {
     cut: String,
 }
 
+/// 引擎来源：借用（单测/同作用域）或共享（E-06 中间件，'static 流里持有
+/// `Arc<RwLock<…>>`，每次 push 短暂加锁，不跨 .await）。
+enum EngineSource<'a> {
+    Borrowed(&'a PlaceholderEngine),
+    Shared(std::sync::Arc<std::sync::RwLock<PlaceholderEngine>>),
+}
+
 /// 流式还原器：喂入任意切分的响应字节，取出已还原的输出。
 pub struct StreamRestorer<'a> {
-    engine: &'a PlaceholderEngine,
+    source: EngineSource<'a>,
     /// 待切帧的原始字节（含跨块的 UTF-8 序列与半截事件）。
     buf: Vec<u8>,
     /// buf 前这么多字节已确认不含事件结束空行：长事件分很多块到达时
@@ -43,10 +50,32 @@ pub struct StreamRestorer<'a> {
 impl<'a> StreamRestorer<'a> {
     pub fn new(engine: &'a PlaceholderEngine) -> Self {
         Self {
-            engine,
+            source: EngineSource::Borrowed(engine),
             buf: Vec::new(),
             scanned: 0,
             pending: None,
+        }
+    }
+
+    /// 共享引擎版（E-06 中间件用）：可放进 'static 的响应体流。
+    /// push/finish 内部短暂加读锁（restore 只读），不跨 .await。
+    pub fn shared(engine: std::sync::Arc<std::sync::RwLock<PlaceholderEngine>>) -> Self {
+        Self {
+            source: EngineSource::Shared(engine),
+            buf: Vec::new(),
+            scanned: 0,
+            pending: None,
+        }
+    }
+
+    /// 在引擎的一次短暂访问内运行 f（Borrowed 直接用；Shared 加读锁）。
+    fn with_engine<R>(&self, f: impl FnOnce(&PlaceholderEngine) -> R) -> R {
+        match &self.source {
+            EngineSource::Borrowed(engine) => f(engine),
+            EngineSource::Shared(arc) => {
+                let guard = arc.read().unwrap_or_else(|p| p.into_inner());
+                f(&guard)
+            }
         }
     }
 
@@ -86,7 +115,7 @@ impl<'a> StreamRestorer<'a> {
         }
         if !self.buf.is_empty() {
             let rest = String::from_utf8_lossy(&self.buf).into_owned();
-            out.push_str(&walker::restore(&rest, false, self.engine));
+            out.push_str(&self.with_engine(|engine| walker::restore(&rest, false, engine)));
         }
         self.buf.clear();
         self.scanned = 0;
@@ -99,7 +128,7 @@ impl<'a> StreamRestorer<'a> {
         let Some((name, data, pre, post)) = split_event(ev) else {
             // 不是单 data 行 JSON 的事件：放出扣留，整段按纯文本还原
             out.push_str(&self.release());
-            out.push_str(&walker::restore(ev, false, self.engine));
+            out.push_str(&self.with_engine(|engine| walker::restore(ev, false, engine)));
             return out;
         };
         let ctx = format!("{name}|{}", event_ctx(&data));
@@ -119,30 +148,31 @@ impl<'a> StreamRestorer<'a> {
         if typ.is_empty() {
             typ = name.to_string();
         }
-        let engine = self.engine;
-        let kinds = engine.kinds();
         let mut tail_path = String::new();
         let mut tail = String::new();
         let mut cut = String::new();
-        let restored = walk(&data, &mut |path, key, s| {
-            let mut s = s.to_string();
-            if path == at && !carry.is_empty() {
-                s = format!("{carry}{s}");
-            }
-            if keep(key, &s) {
-                return s;
-            }
-            // 先找尾部再还原：最后的花括号还在下一个事件里的占位符，
-            // 不会先被还原掉一半
-            let n = partial_tail(&s, kinds);
-            if n > 0 {
-                tail_path = path.to_string();
-                tail = s[s.len() - n..].to_string();
-                cut = walker::restore(&s[..s.len() - n], as_json_keyed(key, &typ), engine);
-            }
-            walker::restore(&s, as_json_keyed(key, &typ), engine)
-        })
-        .unwrap_or(data.clone());
+        let restored = self.with_engine(|engine| {
+            let kinds = engine.kinds();
+            walk(&data, &mut |path, key, s| {
+                let mut s = s.to_string();
+                if path == at && !carry.is_empty() {
+                    s = format!("{carry}{s}");
+                }
+                if keep(key, &s) {
+                    return s;
+                }
+                // 先找尾部再还原：最后的花括号还在下一个事件里的占位符，
+                // 不会先被还原掉一半
+                let n = partial_tail(&s, kinds);
+                if n > 0 {
+                    tail_path = path.to_string();
+                    tail = s[s.len() - n..].to_string();
+                    cut = walker::restore(&s[..s.len() - n], as_json_keyed(key, &typ), engine);
+                }
+                walker::restore(&s, as_json_keyed(key, &typ), engine)
+            })
+            .unwrap_or_else(|| data.clone())
+        });
         let full = rebuild(pre.as_str(), &restored, post.as_str());
         if tail.is_empty() {
             out.push_str(&full);

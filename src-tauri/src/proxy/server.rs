@@ -470,6 +470,12 @@ impl ProxyServer {
             .route("/gemini/v1/*path", any(handlers::handle_gemini))
             // 提高默认请求体大小限制（避免 413 Payload Too Large）
             .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
+            // E-06 隐私中间件：axum 后加的 layer 在外层，本行写在 local_auth
+            // 之前 = 隐私层在本地鉴权之内执行（未过鉴权的请求不会读到 body）。
+            .layer(axum::middleware::from_fn_with_state(
+                self.state.clone(),
+                crate::aicli::privacy::layer::privacy_middleware,
+            ))
             .layer(axum::middleware::from_fn_with_state(
                 self.state.clone(),
                 crate::aicli::local_auth::authenticate,

@@ -125,6 +125,8 @@ pub struct AicliRuntime {
     identity: Mutex<Option<(i64, String)>>,
     /// C4-03 账单回填：内存队列 + 后台 worker，随运行时销毁而清空。
     bills: crate::aicli::usage::BillBackfill,
+    /// E-06 隐私网关：引擎构造一次、设置内存缓存，代理中间件跨请求共享。
+    privacy: std::sync::Arc<crate::aicli::privacy::layer::PrivacyGate>,
 }
 
 impl AicliRuntime {
@@ -142,8 +144,8 @@ impl AicliRuntime {
         let runtime = Arc::new(Self {
             #[cfg(any(test, feature = "test-hooks"))]
             local_provider_source: RwLock::new(None),
-            db,
-            store,
+            db: db.clone(),
+            store: store.clone(),
             remote,
             routes: RwLock::new(Arc::new(RoutesSnapshot::default())),
             projection_changes: tokio::sync::watch::channel(String::new()).0,
@@ -156,6 +158,10 @@ impl AicliRuntime {
             token_service: Default::default(),
             identity: Default::default(),
             bills: crate::aicli::usage::BillBackfill::new(bill_db.clone()),
+            privacy: std::sync::Arc::new(crate::aicli::privacy::layer::PrivacyGate::new(
+                db.clone(),
+                store.clone(),
+            )),
         });
         // No network, task spawn, or block_on during construction.
         runtime.bills.wire_production(bill_db, bill_store);
@@ -211,6 +217,11 @@ impl AicliRuntime {
 
     pub(crate) fn projection_changes(&self) -> tokio::sync::watch::Receiver<String> {
         self.projection_changes.subscribe()
+    }
+
+    /// E-06 隐私网关（引擎 + 设置缓存 + 计数）。
+    pub fn privacy(&self) -> &std::sync::Arc<crate::aicli::privacy::layer::PrivacyGate> {
+        &self.privacy
     }
 
     pub fn snapshot(&self) -> Arc<RoutesSnapshot> {

@@ -1,0 +1,76 @@
+E-06 中间件接入验收记录（2026-11-08）
+
+状态：[x] 完成
+代码：src-tauri/src/aicli/privacy/layer.rs（约 700 行 + 7 个单元测试）、
+proxy/server.rs 接线、tests/aicli_privacy_e2e.rs（11 个端到端）、
+stream.rs 共享引擎化、placeholder/runtime/commands 配套
+
+一、结构（对照交接说明 [验收] 项）
+1. 引擎共享与借用：PlaceholderEngine 挂在 AicliRuntime 的 PrivacyGate 上
+   （Arc<RwLock<…>>，懒构造一次），StreamRestorer 改为 EngineSource
+   （Borrowed/Shared）——'static 的 SSE 流持有 Arc，push/finish 内短读锁
+   （restore 只读），不跨 .await、不在流生命周期内持锁。并发测试
+   （只挂隐私中间件的 mini app）：SSE 流挂着时另一请求 5s 内完成遮盖
+   （masked_values 增加）
+2. 引擎只构造一次：首次使用时 from_store 读一次钥匙串；失败置
+   engine_failed，按模式处理，不反复重试（C4-03 教训）
+3. 设置缓存：PrivacyGate 内 (修订号, 快照)；aicli_set_privacy 提交后
+   bump 全局修订号（静态原子量，命令与代理无需同一运行时实例），
+   热路径修订号未变不读库
+4. 层顺序：.layer(privacy) 写在 local_auth 之前（axum 后加在外层 →
+   鉴权先执行）。测试固定：错误令牌请求 401 且 bodies_read 计数不变
+   （隐私层未读 body）、上游零捕获
+
+二、行为（对照清单条款）
+- 隐私关闭：直接 next.run(req)，不读 body（计数断言）；关闭时上游
+  body 与重复请求逐字节相同；开启但正文无敏感值时也逐字节相同
+- AI 路径 POST（messages/chat/completions/responses/generateContent
+  系列/app/alpha/search）；图片生成与编辑接口：block → 400
+  privacy_media_unsupported，pass → 放行计数
+- 请求：读 body → Content-Encoding 解压并移除头 → mask_json →
+  content-length 重建 + Accept-Encoding: identity；不支持编码/非 UTF-8
+  按模式处理
+- 含 data:/file_data 媒体：block 且未放行 → 422 privacy_media_blocked
+  （错误信息说明如何放行）；放行时文本照遮、data: 原样（E-04 keepIn）
+  并计数
+- 响应：SSE → RestoreStream 包装（RestoreStream/finish、panic 处理）；
+  其他整体 restore_json（含错误响应）；上游压缩流式：block → 502
+  privacy_compressed_stream（fail-closed），pass → 原样透传
+- 引擎异常：mask/restore_json 在 catch_unwind 内（AssertUnwindSafe，
+  中毒锁 into_inner）；故障注入（test-hooks）3 位置 × 2 模式全过：
+  block → privacy_engine_failed / 流立即结束（不透传后续字节）；
+  pass → 原文放行 / 占位符透传，均计数降级
+- 日志：只记数量（masked_values/degraded/media_passed/bodies_read），
+  捕获 logger 断言不含敏感值；PlaceholderEngine/Held/StreamRestorer
+  无 Debug
+
+三、端到端（tests/aicli_privacy_e2e.rs，11 个）
+四协议（Claude/Chat/Responses/Gemini）非流式：上游原始字节无敏感值、
+含占位符；客户端完全还原。SSE 占位符拆两事件拼齐还原。关闭逐字节
+相同（录制比较）。Claude→Responses 转换（本地 provider meta 强制
+openai_responses）：上游 /v1/responses 收到占位符、客户端还原。重启
+（同 db+store 新运行时/代理）：上游 body 逐字节相同（提示缓存前缀
+不变）。故障注入 6 组。层顺序。并发遮盖。媒体 3 组。压缩流
+fail-closed。日志捕获断言。
+
+四、单元（layer::tests，7 个）
+路径/媒体形态识别、设置缓存与修订号失效、引擎懒构造一次、
+遮盖-还原闭环与计数、故障注入被 catch、未绑定默认关闭。
+
+五、偏差与观察（第 12 节同步记录）
+1. 全链路（forwarder/usage 记录，与隐私无关）对流式响应与并发请求
+   存在串行化：关闭隐私后同样双请求同样阻塞（本机诊断复现）。隐私层
+   并发 [验收] 项因此以 mini app 直测；全链路并发化留给后续阶段
+2. alpha/search 计入遮盖路径（清单未列；它是文本搜索入参）
+3. mask 计数只有总数无类别分布（mask_json 只返回总数；清单「只记录
+   类别和数量」按上限理解）
+4. 故障注入 panic 的默认 hook 会打印注入消息（被 catch_unwind 捕获，
+   属预期测试行为）
+5. 已知旧问题未动：dateword.rs:281、ids.rs:253/255 clippy 测试告警；
+   本机（Windows）环境相关的 8 个既有失败（含 C4-02 两个 bind 测试，
+   经基线 a5ba08be 复现确认非本次引入）
+
+六、CI
+- 提交：<待填>；item E-06-unit（lib）/E-06-e2e（test-hooks）/
+  E-03-fuzz（fuzz_tests 单列）已加入 scripts/aicli-item-tests.sh
+- 运行：<待推送后填写>

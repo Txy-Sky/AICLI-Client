@@ -1487,6 +1487,8 @@ impl AicliServices {
         if changed == 0 {
             return Err(AicliCommandError::not_bound());
         }
+        // E-06：隐私设置已变，代理内的内存缓存按修订号失效（无需同一运行时）。
+        crate::aicli::privacy::layer::bump_revision();
         Ok(())
     }
 }
