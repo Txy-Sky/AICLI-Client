@@ -17,7 +17,6 @@ use super::ids;
 use super::known;
 use super::more;
 use super::phone;
-use super::shape;
 use super::{FoundBy, Span};
 
 // ---- 字符集 ----
@@ -373,7 +372,7 @@ const LOCAL_TLDS: [&str; 7] = [
     "localdomain",
 ];
 
-const FILE_EXT: [&str; 51] = [
+const FILE_EXT: [&str; 69] = [
     "jpg", "jpeg", "png", "gif", "webp", "svg", "heic", "heif", "avif", "bmp", "tif", "tiff",
     "ico", "icns", "pdf", "svgz", "apng", "jxl", "psd", "eps", "lottie", "mp4", "m4v", "webm",
     "mkv", "avi", "mp3", "m4a", "wav", "ogg", "flac", "aac", "ttf", "otf", "woff", "woff2", "eot",
@@ -732,10 +731,7 @@ fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
         let idx = known::shared_index()
             .lock()
             .unwrap_or_else(|p| p.into_inner());
-        let known_spans = idx.spans(s, |kind| {
-            // 简化 coversKind
-            o.secrets
-        });
+        let known_spans = idx.spans(s, |_kind| o.secrets);
         found.extend(known_spans);
     }
 
