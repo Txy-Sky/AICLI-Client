@@ -199,10 +199,15 @@ pub struct AicliTakeoverOutcome {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AicliBindResult {
-    pub account: AicliAccountView,
+    /// 绑定后的账户视图；读取失败时为 None 并记 `account_error`（绑定本身已成功，
+    /// 逐项接管结果照常返回与下发）。
+    pub account: Option<AicliAccountView>,
+    pub account_error: Option<String>,
     pub proxy_started: bool,
     pub proxy_error: Option<String>,
     pub runtime_refresh_error: Option<String>,
+    /// 读取接管目标失败：一个客户端都不接管（不按首次绑定扩大范围）。
+    pub takeover_targets_error: Option<String>,
     pub takeovers: Vec<AicliTakeoverOutcome>,
 }
 
@@ -846,6 +851,7 @@ impl AicliServices {
             }
         }
         let mut runtime_refresh_error = None;
+        let mut takeover_targets_error = None;
         let mut takeovers = Vec::new();
         if proxy_error.is_none() {
             if let Err(error) = (self.runtime_refresh)().await {
@@ -853,7 +859,15 @@ impl AicliServices {
                 log::warn!("AICLI post-bind runtime refresh failed: {error}");
                 runtime_refresh_error = Some(error);
             }
-            for app in takeover::bind_targets(&self.db) {
+            let targets = match takeover::bind_targets(&self.db) {
+                Ok(targets) => targets,
+                Err(error) => {
+                    log::error!("AICLI post-bind takeover targets unreadable: {error}");
+                    takeover_targets_error = Some(error);
+                    Vec::new()
+                }
+            };
+            for app in targets {
                 let outcome =
                     match takeover::take_over(&self.app_state, self.secrets.as_ref(), &app, false)
                         .await
@@ -883,12 +897,22 @@ impl AicliServices {
             }
         }
 
+        // 代理与接管都已发生：读账户视图失败不能吞掉逐项结果，照常返回并发事件。
+        let (account, account_error) = match self.get_account() {
+            Ok(view) => (Some(view), None),
+            Err(error) => {
+                log::warn!("AICLI post-bind account view failed: {}", error.code);
+                (None, Some(error.code))
+            }
+        };
         let result = AicliBindResult {
-            account: self.get_account()?,
+            account,
+            account_error,
             proxy_started,
             proxy_error,
             runtime_refresh_error,
-            takeovers: takeovers.clone(),
+            takeover_targets_error,
+            takeovers,
         };
         match serde_json::to_string(&result) {
             Ok(payload) => self.events.takeover_results(&payload),

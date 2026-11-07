@@ -501,24 +501,25 @@ pub(crate) fn is_managed(db: &crate::Database, app: &AppType) -> bool {
 /// C4-02 绑定后自动接管的目标（仅 Tier 1）：
 /// - 首次绑定（`aicli_takeover` 无任何行）：本机已安装的全部 Tier 1；
 /// - 非首次：仅当前已处于 AICLI 接管下的客户端（解绑会清空该表，重新绑定按首次处理）。
-pub(crate) fn bind_targets(db: &crate::Database) -> Vec<AppType> {
-    let managed: Vec<String> = db
-        .conn
-        .lock()
-        .ok()
-        .and_then(|conn| {
-            conn.prepare("SELECT app_type FROM aicli_takeover")
-                .ok()
-                .and_then(|mut statement| {
-                    statement
-                        .query_map([], |row| row.get::<_, String>(0))
-                        .ok()?
-                        .collect::<Result<Vec<_>, _>>()
-                        .ok()
-                })
-        })
-        .unwrap_or_default();
-    controller::PROXY_APPS
+///
+/// 读表失败返回 `Err`，由调用方一个都不接管：失败若当成「表为空」，会按首次绑定
+/// 接管全部已安装客户端，越过用户此前的选择。
+pub(crate) fn bind_targets(db: &crate::Database) -> Result<Vec<AppType>, String> {
+    let managed: Vec<String> = {
+        let conn = db
+            .conn
+            .lock()
+            .map_err(|_| "database lock poisoned".to_owned())?;
+        let mut statement = conn
+            .prepare("SELECT app_type FROM aicli_takeover")
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+    Ok(controller::PROXY_APPS
         .iter()
         .filter(|app| {
             if managed.is_empty() {
@@ -528,7 +529,7 @@ pub(crate) fn bind_targets(db: &crate::Database) -> Vec<AppType> {
             }
         })
         .cloned()
-        .collect()
+        .collect())
 }
 
 /// 「已安装」以各客户端首次运行即创建的配置目录判定，避免绑定路径跑 shell 探测；

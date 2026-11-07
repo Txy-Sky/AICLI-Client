@@ -48,7 +48,7 @@ case "$set_name" in
     item C3-08-guard aicli_local_credentials
     item C3-10-unit aicli::takeover::tests
     item C3-11-unit commands::aicli::tests
-    item C4-02-unit commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips commands::aicli::tests::proxy_start_failure_is_reported
+    item C4-02-unit commands::aicli::tests::bind_ commands::aicli::tests::one_client_failure commands::aicli::tests::rebind_targets commands::aicli::tests::first_bind_skips commands::aicli::tests::proxy_start_failure_is_reported commands::aicli::tests::unreadable_takeover_targets commands::aicli::tests::account_view_failure
     item C4-03-unit aicli::usage::tests
     item C4-04-unit aicli_route_columns_are_written provider_id_keeps_the_seed_id route_follows_the_final_provider
     item E-02-unit aicli::privacy::placeholder::tests

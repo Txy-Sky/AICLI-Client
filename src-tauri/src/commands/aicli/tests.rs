@@ -63,8 +63,13 @@ impl ProxyControlFake {
     }
 }
 
+/// 运行时刷新发生在「代理已启动、接管尚未开始」的时刻；`on_call` 让测试在
+/// 这里注入数据库故障。
+type RefreshHook = Box<dyn Fn() + Send + Sync>;
+
 struct RuntimeRefreshFake {
     calls: AtomicUsize,
+    on_call: Mutex<Option<RefreshHook>>,
 }
 
 impl RuntimeRefreshFake {
@@ -74,9 +79,16 @@ impl RuntimeRefreshFake {
             let inner = inner.clone();
             Box::pin(async move {
                 inner.calls.fetch_add(1, Ordering::SeqCst);
+                if let Some(hook) = inner.on_call.lock().unwrap().as_ref() {
+                    hook();
+                }
                 Ok(())
             })
         })
+    }
+
+    fn set_on_call(&self, hook: impl Fn() + Send + Sync + 'static) {
+        *self.on_call.lock().unwrap() = Some(Box::new(hook));
     }
 }
 
@@ -250,6 +262,7 @@ impl Fixture {
         });
         let runtime_refresh = Arc::new(RuntimeRefreshFake {
             calls: AtomicUsize::new(0),
+            on_call: Mutex::new(None),
         });
         let services = AicliServices::for_test(
             app_state.clone(),
@@ -1101,8 +1114,11 @@ async fn one_client_failure_neither_breaks_the_others_nor_rolls_back_the_binding
     let rows = active_takeovers(&fixture);
     assert_eq!(rows.len(), 4);
     assert!(rows.iter().all(|(app, _)| app != "grokbuild"));
-    assert_eq!(result.account.state, BindingState::Bound);
-    assert_eq!(result.account.user_id, Some(8));
+    let account = result.account.as_ref().expect("account view");
+    assert_eq!(account.state, BindingState::Bound);
+    assert_eq!(account.user_id, Some(8));
+    assert!(result.account_error.is_none());
+    assert!(result.takeover_targets_error.is_none());
     assert!(fixture.secrets.get("access-token").unwrap().is_some());
 }
 
@@ -1198,8 +1214,90 @@ async fn proxy_start_failure_is_reported_without_touching_clients() {
     assert_eq!(fixture.runtime_refresh.calls.load(Ordering::SeqCst), 0);
     // 客户端文件一个都没动，绑定本身保持成功。
     assert!(active_takeovers(&fixture).is_empty());
-    assert_eq!(result.account.state, BindingState::Bound);
+    assert_eq!(
+        result.account.as_ref().expect("account view").state,
+        BindingState::Bound
+    );
     let payloads = events.takeover_payloads.lock().unwrap().clone();
     assert_eq!(payloads.len(), 1);
     assert!(payloads[0].contains("\"takeovers\":[]"));
+}
+
+/// 审查修正：读接管目标失败时一个都不接管（不按「表为空 = 首次绑定」接管全部
+/// 已安装客户端），错误随结果返回，绑定不回滚，事件照发。
+#[tokio::test]
+#[serial_test::serial]
+async fn unreadable_takeover_targets_take_over_nothing() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events.clone(), ProxyControlFake::ok()).await;
+    for app in [AppType::Claude, AppType::Codex] {
+        _home.install(&app);
+    }
+    let before: Vec<String> = [AppType::Claude, AppType::Codex]
+        .iter()
+        .map(crate::aicli::takeover::managed_client_text)
+        .collect();
+    let db = fixture.db.clone();
+    fixture.runtime_refresh.set_on_call(move || {
+        db.conn
+            .lock()
+            .unwrap()
+            .execute_batch("ALTER TABLE aicli_takeover RENAME TO aicli_takeover_hidden")
+            .unwrap();
+    });
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .unwrap();
+
+    assert!(result.takeovers.is_empty(), "nothing may be taken over");
+    assert!(result.takeover_targets_error.is_some());
+    assert!(result.account.is_some(), "binding itself stays successful");
+    let payloads = events.takeover_payloads.lock().unwrap().clone();
+    assert_eq!(payloads.len(), 1);
+    assert!(payloads[0].contains("\"takeovers\":[]"));
+    assert!(payloads[0].contains("\"takeoverTargetsError\":"));
+    // 客户端配置一个都没写。
+    let after: Vec<String> = [AppType::Claude, AppType::Codex]
+        .iter()
+        .map(crate::aicli::takeover::managed_client_text)
+        .collect();
+    assert_eq!(after, before, "client files must not be rewritten");
+}
+
+/// 审查修正：接管完成后读账户视图失败，逐项结果仍返回并下发，账户视图为
+/// None 并带错误码，而不是整个命令报错丢掉结果。
+#[tokio::test]
+#[serial_test::serial]
+async fn account_view_failure_keeps_takeover_results() {
+    let _home = BindHome::new();
+    let events = Arc::new(RecordingEvents::default());
+    let fixture = bind_fixture(events.clone(), ProxyControlFake::ok()).await;
+    _home.install(&AppType::Codex);
+    let db = fixture.db.clone();
+    // 在接管开始前隐藏账户视图依赖的 Token 表：接管本身不读它，读账户视图时失败。
+    fixture.runtime_refresh.set_on_call(move || {
+        db.conn
+            .lock()
+            .unwrap()
+            .execute_batch("ALTER TABLE aicli_managed_token RENAME TO aicli_managed_token_hidden")
+            .unwrap();
+    });
+
+    let result = fixture
+        .services
+        .bind(ACCESS.to_owned(), "main".to_owned())
+        .await
+        .expect("bind succeeded; the account view failure must not fail the command");
+
+    assert!(result.account.is_none());
+    assert_eq!(result.account_error.as_deref(), Some("database"));
+    assert_eq!(result.takeovers.len(), 1, "per-client results survive");
+    assert_eq!(result.takeovers[0].app, "codex");
+    let payloads = events.takeover_payloads.lock().unwrap().clone();
+    assert_eq!(payloads.len(), 1);
+    assert!(payloads[0].contains("\"app\":\"codex\""));
 }
