@@ -49,6 +49,7 @@ E-05 流式还原验收记录（2026-11-07）
    语义一致
 
 四、CI
-- 提交：<待填>；item E-05-unit aicli::privacy::stream::tests 已加入
+- 提交：e5518aff；item E-05-unit aicli::privacy::stream::tests 已加入
   scripts/aicli-item-tests.sh
-- 运行：<待推送后填写>
+- 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42374274596
+  （五 job 全 success，含 E-05-unit 15 passed）

@@ -787,7 +787,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 /
 
- 兼容、注释行直通）、事件级扣留（partialTail=braceTail+wordTail，engine 新增 kinds 集合）、ctx（事件名+eventCtx type/item_id/index）与路径匹配时尾部移接、finish 放出扣留、keep() 只读键（signature_delta 原样）、asJSON 按事件类型转义、非 JSON data 行整段纯文本还原、Gemini 无 type/index 按候选/part 路径区分。15 个测试（proptest 两块/多块任意切分不变性、跨事件拼齐、裸 token、工具参数增量、流中断字节完整、多字节跨块、CRLF）全过；偏差（Writer HTTP 层归 E-06、shapeTail 恒 0、put 计数待 E-06）见 docs/aicli-evidence/E-05.txt | CI run 见 E-05.txt 第四节
+ 兼容、注释行直通）、事件级扣留（partialTail=braceTail+wordTail，engine 新增 kinds 集合）、ctx（事件名+eventCtx type/item_id/index）与路径匹配时尾部移接、finish 放出扣留、keep() 只读键（signature_delta 原样）、asJSON 按事件类型转义、非 JSON data 行整段纯文本还原、Gemini 无 type/index 按候选/part 路径区分。15 个测试（proptest 两块/多块任意切分不变性、跨事件拼齐、裸 token、工具参数增量、流中断字节完整、多字节跨块、CRLF）全过；偏差（Writer HTTP 层归 E-06、shapeTail 恒 0、put 计数待 E-06）见 docs/aicli-evidence/E-05.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42374274596
 
 ### E-06 中间件接入
 - [ ] 完成
