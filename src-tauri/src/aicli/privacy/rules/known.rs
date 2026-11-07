@@ -180,7 +180,9 @@ pub(crate) fn stands_alone(kind: &str, s: &[u8], a: usize, b: usize) -> bool {
             }
             !is(after, b".-") || b + 1 >= s.len() || !is(s[b + 1], alnum)
         }
-        _ => !(is(before, alnum) && is(s[a], alnum)) && !(is(after, alnum) && is(s[b - 1], alnum)),
+        _ => {
+            (!is(before, alnum) || !is(s[a], alnum)) && (!is(after, alnum) || !is(s[b - 1], alnum))
+        }
     }
 }
 

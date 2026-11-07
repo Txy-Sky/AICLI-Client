@@ -11,10 +11,10 @@
 //!   `[[:alpha:]]`、无反引用限制）在出现处以注释注明。
 //! - Go 的 `strings.EqualFold` 仅用于 ASCII 场景时以 `eq_ignore_ascii_case` 对应。
 
-#![allow(dead_code)] // E-03 WIP：各叶子模块在 redact.rs 引擎接线前暂无调用方
+#![allow(dead_code, clippy::module_inception)] // E-03 WIP：各叶子模块在 redact.rs 引擎接线前暂无调用方
 
 pub mod known;
-pub mod rules;
+pub mod rules; // 名字与父模块同名是刻意的：对齐 Magpie rules.go
 pub mod scrub;
 pub mod shape;
 

@@ -8,7 +8,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
 use super::super::placeholder::PlaceholderEngine;
-use super::{FoundBy, Span};
+use super::Span;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -125,7 +125,7 @@ pub(crate) fn shape_of(kind: &str, v: &str, engine: &PlaceholderEngine) -> Optio
         return None;
     }
     let f = String::from_utf8(out).ok()?;
-    (&f != v).then_some(f)
+    (f.as_str() != v).then_some(f)
 }
 
 /// standInOf：用户名的合成名（8 个小写字母，与原值无关）。
