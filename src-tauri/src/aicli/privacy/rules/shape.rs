@@ -164,7 +164,7 @@ pub(crate) fn ip_stand_in(v: &str, engine: &PlaceholderEngine) -> Option<String>
             ))
         }
         std::net::IpAddr::V6(_) => {
-            let mut groups = vec!["2001", "db8"];
+            let mut groups: Vec<String> = vec!["2001".to_string(), "db8".to_string()];
             for k in 0..6 {
                 let v = u16::from_be_bytes([sum[2 * k], sum[2 * k + 1]]);
                 groups.push(format!("{:x}", 0x1000 + (v as u32 % 0xf000)));
