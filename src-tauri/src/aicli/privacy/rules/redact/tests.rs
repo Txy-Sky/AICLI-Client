@@ -204,5 +204,5 @@ fn luhn_valid() {
     let valid = ["4111", "1111", "1111", "1111"].concat();
     let invalid = ["4111", "1111", "1111", "1112"].concat();
     assert!(super::luhn(&valid));
-    assert!(!luhn(&invalid));
+    assert!(!super::luhn(&invalid));
 }
