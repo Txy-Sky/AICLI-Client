@@ -90,3 +90,19 @@ E-03 检测规则验收记录（部分完成，2026-11-07）
   golden 逐行对照时这两条以 more.rs 为准。
 - 待办（E-03 收尾）：magpie_golden -raw 生成 Go 侧输出做逐行差异分析；
   more_test.go 其余用例按需补移植
+
+七、E-03 golden 差异分析（@ 第三轮，收尾）
+- 流程：corpus.jsonl（522 条）→ target/corpus_full.json；
+  Go 侧 `go run ./tools/magpie_golden -corpus … -raw target/go_raw.txt`；
+  Rust 侧新加 #[ignore] 测试 redact::tests::write_rust_raw_for_golden_diff
+  （同固定密钥、同 Options{secrets,personal}）写 target/rust_raw.txt
+- 结果：**522/522 行逐字节一致，差异为 0**（含占位符 kind 与后缀全等）
+- 差异分析中抓到并修复 1 个真 bug：
+  phone.rs field_name 全角冒号前视 `&s[i-3..i]` 在多字节字符中间切片
+  panic（语料「记录ID 138…」触发）；改为字节比较（Go 字节切片不 panic，
+  行为对齐）
+- 局限说明：corpus.jsonl 存档时部分原值已被本地网关替换为 {{TAG_xxx}}
+  占位符，两侧输入一致故对照仍有效，但真实敏感值形态的覆盖以
+  expected/false_positives 夹具与本轮新增测试补足
+- 结论：E-03 检测规则移植完成——规则表 38 条对齐、引擎语义对齐、
+  golden 0 差异、验收夹具 100% 通过

@@ -148,7 +148,8 @@ pub(crate) fn field_name(s: &str, a: usize) -> Option<(String, String)> {
     }
     if i > 0 && (bytes[i - 1] == b':' || bytes[i - 1] == b'=') {
         i -= 1;
-    } else if i >= 3 && &s[i - 3..i] == "：" {
+    } else if i >= 3 && &bytes[i - 3..i] == "：".as_bytes() {
+        // 全角冒号（3 字节）；用字节比较避免落在多字节字符中间时 panic
         i -= 3;
     } else {
         return None;

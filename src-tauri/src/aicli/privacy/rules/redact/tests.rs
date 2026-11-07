@@ -452,3 +452,41 @@ fn cjk_rule_folds_match_patterns() {
         assert!(key.pattern.contains(name), "pattern must contain {name}");
     }
 }
+
+// ---- golden 对照（开发期，cargo test -- --ignored 手动跑） ----
+
+/// 与 tools/magpie_golden/main.go 的 fixedKeyHex 一致。
+const GOLDEN_KEY_HEX: &str = "7f3a9c1d5e2b8406ad17fe93c2b60845d1a4f7e29b3c5d8a06f4e7b2c9d1a305";
+
+fn golden_engine() -> PlaceholderEngine {
+    let mut key = [0u8; 32];
+    for (i, slot) in key.iter_mut().enumerate() {
+        *slot = u8::from_str_radix(&GOLDEN_KEY_HEX[i * 2..i * 2 + 2], 16).unwrap();
+    }
+    PlaceholderEngine::with_key(key)
+}
+
+/// 把全量语料的 Rust 遮盖输出写到 target/rust_raw.txt，与
+/// `go run ./tools/magpie_golden -corpus target/corpus_full.json -raw target/go_raw.txt`
+/// 的输出逐行 diff（golden 差异分析）。
+#[test]
+#[ignore = "开发期 golden 对照工具，不进 CI"]
+fn write_rust_raw_for_golden_diff() {
+    let corpus_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../target/corpus_full.json");
+    let corpus: Vec<String> = serde_json::from_str(
+        &std::fs::read_to_string(corpus_path).expect("先运行: python 生成 target/corpus_full.json"),
+    )
+    .expect("corpus_full.json parses");
+    let mut e = golden_engine();
+    let o = opts();
+    let mut lines = Vec::with_capacity(corpus.len());
+    for text in &corpus {
+        let (masked, _) = mask(text, &o, &mut e);
+        lines.push(masked);
+    }
+    std::fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../target/rust_raw.txt"),
+        lines.join("\n"),
+    )
+    .expect("write rust_raw.txt");
+}
