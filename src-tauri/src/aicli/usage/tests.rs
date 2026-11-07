@@ -100,7 +100,7 @@ async fn second_query_hit_fills_group_quota_and_billed_at() {
             }
         })
     }));
-    bills.record("req-hit", "up-hit");
+    bills.record("req-hit", "up-hit").await;
     assert_eq!(upstream_column(&db, "req-hit").as_deref(), Some("up-hit"));
     wait_for(|| bill_columns(&db, "req-hit").1.is_some()).await;
     let (group, quota, billed_at) = bill_columns(&db, "req-hit");
@@ -124,7 +124,7 @@ async fn three_misses_keep_the_bill_columns_null() {
             Ok(None)
         })
     }));
-    bills.record("req-miss", "up-miss");
+    bills.record("req-miss", "up-miss").await;
     wait_for(|| calls.load(Ordering::SeqCst) >= 3).await;
     // 三次之后再无重试：给 worker 一点时间确认条目被丢弃。
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -210,7 +210,7 @@ async fn existing_server_result_is_never_overwritten() {
             })))
         })
     }));
-    bills.record("req-guard", "up-guard");
+    bills.record("req-guard", "up-guard").await;
     wait_for(|| calls.load(Ordering::SeqCst) >= 1).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
     let columns = bill_columns(&db, "req-guard");
@@ -225,7 +225,7 @@ async fn incomplete_hit_keeps_null_instead_of_filling_estimates() {
     bills.set_query_for_test(Arc::new(|_, _, _| {
         Box::pin(async { Ok(Some(serde_json::json!({"request_id": "x", "group": "g"}))) })
     }));
-    bills.record("req-partial", "up-partial");
+    bills.record("req-partial", "up-partial").await;
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(bill_columns(&db, "req-partial"), (None, None, None));
 }
@@ -240,7 +240,7 @@ async fn missing_binding_gives_up_without_touching_columns() {
         Box::pin(async { Ok(None) }) as BoxFuture<'static, Result<Option<Value>, NewApiError>>
     }));
     bills.set_context_for_test(Arc::new(|| None));
-    bills.record("req-unbound", "up");
+    bills.record("req-unbound", "up").await;
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(bill_columns(&db, "req-unbound"), (None, None, None));
     assert_eq!(bills.queue_len(), 0);
@@ -257,11 +257,32 @@ fn header_extraction_is_case_insensitive_and_skips_empty() {
     assert!(upstream_request_id(&headers).is_none());
 }
 
-/// 生产接线的绑定上下文读数据库与钥匙串（MemoryStore 即隔离存储）。
+/// 计数的内存钥匙串：断言访问令牌按绑定代数缓存、不逐次读钥匙串。
+#[derive(Debug, Default)]
+struct CountingStore {
+    inner: MemoryStore,
+    gets: AtomicUsize,
+}
+
+impl SecretStore for CountingStore {
+    fn get(&self, account: &str) -> Result<Option<String>, crate::aicli::secrets::SecretError> {
+        self.gets.fetch_add(1, Ordering::SeqCst);
+        self.inner.get(account)
+    }
+    fn set(&self, account: &str, value: &str) -> Result<(), crate::aicli::secrets::SecretError> {
+        self.inner.set(account, value)
+    }
+    fn delete(&self, account: &str) -> Result<(), crate::aicli::secrets::SecretError> {
+        self.inner.delete(account)
+    }
+}
+
+/// 生产接线的绑定上下文读数据库与钥匙串；读到后按绑定代数缓存，
+/// 读不到不缓存（下次重读）。
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn production_context_reads_the_current_binding() {
     let db = Arc::new(Database::memory().unwrap());
-    let store = Arc::new(MemoryStore::default());
+    let store = Arc::new(CountingStore::default());
     let context = production_context(db.clone(), store.clone());
     assert!(context().is_none(), "no account row yet");
     db.conn
@@ -275,8 +296,13 @@ async fn production_context_reads_the_current_binding() {
         .unwrap();
     assert!(context().is_none(), "no access token yet");
     store.set("access-token", "tok").unwrap();
+    // 失败结果没有被缓存：令牌写入后立即可读。
     assert_eq!(context(), Some(("tok".to_owned(), "global".to_owned())));
-    // 钥匙串读取在 worker 与请求路径之间共享：确认并发读不死锁。
+
+    // 同一绑定代数内重复调用（含并发）不再读钥匙串。别的测试可能并行递增全局
+    // 代数，所以只在代数未变时断言读取次数。
+    let generation = crate::aicli::cache::binding_generation();
+    let gets = store.gets.load(Ordering::SeqCst);
     let barrier = Arc::new(Barrier::new(4));
     let mut joins = Vec::new();
     for _ in 0..4 {
@@ -292,8 +318,69 @@ async fn production_context_reads_the_current_binding() {
     for join in joins {
         join.join().unwrap();
     }
+    if crate::aicli::cache::binding_generation() == generation {
+        assert_eq!(
+            store.gets.load(Ordering::SeqCst),
+            gets,
+            "cached token must not re-read the keychain"
+        );
+    }
+
+    // 解绑/换线路会递增代数：缓存失效，重新读到当前绑定。
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE aicli_account SET selected_line_id='apac' WHERE id=1",
+            [],
+        )
+        .unwrap();
+    crate::aicli::cache::bump_binding_generation();
+    assert_eq!(context(), Some(("tok".to_owned(), "apac".to_owned())));
     store.delete("access-token").unwrap();
+    crate::aicli::cache::bump_binding_generation();
     assert!(context().is_none());
+}
+
+/// 队列清空后 worker 不再轮询；运行时（BillBackfill）销毁后 worker 退出，
+/// 不持有数据库。
+#[tokio::test]
+async fn idle_worker_waits_for_work_and_exits_with_the_runtime() {
+    let db = db_with_row("req-idle");
+    let bills = fixture(db.clone());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let calls_for_query = calls.clone();
+    bills.set_query_for_test(Arc::new(move |_, _, _| {
+        let calls = calls_for_query.clone();
+        Box::pin(async move {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(
+                serde_json::json!({"group": "g", "quota": 1, "created_at": 2}),
+            ))
+        })
+    }));
+    bills.record("req-idle", "up-idle").await;
+    wait_for(|| bill_columns(&db, "req-idle").1.is_some()).await;
+    assert_eq!(bills.queue_len(), 0);
+
+    // 空闲后再入队仍会被及时处理（入队通知唤醒）。
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "INSERT INTO proxy_request_logs(request_id,provider_id,app_type,model,input_tokens,
+             output_tokens,total_cost_usd,latency_ms,status_code,created_at)
+             VALUES('req-late','aicli-main','claude','m',1,2,'0.1',10,200,100)",
+            [],
+        )
+        .unwrap();
+    bills.record("req-late", "up-late").await;
+    wait_for(|| bill_columns(&db, "req-late").1.is_some()).await;
+
+    // 销毁后 worker 放掉 Inner 持有的数据库引用。
+    let before = Arc::strong_count(&db);
+    drop(bills);
+    wait_for(|| Arc::strong_count(&db) < before).await;
 }
 
 /// C4-04：线路取「最终成功的 provider」——故障切换后传入切换后的 provider id

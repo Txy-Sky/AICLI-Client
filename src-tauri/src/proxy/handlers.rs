@@ -3488,7 +3488,8 @@ async fn log_usage(
         // C4-03：AICLI 请求完成——写上游请求 id 并入队账单回填（1s/3s/10s）。
         state
             .aicli
-            .record_upstream_request(&bill_request_id, &upstream);
+            .record_upstream_request(&bill_request_id, &upstream)
+            .await;
     }
 }
 

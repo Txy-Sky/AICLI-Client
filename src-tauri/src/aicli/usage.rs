@@ -7,6 +7,10 @@
 //! 「等待服务端记账」；**绝不**用本地估算值覆盖这些字段。
 //!
 //! 队列上限 1000：满时丢弃最旧条目并只记一次警告；不落盘，运行时销毁即清空。
+//!
+//! 数据库与钥匙串都是阻塞 IO：一律放进 `spawn_blocking`，不占 tokio worker
+//!（同 `log_usage_internal` 的 #7818）。访问令牌按绑定代数缓存，绑定、解绑、
+//! 换线路之前不重复读钥匙串。队列为空时 worker 只等入队通知，不空转。
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,7 +31,7 @@ pub(crate) const DEFAULT_DELAYS: [Duration; 3] = [
     Duration::from_secs(3),
     Duration::from_secs(10),
 ];
-/// 队列空/无到期条目时的最大轮询间隔：入队通知之外的自愈兜底。
+/// 有未到期条目时的最大轮询间隔：入队通知之外的自愈兜底（队列为空时不轮询）。
 const MAX_POLL: Duration = Duration::from_millis(250);
 
 /// 查询接缝：`(access, line, upstream_request_id)`。生产实现构造 `NewApiClient`
@@ -51,7 +55,8 @@ struct Pending {
 struct Inner {
     db: Arc<Database>,
     queue: Mutex<VecDeque<Pending>>,
-    notify: tokio::sync::Notify,
+    /// 单独的 Arc：worker 等待时只持有它与 `Weak<Inner>`，不阻止运行时销毁。
+    notify: Arc<tokio::sync::Notify>,
     overflow_warned: AtomicBool,
     started: AtomicBool,
     delays: Mutex<[Duration; 3]>,
@@ -89,11 +94,23 @@ fn production_query() -> BillQuery {
     })
 }
 
+/// 已读到的绑定 `(绑定代数, (access, line))`。
+type CachedBinding = (u64, (String, String));
+
 fn production_context(
     db: Arc<Database>,
     store: Arc<dyn super::secrets::SecretStore>,
 ) -> BillContext {
+    // 只缓存读到的绑定：读不到（未绑定、钥匙串暂不可用）下次重读，不把失败钉住。
+    let cached: Arc<Mutex<Option<CachedBinding>>> = Arc::default();
     Arc::new(move || {
+        // 先取代数再读：读的过程中若绑定变化，缓存记的是旧代数，下次必重读。
+        let generation = super::cache::binding_generation();
+        if let Some((seen, binding)) = cached.lock().ok()?.as_ref() {
+            if *seen == generation {
+                return Some(binding.clone());
+            }
+        }
         let row = db.conn.lock().ok().and_then(|conn| {
             conn.query_row(
                 "SELECT selected_line_id FROM aicli_account WHERE id=1",
@@ -110,7 +127,11 @@ fn production_context(
             .ok()
             .flatten()
             .filter(|value| !value.is_empty())?;
-        Some((access, line))
+        let binding = (access, line);
+        if let Ok(mut slot) = cached.lock() {
+            *slot = Some((generation, binding.clone()));
+        }
+        Some(binding)
     })
 }
 
@@ -120,7 +141,7 @@ impl BillBackfill {
             inner: Arc::new(Inner {
                 db,
                 queue: Mutex::new(VecDeque::new()),
-                notify: tokio::sync::Notify::new(),
+                notify: Arc::new(tokio::sync::Notify::new()),
                 overflow_warned: AtomicBool::new(false),
                 started: AtomicBool::new(false),
                 delays: Mutex::new(DEFAULT_DELAYS),
@@ -140,22 +161,25 @@ impl BillBackfill {
         *self.inner.context.lock().unwrap() = Some(production_context(db, store));
     }
 
-    /// 请求完成：先把 `upstream_request_id` 写进本地行，再入队回填。
+    /// 请求完成：先把 `upstream_request_id` 写进本地行（阻塞线程池），再入队回填。
     /// 行更新失败只记日志——回填仍按 request_id 尝试，不阻断请求路径。
-    pub(crate) fn record(&self, request_id: &str, upstream_request_id: &str) {
+    pub(crate) async fn record(&self, request_id: &str, upstream_request_id: &str) {
         if request_id.is_empty() || upstream_request_id.is_empty() {
             return;
         }
-        if let Ok(conn) = self.inner.db.conn.lock() {
-            if conn
-                .execute(
-                    "UPDATE proxy_request_logs SET upstream_request_id=?2 WHERE request_id=?1",
-                    rusqlite::params![request_id, upstream_request_id],
-                )
-                .is_err()
-            {
-                log::warn!("AICLI bill backfill could not tag {request_id} with its upstream id");
-            }
+        let db = self.inner.db.clone();
+        let (row, upstream) = (request_id.to_owned(), upstream_request_id.to_owned());
+        let tagged = tokio::task::spawn_blocking(move || {
+            let conn = db.conn.lock().ok()?;
+            conn.execute(
+                "UPDATE proxy_request_logs SET upstream_request_id=?2 WHERE request_id=?1",
+                rusqlite::params![row, upstream],
+            )
+            .ok()
+        })
+        .await;
+        if !matches!(tagged, Ok(Some(_))) {
+            log::warn!("AICLI bill backfill could not tag {request_id} with its upstream id");
         }
         self.enqueue(Pending {
             request_id: request_id.to_owned(),
@@ -199,18 +223,25 @@ impl BillBackfill {
             return;
         }
         let weak: Weak<Inner> = Arc::downgrade(&self.inner);
+        let notify = self.inner.notify.clone();
         tauri::async_runtime::spawn(async move {
             loop {
-                let Some(inner) = weak.upgrade() else {
-                    break;
+                let wake = {
+                    let Some(inner) = weak.upgrade() else {
+                        break;
+                    };
+                    process_due(&inner).await
+                    // 等待前放掉强引用：运行时销毁后 Inner 的 Drop 会唤醒并结束本循环。
                 };
-                let wake = process_due(&inner).await;
-                let notified = inner.notify.notified();
-                tokio::pin!(notified);
-                notified.as_mut().enable();
-                tokio::select! {
-                    _ = tokio::time::sleep(wake) => {}
-                    _ = notified => {}
+                // notify_one 在无人等待时留一个许可，入队与等待之间的通知不会丢。
+                match wake {
+                    Some(wake) => {
+                        tokio::select! {
+                            _ = tokio::time::sleep(wake) => {}
+                            _ = notify.notified() => {}
+                        }
+                    }
+                    None => notify.notified().await,
                 }
             }
         });
@@ -271,7 +302,15 @@ enum Attempt {
     GiveUp,
 }
 
-async fn process_due(inner: &Arc<Inner>) -> Duration {
+impl Drop for Inner {
+    fn drop(&mut self) {
+        // 唤醒可能正在无限期等待的 worker，让它发现 Weak 已失效后退出。
+        self.notify.notify_one();
+    }
+}
+
+/// 处理到期条目；返回下次唤醒间隔，队列为空时返回 None（只等入队通知）。
+async fn process_due(inner: &Arc<Inner>) -> Option<Duration> {
     let now = Instant::now();
     let due: Vec<Pending> = {
         let mut queue = inner.queue.lock().unwrap();
@@ -290,7 +329,15 @@ async fn process_due(inner: &Arc<Inner>) -> Duration {
     let delays = *inner.delays.lock().unwrap();
     for mut entry in due {
         match attempt(inner, &entry).await {
-            Attempt::Hit(item) => write_bill(inner, &entry.request_id, &item),
+            Attempt::Hit(item) => {
+                let db = inner.db.clone();
+                let request_id = entry.request_id.clone();
+                if let Err(error) =
+                    tokio::task::spawn_blocking(move || write_bill(&db, &request_id, &item)).await
+                {
+                    log::warn!("AICLI bill write task failed: {error}");
+                }
+            }
             Attempt::Retry if (entry.attempts as usize) < delays.len() - 1 => {
                 entry.attempts += 1;
                 entry.next_due = Instant::now() + delays[entry.attempts as usize];
@@ -308,13 +355,12 @@ async fn process_due(inner: &Arc<Inner>) -> Duration {
     let queue = inner.queue.lock().unwrap();
     if queue.is_empty() {
         inner.overflow_warned.store(false, Ordering::SeqCst);
+        return None;
     }
     queue
         .front()
         .map(|entry| entry.next_due.saturating_duration_since(now))
-        .map(|until| until.min(MAX_POLL))
-        .unwrap_or(MAX_POLL)
-        .max(Duration::from_millis(1))
+        .map(|until| until.min(MAX_POLL).max(Duration::from_millis(1)))
 }
 
 async fn attempt(inner: &Arc<Inner>, entry: &Pending) -> Attempt {
@@ -326,7 +372,8 @@ async fn attempt(inner: &Arc<Inner>, entry: &Pending) -> Attempt {
     let Some(context) = context else {
         return Attempt::GiveUp;
     };
-    let Some((access, line)) = context() else {
+    // 首次或绑定变化后会读数据库与钥匙串：放进阻塞线程池。
+    let Ok(Some((access, line))) = tokio::task::spawn_blocking(move || context()).await else {
         return Attempt::GiveUp;
     };
     match query(&access, &line, &entry.upstream_request_id).await {
@@ -345,14 +392,14 @@ async fn attempt(inner: &Arc<Inner>, entry: &Pending) -> Attempt {
     }
 }
 
-fn write_bill(inner: &Arc<Inner>, request_id: &str, item: &Value) {
+fn write_bill(db: &Database, request_id: &str, item: &Value) {
     let group = item.get("group").and_then(Value::as_str);
     let quota = item.get("quota").and_then(Value::as_i64);
     let billed_at = item
         .get("created_at")
         .and_then(Value::as_i64)
         .unwrap_or_else(|| Utc::now().timestamp());
-    let Ok(conn) = inner.db.conn.lock() else {
+    let Ok(conn) = db.conn.lock() else {
         return;
     };
     // billed_at IS NULL 守卫：只补一次，不覆盖既有服务端结果。

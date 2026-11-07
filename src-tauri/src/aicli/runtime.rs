@@ -226,8 +226,8 @@ impl AicliRuntime {
 
     /// C4-03：请求完成时记录上游请求 id 并入队账单回填（1s/3s/10s 三次查询，
     /// 命中写 server_group/billed_quota/billed_at，未命中保持 NULL）。
-    pub fn record_upstream_request(&self, request_id: &str, upstream_request_id: &str) {
-        self.bills.record(request_id, upstream_request_id);
+    pub async fn record_upstream_request(&self, request_id: &str, upstream_request_id: &str) {
+        self.bills.record(request_id, upstream_request_id).await;
     }
 
     /// 仅测试：缩短回填重试延迟。

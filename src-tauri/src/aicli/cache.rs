@@ -141,6 +141,11 @@ pub(crate) fn bump_binding_generation() {
     BINDING_GENERATION.fetch_add(1, Ordering::SeqCst);
 }
 
+/// 当前绑定代数（C4-03 账单回填按它失效缓存的访问令牌）。
+pub(crate) fn binding_generation() -> u64 {
+    BINDING_GENERATION.load(Ordering::SeqCst)
+}
+
 pub(crate) fn token_fingerprint(token: &str) -> String {
     format!("{:x}", Sha256::digest(token.as_bytes()))
 }
