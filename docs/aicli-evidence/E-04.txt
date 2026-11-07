@@ -1,0 +1,67 @@
+E-04 JSON 遍历与协议保护验收记录（2026-11-07）
+
+状态：[x] 完成
+模块：src-tauri/src/aicli/privacy/walker.rs（约 760 行 + 22 个测试）
+
+一、移植内容（Magpie internal/redact/json.go @f11bf27，及 redact.go 中
+    escaped JSON 的三个函数）
+1. walk：字节保持的 JSON 遍历——只改命中的字符串值（含 jsonEscape 按
+   Go SetEscapeHTML(false) 逐点一致：小写 \u00xx、\u2028/\u2029、不转义
+   HTML），未命中时输出与输入逐字节相同；不是 JSON 返回 None
+2. kept/keep/keepIn/isID/under：14+ 类保持键（model/id/call_id/
+   tool_use_id/signature/encrypted_content/data/url/…）+ data: URL +
+   标识符后缀（_id/_ids/Id/Ids）
+3. scan：三类对象——signed（供应商封签：Anthropic thinking 签名块、
+   Responses encrypted reasoning、Gemini thoughtSignature part）、args
+   （tool_use.input、server_tool_use.input、functionCall/function_call
+   .args：键是工具的，一律扫描）、defs（defKeys 16 个 + input 里
+   additional_tools/tool_search_output 的 tools）
+4. MaskJSON：正文先遮（args 内同名字段 signature 也遮），defs 只有
+   description 遮（第二遍），封签块最后重遮——请求里遮过的值换回占位符
+   （replacer 最长优先）+ 已知值（known），其余逐字节保留；非 JSON 回退
+   纯文本遮盖
+5. escaped 工具参数（redact.go）：unescapedView（等长视图）、
+   outsideEscapes（值退到转义边界）、inStrings（值约束在字符串内，裸值
+   带引号放回）、bareValue；redact.rs 新增 mask_with/mask_escaped/
+   apply_with（记录值→占位符、解开转义入表、bare 引号）
+6. RestoreJSON/restore：占位符正文正则 + 边界字检查 + canonical 大小写
+   规范 + braces 花括号扩展（{{ }}、单边、带空格）；escaped 值 JSON 转义
+   放回；typeOf（"type" 键在任意位置的 Responses delta 兼容）
+
+二、验收（对照清单逐条）
+- 只读整块：mask_json_anthropic / signed_blocks_remask_prior_values /
+  scan_responses_encrypted_reasoning（封签路径、重遮、不动原值）
+- 不扫描键：mask_json_chat_completions_tools_and_ids（call_id 内 Luhn
+  卡号不遮）、mask_json_data_urls_and_media_kept（data:/url/media_type）
+- 必须扫描：mask_json_anthropic（input.signature=sk-… 遮）、
+  scan_gemini_function_call_and_thought_signature（functionCall.args）
+- defs：tools 的 description 遮、name/schema 不遮；additional_tools
+- 未命中逐字节相同：walk_unchanged_is_byte_identical /
+  mask_json_no_hits_byte_identical / codex_sample_untouched_and_valid
+  （Codex 真实样本 codex_request.json，31KB，n=0 且逐字节相同）
+- 四协议夹具：Anthropic / Chat Completions / Responses / Gemini 各一，
+  含工具调用、thinking、图片
+- escaped 参数：裸数字密码带引号放回（inStrings bare）、值内转义引号
+  遮后 arguments 仍是合法 JSON、还原闭环
+- 还原：restore_json 四协议闭环（mask→restore == 原 body）、
+  restore_text 花括号/大小写变体、未知占位符保留
+- 22 个测试全过；E-03 回归 92 个全过（privacy 合计 114）
+
+三、开发中发现并修复的问题
+1. in_strings 字符串标记循环漏跳闭引号（Go for i++ 语义），闭引号被当成
+   下一个字符串的开引号 → 裸值 bare 判定失效、占位符不带引号（JSON 破坏）
+2. （测试侧）corp.example.com 是 Magpie 有意排除的保留示例域——测试值
+   改用真实形态域；裸数字/反斜杠等敏感形态字面量一律改为运行时拼接构造
+
+四、偏差（与 Magpie 的差异，已记录）
+1. defs 不跑模型检测（E-03 决定不移植 model.go）：Magpie 在 defs 上用
+   withModel，这里 defs 与正文同一规则引擎
+2. Shape 模式的 restore（restoreShapes/hasShapes）未接线，待 E-05/E-06
+3. MaskJSON 的 sentKnownSpans 用 known.rs 单一 spans 近似（Magpie 区分
+   knownSpans/sentKnownSpans 两态）
+4. bare 值还原后遮盖时加的引号保留（Go 亦然，行为一致非缺陷）
+
+五、CI
+- 提交：<待填>；item E-04-unit aicli::privacy::walker::tests 已加入
+  scripts/aicli-item-tests.sh
+- 运行：<待推送后填写>

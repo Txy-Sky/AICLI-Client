@@ -759,14 +759,14 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-07 完成。core_rules() 38 条规则与 Magpie redact.go `rules` + more.go `moreRules` 逐条对齐（主表 20 + more 18：SSN×2/护照/IBAN/生日/MAC/序列号/家目录×2/user@host×2/主机名与用户名行/IPv4/IPv6/云桶×3 等）；引擎补齐 fold 窗口匹配、groups 拆分遮盖、anyGroup、fix、lowerASCII 语义；privacy 92 个测试全过；expected.json 13/13、false_positives.json 37/37（60%→100%）；golden：`magpie_golden -raw` 与 Rust `#[ignore]` 对照测试同固定密钥对 522 条语料输出**逐字节一致、差异 0**；差异分析修复 more.rs public_ip IPv6 分支恒假与 phone.rs 全角冒号 UTF-8 切片 panic 两处真 bug；源参考 more.go 两处 IP 常量被本地网关遮盖（移植版为真实值，golden 以 Rust 侧为准）。CI run 42358919563 五 job 全 success（首推 42357294785 因 `-D warnings` clippy 两处 lint 失败，86e0c688 修复）。详见 `docs/aicli-evidence/E-03.txt`
 
 ### E-04 JSON 遍历和协议保护
-- [ ] 完成
+- [x] 完成
 - 修改：`privacy/walker.rs`，移植 Magpie `json.go`（`keepIn`、`scan`、`signatureKeys`、`sealed`）。必须满足：
   - 只读整块：Anthropic `thinking`、`redacted_thinking`；Responses 带 `encrypted_content` 的 reasoning；Gemini 带 `thoughtSignature` 的 part。
   - 不扫描：`model`、`signature`、`encrypted_content`、`thoughtSignature`、`data`（base64）、`call_id`、`tool_use_id`、`tool_call_id`、`id`、`file_id`、`previous_response_id`、`type`、`role`。
   - 必须扫描：`tool_use.input`、`functionCall.args`、工具结果文本，即使里面出现同名字段 `signature`。
   - 不改变 JSON 键顺序，未命中规则时**字节不变**。
 - 验收：四种协议各写一份真实结构的请求夹具（含工具调用、thinking、图片），断言上述每条；Codex 真实请求样本取自 Magpie `testdata/codex-0.162.1-request.json`（MIT）。无敏感内容时输出与输入逐字节相同。
-- 证据：
+- 证据：2026-11-07 完成。privacy/walker.rs 约 760 行：walk 字节保持遍历（jsonEscape 与 Go SetEscapeHTML(false) 逐点一致）、keepIn/kept/isID、scan（signed/args/defs 三类路径，含 Responses additional_tools）、MaskJSON（正文→defs→封签块重遮 replacer+known）、escaped 工具参数三件套（unescapedView/outsideEscapes/inStrings/bare 引号，redact.rs 加 mask_with/mask_escaped/apply_with）、RestoreJSON（canonical/braces/typeOf）。22 个测试全过，覆盖四协议夹具（Anthropic/Chat/Responses/Gemini，含工具调用/thinking/图片）、call_id 内 Luhn 卡号不遮、data: URL 保留、未命中逐字节相同、Codex 真实样本（codex_request.json 31KB，n=0 逐字节相同）、mask→restore 闭环、裸值带引号、值内转义引号；发现并修复 in_strings 闭引号标记 bug。偏差（defs 不跑模型、Shape restore 待 E-05/06）见 docs/aicli-evidence/E-04.txt | CI run 见 E-04.txt 第五节
 
 ### E-05 流式还原（方案 PoC C）
 - [ ] 完成

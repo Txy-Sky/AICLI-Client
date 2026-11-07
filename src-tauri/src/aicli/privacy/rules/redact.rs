@@ -1072,15 +1072,47 @@ impl MaskOptions {
 
 /// Mask（Magpie `Mask`）：对 s 按 o 遮盖，返回结果与替换数。
 pub fn mask(s: &str, o: &MaskOptions, engine: &mut PlaceholderEngine) -> (String, usize) {
+    mask_with(s, o, engine, None)
+}
+
+/// mask 带记录：每次遮盖把 (值, 占位符) 推进 record（walker 的封签块
+/// 重遮用）。
+pub(crate) fn mask_with(
+    s: &str,
+    o: &MaskOptions,
+    engine: &mut PlaceholderEngine,
+    record: Option<&mut Vec<(String, String)>>,
+) -> (String, usize) {
     if s.len() < 3 {
         return (s.to_string(), 0);
     }
     let found = scan(s, o);
-    apply(s, found, o, engine)
+    apply_with(s, found, o, engine, record, false)
+}
+
+/// mask 的 escaped 变体（Magpie `mask(escaped=true)`）：raw 是一段 JSON
+/// 文本（工具调用的 arguments）—— 查找器读解开一层转义后的视图，找到的
+/// 区间映射回 raw（outsideEscapes + inStrings），值解开转义后入表。
+pub(crate) fn mask_escaped(
+    raw: &str,
+    o: &MaskOptions,
+    engine: &mut PlaceholderEngine,
+    record: Option<&mut Vec<(String, String)>>,
+) -> (String, usize) {
+    if raw.len() < 3 {
+        return (raw.to_string(), 0);
+    }
+    let view = crate::aicli::privacy::walker::unescaped_view(raw);
+    let found = scan(&view, o);
+    let found = crate::aicli::privacy::walker::in_strings(
+        raw,
+        crate::aicli::privacy::walker::outside_escapes(raw, found),
+    );
+    apply_with(raw, found, o, engine, record, true)
 }
 
 /// scan（Magpie `mask` 内的查找部分）：返回全部找到的 Span。
-fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
+pub(crate) fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
     let mut found = Vec::new();
 
     // 用户词
@@ -1213,11 +1245,23 @@ fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
 }
 
 /// apply（Magpie `apply`）：把 found 的值替换为占位符。
-fn apply(
+pub(crate) fn apply(
     s: &str,
     found: Vec<Span>,
     o: &MaskOptions,
     engine: &mut PlaceholderEngine,
+) -> (String, usize) {
+    apply_with(s, found, o, engine, None, false)
+}
+
+/// apply 带记录与转义值（Magpie apply + unescapedPut）。
+fn apply_with(
+    s: &str,
+    found: Vec<Span>,
+    o: &MaskOptions,
+    engine: &mut PlaceholderEngine,
+    mut record: Option<&mut Vec<(String, String)>>,
+    unescape_values: bool,
 ) -> (String, usize) {
     if found.is_empty() {
         return (s.to_string(), 0);
@@ -1233,10 +1277,19 @@ fn apply(
         if f.start < last {
             continue; // 重叠
         }
-        let value = &s[f.start..f.end];
-        if value.is_empty() {
+        let raw_value = &s[f.start..f.end];
+        if raw_value.is_empty() {
             continue;
         }
+        // unescapedPut：escaped JSON 文本里的值带转义，入表前解开
+        let unescaped;
+        let value = if unescape_values && raw_value.contains('\\') {
+            unescaped = serde_json::from_slice::<String>(format!("\"{raw_value}\"").as_bytes())
+                .unwrap_or_else(|_| raw_value.to_string());
+            unescaped.as_str()
+        } else {
+            raw_value
+        };
         out.push_str(&s[last..f.start]);
         let kind = if f.kind.is_empty() { "SECRET" } else { f.kind };
         let placeholder = if o.shape {
@@ -1245,7 +1298,17 @@ fn apply(
         } else {
             engine.mask(kind, value)
         };
-        out.push_str(&placeholder);
+        if let Some(rec) = record.as_deref_mut() {
+            rec.push((value.to_string(), placeholder.clone()));
+        }
+        if f.bare {
+            // inStrings 的裸值：占位符带引号放回
+            out.push('"');
+            out.push_str(&placeholder);
+            out.push('"');
+        } else {
+            out.push_str(&placeholder);
+        }
         last = f.end;
         count += 1;
     }
