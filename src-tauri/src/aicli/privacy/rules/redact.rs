@@ -411,9 +411,8 @@ fn mail_tld(host: &str) -> bool {
     if LOCAL_TLDS.contains(&tld) {
         return true;
     }
-    // 完整 PSL 检查需要 publicsuffix crate；v1 用常见 TLD 白名单近似
-    // Magpie 用 golang.org/x/net/publicsuffix；后续可加 publicsuffix-rs
-    COMMON_TLDS.contains(&tld)
+    // v1 近似：不在文件扩展名列表中的 TLD 即可（完整 PSL 检查需 publicsuffix crate）
+    !FILE_EXT.contains(&tld)
 }
 
 const COMMON_TLDS: [&str; 30] = [
@@ -496,7 +495,7 @@ fn core_rules() -> Vec<Rule> {
             pattern: r"sk-(?:ant-|proj-|or-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}",
             markers: &["sk-"],
             bound: std::str::from_utf8(TOKEN_CH).unwrap(),
-            ok: Some(|v| !not_a_slug(v)),
+            ok: Some(not_a_slug),
             at: None,
             fix: None,
             back: 0,
