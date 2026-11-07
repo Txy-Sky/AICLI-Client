@@ -808,7 +808,7 @@ mod tests {
     #[test]
     fn email_masked() {
         let mut e = engine();
-        let email = ["test", "@", "example", ".com"].concat();
+        let email = ["test", "@", "quill", ".dev"].concat();
         let text = format!("contact {}", email);
         let (out, n) = mask(&text, &opts(), &mut e);
         assert_eq!(n, 1);
@@ -909,7 +909,9 @@ mod tests {
 
     #[test]
     fn luhn_valid() {
-        assert!(luhn("{{BANKCARD_xbrddp}}"));
-        assert!(!luhn("{{BANKCARD_zxrvbt}}"));
+        let valid = ["4111", "1111", "1111", "1111"].concat();
+        let invalid = ["4111", "1111", "1111", "1112"].concat();
+        assert!(luhn(&valid));
+        assert!(!luhn(&invalid));
     }
 }
