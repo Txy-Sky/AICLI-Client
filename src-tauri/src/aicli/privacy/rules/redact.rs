@@ -649,9 +649,7 @@ fn fix_iban_at(s: &str, a: usize, mut b: usize) -> Option<(usize, usize)> {
         if more::iban_ok(&s[a..b]) {
             return Some((a, b));
         }
-        let Some(i) = s[a..b].rfind(' ') else {
-            return None;
-        };
+        let i = s[a..b].rfind(' ')?;
         b = a + i;
     }
 }
@@ -1162,10 +1160,10 @@ fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
             // 默认取整段匹配；组 1 匹配则取组 1；anyGroup 时向后找第一个
             // 匹配的组（多分支各有组的模式）
             let (mut a, mut b) = m[0].unwrap();
-            for g in 1..m.len() {
-                if let Some((ga, gb)) = m[g] {
-                    a = ga;
-                    b = gb;
+            for item in m.iter().skip(1) {
+                if let Some((ga, gb)) = item {
+                    a = *ga;
+                    b = *gb;
                     break;
                 }
                 if !r.any_group {
