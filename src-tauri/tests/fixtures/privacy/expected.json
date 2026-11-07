@@ -1,0 +1,83 @@
+{
+  "comment": "每条 must_mask 中的值必须被遮盖（输出中不出现原值）",
+  "cases": [
+    {
+      "text": "the key is sk-Zx9QvLtYb3Nc8UmKe4Hd",
+      "must_mask": [
+        "sk-Zx9QvLtYb3Nc8UmKe4Hd"
+      ]
+    },
+    {
+      "text": "api_key: zk_Qw8Er5Ty2Ui3Op",
+      "must_mask": [
+        "zk_Qw8Er5Ty2Ui3Op"
+      ]
+    },
+    {
+      "text": "password = hunter2s3cret",
+      "must_mask": [
+        "hunter2s3cret"
+      ]
+    },
+    {
+      "text": "密钥为 Abc12345678",
+      "must_mask": [
+        "Abc12345678"
+      ]
+    },
+    {
+      "text": "密码：MyP@ss2026word",
+      "must_mask": [
+        "MyP@ss2026word"
+      ]
+    },
+    {
+      "text": "token eyJhbGciOiJIUzI1NiJ9.eyJc3ViIjoiMTIzNDU2Nzg5MCI.SflKxwRJSMeKKF2QT4fwpM",
+      "must_mask": [
+        "eyJhbGciOiJIUzI1NiJ9.eyJc3ViIjoiMTIzNDU2Nzg5MCI.SflKxwRJSMeKKF2QT4fwpM"
+      ]
+    },
+    {
+      "text": "contact test@quill.dev",
+      "must_mask": [
+        "test@quill.dev"
+      ]
+    },
+    {
+      "text": "我的手机号是13800138000",
+      "must_mask": [
+        "13800138000"
+      ]
+    },
+    {
+      "text": "phone_number: 13800138000",
+      "must_mask": [
+        "13800138000"
+      ]
+    },
+    {
+      "text": "phone 15900213344",
+      "must_mask": [
+        "15900213344"
+      ]
+    },
+    {
+      "text": "tel=18612345678",
+      "must_mask": [
+        "18612345678"
+      ]
+    },
+    {
+      "text": "postgres://deploy:s3cretPw@db.example.com:5432/mydb",
+      "must_mask": [
+        "s3cretPw"
+      ]
+    },
+    {
+      "text": "密码：Passw0rd123",
+      "must_mask": [
+        "Passw0rd123"
+      ]
+    }
+  ]
+}

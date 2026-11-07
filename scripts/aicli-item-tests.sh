@@ -52,6 +52,7 @@ case "$set_name" in
     item C4-03-unit aicli::usage::tests
     item C4-04-unit aicli_route_columns_are_written provider_id_keeps_the_seed_id route_follows_the_final_provider
     item E-02-unit aicli::privacy::placeholder::tests
+    item E-03-unit aicli::privacy::rules::redact::tests aicli::privacy::rules::phone aicli::privacy::rules::more aicli::privacy::rules::ids aicli::privacy::rules::known aicli::privacy::rules::rules aicli::privacy::rules::scrub
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
