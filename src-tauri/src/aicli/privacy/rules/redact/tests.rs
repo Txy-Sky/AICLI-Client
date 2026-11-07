@@ -51,7 +51,7 @@ fn opts() -> MaskOptions {
 #[test]
 fn expected_values_are_masked() {
     let data: ExpectedFile = serde_json::from_str(include_str!(
-        "../../../../tests/fixtures/privacy/expected.json"
+        "../../../../../tests/fixtures/privacy/expected.json"
     ))
     .expect("expected.json parses");
     let mut e = engine();
@@ -76,7 +76,7 @@ fn expected_values_are_masked() {
 #[test]
 fn false_positives_are_not_masked() {
     let data: FalsePositiveFile = serde_json::from_str(include_str!(
-        "../../../../tests/fixtures/privacy/false_positives.json"
+        "../../../../../tests/fixtures/privacy/false_positives.json"
     ))
     .expect("false_positives.json parses");
     let mut e = engine();
