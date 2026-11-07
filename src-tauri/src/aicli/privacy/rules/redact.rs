@@ -605,7 +605,7 @@ fn core_rules() -> Vec<Rule> {
         // SECRET: password = value, API_KEY: value (.env/config)
         Rule {
             kind: "SECRET",
-            pattern: r#"(?i)[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|credential)[A-Za-z0-9_.-]*[ \t]*[:=][ \t]*[\\"']?([A-Za-z0-9_/-+=~!@#%^&*]{8,})"#,
+            pattern: r#"(?i)[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|credential)[A-Za-z0-9_.-]*[ \t]*[:=][ \t]*[\\"']?([A-Za-z0-9_\-/+=~!@#%^&*]{8,})"#,
             markers: &[
                 "pass",
                 "PASS",
@@ -638,7 +638,7 @@ fn core_rules() -> Vec<Rule> {
         // CJK password
         Rule {
             kind: "PASSWORD",
-            pattern: r#"(?:密码|密碼|口令|安全码|パスワード|暗証番号|비밀번호|암호)[ \t]*(?:[:：=][ \t]*|[为為是][ \t]*)?(?:[\\\\"'“「])?([A-Za-z0-9_/-+=~!@#%^&*]{4,63}[A-Za-z0-9])"#,
+            pattern: r#"(?:密码|密碼|口令|安全码|パスワード|暗証番号|비밀번호|암호)[ \t]*(?:[:：=][ \t]*|[为為是][ \t]*)?(?:[\\\\"'“「])?([A-Za-z0-9_\-/+=~!@#%^&*]{4,63}[A-Za-z0-9])"#,
             markers: &["密码", "密碼", "口令", "パスワード", "비밀번호"],
             fold: &[],
             bound: "",
@@ -655,7 +655,7 @@ fn core_rules() -> Vec<Rule> {
         // CJK key/secret
         Rule {
             kind: "SECRET",
-            pattern: r#"(?:密钥|密鑰|秘钥|令牌|金钥|トークン|シークレット|토큰|비밀키)[ \t]*(?:[:：=][ \t]*|[为為是][ \t]*)?(?:[\\\\"'“「])?([A-Za-z0-9_/-+=~!@#%^&*]{3,63}[A-Za-z0-9])"#,
+            pattern: r#"(?:密钥|密鑰|秘钥|令牌|金钥|トークン|シークレット|토큰|비밀키)[ \t]*(?:[:：=][ \t]*|[为為是][ \t]*)?(?:[\\\\"'“「])?([A-Za-z0-9_\-/+=~!@#%^&*]{3,63}[A-Za-z0-9])"#,
             markers: &["密钥", "密鑰", "令牌", "トークン", "토큰"],
             fold: &[],
             bound: "",
