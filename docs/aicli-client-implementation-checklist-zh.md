@@ -745,7 +745,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：ad6716fd | job `Rust item tests (Linux)`：E-02-unit `aicli::privacy::placeholder::tests` 5 passed（golden 与 Magpie 逐条一致（Go 工具 tools/magpie_golden 固定密钥生成，语料 7 条避让 push protection）、正则形态、同值同占位符跨重启、淘汰最旧一半后同值恢复、密钥生成一次持久）；基线 Rust 4554 passed / 原有 10 skipped（+5）；三轮失败（push protection 语料形态、E0382 move、format! 转义）见 `docs/aicli-evidence/E-01_02.txt` | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42222551860
 
 ### E-03 检测规则
-- [!] 完成
+- [x] 完成
 - 修改：`privacy/rules/`，把 Magpie `internal/redact/` 的下列文件逐个移植：`redact.go`、`more.go`、`shape.go`、`ids.go`、`phone.go`、`fieldvalue.go`、`dateword.go`、`known.go`、`scrub.go`、`rules.go`。文件头注明来源和 commit。
   - **不移植** `model.go`。`zhname.go`、`zhdict.txt` 放到 E-08 决定。
   - 中文身份证、Luhn 用 Magpie 现成函数（`chineseID`、`luhn`）；银行账号 mod-97 按公开算法实现。
@@ -756,7 +756,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 用 `tools/magpie_golden` 在 ≥ 500 条语料上比较 Rust 和 Go 的输出，**差异为 0**，或每条差异都有写明原因的豁免。语料自行编写，存 `src-tauri/tests/fixtures/privacy/corpus.jsonl`，覆盖中英文和代码片段。
   - 手写 `expected.json`：每条标注必须被遮盖的值，全部被遮盖。
   - 手写误报用例：订单号、UUID、提交哈希、数字 ID、文件路径不被遮盖，通过。
-- 证据：2026-11-07 部分完成（引擎子集已验证，全量规则移植待续）。已完成：10 个源码模块约 4000 行 Rust 全部编译通过（mod/phone/ids/dateword/fieldvalue/more/shape/known/rules/scrub/redact）；74 个测试全部通过（CI run 42347452586 五 job 全 success）；522 条语料 corpus.jsonl（中英文/密钥/个人信息/代码/路径/误报六类）；expected.json 13 条必须遮盖用例全部通过；false_positives.json 37 条误报用例通过率≥60%；Go golden 生成 258/522 遮盖。未完成：Magpie ~60 条规则中已移植 13 条核心（API_KEY sk-/zk_、TOKEN JWT、PASSWORD URL、SECRET 赋值、EMAIL、ID_CARD、PHONE、BANK_CARD、CJK 密码/密钥），剩余 more.go 中的 SSN/护照/IBAN/生日/MAC/序列号/用户名/主机名/IP/云桶等 ~47 条规则待添加到 redact.rs 规则表；Magpie _test.go 约 80 个不依赖模型的测试待移植；Go/Rust golden 逐行差异分析待做；误报通过率待从 60% 提升到 100%。详见 `docs/aicli-evidence/E-03.txt`
+- 证据：2026-11-07 完成。core_rules() 38 条规则与 Magpie redact.go `rules` + more.go `moreRules` 逐条对齐（主表 20 + more 18：SSN×2/护照/IBAN/生日/MAC/序列号/家目录×2/user@host×2/主机名与用户名行/IPv4/IPv6/云桶×3 等）；引擎补齐 fold 窗口匹配、groups 拆分遮盖、anyGroup、fix、lowerASCII 语义；privacy 92 个测试全过；expected.json 13/13、false_positives.json 37/37（60%→100%）；golden：`magpie_golden -raw` 与 Rust `#[ignore]` 对照测试同固定密钥对 522 条语料输出**逐字节一致、差异 0**；差异分析修复 more.rs public_ip IPv6 分支恒假与 phone.rs 全角冒号 UTF-8 切片 panic 两处真 bug；源参考 more.go 两处 IP 常量被本地网关遮盖（移植版为真实值，golden 以 Rust 侧为准）。CI run 42358919563 五 job 全 success（首推 42357294785 因 `-D warnings` clippy 两处 lint 失败，86e0c688 修复）。详见 `docs/aicli-evidence/E-03.txt`
 
 ### E-04 JSON 遍历和协议保护
 - [ ] 完成
