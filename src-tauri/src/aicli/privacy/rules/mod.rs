@@ -13,6 +13,11 @@
 
 #![allow(dead_code)] // E-03 WIP：各叶子模块在 redact.rs 引擎接线前暂无调用方
 
+pub mod known;
+pub mod rules;
+pub mod scrub;
+pub mod shape;
+
 pub mod dateword;
 pub mod fieldvalue;
 pub mod ids;
