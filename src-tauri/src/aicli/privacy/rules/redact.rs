@@ -28,6 +28,9 @@ const QUOTE: &str = r#"(?:\\?["'])?"#;
 
 // ---- Rule 结构 ----
 
+/// fix 函数签名。
+pub(crate) type FixFn = fn(&str, usize, usize) -> Option<(usize, usize)>;
+
 /// 一条检测规则（Magpie `rule`）。
 #[derive(Clone)]
 pub(crate) struct Rule {
@@ -44,7 +47,7 @@ pub(crate) struct Rule {
     /// 位置校验。
     pub at: Option<fn(&str, usize, usize) -> bool>,
     /// 修复匹配范围。
-    pub fix: Option<fn(&str, usize, usize) -> Option<(usize, usize)>>,
+    pub fix: Option<FixFn>,
     /// 折叠回看/前看距离。
     pub back: usize,
     pub ahead: usize,
@@ -541,7 +544,7 @@ fn core_rules() -> Vec<Rule> {
             pattern: r#"[A-Za-z][A-Za-z0-9+.-]*://[^\s:@/?#\"'<>]*:([^\s@/?#\"'<>]{3,})@"#,
             markers: &["://"],
             bound: "",
-            ok: Some(|v| not_a_variable(v)),
+            ok: Some(not_a_variable),
             at: Some(hidden_in_url),
             fix: None,
             back: 0,
