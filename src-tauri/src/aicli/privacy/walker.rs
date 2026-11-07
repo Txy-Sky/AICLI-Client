@@ -60,7 +60,7 @@ const KEPT: &[&str] = &[
 
 /// keep（Magpie）：键在 kept 里，或值是 data: URL。流式路径（E-05）使用。
 #[allow(dead_code)]
-fn keep(key: &str, s: &str) -> bool {
+pub(crate) fn keep(key: &str, s: &str) -> bool {
     KEPT.contains(&key) || s.starts_with("data:")
 }
 
@@ -715,7 +715,7 @@ fn as_json(key: &str, event_type: &str) -> bool {
 
 /// typeOf（Magpie）：JSON 对象自报的 type，"type" 键在键序里任何位置
 /// 都行（Responses function_call_arguments.delta 的 delta 可能在 type 前）。
-fn type_of(data: &str) -> String {
+pub(crate) fn type_of(data: &str) -> String {
     let mut typ = String::new();
     let _ = walk(data, &mut |path, _key, s| {
         if path == "type" {
@@ -744,7 +744,7 @@ pub fn restore_json(body: &str, engine: &PlaceholderEngine) -> String {
 }
 
 /// placeholderBody（Magpie）：占位符去掉大括号的正文。
-fn placeholder_body() -> &'static Regex {
+pub(crate) fn placeholder_body() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| Regex::new(r"[A-Za-z][A-Za-z0-9_]*_[A-Za-z2-7]{8}").unwrap())
 }
@@ -799,7 +799,7 @@ fn canonical(body: &str) -> String {
     p
 }
 
-fn is_word_byte(c: u8) -> bool {
+pub(crate) fn is_word_byte(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_'
 }
 

@@ -10,7 +10,7 @@
 //!
 //! 注意：本文件只实现占位符机制本身；检测规则见 `rules/`（E-03）。
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use data_encoding::BASE32_NOPAD;
 use hmac::{Hmac, Mac};
@@ -49,6 +49,8 @@ pub struct PlaceholderEngine {
     order: VecDeque<String>,
     /// 值表上限（默认 [`MAX_VALUES`]；测试可注入小值验证淘汰）。
     max_values: usize,
+    /// 已生成过占位符的 kind 集合（Magpie `kinds`，流式 wordTail 用）。
+    kinds: HashSet<String>,
 }
 
 impl PlaceholderEngine {
@@ -58,6 +60,7 @@ impl PlaceholderEngine {
             key: key.to_vec(),
             values: HashMap::new(),
             order: VecDeque::new(),
+            kinds: HashSet::new(),
             max_values: MAX_VALUES,
         }
     }
@@ -96,6 +99,7 @@ impl PlaceholderEngine {
             key,
             values: HashMap::new(),
             order: VecDeque::new(),
+            kinds: HashSet::new(),
             max_values: MAX_VALUES,
         })
     }
@@ -117,8 +121,14 @@ impl PlaceholderEngine {
             self.make_room();
             self.values.insert(placeholder.clone(), value.to_owned());
             self.order.push_back(placeholder.clone());
+            self.kinds.insert(kind.to_owned());
         }
         placeholder
+    }
+
+    /// 已生成过占位符的 kind 集合（流式 wordTail 判断尾部词用）。
+    pub fn kinds(&self) -> &HashSet<String> {
+        &self.kinds
     }
 
     /// 还原：查值表（对应 Magpie `Value`）。

@@ -769,7 +769,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-07 完成。privacy/walker.rs 约 760 行：walk 字节保持遍历（jsonEscape 与 Go SetEscapeHTML(false) 逐点一致）、keepIn/kept/isID、scan（signed/args/defs 三类路径，含 Responses additional_tools）、MaskJSON（正文→defs→封签块重遮 replacer+known）、escaped 工具参数三件套（unescapedView/outsideEscapes/inStrings/bare 引号，redact.rs 加 mask_with/mask_escaped/apply_with）、RestoreJSON（canonical/braces/typeOf）。22 个测试全过，覆盖四协议夹具（Anthropic/Chat/Responses/Gemini，含工具调用/thinking/图片）、call_id 内 Luhn 卡号不遮、data: URL 保留、未命中逐字节相同、Codex 真实样本（codex_request.json 31KB，n=0 逐字节相同）、mask→restore 闭环、裸值带引号、值内转义引号；发现并修复 in_strings 闭引号标记 bug。偏差（defs 不跑模型、Shape restore 待 E-05/06）见 docs/aicli-evidence/E-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42367413849
 
 ### E-05 流式还原（方案 PoC C）
-- [ ] 完成
+- [x] 完成
 - 修改：`privacy/stream.rs`，移植 Magpie `writer.go` 的事件级扣留和 `partialTail`（`braceTail`、`wordTail`、`shapeTail`）。按 SSE 事件切帧，增量 UTF-8 解码，兼容 CRLF。规则：
   - 事件文本尾部可能是占位符开头 → 扣留该事件；下一事件上下文（`eventCtx`）和路径相同时把尾部移过去；不同则原样放行。
   - `final`（流结束、错误、取消）时放出全部扣留内容。
@@ -783,7 +783,11 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 占位符跨事件、裸 token、转义形式、工具参数流式增量。
   - 流中断时已扣留内容被放出；客户端取消时状态被释放（无泄漏，用计数断言）。
   - 多字节字符切在 chunk 边界。
-- 证据：
+- 证据：2026-11-07 完成。privacy/stream.rs：StreamRestorer 与 HTTP 解耦的状态机（Writer 的 HTTP 层归 E-06）——SSE 切帧（
+
+/
+
+ 兼容、注释行直通）、事件级扣留（partialTail=braceTail+wordTail，engine 新增 kinds 集合）、ctx（事件名+eventCtx type/item_id/index）与路径匹配时尾部移接、finish 放出扣留、keep() 只读键（signature_delta 原样）、asJSON 按事件类型转义、非 JSON data 行整段纯文本还原、Gemini 无 type/index 按候选/part 路径区分。15 个测试（proptest 两块/多块任意切分不变性、跨事件拼齐、裸 token、工具参数增量、流中断字节完整、多字节跨块、CRLF）全过；偏差（Writer HTTP 层归 E-06、shapeTail 恒 0、put 计数待 E-06）见 docs/aicli-evidence/E-05.txt | CI run 见 E-05.txt 第四节
 
 ### E-06 中间件接入
 - [ ] 完成

@@ -54,6 +54,7 @@ case "$set_name" in
     item E-02-unit aicli::privacy::placeholder::tests
     item E-03-unit aicli::privacy::rules::redact::tests aicli::privacy::rules::phone aicli::privacy::rules::more aicli::privacy::rules::ids aicli::privacy::rules::known aicli::privacy::rules::rules aicli::privacy::rules::scrub
     item E-04-unit aicli::privacy::walker::tests
+    item E-05-unit aicli::privacy::stream::tests
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests

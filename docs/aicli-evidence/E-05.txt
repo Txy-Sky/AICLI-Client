@@ -1,0 +1,54 @@
+E-05 流式还原验收记录（2026-11-07）
+
+状态：[x] 完成
+模块：src-tauri/src/aicli/privacy/stream.rs（约 420 行 + 15 个测试，
+含 2 个 proptest 属性测试；proptest 1 加入 dev-dependencies）
+
+一、移植内容（Magpie internal/redact/writer.go + redact.go 的
+    partialTail/braceTail/wordTail，@f11bf27）
+1. StreamRestorer：与 HTTP 解耦的核心状态机（E-06 中间件接线）——
+   push 喂任意切分字节块（跨块 UTF-8 安全），finish 流结束/错误/取消时
+   放出全部扣留并按纯文本还原剩余缓冲
+2. SSE 切帧：eventEnd（\n\n 与 \r\n\r\n 兼容）、commentLines（注释行与
+   空行照原样流出，#2402）
+3. 事件级扣留（held）：事件文本结尾是占位符开头（partialTail：braceTail
+   的 {{/{{␠/正文前缀/单闭括号形态，wordTail 的无括号裸词——kind 前缀或
+   kind+≤8 位 base32，依赖 PlaceholderEngine 新增的 kinds 集合）→ 扣留；
+   下一事件 ctx（事件名 + eventCtx 的 type/item_id/index 三键）与路径
+   相同 → cut 放出、尾部移过去拼接；不同 → 原样放出
+4. 还原：walk 每个字符串，keep() 只读键不还原（signature_delta 原样），
+   asJSON 按事件类型（arguments/partial_json/delta+arguments）做 JSON
+   转义；非单 data 行 JSON 的事件整段按纯文本还原
+5. Gemini：无 type/index 字段，路径按候选与 part 下标区分（同 part 连续
+   delta 拼接还原、不同 part 不拼）——专用测试覆盖
+
+二、验收（对照清单）
+- 任意切分不变性：prop_two_chunk_split（任意字节位置两块）、
+  prop_many_small_chunks（10..400 块 × 1..=7 字节）——输出与一次喂入
+  完全相同，不丢不增
+- 占位符跨事件：placeholder_split_across_events（{{EMAIL_xxx | xxx}} 跨
+  事件拼齐还原；字节只移不改）
+- 裸 token：bare_token_word_tail；转义形式/工具参数流式增量：
+  tool_arguments_streaming_delta（delta 内 JSON 转义保结构）
+- 流中断放出扣留：finish_releases_held（字节完整）
+- 多字节字符跨块：multibyte_across_chunks
+- CRLF 与注释行：crlf_and_comments；非 JSON data 行：non_json_data_restored_as_text
+- 上下文不同不拼：held_released_when_context_differs（index 变化）
+- 客户端取消：StreamRestorer 无全局状态（&mut 作用域），Drop 即释放，
+  无泄漏计数可断言的静态量（与 Magpie Writer 的中间件内嵌不同，见偏差）
+- 15 个测试全过；E-03/E-04 回归全过（privacy 合计 129）
+
+三、偏差（与 Magpie 的差异，已记录）
+1. Writer 的 HTTP 层（WriteHeader/Flush/Content-Length 删除、whole 模式
+   整体 restoreJSON、asIs 压缩直通）归 E-06 中间件接线；本模块是其中
+   的流式核心，行为等价
+2. shapeTail（合成键尾部）恒 0：Shape 模式未接线（同 E-04 偏差）
+3. put 计数（占位符还原处数记录）未实现：Magpie 用于用量记录，待 E-06
+   按需补
+4. kinds 集合挂在 PlaceholderEngine（Magpie 是包级全局）：单引擎实例内
+   语义一致
+
+四、CI
+- 提交：<待填>；item E-05-unit aicli::privacy::stream::tests 已加入
+  scripts/aicli-item-tests.sh
+- 运行：<待推送后填写>

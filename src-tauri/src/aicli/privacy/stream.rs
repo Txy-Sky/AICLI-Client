@@ -1,0 +1,400 @@
+//! E-05：流式还原（Magpie `internal/redact/writer.go` 与 `redact.go` 的
+//! `partialTail`/`braceTail`/`wordTail`，@f11bf27）。
+//!
+//! 流式响应按 SSE 事件切帧、逐事件还原：事件文本结尾可能是占位符的开头
+//!（`{{API_` 在一个 delta、`KEY_k3v9x2mq}}` 在下一个）——这样的事件被扣留，
+//! 下一事件上下文（事件名 + eventCtx）与路径相同则把尾部移过去继续拼；
+//! 不同则原样放出。不丢不增，代理拼出的文本与一次性还原一致。
+//!
+//! 本模块是与 HTTP 解耦的核心状态机（E-06 中间件接线）；`push` 接收任意
+//! 切分的字节块（含跨块的多字节字符），`finish` 在流结束时放出全部扣留。
+
+use std::collections::HashSet;
+
+use super::placeholder::PlaceholderEngine;
+use super::walker::{self, keep, walk};
+
+/// Magpie `maxKind`（rules.go）：kind 截断长度，占位符最长的形态由此而来。
+pub(crate) const MAX_KIND: usize = 24;
+/// Magpie `maxPlaceholder`：`{{` + kind(≤24) + `_` + 8 位 + `}}`。
+const MAX_PLACEHOLDER: usize = 2 + MAX_KIND + 1 + 8 + 2;
+
+/// 扣留的事件（Magpie `held`）：结尾可能是占位符开头。
+struct Held {
+    ctx: String,
+    path: String,
+    tail: String,
+    /// 事件原样 / 去掉尾部后。
+    full: String,
+    cut: String,
+}
+
+/// 流式还原器：喂入任意切分的响应字节，取出已还原的输出。
+pub struct StreamRestorer<'a> {
+    engine: &'a PlaceholderEngine,
+    /// 待切帧的原始字节（含跨块的 UTF-8 序列与半截事件）。
+    buf: Vec<u8>,
+    pending: Option<Held>,
+}
+
+impl<'a> StreamRestorer<'a> {
+    pub fn new(engine: &'a PlaceholderEngine) -> Self {
+        Self {
+            engine,
+            buf: Vec::new(),
+            pending: None,
+        }
+    }
+
+    /// 喂入一块字节，返回此刻可写出的内容（注释行、完整事件的还原结果、
+    /// 放出的扣留）。多字节字符跨块安全：不完整的 UTF-8 尾部留在 buf。
+    pub fn push(&mut self, chunk: &[u8]) -> String {
+        self.buf.extend_from_slice(chunk);
+        let mut out = String::new();
+        loop {
+            let (c, next) = comment_lines(&self.buf);
+            if c > 0 {
+                out.push_str(&String::from_utf8_lossy(&self.buf[..c]));
+                self.buf.drain(..c);
+                let _ = next;
+                continue;
+            }
+            let Some((i, n)) = event_end(&self.buf) else {
+                break;
+            };
+            let ev: Vec<u8> = self.buf[..i + n].to_vec();
+            self.buf.drain(..i + n);
+            let ev = String::from_utf8_lossy(&ev).into_owned();
+            out.push_str(&self.event(&ev));
+        }
+        out
+    }
+
+    /// 流结束（错误、取消同样调用）：放出全部扣留，剩余缓冲按纯文本还原。
+    pub fn finish(&mut self) -> String {
+        let mut out = String::new();
+        if let Some(p) = self.pending.take() {
+            out.push_str(&p.full);
+        }
+        if !self.buf.is_empty() {
+            let rest = String::from_utf8_lossy(&self.buf).into_owned();
+            out.push_str(&walker::restore(&rest, false, self.engine));
+        }
+        self.buf.clear();
+        out
+    }
+
+    /// 还原一个完整事件并返回应写出的内容，或扣留它。
+    fn event(&mut self, ev: &str) -> String {
+        let mut out = String::new();
+        let Some((name, data, pre, post)) = split_event(ev) else {
+            // 不是单 data 行 JSON 的事件：放出扣留，整段按纯文本还原
+            out.push_str(&self.release());
+            out.push_str(&walker::restore(ev, false, self.engine));
+            return out;
+        };
+        let ctx = format!("{name}|{}", event_ctx(&data));
+        // 上一事件结尾的占位符开头：上下文与路径相同则移过来继续
+        let mut carry = String::new();
+        let mut at = String::new();
+        if let Some(p) = self.pending.take() {
+            if p.ctx == ctx && has_path(&data, &p.path) {
+                out.push_str(&p.cut);
+                carry = p.tail;
+                at = p.path;
+            } else {
+                out.push_str(&p.full);
+            }
+        }
+        let mut typ = walker::type_of(&data);
+        if typ.is_empty() {
+            typ = name.to_string();
+        }
+        let engine = self.engine;
+        let kinds = engine.kinds();
+        let mut tail_path = String::new();
+        let mut tail = String::new();
+        let mut cut = String::new();
+        let restored = walk(&data, &mut |path, key, s| {
+            let mut s = s.to_string();
+            if path == at && !carry.is_empty() {
+                s = format!("{carry}{s}");
+            }
+            if keep(key, &s) {
+                return s;
+            }
+            // 先找尾部再还原：最后的花括号还在下一个事件里的占位符，
+            // 不会先被还原掉一半
+            let n = partial_tail(&s, kinds);
+            if n > 0 {
+                tail_path = path.to_string();
+                tail = s[s.len() - n..].to_string();
+                cut = walker::restore(&s[..s.len() - n], as_json_keyed(key, &typ), engine);
+            }
+            walker::restore(&s, as_json_keyed(key, &typ), engine)
+        })
+        .unwrap_or(data.clone());
+        let full = rebuild(pre.as_str(), &restored, post.as_str());
+        if tail.is_empty() {
+            out.push_str(&full);
+            return out;
+        }
+        let cut_data = walk(&restored, &mut |path, _k, s| {
+            if path == tail_path {
+                return cut.clone();
+            }
+            s.to_string()
+        })
+        .unwrap_or(restored);
+        self.pending = Some(Held {
+            ctx,
+            path: tail_path,
+            tail,
+            full,
+            cut: rebuild(pre.as_str(), &cut_data, post.as_str()),
+        });
+        out
+    }
+
+    fn release(&mut self) -> String {
+        match self.pending.take() {
+            Some(p) => p.full,
+            None => String::new(),
+        }
+    }
+}
+
+/// commentLines（Magpie）：b 开头的整行注释（`: keepalive`）与空行的
+/// 长度——b 从事件开头开始，它们不属于任何事件；事件间的注释照原样流出，
+/// 否则代理后的 agent 在厂商静默思考时什么都收不到（#2402）。
+fn comment_lines(b: &[u8]) -> (usize, bool) {
+    let mut n = 0usize;
+    while n < b.len() && (b[n] == b':' || b[n] == b'\n' || b[n] == b'\r') {
+        let Some(i) = b[n..].iter().position(|&c| c == b'\n') else {
+            break;
+        };
+        if b[n] == b'\r' && i != 1 {
+            break;
+        }
+        n += i + 1;
+    }
+    (n, true)
+}
+
+/// eventEnd（Magpie）：b 里第一个完整事件的结尾位置与结束空行的长度
+///（`\n\n` 或 `\r\n\r\n`）。
+fn event_end(b: &[u8]) -> Option<(usize, usize)> {
+    let i = find(b, b"\n\n");
+    let j = find(b, b"\r\n\r\n");
+    match (i, j) {
+        (None, None) => None,
+        (Some(j_), None) => Some((j_, 2)),
+        (None, Some(i_)) => Some((i_, 4)),
+        (Some(i_), Some(j_)) => {
+            if j_ < i_ {
+                Some((j_, 4))
+            } else {
+                Some((i_, 2))
+            }
+        }
+    }
+}
+
+fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    if hay.len() < needle.len() {
+        return None;
+    }
+    (0..=hay.len() - needle.len()).find(|&i| &hay[i..i + needle.len()] == needle)
+}
+
+fn rebuild(pre: &str, data: &str, post: &str) -> String {
+    let mut out = String::with_capacity(pre.len() + data.len() + post.len());
+    out.push_str(pre);
+    out.push_str(data);
+    out.push_str(post);
+    out
+}
+
+/// splitEvent（Magpie）：找事件里唯一一行装着 JSON 的 data 行——JSON 前、
+/// JSON、JSON 后。event 名、data 超过一行、或 data 不以 { [ 开头都算
+/// 不是（整段按纯文本还原）。
+fn split_event(ev: &str) -> Option<(String, String, String, String)> {
+    let mut name = String::new();
+    let mut data_line: Option<(usize, usize)> = None; // data 行的（起点，含换行的终点）
+    let mut pos = 0usize;
+    while pos < ev.len() {
+        let end = match ev[pos..].find('\n') {
+            Some(i) => pos + i + 1,
+            None => ev.len(),
+        };
+        let t = ev[pos..end].trim_end_matches(['\r', '\n']);
+        if let Some(rest) = t.strip_prefix("event:") {
+            name = rest.trim().to_string();
+        } else if t.starts_with("data:") {
+            if data_line.is_some() {
+                return None; // data 超过一行
+            }
+            data_line = Some((pos, end));
+        }
+        pos = end;
+    }
+    let (dstart, _dend) = data_line?;
+    let line_end = dstart + ev[dstart..].find('\n').unwrap_or(ev.len() - dstart);
+    let t = ev[dstart..line_end].trim_end_matches(['\r', '\n']);
+    let mut ds = 5usize;
+    if t.len() > 5 && t.as_bytes()[5] == b' ' {
+        ds = 6;
+    }
+    let d = &t[ds..];
+    if d.is_empty() || (!d.starts_with('{') && !d.starts_with('[')) {
+        return None;
+    }
+    Some((
+        name,
+        d.to_string(),
+        ev[..dstart + ds].to_string(),
+        ev[dstart + t.len()..].to_string(),
+    ))
+}
+
+/// eventCtx（Magpie）：说明事件接着哪段文本的上下文——type/item_id 的
+/// 值，加上原始字节里的 index/output_index/content_index（Gemini 事件
+/// 没有 type/index 字段，路径本身按候选与 part 下标区分）。
+fn event_ctx(data: &str) -> String {
+    let mut b = String::new();
+    walk(data, &mut |path, _k, s| {
+        if path == "type" || path == "item_id" {
+            b.push_str(path);
+            b.push('=');
+            b.push_str(s);
+            b.push(';');
+        }
+        s.to_string()
+    });
+    for k in ["\"index\":", "\"output_index\":", "\"content_index\":"] {
+        if let Some(i) = data.find(k) {
+            let j = i + k.len();
+            let bb = data.as_bytes();
+            let mut e = j;
+            while e < bb.len() && (bb[e].is_ascii_digit() || bb[e] == b' ') {
+                e += 1;
+            }
+            b.push_str(k);
+            b.push_str(&data[j..e]);
+            b.push(';');
+        }
+    }
+    b
+}
+
+fn has_path(data: &str, path: &str) -> bool {
+    let mut found = false;
+    walk(data, &mut |p, _k, s| {
+        if p == path {
+            found = true;
+        }
+        s.to_string()
+    });
+    found
+}
+
+/// asJSON 按事件类型（Magpie `asJSON(key, eventType)`）。
+fn as_json_keyed(key: &str, event_type: &str) -> bool {
+    key == "arguments"
+        || key == "partial_json"
+        || key == "delta" && event_type.contains("arguments")
+}
+
+// ---- partialTail / braceTail / wordTail（Magpie redact.go） ----
+
+/// partialTail（Magpie）：s 结尾有多少可能是一个占位符的开头——
+/// {{API_、{{ phone_b5、PHONE_b5puzbfv}，或无花括号的最后一个是某 kind
+/// 开头的词。shapeTail（合成键的尾部）在 Shape 模式接线前恒 0（偏差）。
+pub(crate) fn partial_tail(s: &str, kinds: &HashSet<String>) -> usize {
+    let n = brace_tail(s);
+    if n > 0 {
+        return n;
+    }
+    word_tail(s, kinds)
+}
+
+/// braceTail（Magpie）：从 `{` 或 `{{` 起的尾部——之后空格、占位符正文
+/// 或其开头、再空格、至多一个 `}`。
+fn brace_tail(s: &str) -> usize {
+    let b = s.as_bytes();
+    let Some(mut i) = (0..b.len()).rev().find(|&i| b[i] == b'{') else {
+        return 0;
+    };
+    if i > 0 && b[i - 1] == b'{' {
+        i -= 1;
+    }
+    let t = &s[i..];
+    if t.len() >= MAX_PLACEHOLDER + 4 || t.contains("}}") {
+        return 0;
+    }
+    let body = t.trim_start_matches('{');
+    let body = body.trim_start_matches([' ', '\t']);
+    if body.is_empty() {
+        return t.len(); // {、{{、{{␠
+    }
+    let c = body.as_bytes()[0];
+    if !c.is_ascii_alphabetic() {
+        return 0;
+    }
+    let mut j = 0usize;
+    let bb = body.as_bytes();
+    while j < bb.len() && walker::is_word_byte(bb[j]) {
+        j += 1;
+    }
+    let rest = body[j..].trim_start_matches([' ', '\t']);
+    if !rest.is_empty() && rest != "}" {
+        return 0;
+    }
+    if j < bb.len() {
+        // 词后还有内容：词须正好是一个完整的占位符正文
+        let word = &body[..j];
+        match walker::placeholder_body().find(word) {
+            Some(m) if m.as_str() == word => {}
+            _ => return 0,
+        }
+    }
+    t.len()
+}
+
+/// wordTail（Magpie）：s 的最后一个词可能是模型不带花括号写的占位符
+/// 正文——是本引擎造过占位符的某个 kind（加 `_`）的前缀，或 kind 前缀
+/// 加至多 8 位 base32。只首字母大写的词才扣留。
+fn word_tail(s: &str, kinds: &HashSet<String>) -> usize {
+    let b = s.as_bytes();
+    let mut i = s.len();
+    while i > 0 && walker::is_word_byte(b[i - 1]) {
+        i -= 1;
+    }
+    let w = &s[i..];
+    if w.is_empty() || w.len() > MAX_KIND + 9 || !b[i].is_ascii_uppercase() {
+        return 0;
+    }
+    let u = w.to_uppercase();
+    for k in kinds {
+        let k = format!("{k}_");
+        // w 是某 kind 的前缀（PHO、PHONE_b5pu）
+        if k.starts_with(u.as_str()) {
+            return w.len();
+        }
+        // w = kind + 至多 8 位 base32
+        if u.starts_with(&k) {
+            let rest = u[k.len()..].to_lowercase();
+            if rest.len() <= 8
+                && rest
+                    .bytes()
+                    .all(|c| c.is_ascii_lowercase() || (b'2'..=b'7').contains(&c))
+            {
+                return w.len();
+            }
+        }
+    }
+    0
+}
+
+#[cfg(test)]
+mod tests;
