@@ -121,4 +121,6 @@ fail-closed。日志捕获断言。
    contains_unscannable_media 只调用一次
 - 测试：e2e 15 个（+4）、layer 单元 10 个（+3）、privacy 合计 145，全过；
   clippy -D warnings（lib）与 --all-targets --features test-hooks 干净
-- 提交：见 CI 行（下方）
+- CI：提交 3d355820；
+  run https://github.com/Txy-Sky/AICLI-Client/actions/runs/42398338922
+  （五 job 全 success）
