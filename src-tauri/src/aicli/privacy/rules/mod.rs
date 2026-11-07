@@ -14,6 +14,7 @@
 #![allow(dead_code, clippy::module_inception)] // E-03 WIP：各叶子模块在 redact.rs 引擎接线前暂无调用方
 
 pub mod known;
+pub mod redact;
 pub mod rules; // 名字与父模块同名是刻意的：对齐 Magpie rules.go
 pub mod scrub;
 pub mod shape;
