@@ -86,7 +86,7 @@ pub(crate) fn shape_of(kind: &str, v: &str, engine: &PlaceholderEngine) -> Optio
 
     let mut stream: Vec<u8> = Vec::new();
     let mut counter: u64 = 0;
-    let mut next = |k: u8| -> u8 {
+    let mut next = move |k: u8| -> u8 {
         if stream.is_empty() {
             let mut h = HmacSha256::new_from_slice(&seed).unwrap();
             let mut buf = [0u8; 8];
@@ -180,11 +180,11 @@ pub(crate) fn addr_byte(c: u8, v6: bool) -> bool {
 }
 
 /// shapeTail：流式文本尾部可能是合成键前缀的长度。
-pub(crate) fn shape_tail<'a>(s: &str, shapes: impl Iterator<Item = &'a str>) -> usize {
+pub(crate) fn shape_tail(s: &str, shapes: &[String]) -> usize {
     let mut whole = 0;
     let mut best = 0;
     for f in shapes {
-        if let Some(i) = s.rfind(f) {
+        if let Some(i) = s.rfind(f.as_str()) {
             whole = whole.max(i + f.len());
         }
     }
@@ -201,15 +201,11 @@ pub(crate) fn shape_tail<'a>(s: &str, shapes: impl Iterator<Item = &'a str>) -> 
 }
 
 /// outsideShapes：从 found 中剔除已在合成键内的段。
-pub(crate) fn outside_shapes<'a>(
-    s: &str,
-    found: Vec<Span>,
-    shapes: impl Iterator<Item = &'a str>,
-) -> Vec<Span> {
+pub(crate) fn outside_shapes(s: &str, found: Vec<Span>, shapes: &[String]) -> Vec<Span> {
     let mut found = found;
     for f in shapes {
         let mut i = 0;
-        while let Some(j) = s[i..].find(f) {
+        while let Some(j) = s[i..].find(f.as_str()) {
             let a = i + j;
             let z = a + f.len();
             found.retain(|x| x.start >= z || x.end <= a);

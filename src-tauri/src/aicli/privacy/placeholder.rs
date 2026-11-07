@@ -100,6 +100,11 @@ impl PlaceholderEngine {
         })
     }
 
+    /// 引擎密钥的只读引用（shape 等模块用于 HMAC 流密码）。
+    pub fn key_bytes(&self) -> &[u8] {
+        &self.key
+    }
+
     /// 计算占位符但不入值表（对应 Magpie `tag`）。
     pub fn tag(&self, kind: &str, value: &str) -> String {
         tag_with(&self.key, kind, value)
