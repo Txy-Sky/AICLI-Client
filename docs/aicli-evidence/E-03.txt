@@ -1,0 +1,61 @@
+E-03 检测规则验收记录（部分完成，2026-11-07）
+
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42347452586（五 job 全 success）
+状态：[!]（引擎子集已验证，全量规则移植待续）
+
+一、已完成
+- 10 个源码模块约 4000 行 Rust，全部编译通过：
+  mod.rs（类型+辅助）、phone.rs、ids.rs、dateword.rs、fieldvalue.rs、
+  more.rs、shape.rs、known.rs、rules.rs、scrub.rs、redact.rs（引擎主体）
+- 74 个测试全部通过（CI job Rust item tests E-03-unit + A3-01 基线）
+- 522 条语料 corpus.jsonl：密钥(60)/邮箱(40)/手机(40+20 不遮)/JWT(20)/
+  URL密码(20)/身份证(20)/银行卡(20)/SSN(10)/中英文混合(40)/代码ID不遮(40)/
+  路径版本(30)/误报(30)/日期(20)/安全文本(20)/MAC(10)/IBAN(10)/护照(10)/
+  自定义词(20)/序列号(10)/补齐
+- expected.json 13 条必须遮盖用例全部通过（sk- 密钥、zk_ 密钥、密码赋值、
+  CJK 密钥/密码、JWT、邮箱、手机×3、URL 密码、CJK 密码）
+- false_positives.json 37 条误报用例通过率≥60%（UUID/commit hash/订单号/
+  数字ID/文件路径/版本号/包版本锁定不遮）
+- Go golden 已生成（magpie_golden 工具 -raw 模式）：258/522 被遮盖
+
+二、规则移植进度（Magpie redact.go+more.go ~60 条 → 当前 13 条）
+已移植的核心规则：
+  1. PRIVATE_KEY（PEM 块）
+  2. API_KEY sk-（sk-ant-/proj-/or-等前缀 20+ 字符）
+  3. API_KEY [a-z]{2,4}_sk_（网关自有密钥）
+  4. TOKEN（JWT eyJ...）
+  5. PASSWORD URL（user:password@host）
+  6. SECRET 赋值（password=value, API_KEY: value）
+  7. CJK 密码（密码：value, 密碼是 value）
+  8. CJK 密钥（密钥 value, 令牌是 value）
+  9. EMAIL
+  10. ID_CARD（中国身份证+校验位）
+  11. PHONE（手机号+语境判定）
+  12. BANK_CARD（Luhn）
+  13. 完整 Options/mask/apply/scan 引擎框架
+
+三、待完成（纯量工作，机制已建立）
+- more.go 中的 ~47 条规则逐条添加到 redact.rs core_rules()：
+  SSN、护照、IBAN、生日、MAC、序列号、用户名(home)、用户名/主机名(user@host)、
+  HOSTNAME 赋值、USERNAME 赋值、IPv4/IPv6、云桶(s3://gs://等)
+- Magpie _test.go 约 80 个不依赖模型的测试移植（当前已有 74 个自编测试）
+- Go/Rust golden 逐行差异分析与修复
+- 误报通过率从 60% 提升到 100%
+
+四、编译修复记录（不作成功证据，保留）
+1. 花括号转义（{{ vs {）、数组长度（55→69、82→89）、u8 vs str contains
+2. chars_next_cmp clippy（重构比较逻辑）
+3. gram u32 乘法溢出（Go uint32 vs Rust u64）
+4. 正则字符类连字符转义（/-+ → /\-+）
+5. CJK Unicode 转义（\u{201c} → 直接用字符）
+6. include_str! 路径层级（4 层 → 5 层）
+7. thread_local → 全局 leaked Box（生命周期）
+8. SECRET 规则 ok 极性修正（not_a_slug 取反错误）
+
+五、新会话续接指南
+- 分支 feat/aicli-client-v1 @ 5da3ad22
+- CI 基线 run 42347452586 全绿
+- 下一步：按 more.go 的 moreRules 列表顺序，把每条规则的字段（kind/pattern/
+  markers/bound/ok/at/cat/groups）逐条翻译到 redact.rs 的 core_rules() 中
+- 语料/expected/false_positives 已就绪可作回归
+- 工具 magpie_golden 的 -raw 模式可生成 Go 侧完整输出用于对照
