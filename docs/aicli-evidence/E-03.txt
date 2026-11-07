@@ -1,7 +1,7 @@
-E-03 检测规则验收记录（部分完成，2026-11-07）
+E-03 检测规则验收记录（完成，2026-11-07）
 
-最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42347452586（五 job 全 success）
-状态：[!]（引擎子集已验证，全量规则移植待续）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42358919563（五 job 全 success）
+状态：[x]（规则表 38 条对齐、golden 522/522 行 0 差异、夹具 100% 通过）
 
 一、已完成
 - 10 个源码模块约 4000 行 Rust，全部编译通过：
@@ -106,3 +106,7 @@ E-03 检测规则验收记录（部分完成，2026-11-07）
   expected/false_positives 夹具与本轮新增测试补足
 - 结论：E-03 检测规则移植完成——规则表 38 条对齐、引擎语义对齐、
   golden 0 差异、验收夹具 100% 通过
+
+- 追记：首次推送（run 42347452586 之后的 782dfb0f）触发 A3-01 baseline
+  `-D warnings` clippy 两处 lint（question_mark、needless_range_loop），
+  修复后 86e0c688 全绿；golden 输出复验仍逐字节一致
