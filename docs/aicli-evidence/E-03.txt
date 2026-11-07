@@ -110,3 +110,30 @@ E-03 检测规则验收记录（完成，2026-11-07）
 - 追记：首次推送（run 42347452586 之后的 782dfb0f）触发 A3-01 baseline
   `-D warnings` clippy 两处 lint（question_mark、needless_range_loop），
   修复后 86e0c688 全绿；golden 输出复验仍逐字节一致
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：0f419b1e fix(aicli): E-02/E-03/E-05 harden privacy engine from review
+新增 privacy/fuzz_tests.rs（proptest，每项 512 例；推送前本地临时加到每项 20000 例
+全过）：任意字节不 panic、纯文本与四种协议 JSON 正文遮盖后还原等于原文、流式任意
+切分与一次喂入一致且拼回原文。6 项随 A3-01 基线运行（未单列 item 组）。
+
+一、多字节文本切片 panic（随机测试发现，修正前必崩）
+- rules/redact.rs fold 窗口：按字节回退 back 后切 &s[start..at] 找换行，start 落在
+  多字节字符中间；输入 "😀一一一一手机号：" 即 panic。改为按字节 rposition 找换行；
+  窗口终点 i+ahead 向前收到字符边界。
+- rules/phone.rs phone_at：号码前 32 字节切 &s[a-32..a]，落在汉字中间；输入
+  "记录ID aAA0A0：：一一一一13800138000" 即 panic。起点向后收到字符边界。
+- 两处均与 Go 按字节切串等价（Go 侧开头半个字符成 U+FFFD，只影响前缀，不影响
+  后缀/正则判断）；expected 13/13、false_positives 37/37、golden 均不变。
+- 回归：fuzz_tests::multibyte_context_before_markers_does_not_panic（三条最小失败输入）。
+二、清理
+- 删除 rules/redact.rs 文件级 #![allow(dead_code)]（E-03 WIP 遗留），删除后无新告警。
+- job `Rust item tests (Linux)`：E-03-unit 68 passed（不变）。
+
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8，六 job 全 success）
+- job `A3-01 baseline (Linux)`：cargo clippy -D warnings 通过；Rust 4686 passed /
+  11 skipped（原有 10 + E-03 的 #[ignore] golden 生成测试）；前端 264 文件 3360 passed。
+- 推送前本地（Rust 1.95，独立验证工程软链接真实源码）：privacy 136 passed，
+  lib clippy -D warnings 通过，rustfmt --check 通过。

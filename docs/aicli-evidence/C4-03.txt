@@ -50,3 +50,33 @@ Rust 4547 passed / 原有 10 skipped（较复核修正后 +8，即 usage 组件�
 - 错误响应与 usage 记账关闭时无回填（不计费请求）；清单「UI 显示等待服务端记账」
   属 F 阶段请求详情页，本项只保证字段语义（NULL = 未记账）。
 - 账单查询失败与未命中同待遇：按剩余次数重试，用尽保持 NULL。
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：ea9cd2b8 fix(aicli): C4-03 keep bill backfill IO off async workers
+一、阻塞 IO 移出异步线程（aicli/usage.rs）
+- 修正前：record() 的 upstream_request_id 写入、write_bill、绑定上下文（读库 + 每次
+  读钥匙串）都在 tokio 任务里同步执行，与 log_usage_internal 已遵守的 #7818 规则
+  矛盾；每个请求最多读 3 次钥匙串（同负责人复核 ② 指出的问题）。
+- 修正后：三处均进 spawn_blocking；record() 改 async（AicliRuntime::record_upstream_request
+  同步改 async，handlers.rs、response_processor.rs 两处调用补 .await）。
+- 访问令牌按绑定代数缓存（cache.rs 新增 binding_generation()）：先取代数再读，只缓存
+  读到的绑定，bind/unbind/换线路递增代数后重读；读不到不缓存。
+二、空闲 worker
+- 修正前：队列为空也每 250ms 唤醒，直到运行时销毁。
+- 修正后：process_due 队列为空返回 None，只等入队通知（Notify 许可不丢通知）；等待
+  时只持有 Weak<Inner> 与单独的 Arc<Notify>；Inner Drop 时唤醒 worker 使其退出。
+三、测试
+- production_context_reads_the_current_binding 改写：失败不缓存、同代数内并发 200 次
+  调用不读钥匙串（CountingStore 计数；代数被并行测试改动时跳过计数断言）、代数递增
+  后读到新线路与解绑结果。
+- 新增 idle_worker_waits_for_work_and_exits_with_the_runtime：空闲后入队仍及时处理；
+  BillBackfill 销毁后 worker 放掉数据库引用。
+- job `Rust item tests (Linux)`：C4-03-unit aicli::usage::tests 10 passed（原 8 +
+  C4-04 的 route_of 1 + 本次新增 1；另改写 1 项）。推送前本地用最小桩工程（真实 usage.rs
+  与 tests.rs 软链接）连跑 20 次无失败。
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8，六 job 全 success）
+- job `A3-01 baseline (Linux)`：完整工程 cargo clippy -D warnings 通过（含 handlers.rs、
+  response_processor.rs、runtime.rs 的 .await 改动）；Rust 4686 passed / 11 skipped；
+  前端 264 文件 3360 passed。

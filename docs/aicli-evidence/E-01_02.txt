@@ -47,3 +47,27 @@ E-01/E-02 验收记录（合并验收，2026-11-06）
   CI 中 Rust 侧比对。
 - 本机敏感值经本地隐私网关在会话中转写为 {{...}} 占位符形态（含测试字面量），落盘内容
   以文件为准（进程内生成/读取不受影响）。
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：0f419b1e fix(aicli): E-02/E-03/E-05 harden privacy engine from review
+新增 privacy/fuzz_tests.rs（proptest，每项 512 例；推送前本地临时加到每项 20000 例
+全过）：任意字节不 panic、纯文本与四种协议 JSON 正文遮盖后还原等于原文、流式任意
+切分与一次喂入一致且拼回原文。6 项随 A3-01 基线运行（未单列 item 组）。
+
+一、密钥解析（privacy/placeholder.rs）
+- 修正前：from_store 只要求长度 >= 64，非十六进制字符经 unwrap_or("00")/unwrap_or(0)
+  变成 0 字节。占位符后缀会发往上游，可预测的密钥让手机号等低熵值可被离线穷举。
+- 修正后：parse_key_hex 要求恰好 64 个十六进制字符；格式不对（截断、过长、非十六进制、
+  非 ASCII）时重新生成 32 字节随机密钥并写回，记一次警告。
+- 测试：malformed_stored_key_is_regenerated_not_zero_filled（五种坏形态均被替换且
+  不等于全零密钥；合法密钥原样使用、与 golden 固定密钥结果一致）。
+- job `Rust item tests (Linux)`：E-02-unit aicli::privacy::placeholder::tests
+  6 passed（原 5 + 新 1）。
+
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8，六 job 全 success）
+- job `A3-01 baseline (Linux)`：cargo clippy -D warnings 通过；Rust 4686 passed /
+  11 skipped（原有 10 + E-03 的 #[ignore] golden 生成测试）；前端 264 文件 3360 passed。
+- 推送前本地（Rust 1.95，独立验证工程软链接真实源码）：privacy 136 passed，
+  lib clippy -D warnings 通过，rustfmt --check 通过。

@@ -53,3 +53,25 @@ E-05 流式还原验收记录（2026-11-07）
   scripts/aicli-item-tests.sh
 - 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42374274596
   （五 job 全 success，含 E-05-unit 15 passed）
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：0f419b1e fix(aicli): E-02/E-03/E-05 harden privacy engine from review
+新增 privacy/fuzz_tests.rs（proptest，每项 512 例；推送前本地临时加到每项 20000 例
+全过）：任意字节不 panic、纯文本与四种协议 JSON 正文遮盖后还原等于原文、流式任意
+切分与一次喂入一致且拼回原文。6 项随 A3-01 基线运行（未单列 item 组）。
+
+一、流式还原（privacy/stream.rs）
+- comment_lines 去掉恒为 true、调用处 let _ = next 丢弃的返回值。
+- event_end 增量扫描：记录 scanned（已确认不含事件结束空行的前缀长度），下次从
+  scanned-3 起找（接住跨块的 \r\n\r\n），切出事件或注释后归零；长事件分很多块
+  到达时不再每块从头扫（原为块数平方）。
+- 测试：fuzz_tests::stream_restore_matches_one_shot（任意切分 = 一次喂入 = 原文）。
+- job `Rust item tests (Linux)`：E-05-unit 15 passed（不变）。
+
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8，六 job 全 success）
+- job `A3-01 baseline (Linux)`：cargo clippy -D warnings 通过；Rust 4686 passed /
+  11 skipped（原有 10 + E-03 的 #[ignore] golden 生成测试）；前端 264 文件 3360 passed。
+- 推送前本地（Rust 1.95，独立验证工程软链接真实源码）：privacy 136 passed，
+  lib clippy -D warnings 通过，rustfmt --check 通过。
