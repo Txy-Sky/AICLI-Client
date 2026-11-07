@@ -806,7 +806,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 协议转换链路（Claude→Responses）同样通过，占位符不被转换破坏。
   - 重启后对话继续：同一历史两次发出的 body 中占位符相同（提示缓存前缀不变）。
   - 故障注入：两种模式行为符合设定。
-- 证据：2026-11-08 完成。privacy/layer.rs：PrivacyGate（引擎懒构造一次挂 AicliRuntime、设置按全局修订号缓存、四项计数）、中间件（位于 local_auth 之内的 from_fn_with_state；关闭直通不读 body；AI 路径 POST 遮盖+解压+重建请求+identity；媒体接口/data: 按模式阻断或放行计数；SSE 包装 RestoreStream、整体 restore_json、压缩流 fail-closed；mask/restore 在 catch_unwind 内，block→privacy_engine_failed/流立即结束，pass→放行计数）；stream.rs 共享引擎化（短读锁不跨 .await）。e2e 11 个（四协议、SSE 拆半拼齐、关闭逐字节相同、Claude→Responses 转换占位符存活、重启占位符不变、故障注入 3×2、层顺序、并发遮盖、媒体、压缩流、日志捕获）+ 单元 7 个全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记。偏差（全链路串行化为既有行为另测、alpha/search 纳入遮盖、计数只有总数）见 docs/aicli-evidence/E-06.txt | CI run 见 E-06.txt 第六节
+- 证据：2026-11-08 完成。privacy/layer.rs：PrivacyGate（引擎懒构造一次挂 AicliRuntime、设置按全局修订号缓存、四项计数）、中间件（位于 local_auth 之内的 from_fn_with_state；关闭直通不读 body；AI 路径 POST 遮盖+解压+重建请求+identity；媒体接口/data: 按模式阻断或放行计数；SSE 包装 RestoreStream、整体 restore_json、压缩流 fail-closed；mask/restore 在 catch_unwind 内，block→privacy_engine_failed/流立即结束，pass→放行计数）；stream.rs 共享引擎化（短读锁不跨 .await）。e2e 11 个（四协议、SSE 拆半拼齐、关闭逐字节相同、Claude→Responses 转换占位符存活、重启占位符不变、故障注入 3×2、层顺序、并发遮盖、媒体、压缩流、日志捕获）+ 单元 7 个全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记。偏差（全链路串行化为既有行为另测、alpha/search 纳入遮盖、计数只有总数）见 docs/aicli-evidence/E-06.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42390385298
 
 ### E-07 Maskit 黑盒对照（仅开发机）
 - [ ] 完成
@@ -1162,7 +1162,7 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 E-01/E-02 验收（合并）ad6716fd：声明文件与依赖就位；占位符引擎 5 passed（Magpie golden 逐条一致、跨重启稳定、淘汰恢复、密钥持久）；Rust 4554 passed / 原有 10 skipped（+5）。三轮失败历史见 E-01_02.txt。下一项 E-03。
 最近 C5-GATE 验收（2026-11-06，[x]）：四组合全项通过（Claude→gpt-6.1-sol 双转换对比持平保持默认、Claude→claude-sonnet-5-5、Codex→gpt-6.1-sol、Gemini→gemini-4-argon），compat.json 四条 full；gemini-3.x 渠道不可用属服务端状态（第 12 节已关闭）；配置备份/还原 SHA256 全 OK，远端 Token 清理完毕。阶段 C 全部完成，下一项 E-01。
 最近 C4-04 验收 c0867e55：C4-04-unit 2 passed（行级列值 + provider_id 保持种子 id + 三线路/非 AICLI/无路由/未知线路推导）；Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-04.txt。下一项 C5-GATE（需 H-01、H-02，均为 [HUMAN] 前置）。
-最近 E-06 中间件接入（2026-11-08）：privacy/layer.rs 中间件接线（local_auth 之内、引擎共享短锁、设置修订号缓存、媒体/压缩流/故障注入按模式处理）；e2e 11 + 单元 7 全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记；CI run 见 E-06.txt。详见 E-06.txt。
+最近 E-06 中间件接入（2026-11-08）：privacy/layer.rs 中间件接线（local_auth 之内、引擎共享短锁、设置修订号缓存、媒体/压缩流/故障注入按模式处理）；e2e 11 + 单元 7 全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记；CI run 42390385298 五 job 全 success。详见 E-06.txt。
 最近审查修正（E-02/E-03/E-04/E-05 与 C4-03，合并验收）ea9cd2b8：0f419b1e 隐私引擎（密钥严格解析；两处多字节切片 panic；新增随机测试 6 项；restore_json 快速路径有意偏离 Magpie；stream 增量扫描），ea9cd2b8 账单回填（阻塞 IO 进 spawn_blocking、令牌按绑定代数缓存、空闲 worker 不轮询）；E-02-unit 6、E-03-unit 68、E-04-unit 22、E-05-unit 15、C4-03-unit 10 passed；Rust 4686 passed / 11 skipped、前端 3360 passed，clippy -D warnings 通过，六 job 全成功（run 42377030461）。详见 E-01_02.txt、E-03.txt、E-04.txt、E-05.txt、C4-03.txt。
 最近审查修正（C4-02）73de4dc1：读接管目标失败不扩大接管范围（返回 takeoverTargetsError、一个都不接管）、账户视图失败不丢逐项结果（account 可空 + accountError）；C4-02-unit 8 passed（+2），Rust 4688 passed / 11 skipped、前端 3360 passed，clippy -D warnings 通过，六 job 全成功（run 42379059331）。详见 C4-02.txt。
 线上测试账号实际创建的 aicli: Token 数量：0；线上仅通过获授权的列表和 batch/keys 接口读取已有 Token，未创建、修改或删除 Token，未生成或撤销系统访问令牌。A6-04 在隔离容器中新建 3 个一次性用户和各自的本地系统访问令牌；其中一个用户创建并删除 1 个 aicli:test 模型 Token，未使用 alice、bob 的凭证进行敏感操作。C1-04 另在同一隔离环境新建 1 个一次性用户及其本地系统访问令牌，通过 Rust 封装创建并删除 1 个模型 Token，只调用本地 mock 计费请求。

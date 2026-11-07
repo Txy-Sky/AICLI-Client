@@ -71,6 +71,8 @@ fail-closed。日志捕获断言。
    经基线 a5ba08be 复现确认非本次引入）
 
 六、CI
-- 提交：<待填>；item E-06-unit（lib）/E-06-e2e（test-hooks）/
-  E-03-fuzz（fuzz_tests 单列）已加入 scripts/aicli-item-tests.sh
-- 运行：<待推送后填写>
+- 提交：47df2aba（rebase 于审查的 28b1680e 之上）；item E-06-unit（lib）/
+  E-06-e2e（test-hooks）/E-03-fuzz（fuzz_tests 单列）已加入
+  scripts/aicli-item-tests.sh
+- 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42390385298
+  （五 job 全 success）
