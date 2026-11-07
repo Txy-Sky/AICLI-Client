@@ -137,3 +137,8 @@ CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8
   11 skipped（原有 10 + E-03 的 #[ignore] golden 生成测试）；前端 264 文件 3360 passed。
 - 推送前本地（Rust 1.95，独立验证工程软链接真实源码）：privacy 136 passed，
   lib clippy -D warnings 通过，rustfmt --check 通过。
+
+补充（2026-11-07）：ede6fb9a fix(aicli): E-03 clear clippy lints in rule tests——dateword.rs
+测试去掉 i32→i32 转换、ids.rs 测试直接传字面量；只改测试写法，不改断言。推送前本地
+privacy 模块 clippy --lib --tests -D warnings 无告警、136 passed。CI
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/42385215888 六 job 全 success。
