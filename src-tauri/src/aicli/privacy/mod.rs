@@ -3,3 +3,6 @@ pub mod placeholder;
 pub mod rules;
 pub mod stream;
 pub mod walker;
+
+#[cfg(test)]
+mod fuzz_tests;

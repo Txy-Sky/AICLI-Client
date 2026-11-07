@@ -42,6 +42,34 @@ fn tag_with(key: &[u8], kind: &str, value: &str) -> String {
     format!("{{{{{kind}_{}}}}}", suffix.to_lowercase())
 }
 
+/// 严格解析存储的密钥：恰好 `KEY_LEN * 2` 个十六进制字符，否则 None。
+fn parse_key_hex(text: &str) -> Option<[u8; KEY_LEN]> {
+    let bytes = text.as_bytes();
+    if bytes.len() != KEY_LEN * 2 || !bytes.iter().all(u8::is_ascii_hexdigit) {
+        return None;
+    }
+    let mut key = [0u8; KEY_LEN];
+    for (index, slot) in key.iter_mut().enumerate() {
+        // 已校验全是 ASCII 十六进制，切片落在字符边界上且必能解析。
+        *slot = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16).ok()?;
+    }
+    Some(key)
+}
+
+/// 生成 32 字节随机密钥并以十六进制写回 Keychain。
+fn generate_key(store: &dyn SecretStore) -> Result<[u8; KEY_LEN], String> {
+    let mut fresh = [0u8; KEY_LEN];
+    getrandom::getrandom(&mut fresh).map_err(|e| format!("entropy: {e}"))?;
+    let text = fresh
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    store
+        .set(KEY_ACCOUNT, &text)
+        .map_err(|error| format!("store privacy key: {error}"))?;
+    Ok(fresh)
+}
+
 /// 占位符引擎：密钥 + 值表。可跨请求复用；表只在内存中。
 pub struct PlaceholderEngine {
     key: Vec<u8>,
@@ -66,37 +94,24 @@ impl PlaceholderEngine {
     }
 
     /// 生产构造：从 Keychain 读 `privacy-hmac-key`，没有则生成 32 字节随机并写回。
+    ///
+    /// 存储形态严格为 64 个十六进制字符。值存在但格式不对（被截断、混入非十六进制
+    /// 字符等）时**重新生成并覆盖**，绝不把坏字符当 0 字节使用：占位符后缀会发往
+    /// 上游，可预测的密钥会让手机号等低熵值可被离线穷举。
     pub fn from_store(store: &dyn SecretStore) -> Result<Self, String> {
-        let key: Vec<u8> = match store.get(KEY_ACCOUNT) {
-            // 存储形态为 32 字节的十六进制文本（64 个字符）。
-            Ok(Some(existing)) if existing.len() >= KEY_LEN * 2 => {
-                let bytes = existing.as_bytes();
-                (0..KEY_LEN)
-                    .map(|index| {
-                        u8::from_str_radix(
-                            std::str::from_utf8(&bytes[index * 2..index * 2 + 2]).unwrap_or("00"),
-                            16,
-                        )
-                        .unwrap_or(0)
-                    })
-                    .collect()
-            }
-            Ok(_) => {
-                let mut fresh = vec![0u8; KEY_LEN];
-                getrandom::getrandom(&mut fresh).map_err(|e| format!("entropy: {e}"))?;
-                let text = fresh
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
-                store
-                    .set(KEY_ACCOUNT, &text)
-                    .map_err(|error| format!("store privacy key: {error}"))?;
-                fresh
-            }
+        let key = match store.get(KEY_ACCOUNT) {
+            Ok(Some(existing)) => match parse_key_hex(&existing) {
+                Some(key) => key,
+                None => {
+                    log::warn!("AICLI privacy key is malformed; generating a new one");
+                    generate_key(store)?
+                }
+            },
+            Ok(None) => generate_key(store)?,
             Err(error) => return Err(format!("read privacy key: {error}")),
         };
         Ok(Self {
-            key,
+            key: key.to_vec(),
             values: HashMap::new(),
             order: VecDeque::new(),
             kinds: HashSet::new(),

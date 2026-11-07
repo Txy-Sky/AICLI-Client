@@ -3,8 +3,6 @@
 //! 这是 E-03 的核心：`Rule` 定义 + ~60 条正则规则 + `Options` + `mask` 引擎。
 //! 逐条移植 Magpie 的规则，语义一致。
 
-#![allow(dead_code)] // E-03 WIP：引擎接线前的中间产物
-
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -142,7 +140,9 @@ impl Rule {
                 let at = i + j;
                 i = at + f.len();
                 let mut start = at.saturating_sub(self.back);
-                if let Some(nl) = s[start..at].rfind('\n') {
+                // 按字节找换行：start 可能落在多字节字符中间，切 &str 会 panic
+                //（Go 按字节切串不会，这是移植差异）。
+                if let Some(nl) = bytes[start..at].iter().rposition(|&c| c == b'\n') {
                     start += nl + 1;
                 } else if start > 0 {
                     while start < at
@@ -158,7 +158,12 @@ impl Rule {
                         continue; // 标记在更长单词内部
                     }
                 }
-                wins.push((start, (i + self.ahead).min(s.len())));
+                // 窗口终点向前收到字符边界：Go 的 s[a:b] 可切在字符中间，Rust 不行。
+                let mut end = (i + self.ahead).min(s.len());
+                while !s.is_char_boundary(end) {
+                    end -= 1;
+                }
+                wins.push((start, end));
             }
         }
         wins.sort_by_key(|w| w.0);

@@ -59,7 +59,6 @@ const KEPT: &[&str] = &[
 ];
 
 /// keep（Magpie）：键在 kept 里，或值是 data: URL。流式路径（E-05）使用。
-#[allow(dead_code)]
 pub(crate) fn keep(key: &str, s: &str) -> bool {
     KEPT.contains(&key) || s.starts_with("data:")
 }
@@ -730,8 +729,13 @@ pub(crate) fn type_of(data: &str) -> String {
 
 /// RestoreJSON（Magpie）：把响应体里的占位符换回原值。
 /// 非 JSON 体按纯文本还原。形状模式（Shape）的还原见 E-05/E-06。
+///
+/// 有意偏离 Magpie（`json.go` restoreJSON 在没有 `{{` 时直接返回）：模型可能
+/// 不带花括号写出占位符正文（`EMAIL_ab12cd34`），`restore` 本身与流式
+/// `word_tail` 都会还原这种形态；这里若提前返回，同一占位符流式能还原、
+/// 非流式不能。快速路径改为：值表为空或正文不含 `_` 时直接返回。
 pub fn restore_json(body: &str, engine: &PlaceholderEngine) -> String {
-    if !body.contains("{{") {
+    if engine.is_empty() || !body.contains('_') {
         return body.to_string();
     }
     let typ = type_of(body);

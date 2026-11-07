@@ -134,3 +134,41 @@ fn key_is_generated_once_and_persisted() {
         "random key differs from the fixture key"
     );
 }
+
+/// 存储的密钥格式不对时重新生成，绝不把坏字符当 0 字节（否则密钥可预测）。
+#[test]
+fn malformed_stored_key_is_regenerated_not_zero_filled() {
+    let zero = PlaceholderEngine::with_key([0u8; KEY_LEN]);
+    for bad in [
+        "zz".repeat(KEY_LEN),                      // 非十六进制，长度正确
+        format!("{}zz", "00".repeat(KEY_LEN - 1)), // 混入非十六进制
+        "ab".repeat(KEY_LEN - 1),                  // 被截断
+        format!("{}00", FIXED_KEY_HEX),            // 过长
+        "密钥".repeat(KEY_LEN / 3 + 1),            // 非 ASCII
+    ] {
+        let store = MemoryStore::default();
+        store.set(KEY_ACCOUNT, &bad).unwrap();
+        let engine = PlaceholderEngine::from_store(&store).expect("engine");
+        let stored = store.get(KEY_ACCOUNT).unwrap().expect("key stored");
+        assert_ne!(stored, bad, "malformed key must be replaced: {bad:?}");
+        assert_eq!(stored.len(), KEY_LEN * 2);
+        assert!(stored.bytes().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(
+            engine.tag("PHONE", "13800138000"),
+            zero.tag("PHONE", "13800138000"),
+            "malformed key must not degrade to the all-zero key: {bad:?}"
+        );
+    }
+    // 合法密钥原样使用。
+    let store = MemoryStore::default();
+    store.set(KEY_ACCOUNT, FIXED_KEY_HEX).unwrap();
+    let engine = PlaceholderEngine::from_store(&store).expect("engine");
+    assert_eq!(
+        store.get(KEY_ACCOUNT).unwrap().as_deref(),
+        Some(FIXED_KEY_HEX)
+    );
+    assert_eq!(
+        engine.tag("EMAIL", "a@example.com"),
+        PlaceholderEngine::with_key(fixed_key()).tag("EMAIL", "a@example.com")
+    );
+}

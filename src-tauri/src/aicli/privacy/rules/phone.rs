@@ -76,7 +76,12 @@ pub(crate) fn phone_at(s: &str, a: usize, b: usize) -> bool {
     if a > 0 && bytes[a - 1] == b'#' {
         return false; // #12345678901
     }
-    let from = a.saturating_sub(32);
+    // 向后收到字符边界：Go 按字节切 s[a-32:a] 不会出错，Rust 切到字符中间会 panic。
+    // Go 侧开头的半个字符变成 U+FFFD，只影响前缀，不影响下面的后缀判断。
+    let mut from = a.saturating_sub(32);
+    while !s.is_char_boundary(from) {
+        from += 1;
+    }
     let mut before = s[from..a].to_lowercase();
     before = before
         .trim_end_matches([' ', '\t', '(', '"', '\'', '\u{201c}', '\u{300c}'])

@@ -34,6 +34,9 @@ pub struct StreamRestorer<'a> {
     engine: &'a PlaceholderEngine,
     /// 待切帧的原始字节（含跨块的 UTF-8 序列与半截事件）。
     buf: Vec<u8>,
+    /// buf 前这么多字节已确认不含事件结束空行：长事件分很多块到达时
+    /// 不必每块都从头重扫（否则耗时随块数平方增长）。
+    scanned: usize,
     pending: Option<Held>,
 }
 
@@ -42,6 +45,7 @@ impl<'a> StreamRestorer<'a> {
         Self {
             engine,
             buf: Vec::new(),
+            scanned: 0,
             pending: None,
         }
     }
@@ -52,18 +56,22 @@ impl<'a> StreamRestorer<'a> {
         self.buf.extend_from_slice(chunk);
         let mut out = String::new();
         loop {
-            let (c, next) = comment_lines(&self.buf);
+            let c = comment_lines(&self.buf);
             if c > 0 {
                 out.push_str(&String::from_utf8_lossy(&self.buf[..c]));
                 self.buf.drain(..c);
-                let _ = next;
+                self.scanned = 0;
                 continue;
             }
-            let Some((i, n)) = event_end(&self.buf) else {
+            // 从上次扫到的位置往回留 3 字节重叠，接住跨块的 `\r\n\r\n`。
+            let from = self.scanned.saturating_sub(3);
+            let Some((i, n)) = event_end(&self.buf[from..]).map(|(i, n)| (from + i, n)) else {
+                self.scanned = self.buf.len();
                 break;
             };
             let ev: Vec<u8> = self.buf[..i + n].to_vec();
             self.buf.drain(..i + n);
+            self.scanned = 0;
             let ev = String::from_utf8_lossy(&ev).into_owned();
             out.push_str(&self.event(&ev));
         }
@@ -81,6 +89,7 @@ impl<'a> StreamRestorer<'a> {
             out.push_str(&walker::restore(&rest, false, self.engine));
         }
         self.buf.clear();
+        self.scanned = 0;
         out
     }
 
@@ -167,7 +176,7 @@ impl<'a> StreamRestorer<'a> {
 /// commentLines（Magpie）：b 开头的整行注释（`: keepalive`）与空行的
 /// 长度——b 从事件开头开始，它们不属于任何事件；事件间的注释照原样流出，
 /// 否则代理后的 agent 在厂商静默思考时什么都收不到（#2402）。
-fn comment_lines(b: &[u8]) -> (usize, bool) {
+fn comment_lines(b: &[u8]) -> usize {
     let mut n = 0usize;
     while n < b.len() && (b[n] == b':' || b[n] == b'\n' || b[n] == b'\r') {
         let Some(i) = b[n..].iter().position(|&c| c == b'\n') else {
@@ -178,7 +187,7 @@ fn comment_lines(b: &[u8]) -> (usize, bool) {
         }
         n += i + 1;
     }
-    (n, true)
+    n
 }
 
 /// eventEnd（Magpie）：b 里第一个完整事件的结尾位置与结束空行的长度
