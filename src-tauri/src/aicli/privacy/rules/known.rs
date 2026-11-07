@@ -34,7 +34,8 @@ const BITS_LEN: usize = 1 << 14; // 2^20 位 → 2^14 个 u64
 
 fn gram(s: &[u8], i: usize) -> usize {
     let g = u32::from_le_bytes([s[i], s[i + 1], s[i + 2], s[i + 3]]);
-    ((g as u64).wrapping_mul(2654435761) >> 12) as usize // 20 位
+    // 与 Go uint32 乘法一致：回绕后右移 12 位 → 最多 20 位
+    (g.wrapping_mul(2654435761) >> 12) as usize
 }
 
 impl KnownIndex {
