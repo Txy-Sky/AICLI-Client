@@ -155,4 +155,6 @@ fail-closed。日志捕获断言。
   （--features test-hooks），全过；clippy -D warnings（lib 与
   --all-targets --features test-hooks）干净；aicli_routing 11 回归通过
 - E-05 侧配套：stream/tests.rs 与 fuzz_tests.rs 适配字节 API（15+6 通过）
-- 提交与 CI：见下
+- 提交：fb0eb392；run
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/42437323264
+  （五 job 全 success）
