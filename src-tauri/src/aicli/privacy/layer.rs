@@ -105,6 +105,8 @@ struct GateInner {
     engine_failed: bool,
     /// 设置缓存：None = 未读库；(修订号, 快照)。
     cached: Option<(u64, PrivacySettings)>,
+    /// 上次查库出错的时间（最短重试间隔内不再打库，期间 fail-closed）。
+    last_error_at: Option<std::time::Instant>,
 }
 
 impl PrivacyGate {
@@ -116,6 +118,7 @@ impl PrivacyGate {
                 engine: None,
                 engine_failed: false,
                 cached: None,
+                last_error_at: None,
             }),
             masked_values: AtomicU64::new(0),
             degraded: AtomicU64::new(0),
@@ -125,7 +128,7 @@ impl PrivacyGate {
             #[cfg(feature = "test-hooks")]
             fault: AtomicU8::new(0),
             #[cfg(feature = "test-hooks")]
-            fault_stream_at: std::sync::atomic::AtomicU32::new(1),
+            fault_stream_at: std::sync::atomic::AtomicU32::new(0),
         }
     }
 
@@ -140,20 +143,33 @@ impl PrivacyGate {
                 }
             }
         }
-        self.refresh();
-        self.inner
-            .read()
-            .unwrap_or_else(|p| p.into_inner())
-            .cached
-            .map(|(_, settings)| settings)
-            .unwrap_or_default()
+        self.refresh()
     }
 
-    /// 强制重读设置并缓存。
-    pub fn refresh(&self) {
-        // 修订号在查库**前**读取：bump 与读库的竞态下宁可下次多读一次，
-        // 不可把旧设置当成新修订。
+    /// 重读设置并缓存，返回本次应使用的设置。修订号在查库**前**读取
+    ///（bump 与读库的竞态下宁可下次多读一次，不可把旧设置当成新修订）。
+    ///
+    /// - 查不到行（未绑定）= 关闭，写入缓存；
+    /// - **查库出错：本次按 fail-closed（开启 + block）处理，不更新缓存
+    ///   修订号**——否则「缓存为关闭 → 开启隐私 → 一次出错」会把关闭固化
+    ///   到新修订号下；下次请求自动重试。持续出错时按 1s 最短重试间隔
+    ///   限频（期间仍 fail-closed），不逐请求打库。
+    pub fn refresh(&self) -> PrivacySettings {
         let rev = revision();
+        let fail_closed = PrivacySettings {
+            enabled: true,
+            block: true,
+            allow_unscanned_media: false,
+        };
+        // 限频：上次出错不足 1s，直接 fail-closed 不打库
+        {
+            let guard = self.inner.read().unwrap_or_else(|p| p.into_inner());
+            if let Some(last) = guard.last_error_at {
+                if last.elapsed() < std::time::Duration::from_secs(1) {
+                    return fail_closed;
+                }
+            }
+        }
         let row: Result<Option<(bool, String, bool)>, ()> = (|| {
             use rusqlite::OptionalExtension;
             let conn = self.db.conn.lock().map_err(|_| ())?;
@@ -173,26 +189,29 @@ impl PrivacyGate {
             .map_err(|_| ())
         })();
         let mut guard = self.inner.write().unwrap_or_else(|p| p.into_inner());
-        let settings = match row {
-            Ok(Some((enabled, mode, allow_media))) => PrivacySettings {
-                enabled,
-                block: mode != "pass",
-                allow_unscanned_media: allow_media,
-            },
+        match row {
+            Ok(Some((enabled, mode, allow_media))) => {
+                let settings = PrivacySettings {
+                    enabled,
+                    block: mode != "pass",
+                    allow_unscanned_media: allow_media,
+                };
+                guard.cached = Some((rev, settings));
+                guard.last_error_at = None;
+                settings
+            }
             // 查不到行（未绑定）：视为关闭
-            Ok(None) => PrivacySettings::default(),
-            // 查库出错：保留上一次成功快照（并推进修订号，热路径不因持续
-            // 出错反复打库）；从未成功过则 fail-closed 按开启 + block
-            Err(()) => guard
-                .cached
-                .map(|(_, settings)| settings)
-                .unwrap_or(PrivacySettings {
-                    enabled: true,
-                    block: true,
-                    allow_unscanned_media: false,
-                }),
-        };
-        guard.cached = Some((rev, settings));
+            Ok(None) => {
+                guard.cached = Some((rev, PrivacySettings::default()));
+                guard.last_error_at = None;
+                PrivacySettings::default()
+            }
+            // 查库出错：fail-closed，不更新缓存（下次重试），记录限频时间
+            Err(()) => {
+                guard.last_error_at = Some(std::time::Instant::now());
+                fail_closed
+            }
+        }
     }
 
     /// 引擎（懒构造一次）：占位符密钥只在首次使用时读一次钥匙串。
@@ -310,10 +329,29 @@ impl PrivacyGate {
         })
     }
 
-    /// 流式还原器（共享引擎版；注入点在 RestoreStream::restore_chunk）。
+    /// 流式还原器（共享引擎版；事件级注入点在 restorer 内部）。
     pub fn stream_restorer(&self) -> Option<StreamRestorer<'static>> {
         let engine = self.engine()?;
-        Some(StreamRestorer::shared(engine))
+        #[cfg(feature = "test-hooks")]
+        let mut restorer = StreamRestorer::shared(engine);
+        #[cfg(not(feature = "test-hooks"))]
+        let restorer = StreamRestorer::shared(engine);
+        #[cfg(feature = "test-hooks")]
+        {
+            // 只有 FAULT_STREAM 上膛时才注入；事件号默认 1（第一个事件）
+            let event = if self.injected_failure() == FAULT_STREAM {
+                let at = self.stream_fault_event();
+                if at == 0 {
+                    1
+                } else {
+                    at
+                }
+            } else {
+                0
+            };
+            restorer.set_fault_event(event);
+        }
+        Some(restorer)
     }
 
     /// test-hooks：注入引擎 panic（0 清除）。
@@ -327,14 +365,14 @@ impl PrivacyGate {
         self.fault.load(Ordering::SeqCst)
     }
 
-    /// test-hooks：FAULT_STREAM 在第 N 块触发（N>1 验证失败前缓存字节）。
+    /// test-hooks：FAULT_STREAM 在第 N 个事件的还原中触发。
     #[cfg(feature = "test-hooks")]
-    pub fn set_stream_fault_chunk(&self, chunk: u32) {
-        self.fault_stream_at.store(chunk, Ordering::SeqCst);
+    pub fn set_stream_fault_event(&self, event: u32) {
+        self.fault_stream_at.store(event, Ordering::SeqCst);
     }
 
     #[cfg(feature = "test-hooks")]
-    pub fn stream_fault_chunk(&self) -> u32 {
+    pub fn stream_fault_event(&self) -> u32 {
         self.fault_stream_at.load(Ordering::SeqCst)
     }
 }
@@ -542,16 +580,10 @@ async fn response_with_gate(
             restorer,
             gate: Arc::clone(gate),
             block: settings.block,
-            passthrough: false,
             finished: false,
             pending_tail: None,
             pending_error: None,
-            #[cfg(feature = "test-hooks")]
-            fault: gate.injected_failure(),
-            #[cfg(feature = "test-hooks")]
-            fault_at_chunk: gate.stream_fault_chunk(),
-            #[cfg(feature = "test-hooks")]
-            chunks_seen: 0,
+            failure_noted: false,
         };
         parts.headers.remove(header::CONTENT_LENGTH);
         let mut response = Response::from_parts(parts, Body::from_stream(stream));
@@ -617,35 +649,13 @@ struct RestoreStream {
     restorer: StreamRestorer<'static>,
     gate: Arc<PrivacyGate>,
     block: bool,
-    /// 可用性优先下引擎失败后：剩余字节原样透传（其中只有占位符）。
-    passthrough: bool,
     finished: bool,
     /// 上游出错时待发出的尾部（finish 的输出），发完后返回错误。
     pending_tail: Option<Bytes>,
-    /// 上游错误：待尾部发出后向下游传播。
+    /// 待尾部发出后向下游传播的错误（上游错误或 block 模式引擎失败）。
     pending_error: Option<std::io::Error>,
-    #[cfg(feature = "test-hooks")]
-    fault: u8,
-    /// 故障注入在第 N 块触发（默认 1 = 第一块；测试可设 N>1 验证失败前
-    /// 已缓存字节的放出）。
-    #[cfg(feature = "test-hooks")]
-    fault_at_chunk: u32,
-    /// 已速过的块数（故障注入计数）。
-    #[cfg(feature = "test-hooks")]
-    chunks_seen: u32,
-}
-
-impl RestoreStream {
-    fn restore_chunk(&mut self, chunk: &[u8]) -> String {
-        #[cfg(feature = "test-hooks")]
-        if self.fault == FAULT_STREAM {
-            self.chunks_seen += 1;
-            if self.chunks_seen >= self.fault_at_chunk {
-                panic!("privacy fault injection: stream");
-            }
-        }
-        self.restorer.push(chunk)
-    }
+    /// 引擎失败已计数（一次生命周期内只计一次）。
+    failure_noted: bool,
 }
 
 impl futures::Stream for RestoreStream {
@@ -655,7 +665,7 @@ impl futures::Stream for RestoreStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        // 先发上游出错前的尾部，再传播错误（项 8：注释与行为一致）
+        // 先发错误前积压的尾部，再传播错误（注释与行为一致）
         if let Some(tail) = self.pending_tail.take() {
             return std::task::Poll::Ready(Some(Ok(tail)));
         }
@@ -667,53 +677,37 @@ impl futures::Stream for RestoreStream {
             if self.finished {
                 return std::task::Poll::Ready(None);
             }
-            if self.passthrough {
-                return match self.upstream.as_mut().poll_next(cx) {
-                    std::task::Poll::Ready(Some(Ok(bytes))) => {
-                        std::task::Poll::Ready(Some(Ok(bytes)))
-                    }
-                    std::task::Poll::Ready(Some(Err(error))) => {
-                        std::task::Poll::Ready(Some(Err(std::io::Error::other(error))))
-                    }
-                    std::task::Poll::Ready(None) => std::task::Poll::Ready(None),
-                    std::task::Poll::Pending => std::task::Poll::Pending,
-                };
-            }
             let this = &mut *self;
             match this.upstream.as_mut().poll_next(cx) {
                 std::task::Poll::Ready(Some(Ok(chunk))) => {
-                    match std::panic::catch_unwind(AssertUnwindSafe(|| this.restore_chunk(&chunk)))
-                    {
-                        Ok(out) => {
+                    // 引擎 panic 在 restorer 内部逐事件兑住（已还原的照常
+                    // 输出、出错事件起转原始字节透传）；这里只看结果状态。
+                    let out = this.restorer.push(&chunk);
+                    if this.restorer.engine_failed() {
+                        if !this.failure_noted {
+                            this.failure_noted = true;
+                            this.gate.note_engine_failure(this.block);
+                        }
+                        if this.block {
+                            // 头已发出：不能正常结束（会被当成成功）。先发
+                            // 已还原的部分，随后返回错误断开连接。
+                            this.pending_error =
+                                Some(std::io::Error::other("privacy_engine_failed"));
                             if out.is_empty() {
-                                continue; // 全部扣留/注释未产出：继续拉
+                                this.finished = true;
+                                return std::task::Poll::Ready(Some(Err(this
+                                    .pending_error
+                                    .take()
+                                    .unwrap())));
                             }
                             return std::task::Poll::Ready(Some(Ok(Bytes::from(out))));
                         }
-                        Err(payload) => {
-                            log::error!("隐私引擎流式还原 panic：{}", panic_message(&payload));
-                            this.gate.note_engine_failure(this.block);
-                            if this.block {
-                                // 头已发出：不能正常结束流（那会被当成成功）。
-                                // 返回错误断开连接，客户端能看出失败。
-                                this.finished = true;
-                                return std::task::Poll::Ready(Some(Err(std::io::Error::other(
-                                    "privacy_engine_failed",
-                                ))));
-                            }
-                            // pass：先放出 restorer 里已缓存、尚未输出的原始字节
-                            //（含被扣留的事件与未切帧的 buf；当前块在注入点
-                            // 尚未入 buf，不会重复），再进入原样透传——SSE 帧
-                            // 不重不漏。
-                            this.passthrough = true;
-                            let mut buffered = this.restorer.take_pending_raw();
-                            buffered.push_str(std::str::from_utf8(chunk.as_ref()).unwrap_or(""));
-                            if buffered.is_empty() {
-                                continue;
-                            }
-                            return std::task::Poll::Ready(Some(Ok(Bytes::from(buffered))));
-                        }
+                        // pass：restorer 已在透传，字节照走
                     }
+                    if out.is_empty() {
+                        continue; // 全部扣留/注释未产出：继续拉
+                    }
+                    return std::task::Poll::Ready(Some(Ok(Bytes::from(out))));
                 }
                 std::task::Poll::Ready(Some(Err(error))) => {
                     // 上游错误：先把 finish 的尾部字节发出，下一轮再传播错误

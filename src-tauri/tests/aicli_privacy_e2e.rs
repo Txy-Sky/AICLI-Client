@@ -199,14 +199,14 @@ fn sse_chunks(
     cuts: Vec<usize>,
 ) -> impl futures::Stream<Item = Result<bytes::Bytes, std::io::Error>> {
     let mut pieces = Vec::new();
-    let mut rest = text.as_str();
+    let mut rest = text.into_bytes();
     for cut in cuts {
         let cut = cut.min(rest.len());
-        let (head, tail) = rest.split_at(cut);
-        pieces.push(head.to_owned());
+        let tail = rest.split_off(cut);
+        pieces.push(bytes::Bytes::from(rest));
         rest = tail;
     }
-    pieces.push(rest.to_owned());
+    pieces.push(bytes::Bytes::from(rest));
     futures::stream::iter(pieces)
         .enumerate()
         .map(|(index, piece)| async move {
@@ -1262,7 +1262,7 @@ async fn stream_pass_mode_fault_at_nth_chunk_keeps_frames_intact() {
     ));
     // pass 模式 + 故障在第 2 块
     f.set_privacy(true, "pass", false);
-    f.gate().set_stream_fault_chunk(2);
+    f.gate().set_stream_fault_event(2);
     f.gate().inject_failure(FAULT_STREAM);
     let out = f
         .client()
@@ -1318,7 +1318,7 @@ async fn stream_block_mode_fault_at_nth_chunk_is_visible_failure() {
 "
     );
     f.set_mode(UpstreamMode::Sse(sse, vec![ev1.len(), ev2.len(), 6]));
-    f.gate().set_stream_fault_chunk(2);
+    f.gate().set_stream_fault_event(2);
     f.gate().inject_failure(FAULT_STREAM);
     match f
         .client()
@@ -1340,5 +1340,89 @@ async fn stream_block_mode_fault_at_nth_chunk_is_visible_failure() {
     let stats = f.gate().stats();
     assert_eq!(stats.degraded, 0, "block failures are not degradations");
     assert!(stats.engine_blocked >= 1);
+    f.stop().await;
+}
+
+// ---- 16. 事件级注入：块内含完整事件 + 出错事件 + 下一事件开头，
+//      中文/emoji 中间切块；字节 = 已还原事件 + 其后原始字节，无 U+FFFD ----
+
+#[tokio::test]
+async fn stream_fault_mid_event_keeps_restored_prefix_and_raw_suffix() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    let email = email_value();
+    let request =
+        json!({"model": PUBLIC, "messages":[{"role":"user","content": format!("mail {email}")}]});
+    let _ = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(&request)
+        .send()
+        .await
+        .unwrap();
+    let placeholder = first_placeholder(
+        &std::str::from_utf8(f.take_capture(0).body.as_slice())
+            .unwrap()
+            .to_owned(),
+    );
+    // ev1：完整占位符（会被还原并输出），文本带 emoji
+    let ev1 = format!(
+        "data: {{\"id\":\"a\",\"object\":\"chat.completion.chunk\",\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"😀 见 {placeholder}\"}}}}]}}
+
+"
+    );
+    // ev2：出错事件（还原时注入 panic）
+    let ev2 = format!(
+        "data: {{\"id\":\"b\",\"object\":\"chat.completion.chunk\",\"choices\":{{\"index\":0,\"delta\":{{\"content\":\"第二段 中文\"}}}}]}}
+
+"
+    );
+    // ev3：只发开头（留在 buf，失败瞬间以原始字节放出；尾块后续透传）
+    let ev3_full = "data: {\"id\":\"c\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"收尾\"}}]}
+
+data: [DONE]
+
+";
+    let stream = format!("{ev1}{ev2}{ev3_full}");
+    // 块切点：块 1 在 ev1 的 emoji 字节中间切开
+    let emoji_at = ev1.find("😀").unwrap();
+    let cut1 = emoji_at + 1; // emoji 是 4 字节 UTF-8，切在中间
+                             // 块 2 = ev1 余下 + ev2 全部 + ev3 的前 1/3（含中文字节中间切点）
+    let ev3_start = ev1.len() + ev2.len();
+    let cut2 = ev3_start + ev3_full.find("收尾").unwrap() + 1; // 「收」是 3 字节，切中间
+    let cuts = vec![cut1, cut2];
+    f.set_mode(UpstreamMode::Sse(stream.clone(), cuts));
+    f.set_privacy(true, "pass", false);
+    f.gate().set_stream_fault_event(2); // ev2 还原时 panic
+    f.gate().inject_failure(FAULT_STREAM);
+    let out = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(
+            &json!({"model": PUBLIC, "stream": true, "messages":[{"role":"user","content":"hi"}]}),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(out.status(), 200);
+    let bytes = out.bytes().await.unwrap();
+    f.gate().inject_failure(0);
+    // 期望：ev1（已还原：占位符→原值）+ 其后（ev2 起）的原始字节
+    let expected = format!(
+        "data: {{\"id\":\"a\",\"object\":\"chat.completion.chunk\",\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"😀 见 {email}\"}}}}]}}
+
+{ev2}{ev3_full}"
+    );
+    assert_eq!(
+        bytes.as_ref(),
+        expected.as_bytes(),
+        "restored prefix + raw suffix, byte-exact"
+    );
+    // 没有 U+FFFD（有损转换会出现在多字节被切坏时）
+    assert!(
+        !bytes.windows(3).any(|w| w == [0xEF, 0xBF, 0xBD]),
+        "no U+FFFD"
+    );
+    // 降级计数一次
+    assert_eq!(f.gate().stats().degraded, 1);
     f.stop().await;
 }

@@ -145,12 +145,12 @@ fn split_at(bytes: &[u8], cuts: &[f64]) -> Vec<Vec<u8>> {
 
 fn run_stream(e: &PlaceholderEngine, chunks: &[Vec<u8>]) -> String {
     let mut r = StreamRestorer::new(e);
-    let mut out = String::new();
+    let mut out = Vec::new();
     for chunk in chunks {
-        out.push_str(&r.push(chunk));
+        out.extend_from_slice(&r.push(chunk));
     }
-    out.push_str(&r.finish());
-    out
+    out.extend_from_slice(&r.finish());
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 proptest! {

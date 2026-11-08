@@ -164,28 +164,64 @@ fn unbound_defaults_to_disabled() {
     assert!(!settings.enabled && settings.block);
 }
 
-/// 查库出错（连接互斥量中毒）时：有上一次成功快照就保留，隐私不会被
-/// 悄悄关掉；从未成功过则 fail-closed 按开启 + block。
+/// 查库出错时：本次按 fail-closed（开启 + block），**不更新缓存修订号**
+///——「缓存为关闭 → 开启隐私 → 一次出错」不会把关闭固化；恢复后返回
+/// 真实设置。
 #[test]
-fn refresh_error_keeps_last_good_settings() {
-    let gate = gate_bound(true, true, false);
-    assert!(gate.settings().enabled, "first read succeeds");
-    // 中毒 db.conn：此后一切查库都出错
-    let db = gate.db.clone();
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _guard = db.conn.lock().unwrap();
-        panic!("poison the connection mutex");
-    }));
-    // bump 触发重读 → 出错 → 保留上一次快照（仍开启 + block）
+fn refresh_error_fails_closed_and_recovers() {
+    // 1) 缓存为「关闭」
+    let gate = gate_bound(false, false, false);
+    assert!(!gate.settings().enabled, "cached disabled");
+    // 2) 开启隐私（bump）后查库出错（DROP 表）：本次 fail-closed
+    bump_revision();
+    gate.db
+        .conn
+        .lock()
+        .unwrap()
+        .execute("DROP TABLE aicli_account", [])
+        .unwrap();
+    let settings = gate.settings();
+    assert!(
+        settings.enabled,
+        "error must fail closed, not keep disabled"
+    );
+    assert!(settings.block);
+    // 3) 恢复（重建表 + 开启的行）→ bump → 返回真实设置。
+    //    先过 1s 限频窗口（出错后 1s 内直接 fail-closed 不打库）
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    {
+        let conn = gate.db.conn.lock().unwrap();
+        crate::database::Database::apply_schema_migrations_on_conn(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO aicli_account(id, privacy_enabled, privacy_failure_mode)
+             VALUES(1, 1, 'block')",
+            [],
+        )
+        .unwrap();
+    }
     bump_revision();
     let settings = gate.settings();
-    assert!(settings.enabled, "db error must not disable privacy");
-    assert!(settings.block);
+    assert!(
+        settings.enabled && settings.block,
+        "recovered to real settings"
+    );
+    // 4) 再改为 pass：恢复后跟随真实值
+    gate.db
+        .conn
+        .lock()
+        .unwrap()
+        .execute("UPDATE aicli_account SET privacy_failure_mode='pass'", [])
+        .unwrap();
+    bump_revision();
+    assert!(
+        !gate.settings().block,
+        "follows real settings after recovery"
+    );
 }
 
 #[test]
 fn refresh_error_without_snapshot_fails_closed() {
-    // 构造后从未读过设置，直接中毒：fail-closed 开启 + block
+    // 构造后从未读过设置，直接出错：fail-closed 开启 + block
     let gate = gate_bound(false, false, false);
     let db = gate.db.clone();
     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

@@ -124,3 +124,35 @@ fail-closed。日志捕获断言。
 - CI：提交 3d355820；
   run https://github.com/Txy-Sky/AICLI-Client/actions/runs/42398338922
   （五 job 全 success）
+
+八、验收打回修正（2026-11-08，第三轮）
+1. 流式 panic 恢复改为 **restorer 内部逐事件 catch_unwind**（修正第二轮
+   「注入在 push 之前」的局限）：
+   - StreamRestorer.push 全程字节（Vec<u8>）：本次 push 中已还原的事件
+     照常输出；出错事件、之前被扣留的事件（Held.raw）与 buf 剩余字节
+     按原始字节放出；restorer 置 passthrough（后续 push 原样返回）+ 
+     failed 粘滞标志。不再有「已处理事件随局部变量丢失」「当前块重复」
+     「from_utf8(chunk).unwrap_or("") 丢块」「lossy 产生 U+FFFD」的问题
+     （多字节跨块的字节留在 buf，不经任何有损转换）
+   - 注入点挪到事件还原内部（set_stream_fault_event(N)，restorer 计
+     事件数；FAULT_STREAM 上膛才生效，默认第一个事件）
+   - RestoreStream 不再外层 catch：push 后按 restorer.engine_failed()
+     处理——block：先发已还原部分再返回 Err 断流（计数一次）；pass：
+     restorer 已透传，字节照走
+   - e2e stream_fault_mid_event_keeps_restored_prefix_and_raw_suffix：
+     一个块内含完整事件（emoji 文本）+ 出错事件 + 下一事件开头，块边界
+     切在 😀 与中文字节中间；断言客户端收到的字节 = 已还原事件 + 其后
+     上游原始字节（逐字节相等）、无 U+FFFD、degraded=1。原有 pass/block
+     第 N 块两测改用事件级注入，帧完整断言不变
+2. PrivacyGate::refresh 出错语义修正：出错时**本次按 fail-closed（开启 +
+   block）处理，不更新缓存修订号**（修正第二轮「保留快照到新修订号」会
+   把关闭固化的问题）；下次请求自动重试；持续出错按 1s 最短重试间隔
+   限频（期间仍 fail-closed）。单元测试
+   refresh_error_fails_closed_and_recovers：缓存关闭 → 开启（bump）→
+   DROP 表出错 → settings()=开启+block；重建表后 bump → 返回真实设置；
+   再改 pass → 跟随真实值
+- 测试：e2e 16（+1，另 2 个改造）、layer 单元 10、privacy 合计 146
+  （--features test-hooks），全过；clippy -D warnings（lib 与
+  --all-targets --features test-hooks）干净；aicli_routing 11 回归通过
+- E-05 侧配套：stream/tests.rs 与 fuzz_tests.rs 适配字节 API（15+6 通过）
+- 提交与 CI：见下

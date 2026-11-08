@@ -8,6 +8,12 @@
 use proptest::prelude::*;
 
 use super::*;
+
+/// 测试辅助：字节输出转字符串断言（流是 UTF-8 时无损）。
+fn text(bytes: Vec<u8>) -> String {
+    String::from_utf8(bytes)
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
+}
 use crate::aicli::privacy::placeholder::PlaceholderEngine;
 
 fn engine() -> PlaceholderEngine {
@@ -31,23 +37,23 @@ fn email_value() -> String {
 fn chunk_split_invariance_simple() {
     let mut e = engine();
     let p = e.mask("EMAIL", &email_value());
-    let text = format!("contact {p} anytime");
+    let phrase = format!("contact {p} anytime");
     let stream = format!(
-        "event: message\ndata: {{\"type\":\"delta\",\"delta\":{{\"text\":\"see {text}\"}}}}\n\n"
+        "event: message\ndata: {{\"type\":\"delta\",\"delta\":{{\"text\":\"see {phrase}\"}}}}\n\n"
     );
     let whole = {
         let mut r = StreamRestorer::new(&e);
         let mut out = r.push(stream.as_bytes());
-        out.push_str(&r.finish());
-        out
+        out.extend_from_slice(&r.finish());
+        text(out)
     };
     let split = {
         let mut r = StreamRestorer::new(&e);
         let mut out = r.push(&stream.as_bytes()[..7]);
-        out.push_str(&r.push(&stream.as_bytes()[7..30]));
-        out.push_str(&r.push(&stream.as_bytes()[30..]));
-        out.push_str(&r.finish());
-        out
+        out.extend_from_slice(&r.push(&stream.as_bytes()[7..30]));
+        out.extend_from_slice(&r.push(&stream.as_bytes()[30..]));
+        out.extend_from_slice(&r.finish());
+        text(out)
     };
     assert_eq!(whole, split);
     assert!(whole.contains(&email_value()), "{whole}");
@@ -75,9 +81,10 @@ fn placeholder_split_across_events() {
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(ev1.as_bytes());
     // ev1 被扣留（尾部像占位符开头）——此刻不应有半截占位符流出
-    assert!(!out.contains("{{"), "held: {out}");
-    out.push_str(&r.push(ev2.as_bytes()));
-    out.push_str(&r.finish());
+    assert!(!text(out.clone()).contains("{{"), "held: {:?}", text(out));
+    out.extend_from_slice(&r.push(ev2.as_bytes()));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     // 尾部移到 ev2 后拼成完整占位符：ev1 留下削去尾部的文本，
     // ev2 的文本 = 尾部 + 原文，整体还原。字节只移不改。
     assert_eq!(
@@ -100,8 +107,9 @@ fn held_released_when_context_differs() {
     );
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(ev1.as_bytes());
-    out.push_str(&r.push(ev2.as_bytes()));
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.push(ev2.as_bytes()));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     // 两段都没拼成完整占位符：都按原样（未还原）流出
     assert!(out.contains(head), "{out}");
     assert!(out.contains(tailc), "{out}");
@@ -123,11 +131,13 @@ fn bare_token_word_tail() {
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(ev1.as_bytes());
     assert!(
-        out.is_empty() || !out.contains("code is {w}"),
-        "held: {out}"
+        out.is_empty() || !text(out.clone()).contains(&["code is ", &w].concat()),
+        "held: {:?}",
+        text(out)
     );
-    out.push_str(&r.push(ev2.as_bytes()));
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.push(ev2.as_bytes()));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains("Zx9qw7Pl2Km4abcd"), "restored: {out}");
 }
 
@@ -143,7 +153,8 @@ fn tool_arguments_streaming_delta() {
     );
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(stream.as_bytes());
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains("Zx9qw7Pl2Km4"), "value restored: {out}");
     // 增量字符串本身仍是合法 JSON 文本（转义保住了结构）
     let i = out.find("data: ").unwrap();
@@ -164,7 +175,8 @@ fn signature_delta_not_restored() {
     );
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(stream.as_bytes());
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains(&p), "placeholder kept: {out}");
     assert!(!out.contains("Zx9qw7Pl2Km4"), "value must not leak: {out}");
 }
@@ -185,8 +197,9 @@ fn gemini_part_path_context() {
     );
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(ev1.as_bytes());
-    out.push_str(&r.push(ev2.as_bytes()));
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.push(ev2.as_bytes()));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains(&email_value()), "same part joined: {out}");
     // 不同 part（parts.1）不拼：尾部原样放出
     let ev3 = format!(
@@ -197,8 +210,9 @@ fn gemini_part_path_context() {
     );
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(ev3.as_bytes());
-    out.push_str(&r.push(ev4.as_bytes()));
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.push(ev4.as_bytes()));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(
         out.contains(head) && out.contains(tailc),
         "not joined: {out}"
@@ -217,8 +231,9 @@ fn finish_releases_held() {
     let ev = ["data: {\"delta\":{\"text\":\"mail {{", part, "\"}}\n\n"].concat();
     let mut r = StreamRestorer::new(&e);
     let out = r.push(ev.as_bytes());
-    assert!(out.is_empty(), "held: {out}");
-    let rest = r.finish();
+    assert!(out.is_empty(), "held: {:?}", text(out));
+    let rest = text(r.finish());
+    let out = text(out);
     assert_eq!(format!("{out}{rest}"), ev, "byte-complete");
 }
 
@@ -227,8 +242,8 @@ fn finish_releases_held() {
 fn multibyte_across_chunks() {
     let mut e = engine();
     let p = e.mask("EMAIL", &email_value());
-    let text = format!("联系 {p} 处理");
-    let stream = format!("data: {{\"delta\":{{\"text\":\"{text}\"}}}}\n\n");
+    let phrase = format!("联系 {p} 处理");
+    let stream = format!("data: {{\"delta\":{{\"text\":\"{phrase}\"}}}}\n\n");
     // 找一个多字节字符中间切开
     let bytes = stream.as_bytes();
     let cut = bytes
@@ -238,8 +253,9 @@ fn multibyte_across_chunks() {
         + 1;
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(&bytes[..cut]);
-    out.push_str(&r.push(&bytes[cut..]));
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.push(&bytes[cut..]));
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains(&email_value()), "{out}");
     assert_eq!(out, stream.replace(&p, &email_value()));
 }
@@ -253,7 +269,8 @@ fn crlf_and_comments() {
         format!(": keepalive\r\n\r\ndata: {{\"delta\":{{\"text\":\"a {p}\"}}}}\r\n\r\n: ping\n\n");
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(stream.as_bytes());
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains(": keepalive\r\n\r\n"), "{out}");
     assert!(out.contains(&email_value()), "{out}");
 }
@@ -266,7 +283,8 @@ fn non_json_data_restored_as_text() {
     let stream = format!("data: [DONE]\n\ndata: plain {p} text\n\n");
     let mut r = StreamRestorer::new(&e);
     let mut out = r.push(stream.as_bytes());
-    out.push_str(&r.finish());
+    out.extend_from_slice(&r.finish());
+    let out = text(out);
     assert!(out.contains("[DONE]"), "{out}");
     assert!(out.contains(&email_value()), "{out}");
 }
@@ -332,15 +350,15 @@ proptest! {
         let whole = {
             let mut r = StreamRestorer::new(&e);
             let mut out = r.push(stream.as_bytes());
-            out.push_str(&r.finish());
-            out
+            out.extend_from_slice(&r.finish());
+            text(out)
         };
         let split = {
             let mut r = StreamRestorer::new(&e);
             let mut out = r.push(&stream.as_bytes()[..cut]);
-            out.push_str(&r.push(&stream.as_bytes()[cut..]));
-            out.push_str(&r.finish());
-            out
+            out.extend_from_slice(&r.push(&stream.as_bytes()[cut..]));
+            out.extend_from_slice(&r.finish());
+            text(out)
         };
         prop_assert_eq!(whole, split);
     }
@@ -353,22 +371,23 @@ proptest! {
         let whole = {
             let mut r = StreamRestorer::new(&e);
             let mut out = r.push(stream.as_bytes());
-            out.push_str(&r.finish());
-            out
+            out.extend_from_slice(&r.finish());
+            text(out)
         };
         let mut r = StreamRestorer::new(&e);
-        let mut out = String::new();
+        let mut out = Vec::new();
         let mut at = 0usize;
         for n in sizes {
             if at >= stream.len() { break; }
             let end = (at + n).min(stream.len());
-            out.push_str(&r.push(&stream.as_bytes()[at..end]));
+            out.extend_from_slice(&r.push(&stream.as_bytes()[at..end]));
             at = end;
         }
         if at < stream.len() {
-            out.push_str(&r.push(&stream.as_bytes()[at..]));
+            out.extend_from_slice(&r.push(&stream.as_bytes()[at..]));
         }
-        out.push_str(&r.finish());
+        out.extend_from_slice(&r.finish());
+        let out = text(out);
         prop_assert_eq!(whole, out);
     }
 }
