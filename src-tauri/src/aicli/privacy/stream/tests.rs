@@ -391,3 +391,70 @@ proptest! {
         prop_assert_eq!(whole, out);
     }
 }
+
+/// 扣留事件 + 下一事件还原中 panic（注入点在引擎调用内、扣留已被取走
+/// 之后）：可用性优先下输出 = 扣留事件原文 + 出错事件 + 其后原始字节。
+#[cfg(feature = "test-hooks")]
+fn held_then_fault_case(e: &mut PlaceholderEngine) -> (String, String, String) {
+    let p = e.mask("EMAIL", &email_value());
+    let (head, tail) = p.split_at(p.len() / 2);
+    let ev1 = format!("data: {{\"delta\":{{\"text\":\"见 {head}\"}}}}\n\n");
+    let ev2 = format!("data: {{\"delta\":{{\"text\":\"{tail} 吧\"}}}}\n\n");
+    let ev3 = "data: {\"delta\":{\"text\":\"收尾😀\"}}\n\ndata: [DONE]\n\n".to_string();
+    (ev1, ev2, ev3)
+}
+
+#[cfg(feature = "test-hooks")]
+#[test]
+fn fault_after_held_event_releases_its_raw_bytes() {
+    let mut e = engine();
+    let (ev1, ev2, ev3) = held_then_fault_case(&mut e);
+    let mut r = StreamRestorer::new(&e);
+    r.set_fault_event(2);
+    let first = r.push(ev1.as_bytes());
+    assert!(first.is_empty(), "ev1 held: {:?}", text(first));
+    // 块 2 = ev2 + ev3 的前半（切在 emoji 中间）
+    let rest = format!("{ev2}{ev3}");
+    let cut = ev2.len() + ev3.find('😀').unwrap() + 1;
+    let mut out = r.push(&rest.as_bytes()[..cut]);
+    assert!(r.engine_failed());
+    out.extend_from_slice(&r.push(&rest.as_bytes()[cut..]));
+    out.extend_from_slice(&r.finish());
+    assert_eq!(out, format!("{ev1}{ev2}{ev3}").into_bytes(), "no dup/loss");
+}
+
+#[cfg(feature = "test-hooks")]
+#[test]
+fn fail_closed_releases_nothing_after_fault() {
+    let mut e = engine();
+    let (ev1, ev2, ev3) = held_then_fault_case(&mut e);
+    let mut r = StreamRestorer::new(&e);
+    r.set_fail_closed(true);
+    r.set_fault_event(2);
+    assert!(r.push(ev1.as_bytes()).is_empty());
+    assert!(r.push(format!("{ev2}{ev3}").as_bytes()).is_empty());
+    assert!(r.engine_failed());
+    assert!(r.push(b"data: more\n\n").is_empty());
+    assert!(r.finish().is_empty());
+}
+
+/// finish 的剩余缓冲还原 panic：可用性优先按原始字节放出，并报告失败。
+#[cfg(feature = "test-hooks")]
+#[test]
+fn fault_in_finish_releases_raw_buffer() {
+    let e = engine();
+    let mut r = StreamRestorer::new(&e);
+    r.set_fault_event(1);
+    let partial = "data: {\"delta\":{\"text\":\"半截 😀".as_bytes();
+    assert!(r.push(partial).is_empty());
+    assert!(!r.engine_failed());
+    assert_eq!(r.finish(), partial);
+    assert!(r.engine_failed());
+
+    let mut r = StreamRestorer::new(&e);
+    r.set_fail_closed(true);
+    r.set_fault_event(1);
+    assert!(r.push(partial).is_empty());
+    assert!(r.finish().is_empty());
+    assert!(r.engine_failed());
+}

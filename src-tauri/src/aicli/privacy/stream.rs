@@ -51,6 +51,9 @@ pub struct StreamRestorer<'a> {
     passthrough: bool,
     /// 本次生命周期内是否发生过引擎失败（调用方据此计数/断流）。
     failed: bool,
+    /// 失败后不放出任何上游字节（隐私优先）：失败事件、扣留与剩余缓冲
+    /// 全部丢弃，后续 push 返回空。默认 false（可用性优先：原样透传）。
+    fail_closed: bool,
     /// test-hooks：在第 N 个事件还原时注入 panic（0 = 不注入）。
     #[cfg(feature = "test-hooks")]
     fault_event: u32,
@@ -68,6 +71,7 @@ impl<'a> StreamRestorer<'a> {
             pending: None,
             passthrough: false,
             failed: false,
+            fail_closed: false,
             #[cfg(feature = "test-hooks")]
             fault_event: 0,
             #[cfg(feature = "test-hooks")]
@@ -85,6 +89,7 @@ impl<'a> StreamRestorer<'a> {
             pending: None,
             passthrough: false,
             failed: false,
+            fail_closed: false,
             #[cfg(feature = "test-hooks")]
             fault_event: 0,
             #[cfg(feature = "test-hooks")]
@@ -107,12 +112,16 @@ impl<'a> StreamRestorer<'a> {
     /// 放出的扣留）。多字节字符跨块安全：不完整的 UTF-8 尾部留在 buf，
     /// 全程不经过有损转换。
     ///
-    /// **每个事件的还原单独 catch_unwind**（E-06 第二轮）：引擎在事件还原
-    /// 中 panic 时——本次 push 中已还原的事件照常输出；出错事件及其后
-    /// buf 里的剩余字节按**原始字节**放出；restorer 进入透传（后续 push
-    /// 原样返回）。字节不重不漏。
+    /// **每个事件的还原单独 catch_unwind**（E-06）：引擎在事件还原中 panic
+    /// 时，本次 push 中已还原的事件照常输出；之前被扣留的事件、出错事件
+    /// 及 buf 剩余字节按**原始字节**放出，restorer 进入透传（后续 push 原样
+    /// 返回），字节不重不漏。`set_fail_closed(true)` 时这些原始字节一律
+    /// 不放出，后续 push 返回空。
     pub fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
         if self.passthrough {
+            if self.fail_closed {
+                return Vec::new();
+            }
             return chunk.to_vec();
         }
         self.buf.extend_from_slice(chunk);
@@ -138,20 +147,24 @@ impl<'a> StreamRestorer<'a> {
                 // 完整事件以 \n 结束，多字节字符不会跨过事件边界切坏；
                 // 非 UTF-8（二进制）事件原样放出不尝试还原
                 Ok(ev) => {
+                    // event() 在调用引擎之前就会取走扣留事件：panic 时它的
+                    // 输出只在 event() 的局部变量里，所以先在这里记下原文。
+                    let held_raw = self.pending.as_ref().map(|p| p.raw.clone());
                     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.event(ev)))
                     {
                         Ok(processed) => out.extend_from_slice(&processed.into_bytes()),
                         Err(_payload) => {
-                            log::error!("隐私引擎流式还原 panic：事件按原始字节放出并转入透传");
-                            self.failed = true;
-                            self.passthrough = true;
-                            // 之前被扣留的事件：按原始字节放出（不能丢）
-                            if let Some(p) = self.pending.take() {
-                                out.extend_from_slice(p.raw.as_bytes());
+                            self.fail();
+                            if !self.fail_closed {
+                                // 之前被扣留的事件 + 出错事件 + buf 剩余（含下一个
+                                // 事件的开头）：按原始字节放出，不重不漏
+                                if let Some(raw) = held_raw {
+                                    out.extend_from_slice(raw.as_bytes());
+                                }
+                                out.extend_from_slice(ev.as_bytes());
+                                out.append(&mut self.buf);
                             }
-                            // 出错事件 + buf 剩余（含下一个事件的开头）：原始字节
-                            out.extend_from_slice(ev.as_bytes());
-                            out.append(&mut self.buf);
+                            self.buf.clear();
                             self.scanned = 0;
                             break;
                         }
@@ -174,24 +187,33 @@ impl<'a> StreamRestorer<'a> {
         self.fault_event = event;
     }
 
-    /// 取出全部尚未输出的**原始字节**（被扣留事件的原文 + 未切帧的 buf），
-    /// 状态清空。E-06 pass 模式引擎失败后先用它把缓存字节放干净再进入
-    /// 原样透传：SSE 帧不重不漏（当前块尚未入 buf 时由调用方补上）。
-    pub fn take_pending_raw(&mut self) -> Vec<u8> {
-        let mut out = Vec::new();
-        if let Some(p) = self.pending.take() {
-            out.extend_from_slice(p.full.as_bytes());
-        }
-        out.append(&mut self.buf);
-        self.scanned = 0;
-        out
+    /// 隐私优先：失败后不放出任何上游字节（见 `fail_closed` 字段）。
+    pub fn set_fail_closed(&mut self, on: bool) {
+        self.fail_closed = on;
+    }
+
+    /// 引擎失败：进入透传（或隐私优先下的静默），扣留内容作废。
+    fn fail(&mut self) {
+        log::error!("隐私引擎流式还原 panic：转入透传或断流（按失败模式）");
+        self.failed = true;
+        self.passthrough = true;
+        self.pending = None;
+    }
+
+    /// test-hooks：本事件是否注入（第 N 个事件起）。注入点放在引擎调用
+    /// 内部、扣留事件已被取走之后，与真实 panic 的位置一致。
+    #[cfg(feature = "test-hooks")]
+    fn next_event_faults(&mut self) -> bool {
+        self.events_seen += 1;
+        self.fault_event != 0 && self.events_seen >= self.fault_event
     }
 
     /// 流结束（错误、取消同样调用）：放出全部扣留，剩余缓冲按纯文本还原。
     pub fn finish(&mut self) -> Vec<u8> {
         if self.passthrough {
-            // 透传态不持有内容；剩余 buf 已在失败瞬间放出
-            return std::mem::take(&mut self.buf);
+            // 透传态不持有内容；剩余 buf 已在失败瞬间放出或丢弃
+            self.buf.clear();
+            return Vec::new();
         }
         let mut out = Vec::new();
         if let Some(p) = self.pending.take() {
@@ -199,11 +221,26 @@ impl<'a> StreamRestorer<'a> {
         }
         if !self.buf.is_empty() {
             let rest = String::from_utf8_lossy(&self.buf).into_owned();
-            out.extend_from_slice(
-                &self
-                    .with_engine(|engine| walker::restore(&rest, false, engine))
-                    .into_bytes(),
-            );
+            #[cfg(feature = "test-hooks")]
+            let inject = self.next_event_faults();
+            let restored = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.with_engine(|engine| {
+                    #[cfg(feature = "test-hooks")]
+                    if inject {
+                        panic!("privacy fault injection: stream finish");
+                    }
+                    walker::restore(&rest, false, engine)
+                })
+            }));
+            match restored {
+                Ok(restored) => out.extend_from_slice(restored.as_bytes()),
+                Err(_payload) => {
+                    self.fail();
+                    if !self.fail_closed {
+                        out.extend_from_slice(&self.buf);
+                    }
+                }
+            }
         }
         self.buf.clear();
         self.scanned = 0;
@@ -213,17 +250,18 @@ impl<'a> StreamRestorer<'a> {
     /// 还原一个完整事件并返回应写出的内容，或扣留它。
     fn event(&mut self, ev: &str) -> String {
         #[cfg(feature = "test-hooks")]
-        {
-            self.events_seen += 1;
-            if self.fault_event != 0 && self.events_seen >= self.fault_event {
-                panic!("privacy fault injection: stream event");
-            }
-        }
+        let inject = self.next_event_faults();
         let mut out = String::new();
         let Some((name, data, pre, post)) = split_event(ev) else {
             // 不是单 data 行 JSON 的事件：放出扣留，整段按纯文本还原
             out.push_str(&self.release());
-            out.push_str(&self.with_engine(|engine| walker::restore(ev, false, engine)));
+            out.push_str(&self.with_engine(|engine| {
+                #[cfg(feature = "test-hooks")]
+                if inject {
+                    panic!("privacy fault injection: stream event");
+                }
+                walker::restore(ev, false, engine)
+            }));
             return out;
         };
         let ctx = format!("{name}|{}", event_ctx(&data));
@@ -247,6 +285,10 @@ impl<'a> StreamRestorer<'a> {
         let mut tail = String::new();
         let mut cut = String::new();
         let restored = self.with_engine(|engine| {
+            #[cfg(feature = "test-hooks")]
+            if inject {
+                panic!("privacy fault injection: stream event");
+            }
             let kinds = engine.kinds();
             walk(&data, &mut |path, key, s| {
                 let mut s = s.to_string();

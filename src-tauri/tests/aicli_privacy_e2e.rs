@@ -1332,7 +1332,8 @@ async fn stream_block_mode_fault_at_nth_chunk_is_visible_failure() {
         Err(_) => { /* 连接中断 ✓ */ }
         Ok(out) => match out.text().await {
             Err(_) => { /* body 中断 ✓ */ }
-            Ok(text) => assert!(!text.contains(&placeholder), "no full placeholder: {text}"),
+            // 隐私优先：被扣留的 ev1 与出错后的上游字节都不放出
+            Ok(text) => assert!(!text.contains(head), "nothing after the fault: {text}"),
         },
     }
     f.gate().inject_failure(0);

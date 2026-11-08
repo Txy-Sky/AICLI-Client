@@ -65,6 +65,7 @@ case "$set_name" in
     item C3-09-wire --features test-hooks --test aicli_routing aicli_credentials_follow_wire
     item C4-03-routing --features test-hooks --test aicli_routing bill_backfill
     item E-06-e2e --features test-hooks --test aicli_privacy_e2e
+    item E-06-stream-faults --features test-hooks --lib aicli::privacy::stream::tests::fa
     ;;
   *)
     echo "unknown feature set: $set_name" >&2

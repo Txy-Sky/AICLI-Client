@@ -574,6 +574,9 @@ async fn response_with_gate(
             gate.note_engine_failure(false);
             return response;
         };
+        let mut restorer = restorer;
+        // 隐私优先：引擎失败后不再放出任何上游字节
+        restorer.set_fail_closed(settings.block);
         let (mut parts, body) = response.into_parts();
         let stream = RestoreStream {
             upstream: Box::pin(body.into_data_stream()),
@@ -581,7 +584,6 @@ async fn response_with_gate(
             gate: Arc::clone(gate),
             block: settings.block,
             finished: false,
-            pending_tail: None,
             pending_error: None,
             failure_noted: false,
         };
@@ -650,12 +652,46 @@ struct RestoreStream {
     gate: Arc<PrivacyGate>,
     block: bool,
     finished: bool,
-    /// 上游出错时待发出的尾部（finish 的输出），发完后返回错误。
-    pending_tail: Option<Bytes>,
-    /// 待尾部发出后向下游传播的错误（上游错误或 block 模式引擎失败）。
+    /// 已发出其前字节、下一轮再传播的错误（上游错误或隐私优先下的引擎失败）。
     pending_error: Option<std::io::Error>,
     /// 引擎失败已计数（一次生命周期内只计一次）。
     failure_noted: bool,
+}
+
+impl RestoreStream {
+    /// restorer 报告引擎失败时计数一次；隐私优先返回要传播的错误。
+    fn check_failure(&mut self) -> Option<std::io::Error> {
+        if !self.restorer.engine_failed() {
+            return None;
+        }
+        if !self.failure_noted {
+            self.failure_noted = true;
+            self.gate.note_engine_failure(self.block);
+        }
+        // 头已发出：隐私优先不能正常结束（会被当成成功），以错误断开连接；
+        // 可用性优先由 restorer 原样透传。
+        self.block
+            .then(|| std::io::Error::other("privacy_engine_failed"))
+    }
+
+    /// 先发 `out`（非空时），再以 `error` 结束（有错误时）。
+    fn emit(
+        &mut self,
+        out: Vec<u8>,
+        error: Option<std::io::Error>,
+    ) -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
+        if error.is_some() {
+            self.finished = true;
+        }
+        match (out.is_empty(), error) {
+            (false, error) => {
+                self.pending_error = error;
+                std::task::Poll::Ready(Some(Ok(Bytes::from(out))))
+            }
+            (true, Some(error)) => std::task::Poll::Ready(Some(Err(error))),
+            (true, None) => std::task::Poll::Ready(None),
+        }
+    }
 }
 
 impl futures::Stream for RestoreStream {
@@ -665,10 +701,7 @@ impl futures::Stream for RestoreStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        // 先发错误前积压的尾部，再传播错误（注释与行为一致）
-        if let Some(tail) = self.pending_tail.take() {
-            return std::task::Poll::Ready(Some(Ok(tail)));
-        }
+        // 先传播上一轮积压的错误（其前的字节已发出）
         if let Some(error) = self.pending_error.take() {
             self.finished = true;
             return std::task::Poll::Ready(Some(Err(error)));
@@ -680,29 +713,11 @@ impl futures::Stream for RestoreStream {
             let this = &mut *self;
             match this.upstream.as_mut().poll_next(cx) {
                 std::task::Poll::Ready(Some(Ok(chunk))) => {
-                    // 引擎 panic 在 restorer 内部逐事件兑住（已还原的照常
-                    // 输出、出错事件起转原始字节透传）；这里只看结果状态。
+                    // 引擎 panic 在 restorer 内部逐事件兜住（已还原的照常输出；
+                    // 可用性优先从出错处起原始字节透传，隐私优先不再放出上游字节）
                     let out = this.restorer.push(&chunk);
-                    if this.restorer.engine_failed() {
-                        if !this.failure_noted {
-                            this.failure_noted = true;
-                            this.gate.note_engine_failure(this.block);
-                        }
-                        if this.block {
-                            // 头已发出：不能正常结束（会被当成成功）。先发
-                            // 已还原的部分，随后返回错误断开连接。
-                            this.pending_error =
-                                Some(std::io::Error::other("privacy_engine_failed"));
-                            if out.is_empty() {
-                                this.finished = true;
-                                return std::task::Poll::Ready(Some(Err(this
-                                    .pending_error
-                                    .take()
-                                    .unwrap())));
-                            }
-                            return std::task::Poll::Ready(Some(Ok(Bytes::from(out))));
-                        }
-                        // pass：restorer 已在透传，字节照走
+                    if let Some(error) = this.check_failure() {
+                        return this.emit(out, Some(error));
                     }
                     if out.is_empty() {
                         continue; // 全部扣留/注释未产出：继续拉
@@ -710,25 +725,19 @@ impl futures::Stream for RestoreStream {
                     return std::task::Poll::Ready(Some(Ok(Bytes::from(out))));
                 }
                 std::task::Poll::Ready(Some(Err(error))) => {
-                    // 上游错误：先把 finish 的尾部字节发出，下一轮再传播错误
-                    let tail = self.restorer.finish();
-                    if !tail.is_empty() {
-                        self.pending_tail = Some(Bytes::from(tail));
-                    }
-                    self.pending_error = Some(std::io::Error::other(error));
-                    if self.pending_tail.is_some() {
-                        return std::task::Poll::Ready(Some(Ok(self.pending_tail.take().unwrap())));
-                    }
-                    self.finished = true;
-                    return std::task::Poll::Ready(Some(Err(self.pending_error.take().unwrap())));
+                    // 上游错误：先发 finish 的尾部字节，再传播错误
+                    let tail = this.restorer.finish();
+                    let error = this
+                        .check_failure()
+                        .unwrap_or_else(|| std::io::Error::other(error));
+                    return this.emit(tail, Some(error));
                 }
                 std::task::Poll::Ready(None) => {
-                    let out = self.restorer.finish();
-                    self.finished = true;
-                    if out.is_empty() {
-                        return std::task::Poll::Ready(None);
-                    }
-                    return std::task::Poll::Ready(Some(Ok(Bytes::from(out))));
+                    // finish 内的还原同样可能失败：隐私优先仍以错误结束
+                    let tail = this.restorer.finish();
+                    let error = this.check_failure();
+                    this.finished = true;
+                    return this.emit(tail, error);
                 }
                 std::task::Poll::Pending => return std::task::Poll::Pending,
             }
