@@ -379,12 +379,20 @@ fn person_spans(text: &str, e: &mut PlaceholderEngine) -> Vec<(usize, usize)> {
 /// 固化到后续请求里）。断言较低值 ≥ 95%。
 #[test]
 fn zhname_corpus_precision() {
+    // 已知值索引独立于引擎：「新引擎」口径每条前清空，共用引擎口径前也清空
+    let forget = || {
+        crate::aicli::privacy::rules::known::shared_index()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .reindex(&std::collections::HashMap::new())
+    };
     let corpus = load_corpus();
     assert!(corpus.len() >= 200, "corpus has {} lines", corpus.len());
 
     // 方式一：每条语料一个新引擎（单条精确率）
     let (mut tp1, mut fp1, mut fn1) = (0u32, 0u32, 0u32);
     for line in &corpus {
+        forget();
         let mut e = engine();
         let spans = person_spans(&line.text, &mut e);
         let (tp, fp, f) = score_line(&line.text, &line.names, &spans);
@@ -398,6 +406,7 @@ fn zhname_corpus_precision() {
     // 方式二：共用一个引擎按顺序（真实会话的累积效应）
     let mut shared = engine();
     let (mut tp2, mut fp2, mut fn2) = (0u32, 0u32, 0u32);
+    forget();
     for line in &corpus {
         let spans = person_spans(&line.text, &mut shared);
         let (tp, fp, f) = score_line(&line.text, &line.names, &spans);
@@ -414,6 +423,7 @@ fn zhname_corpus_precision() {
     let mut heldout = 0usize;
     for line in corpus.iter().filter(|l| l.set == "heldout") {
         heldout += 1;
+        forget();
         let mut e = engine();
         let spans = person_spans(&line.text, &mut e);
         let (tp, fp, f) = score_line(&line.text, &line.names, &spans);

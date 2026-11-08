@@ -130,6 +130,8 @@ impl PlaceholderEngine {
     }
 
     /// 计算占位符并记住原值（对应 Magpie `placeholder`）：表满先淘汰最旧一半。
+    /// 新值同时登记进已知值索引（Magpie `addKnown`），此后在任何上下文出现
+    /// 都会被再次遮盖（`rules::known`）。
     pub fn mask(&mut self, kind: &str, value: &str) -> String {
         let placeholder = self.tag(kind, value);
         if !self.values.contains_key(&placeholder) {
@@ -137,6 +139,10 @@ impl PlaceholderEngine {
             self.values.insert(placeholder.clone(), value.to_owned());
             self.order.push_back(placeholder.clone());
             self.kinds.insert(kind.to_owned());
+            super::rules::known::shared_index()
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .add(&placeholder, value);
         }
         placeholder
     }
@@ -171,6 +177,11 @@ impl PlaceholderEngine {
                 self.values.remove(&oldest);
             }
         }
+        // Magpie makeRoom 之后 reindexKnown：被淘汰的值不再作为已知值匹配
+        super::rules::known::shared_index()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .reindex(&self.values);
     }
 
     /// 仅测试：注入小值表上限，验证「满时淘汰最旧一半」与淘汰后恢复。

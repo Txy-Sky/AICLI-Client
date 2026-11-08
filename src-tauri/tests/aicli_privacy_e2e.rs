@@ -1613,3 +1613,38 @@ async fn cjk_name_switch_applies_through_proxy() {
     );
     f.stop().await;
 }
+
+// ---- 19. 已知值记忆（Magpie known）：前一个请求遮过的值，后一个请求里不带
+//          提示词出现也遮成同一占位符 ----
+
+#[tokio::test]
+async fn masked_value_is_remembered_across_requests() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    f.set_privacy(true, "block", false);
+    let pw = ["Qw7m", "Pz3kLx9v"].concat();
+    let alias = claude_alias(&f.db);
+    let send = |text: String| {
+        let body = json!({"model": alias.clone(), "max_tokens": 8, "messages": [
+            {"role":"user","content": text}]});
+        let client = f.client();
+        let url = format!("{}/v1/messages", f.origin);
+        async move {
+            let out = client.post(url).json(&body).send().await.unwrap();
+            assert_eq!(out.status(), 200);
+        }
+    };
+
+    send(format!("数据库密码：{pw}")).await;
+    let first = String::from_utf8(f.bodies()[0].clone()).unwrap();
+    assert!(!first.contains(&pw), "cued value masked: {first}");
+    let placeholder = first_placeholder(&first);
+
+    send(format!("把连接参数 {pw} 填进配置")).await;
+    let second = String::from_utf8(f.bodies()[1].clone()).unwrap();
+    assert!(!second.contains(&pw), "remembered value masked: {second}");
+    assert!(
+        second.contains(&placeholder),
+        "same placeholder {placeholder}: {second}"
+    );
+    f.stop().await;
+}

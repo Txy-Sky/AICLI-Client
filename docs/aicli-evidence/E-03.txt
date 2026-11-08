@@ -142,3 +142,39 @@ CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8
 测试去掉 i32→i32 转换、ids.rs 测试直接传字面量；只改测试写法，不改断言。推送前本地
 privacy 模块 clippy --lib --tests -D warnings 无告警、136 passed。CI
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/42385215888 六 job 全 success。
+
+三、已知值记忆接线（2026-11-08，E-03/E-04 遗留补齐）
+问题（E-07/E-08 验收复核发现）：known.rs 移植了索引与再匹配，但生产路径从未
+登记（KnownIndex::add 只有测试调用），Magpie「遮过一次的值以后在任何上下文都
+遮」不生效——例如先发「数据库密码：X」，之后代码里单独出现 X 不遮。同时发现
+两处半成品：再匹配片段的种类留空（注释写「引擎层填入」但没有填），再遮会变成
+{{SECRET_…}} 而不是原占位符；standsAlone 移植了但 knownSpans 没调用，已知值
+会在更长字母数字串中间被切出来遮。
+修复：
+1. placeholder.rs：PlaceholderEngine::mask 新值入表时登记进已知值索引
+   （Magpie placeholder → addKnown）；make_room 淘汰后按剩余值重建索引
+   （Magpie makeRoom → reindexKnown），被淘汰的值不再再匹配。
+2. known.rs：KnownValue.kind 驻留为 &'static str 并带进 Span.kind，再遮得到
+   与第一次相同的占位符；knownSpans 只认 stands_alone 的命中。
+3. 测试构建（cfg(test)）里索引每线程一份：cargo test 一测试一线程，避免测试
+   之间互相污染；生产构建仍为进程级全局，与 CI 的 nextest（一测试一进程）
+   行为一致。
+测试：
+- redact::tests::masked_value_is_remembered_in_later_requests（先证规则单独
+  不遮裸值 → 凭「密码：」遮一次 → 裸值遮成同一占位符；secrets 关不再匹配）
+- placeholder::tests::known_index_follows_value_table（登记；淘汰后遗忘）
+- known::tests::spans_carry_kind_and_require_standing_alone
+- e2e 第 19 项 masked_value_is_remembered_across_requests（真实代理，两次
+  请求，上游第二次收到同一占位符）
+- 既有规则测试 3 处「同值换条件不遮」（birthday_after_label 的无标注日期、
+  home_folder_username 与 user_at_host_prompt 的类别默认关）在该步之前清空
+  已知值索引：断言检验的是规则本身，不清空会由已知值再匹配遮掉（Magpie 的
+  预期行为，由上面新测试覆盖）。断言未放宽。
+变异验证（各自改回后跑 privacy 全量）：去掉登记 → 2 个新测试失败；去掉淘汰后
+重建 → known_index_follows_value_table 失败；去掉 stands_alone → known 新测试
+失败；种类留空 → 2 个测试失败。
+回归：549 条对照语料（共用引擎按序）我方输出与接线前逐行相同（0 行变化，
+语料中值不重复出现）；本地 privacy 151 passed / 2 ignored，逐个独立进程跑
+153 个全过；clippy --tests 与 rustfmt --check 无告警。
+未做：已知值再匹配不按类别开关过滤（Magpie knownSpans 只看 secrets，照移植；
+PERSON 例外见 E-08）。类别关闭后，之前在开启时遮过的值仍会再遮——方向为多遮。

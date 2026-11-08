@@ -172,3 +172,27 @@ fn malformed_stored_key_is_regenerated_not_zero_filled() {
         PlaceholderEngine::with_key(fixed_key()).tag("EMAIL", "a@example.com")
     );
 }
+
+/// 新值登记进已知值索引；表满淘汰后按剩余值重建（Magpie makeRoom →
+/// reindexKnown），被淘汰的值不再作为已知值匹配。
+#[test]
+fn known_index_follows_value_table() {
+    let mut e = PlaceholderEngine::with_key(fixed_key()).with_limit_for_test(4);
+    let values: Vec<String> = (0..5).map(|i| format!("Kv{i}x9Lm2Qp7Zt")).collect();
+    let found = |v: &str| {
+        crate::aicli::privacy::rules::known::shared_index()
+            .lock()
+            .unwrap()
+            .spans(&format!(" {v} "), |_| true)
+            .len()
+    };
+    for v in &values[..4] {
+        e.mask("PASSWORD", v);
+    }
+    assert!(values[..4].iter().all(|v| found(v) == 1), "registered");
+    e.mask("PASSWORD", &values[4]); // 满 → 淘汰最旧 2 个
+    assert_eq!(found(&values[0]), 0, "evicted value forgotten");
+    assert_eq!(found(&values[1]), 0, "evicted value forgotten");
+    assert_eq!(found(&values[2]), 1);
+    assert_eq!(found(&values[4]), 1);
+}

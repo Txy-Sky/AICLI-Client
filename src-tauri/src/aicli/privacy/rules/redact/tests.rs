@@ -210,6 +210,16 @@ fn luhn_valid() {
 // ---- more.go 规则移植测试 ----
 
 /// 打开指定类别的选项（默认开的 ssn/… 不用动；home 等默认关）。
+/// 清空进程级已知值索引。规则测试里「同值换个条件不遮」的断言检验的是
+/// 规则本身；该值前面已被遮过，不清空会由已知值再匹配遮掉（那是 Magpie
+/// known 的预期行为，由 masked_value_is_remembered_in_later_requests 覆盖）。
+fn forget_known() {
+    crate::aicli::privacy::rules::known::shared_index()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .reindex(&std::collections::HashMap::new());
+}
+
 fn opts_with(kinds: &[(&str, bool)]) -> MaskOptions {
     let mut o = opts();
     for (k, v) in kinds {
@@ -268,7 +278,8 @@ fn birthday_after_label() {
     // 将来的日期不是生日
     let (out, _) = mask("生日：2099-01-01", &opts(), &mut e);
     assert!(out.contains("2099-01-01"), "must not mask: {out}");
-    // 无标注的日期不遮
+    // 无标注的日期不遮（同值上面遮过，先清已知值）
+    forget_known();
     let (out, _) = mask("deadline 1990-03-15", &opts(), &mut e);
     assert!(out.contains("1990-03-15"), "must not mask: {out}");
 }
@@ -311,7 +322,8 @@ fn home_folder_username() {
     // 公共目录名不遮
     let (out, _) = mask("look in /Users/shared/project", &o, &mut e);
     assert!(out.contains("/Users/shared"), "{out}");
-    // 默认关：不遮
+    // 默认关：不遮（同值上面遮过，先清已知值）
+    forget_known();
     let (out, _) = mask("look in /Users/zhangsan/project", &opts(), &mut e);
     assert!(out.contains("zhangsan"), "{out}");
 }
@@ -339,7 +351,8 @@ fn user_at_host_prompt() {
     // 包版本锁定不是登录
     let (out, _) = mask("  js-tokens@4.0.0:", &o, &mut e);
     assert!(out.contains("js-tokens@4.0.0"), "must not mask: {out}");
-    // 默认关
+    // 默认关（同值上面遮过，先清已知值）
+    forget_known();
     let (out, _) = mask("[zhangsan@web01 ~]$ ls", &opts(), &mut e);
     assert!(out.contains("zhangsan") && out.contains("web01"), "{out}");
 }
@@ -560,4 +573,38 @@ fn write_rust_raw_jsonl_for_e07() {
         ),
     )
     .expect("write rust_raw.jsonl");
+}
+
+// ---- 已知值再匹配（Magpie known：遮过一次的值以后在任何上下文都遮） ----
+
+/// 第一次凭「密码：」提示遮盖的值，之后不带提示词出现也遮成同一占位符。
+#[test]
+fn masked_value_is_remembered_in_later_requests() {
+    forget_known();
+    let mut e = engine();
+    let o = opts();
+    let pw = ["Qw7m", "Pz3kLx9v"].concat();
+    let bare = format!("把连接参数 {pw} 填进配置");
+    let (out, n) = mask(&bare, &o, &mut e);
+    assert_eq!(n, 0, "rules alone leave the bare value: {out}");
+
+    let (cued, n) = mask(&format!("数据库密码：{pw}"), &o, &mut e);
+    assert_eq!(n, 1, "{cued}");
+    let start = cued.find("{{").expect("placeholder");
+    let placeholder = &cued[start..cued[start..].find("}}").unwrap() + start + 2];
+
+    let (out, n) = mask(&bare, &o, &mut e);
+    assert_eq!(n, 1, "remembered value masked: {out}");
+    assert!(!out.contains(&pw), "{out}");
+    assert!(
+        out.contains(placeholder),
+        "same placeholder {placeholder}: {out}"
+    );
+    // secrets 关闭时不再匹配（Magpie knownSpans 只看 secrets）
+    let off = MaskOptions {
+        secrets: false,
+        ..opts()
+    };
+    let (out, _) = mask(&bare, &off, &mut e);
+    assert!(out.contains(&pw), "secrets off: {out}");
 }

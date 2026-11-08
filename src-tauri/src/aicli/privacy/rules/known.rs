@@ -17,7 +17,21 @@ pub(crate) const MIN_KNOWN: usize = 8;
 pub(crate) struct KnownValue {
     pub value: String,
     pub placeholder: String,
-    pub kind: String,
+    /// 种类（驻留为 'static，供 Span.kind 使用；再遮时得到同一占位符）。
+    pub kind: &'static str,
+}
+
+/// 种类名驻留：Span.kind 是 &'static str，种类来自占位符字符串。种类集合
+/// 有限（规则种类 + 自定义词条），每种只泄漏一次。
+fn intern_kind(kind: &str) -> &'static str {
+    static KINDS: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+    let mut kinds = KINDS.lock().unwrap_or_else(|p| p.into_inner());
+    if let Some(k) = kinds.iter().find(|k| **k == kind) {
+        return k;
+    }
+    let leaked: &'static str = Box::leak(kind.to_owned().into_boxed_str());
+    kinds.push(leaked);
+    leaked
 }
 
 /// 已知值索引（Magpie `known`/`knownBits`/`knownGen`）。
@@ -68,7 +82,7 @@ impl KnownIndex {
         existing.push(KnownValue {
             value: value.to_string(),
             placeholder: placeholder.to_string(),
-            kind: kind.to_string(),
+            kind: intern_kind(kind),
         });
         let g = gram(value.as_bytes(), 0);
         self.bits[g / 64] |= 1 << (g % 64);
@@ -107,11 +121,15 @@ impl KnownIndex {
             };
             let mut best: Option<&KnownValue> = None;
             for k in candidates {
-                if !covers_kind(&k.kind) {
+                if !covers_kind(k.kind) {
                     continue;
                 }
                 // 按字节比较：值是合法 UTF-8，命中处必然落在字符边界上
                 if !bytes[i..].starts_with(k.value.as_bytes()) {
+                    continue;
+                }
+                // Magpie knownSpans：只认独立出现的值，不遮更长内容里的片段
+                if !stands_alone(k.kind, bytes, i, i + k.value.len()) {
                     continue;
                 }
                 if let Some(b) = best {
@@ -125,7 +143,7 @@ impl KnownIndex {
                 out.push(Span {
                     start: i,
                     end: i + b.value.len(),
-                    kind: "", // 引擎层填入
+                    kind: b.kind,
                     by: FoundBy::Known,
                     bare: false,
                 });
@@ -190,9 +208,22 @@ pub(crate) fn stands_alone(kind: &str, s: &[u8], a: usize, b: usize) -> bool {
 }
 
 /// 共享的已知值索引（进程级，Magpie 的全局 `known`）。
+#[cfg(not(test))]
 pub(crate) fn shared_index() -> &'static Mutex<KnownIndex> {
     static IDX: std::sync::OnceLock<Mutex<KnownIndex>> = std::sync::OnceLock::new();
     IDX.get_or_init(|| Mutex::new(KnownIndex::new()))
+}
+
+/// 单元测试构建：每个线程一份（`cargo test` 一测试一线程），避免一个测试
+/// 遮过的值在另一个测试里被再匹配；与 CI 的 nextest（一测试一进程）一致。
+/// 每线程泄漏一个索引，只在测试里发生。
+#[cfg(test)]
+pub(crate) fn shared_index() -> &'static Mutex<KnownIndex> {
+    thread_local! {
+        static IDX: &'static Mutex<KnownIndex> =
+            Box::leak(Box::new(Mutex::new(KnownIndex::new())));
+    }
+    IDX.with(|idx| *idx)
 }
 
 #[cfg(test)]
@@ -304,5 +335,20 @@ mod tests {
             assert_eq!(&text[sp.start..sp.end], name);
         }
         assert!(idx.spans("司马光砸缸的故事很长很长", covers_all).is_empty());
+    }
+
+    /// 再匹配带出原种类（再遮得到同一占位符），且只认独立出现的值
+    /// （Magpie knownSpans 的 standsAlone）。
+    #[test]
+    fn spans_carry_kind_and_require_standing_alone() {
+        let pw = ["Qw7m", "Pz3kLx9v"].concat();
+        let idx = build(&[("{{PASSWORD_ab2cd3ef}}", &pw)]);
+        let spans = idx.spans(&format!("参数 {pw} 已更新"), covers_all);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].kind, "PASSWORD");
+        assert_eq!(spans[0].by, FoundBy::Known);
+        // 更长字母数字串里的片段不算
+        assert!(idx.spans(&format!("x{pw}9"), covers_all).is_empty());
+        assert!(idx.spans(&format!("{pw}Z"), covers_all).is_empty());
     }
 }
