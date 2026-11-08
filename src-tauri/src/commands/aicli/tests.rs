@@ -695,6 +695,20 @@ async fn refresh_validates_kinds_and_requires_a_binding() {
         .unwrap()
         .wait_for_idle()
         .await;
+    // refresh("all") schedules account/groups/pricing in the background and
+    // returns what is cached right now; wait for those refreshes before
+    // reading again (asserting on the first return raced the spawned writes).
+    fixture.services.refresh("all".to_owned()).unwrap();
+    fixture
+        .services
+        .inner
+        .lock()
+        .unwrap()
+        .cache
+        .clone()
+        .unwrap()
+        .wait_for_idle()
+        .await;
     let cached = fixture.services.refresh("all".to_owned()).unwrap();
     assert_eq!(cached.len(), 3);
     assert_eq!(cached[0].kind, "account");
