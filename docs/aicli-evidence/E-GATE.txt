@@ -1,0 +1,88 @@
+E-GATE 阶段 E 门禁验收记录（2026-11-08）
+
+状态：[x] 完成（前置：E-01～E-06 全部 [x]）
+提交：03f90a48 fix(aicli): E-GATE stabilize full check suite on Windows
+      （第 1 项）；E-GATE 门禁服务与驱动脚本随本文件一并提交（第 2 项）
+环境：H-02 本机 Windows（24 逻辑核 / 32GB / 无页面文件），git bash；
+Claude Code 2.1.293（npm 全局安装，真实 CLI 进程）
+
+验收 1：scripts/aicli-check.sh 全部通过 —— 通过
+- 8 步全绿：install / typecheck / format:check / test:unit /
+  build:renderer / cargo fmt / clippy -D warnings / nextest
+- 前端 264 文件 3360 测试全过；Rust nextest 4658 过 / 13 跳过（原有 skip）
+- Windows 本机特有问题的修复过程（失败历史）：
+  a) 前端 43–99 个失败（数量不稳定）＝ Windows jsdom 慢导致 5s 默认
+     超时大规模抖动；重跑单文件 30s 超时全过证明非逻辑回归。修复：
+     vitest testTimeout/hookTimeout 提高（60s/30s）、win32 下 worker 上限
+     8（24 核默认并行互相争抢）、testing-library asyncUtilTimeout win32
+     下 10s、App 集成最重用例去掉显式 10s 覆盖（全局生效）。断言未放松。
+  b) Rust 8 个失败（CI Linux 全绿，本机首跑 nextest 才暴露）：
+     - 3× symlink 夹具：本机无 SeCreateSymbolicLinkPrivilege（error
+       1314，未开开发者模式），沿既有 WSL 共享跳过模式扩展为 1314 也跳过
+       （codex_config / session_usage_grokbuild / skill_sync）
+     - 2× BindHome 夹具在 Windows 上把 ClaudeDesktop 装到 .config/Claude
+       （Linux 路径），而 Windows 检测走 %LOCALAPPDATA%\Claude → 夹具
+       按平台取路径
+     - 1× omp 搜索路径测试假设机器 PATH 无 ~/.bun/bin（本机有）→ 改为
+       仅当不在 effective PATH 时才断言否定项
+     - 1× cmd AutoRun（doskey 宏）在收窄 PATH 下报错污染 stderr → 生命
+       周期命令改用 cmd /D 跳过注册表 AutoRun（交互终端不受影响）
+     - 1× agy 路径断言比较 PathBuf 字符串，Windows 分隔符混排 → 归一化
+       后比较
+  c) 无页面文件 + 24 核默认并行 rustc 耗尽提交内存（mmap rlib 报 os
+     error 1455）→ aicli-check.sh 在 Windows 下限 CARGO_BUILD_JOBS=8
+     （Linux CI 不受影响）
+- cargo-nextest 用 binstall 安装（0.9.151）后步骤 8 才可运行
+
+验收 2：真实 Claude Code 隐私轮 —— 通过
+形态：tests/aicli_egate_gate.rs（常驻门禁服务：真实 ProxyServer，合成
+aicli 账号 privacy_enabled=1 block 模式 + 脚本化捕获上游，请求逐条追加
+记录 capture.jsonl，代理日志落盘 proxy.log）+ scripts/aicli-egate-privacy.sh
+（驱动 + 断言 + 打码）。Claude Code 以 ANTHROPIC_BASE_URL 指向本地代理、
+ANTHROPIC_API_KEY 用本地令牌（token_for(claude)）、模型用真实名
+claude-sonnet-4-5-20250929（公开别名，代理按别名映射到 upstream-fixture，
+Claude Code 自身目录可识别），-p 模式 + --dangerously-skip-permissions，
+隔离 CLAUDE_CONFIG_DIR。
+假值运行时拼接生成（bash join），生成后自检无 {{ / TAG_、密钥 sk- 前缀
+（值已打码：***EMAIL*** / ***KEY*** / ***KEY2***）。
+
+逐轮结果（16/16 断言通过，全部 [ok]）：
+- Round 0（curl 链路 sanity，非流式）：代理 200；客户端响应含原值、
+  无占位符；上游捕获只含 {{EMAIL_pdctzrnp}} / {{API_KEY_nohdkqpz}}
+- Round 1（真实 Claude Code，工具调用 + thinking 多轮对话）：
+  消息带假邮箱+假密钥；上游 SSE 回 thinking 块 + 文本 + tool_use(Bash
+  echo egate-tool-ok)；Claude Code 真实执行了 Bash 工具（第二跳请求含
+  tool_result 且带 egate-tool-ok 输出），对话正常完成；客户端最终输出
+  见原值（响应路径还原），无占位符泄漏；上游 2 跳捕获全部只见占位符
+- Round 2（同值裸出现，不带「密钥/密码」字样）：上游捕获仍遮，且占位符
+  与 Round 1 完全一致（{{EMAIL_pdctzrnp}}——已知值记忆，E-03 第三部分）
+- Round 3（流式中途中断：慢速 SSE 24×900ms，5s 后杀掉真实 claude 进程，
+  等效 Esc 中断）：上游捕获仍遮；代理日志无 ERROR
+- Round 4（中断后正常消息，带新假密钥）：对话正常完成，客户端见原值、
+  无占位符残留；上游捕获只含 {{API_KEY_x3ac4sgm}}
+- 全局：capture.jsonl（mock 上游日志）与 proxy.log（代理日志）grep 不到
+  任何植入假密钥/假邮箱原文
+捕获共 6 条 /v1/messages（Round0×1、Round1×2、Round2×1、Round3×1、
+Round4×1），thinking 与 tool_use 块在流式还原路径下均正常到达客户端。
+
+排查记录（不掩盖弯路）：
+- 初版门禁夹具漏写 tool_use content_block_start 的 "type" 字段，导致
+  Claude Code 丢弃工具块并自动重试（"cut off mid-stream"）；经 tee 抓包
+  定位为夹具自身问题（代理无辜），修复后工具轮即通。期间用 EGATE_PRIVACY_OFF
+  二分排除了隐私层
+- Claude Code 对无法识别的模型名（aicli-claude-friendly-fixture）会进入
+  未知模型窗口强制等待并反复重试 → 公开别名改用真实模型名
+- 夹具逐字节扫描占位符会踩 UTF-8 边界 panic、测试进程未装 rustls
+  CryptoProvider 会 panic → 改用 regex 并在门禁启动时安装（与生产 app
+  setup 一致）
+- git bash 下 curl -d 传中文会以 GBK 编码发出，隐私层按非 UTF-8 fail-closed
+  拒绝（行为正确）→ Round 0 改用 python 以 UTF-8 发请求
+
+验收 3：本文件即证据；所有假值按密钥形态打码后入库。原始运行产物
+（capture.jsonl / proxy.log / 各轮输出）在运行时临时目录，不入库。
+
+CI：E-01～E-08 的 CI 结论沿用各自证据；本轮改动（vitest/测试夹具/
+aicli-check.sh 的 Windows 条件分支）不改变 Linux CI 行为，a)
+前端超时只放宽不收紧断言，b) worker/asyncUtilTimeout/构建并行度均
+win32 条件生效，c) Rust 侧修复均为测试夹具/断言与 cmd /D（对
+无 AutoRun 机器字节等价）。CI 由 push 后的 acceptance 工作流覆盖。

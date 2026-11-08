@@ -821,9 +821,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-08 完成。rules/zhname.rs（Magpie zhname.go @f11bf27 移植 + zhdict.txt jieba MIT）+ zhname/tests.rs 8 个测试（Magpie 用例 person=[] 移植，模型用例逐条列原因）；接线等价 zhNameSpans(s,[],false)、仅 personal+开关开时生效、类别 PERSON（kinds 含 PERSON，流式拆半拼齐测试过）；设置项 privacy_detect_cjk_names 幂等加列（SCHEMA_VERSION 25 不变）进 PrivacySettings 缓存与 get/set_privacy（Option 向后兼容）；语料 gen_zhname_corpus.py 生成 338 条（正 125/反 213，反例含交接说明全部点名词），两种方式评估 P=R=1.0000（较低值 ≥95%，开关开放）；变异验证过。item E-08-unit 登记。偏差（zhTrim 未移植、模板语料）见 docs/aicli-evidence/E-08.txt。2026-11-08 统一验收复核：开关未接进代理（mask_request 未传设置，已补并加 layer + e2e 测试）；语料补模板外 129 条后模板外精确率 0.7273 < 95%，**开关不开放**（zhname::AVAILABLE=false，get_privacy 返回 available=false，set_privacy 拒绝打开），代码保留（E-08.txt 第七节） | 审查方补修 CI 待回填
 
 ### E-GATE 阶段 E 门禁
-- [ ] 完成
+- [x] 完成
 - 验收：E-01～E-06 全部 `[x]`；`scripts/aicli-check.sh` 通过；用真实 Claude Code（H-02）在隐私开启状态下跑一轮工具调用 + thinking 的多轮对话，能正常完成，mock 或测试账号日志中查不到植入的假密钥。
-- 证据：
+- 证据：2026-11-08 完成。① aicli-check.sh 8 步全绿（前端 3360、Rust nextest 4658 过）；Windows 本机特有的前端超时抖动（43–99 个不稳定失败）用「win32 限 worker 8 + 提高超时」修复，8 个 Rust 失败（symlink 权限 1314 跳过、BindHome 夹具 Windows 路径、机器 PATH 含 bun、cmd AutoRun 污染 stderr→cmd /D、路径分隔符归一）逐个修复，无页面文件机器限 CARGO_BUILD_JOBS=8（win32 条件，CI 不受影响）。② 真实 Claude Code 2.1.293 隐私轮：tests/aicli_egate_gate.rs 常驻门禁（真实 ProxyServer + 捕获上游）+ scripts/aicli-egate-privacy.sh 驱动，四轮 16/16 断言全过：工具调用+thinking 多轮正常完成（Bash 真实执行）、上游只见 {{EMAIL/API_KEY_…}} 占位符、客户端见原值、同值裸出现仍遮且占位符一致（已知值记忆）、流式中途中断后无残留无报错、capture/proxy 日志查不到植入假密钥。详见 docs/aicli-evidence/E-GATE.txt
 
 ---
 
