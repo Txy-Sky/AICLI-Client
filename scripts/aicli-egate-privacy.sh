@@ -30,8 +30,10 @@ join() { local IFS=''; printf '%s' "$*"; }
 EMAIL=$(join 'lia' 'n.' 'zh' 'en' '@ga' 'te-e' 'vid' 'ence.' 'cn')
 KEY=$(join 'sk-E' 'Ga' 'teK' 'ey7' 'fQ' '2mV' 'xR9' 'pL4' 'wD6' 'sTb')
 KEY2=$(join 'sk-E' 'Ga' 'te2' 'nd9' 'cH8' 'jM5' 'nB3' 'kZ7' 'vQ1' 'xWd')
+# 只有提示词（「数据库密码：」）才认得出的口令：裸出现时规则不遮，只能靠已知值记忆
+PW=$(join 'Hn4' 'tRw' '8Zq' 'Lm2v')
 
-for value in "$EMAIL" "$KEY" "$KEY2"; do
+for value in "$EMAIL" "$KEY" "$KEY2" "$PW"; do
   case "$value" in
     *'{{'*|*'TAG_'*) echo "self-check failed: generated value contains placeholder syntax" >&2; exit 2 ;;
   esac
@@ -41,6 +43,11 @@ case "$KEY $KEY2" in
   *) echo "self-check failed: key shape" >&2; exit 2 ;;
 esac
 printf 'self-check: values generated at runtime, no {{ / TAG_ in them\n' > "$STATE/summary.txt"
+
+# Windows（git bash）用 python 与 cygpath；Linux CI 用 python3、原路径
+if python3 -c 'import sys' >/dev/null 2>&1; then PY=python3; else PY=python; fi
+if command -v cygpath >/dev/null 2>&1; then STATE_W=$(cygpath -w "$STATE"); else STATE_W=$STATE; fi
+info_field() { "$PY" -c 'import sys,json;print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$STATE/info.json" "$1"; }
 
 # ---- 启动门禁服务（真实代理 + 捕获上游） ----
 EGATE_STATE_DIR="$STATE" \
@@ -62,17 +69,17 @@ for _ in $(seq 1 240); do
   sleep 1
 done
 [[ -f "$STATE/info.json" ]] || { echo "gate did not become ready in 240s" >&2; exit 2; }
-PROXY_PORT=$(python -c 'import sys,json;print(json.load(open(sys.argv[1]))["proxy_port"])' "$STATE/info.json" 2>/dev/null \
-  || python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["proxy_port"])' "$STATE/info.json")
-TOKEN=$(python -c 'import sys,json;print(json.load(open(sys.argv[1]))["token"])' "$STATE/info.json" 2>/dev/null \
-  || python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["token"])' "$STATE/info.json")
-ALIAS=$(python -c 'import sys,json;print(json.load(open(sys.argv[1]))["model_alias"])' "$STATE/info.json" 2>/dev/null \
-  || python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["model_alias"])' "$STATE/info.json")
+PROXY_PORT=$(info_field proxy_port)
+TOKEN=$(info_field token)
+ALIAS=$(info_field model_alias)
 PROXY="http://127.0.0.1:$PROXY_PORT"
 
 # ---- 真实 Claude Code 公共环境 ----
-run_claude() { # run_claude <output-file> <prompt...>
+run_claude() { # run_claude <output-file> <prompt...>（EGATE_FORMAT 可改输出格式）
   local out=$1; shift
+  local format=${EGATE_FORMAT:-text}
+  local extra=()
+  [[ "$format" == stream-json ]] && extra=(--verbose)
   env \
     ANTHROPIC_BASE_URL="$PROXY" \
     ANTHROPIC_API_KEY="$TOKEN" \
@@ -85,15 +92,15 @@ run_claude() { # run_claude <output-file> <prompt...>
     CLAUDE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
     DISABLE_TELEMETRY=1 \
     DISABLE_ERROR_REPORTING=1 \
-    timeout 120 claude -p "$*" --model "$ALIAS" --output-format text \
+    timeout 120 claude -p "$*" --model "$ALIAS" --output-format "$format" "${extra[@]}" \
       --dangerously-skip-permissions > "$out" 2> "$out.err"
 }
 
 capture_count() { [[ -f "$CAPTURE" ]] && wc -l < "$CAPTURE" || echo 0; }
 
 # ---- Round 0：curl 链路 sanity（非流式，验证夹具接线） ----
-STATE_W=$(cygpath -w "$STATE"); export STATE_W EMAIL KEY ALIAS PROXY_PORT
-python - <<'PY0' > "$STATE/round0.status"
+export STATE_W EMAIL KEY ALIAS PROXY_PORT PW
+"$PY" - <<'PY0' > "$STATE/round0.status"
 import json, os, urllib.request, urllib.error
 state = os.environ["STATE_W"]
 info = json.load(open(os.path.join(state, "info.json"), encoding="utf-8"))
@@ -127,8 +134,31 @@ else
 fi
 R0_PLACEHOLDER=$(grep -o '{{[A-Z_]*_[a-z0-9]*}}' "$CAPTURE" | head -1)
 
+# ---- 对照：口令第一次裸出现，规则单独不遮（证明 Round 2 靠的是已知值记忆） ----
+"$PY" - <<'PYC' > "$STATE/control.status"
+import json, os, urllib.request
+state = os.environ["STATE_W"]
+info = json.load(open(os.path.join(state, "info.json"), encoding="utf-8"))
+body = json.dumps({"model": os.environ["ALIAS"], "max_tokens": 64, "stream": False,
+    "messages": [{"role": "user", "content": "把连接参数 {} 填进配置".format(os.environ["PW"])}]},
+    ensure_ascii=False).encode("utf-8")
+req = urllib.request.Request(
+    "http://127.0.0.1:{}/v1/messages".format(os.environ["PROXY_PORT"]), data=body,
+    headers={"x-api-key": info["token"], "content-type": "application/json"})
+print(urllib.request.urlopen(req, timeout=60).status)
+PYC
+CONTROL_END=$(capture_count)
+if [[ "$(cat "$STATE/control.status")" == "200" ]] \
+  && sed -n "$((BASE_COUNT + 1)),${CONTROL_END}p" "$CAPTURE" | grep -q "$PW"; then
+  pass "control: bare password not masked by rules on first sight"
+else
+  fail "control: bare password was masked (or request failed) before it was ever cued"
+fi
+BASE_COUNT=$CONTROL_END
+
 # ---- Round 1：真实 Claude Code，工具调用 + thinking 多轮 ----
-run_claude "$STATE/round1.out" "EGATE-TOOL 请登记：我的邮箱是 $EMAIL，API 密钥是 $KEY"
+EGATE_FORMAT=stream-json run_claude "$STATE/round1.out" \
+  "EGATE-TOOL 请登记：我的邮箱是 $EMAIL，API 密钥是 $KEY，数据库密码：$PW"
 R1_START=$BASE_COUNT
 if grep -q "$EMAIL" "$STATE/round1.out" && grep -q "$KEY" "$STATE/round1.out"; then
   pass "round1 claude: saw original values (response restore)"
@@ -140,36 +170,81 @@ if ! grep -Eq '\{\{[A-Z][A-Z0-9_]{1,23}_[a-z0-9]{8}\}\}' "$STATE/round1.out" && 
 else
   fail "round1 claude: placeholder leaked: $(head -c 300 "$STATE/round1.out")"
 fi
-# 工具确实执行过（第二跳请求里带 tool_result 且含命令输出标记）
-if tail -n +$((R1_START + 1)) "$CAPTURE" | grep -q 'egate-tool-ok'; then
-  pass "round1 tool: Bash tool ran (tool_result contains egate-tool-ok)"
-else
-  fail "round1 tool: no tool_result with egate-tool-ok in captures"
-fi
+# 客户端侧（stream-json）：thinking、工具参数、工具执行结果都是原值
+export KEY EMAIL
+"$PY" - "$STATE/round1.out" > "$STATE/round1.client" <<'PYJ'
+import json, os, re, sys
+key, email = os.environ["KEY"], os.environ["EMAIL"]
+ph = re.compile(r"\{\{[A-Z][A-Z0-9_]{0,23}_[a-z0-9]{8}\}\}")
+thinking, tool_input, tool_result = [], [], []
+for line in open(sys.argv[1], encoding="utf-8"):
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    message = event.get("message") or {}
+    for block in message.get("content") or []:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "thinking":
+            thinking.append(block.get("thinking", ""))
+        elif kind == "tool_use":
+            tool_input.append(json.dumps(block.get("input"), ensure_ascii=False))
+        elif kind == "tool_result":
+            content = block.get("content")
+            tool_result.append(content if isinstance(content, str) else json.dumps(content, ensure_ascii=False))
+def check(name, texts, value):
+    joined = "\n".join(texts)
+    ok = bool(texts) and value in joined and not ph.search(joined)
+    print(("ok " if ok else "bad ") + name)
+check("thinking", thinking, email)
+check("tool_input", tool_input, key)
+check("tool_result", tool_result, "egate-tool-ok " + key)
+PYJ
+for part in thinking tool_input tool_result; do
+  if grep -qx "ok $part" "$STATE/round1.client"; then
+    pass "round1 client: $part carries the original value, no placeholder"
+  else
+    fail "round1 client: $part not restored ($(grep " $part" "$STATE/round1.client"))"
+  fi
+done
 R1_END=$(capture_count)
 sed -n "$((R1_START + 1)),${R1_END}p" "$CAPTURE" > "$STATE/round1.captures"
-if grep -q "$EMAIL" "$STATE/round1.captures" || grep -q "$KEY" "$STATE/round1.captures"; then
+if grep -q "$EMAIL" "$STATE/round1.captures" || grep -q "$KEY" "$STATE/round1.captures" \
+  || grep -q "$PW" "$STATE/round1.captures"; then
   fail "round1 upstream capture: raw values leaked"
 else
   pass "round1 upstream capture: all masked"
 fi
+# 第二跳：工具执行结果回到上游时，密钥又被遮回占位符
+if grep -qF 'egate-tool-ok {{API_KEY_' "$STATE/round1.captures"; then
+  pass "round1 upstream: tool_result re-masked on the way back"
+else
+  fail "round1 upstream: no masked tool_result in second hop"
+fi
 
-# ---- Round 2：同值裸出现（不带「密钥/密码」字样）→ 已知值记忆仍遮 ----
-run_claude "$STATE/round2.out" "确认一下 $EMAIL 和 $KEY 还有效吗"
+
+# ---- Round 2：口令不带任何提示词裸出现 → 只能靠已知值记忆遮 ----
+# （对照轮已证明规则单独不遮这个形态；邮箱/sk- 密钥规则本身就认得，不能用来证明记忆）
+run_claude "$STATE/round2.out" "把连接参数 $PW 填进配置"
 R2_START=$R1_END
 R2_END=$(capture_count)
 sed -n "$((R2_START + 1)),${R2_END}p" "$CAPTURE" > "$STATE/round2.captures"
-if grep -q "$EMAIL" "$STATE/round2.captures" || grep -q "$KEY" "$STATE/round2.captures"; then
-  fail "round2 upstream capture: known values leaked (known-value memory broken)"
+if grep -q "$PW" "$STATE/round2.captures"; then
+  fail "round2 upstream capture: bare password leaked (known-value memory broken)"
 else
-  pass "round2 upstream capture: bare values still masked (known-value memory)"
+  pass "round2 upstream capture: bare password masked (known-value memory)"
 fi
-R2_PLACEHOLDER=$(grep -o '{{[A-Z_]*_[a-z0-9]*}}' "$STATE/round2.captures" | head -1)
-R1_SAME=$(grep -o '{{[A-Z_]*_[a-z0-9]*}}' "$STATE/round1.captures" | head -1)
-if [[ -n "$R2_PLACEHOLDER" && "$R2_PLACEHOLDER" == "$R1_SAME" ]]; then
-  pass "round2 placeholder identical to round1 ($R2_PLACEHOLDER)"
+# 第 2 轮消息里只有这一个敏感值：出现的占位符都必须是第 1 轮凭提示词遮出的那个
+R2_PHS=$(grep -oE '\{\{[A-Z][A-Z0-9_]{0,23}_[a-z0-9]{8}\}\}' "$STATE/round2.captures" | sort -u)
+r2_ok=1
+[[ -n "$R2_PHS" ]] || r2_ok=0
+for ph in $R2_PHS; do grep -qF "$ph" "$STATE/round1.captures" || r2_ok=0; done
+if (( r2_ok )); then
+  pass "round2 placeholder identical to round1 ($(echo $R2_PHS))"
 else
-  fail "round2 placeholder differs: r1=$R1_SAME r2=$R2_PLACEHOLDER"
+  fail "round2 placeholders not from round1: ${R2_PHS:-none}"
 fi
 
 # ---- Round 3：流式中途中断（杀掉真实客户端 ≈ Esc 中断） ----
@@ -223,12 +298,14 @@ else
 fi
 
 # ---- 全局断言：mock/日志查不到任何植入假密钥 ----
-if grep -q "$EMAIL" "$CAPTURE" || grep -qE "$KEY|$KEY2" "$CAPTURE"; then
+# 对照轮的口令是有意未遮的，只查对照轮之后的记录
+if grep -q "$EMAIL" "$CAPTURE" || grep -qE "$KEY|$KEY2" "$CAPTURE" \
+  || tail -n +$((R1_START + 1)) "$CAPTURE" | grep -q "$PW"; then
   fail "GLOBAL: raw values found in capture.jsonl (mock account log)"
 else
   pass "GLOBAL: capture.jsonl has no planted secrets"
 fi
-if grep -qE "$EMAIL|$KEY|$KEY2" "$PROXY_LOG"; then
+if grep -qE "$EMAIL|$KEY|$KEY2|$PW" "$PROXY_LOG"; then
   fail "GLOBAL: raw values found in proxy.log"
 else
   pass "GLOBAL: proxy.log has no planted secrets"
@@ -242,10 +319,18 @@ for _ in $(seq 1 30); do kill -0 "$GATE_PID" 2>/dev/null || break; sleep 1; done
 
 for f in round1.out round2.out round4.out; do
   sed -e "s|$EMAIL|***EMAIL***|g" -e "s|$KEY2|***KEY2***|g" -e "s|$KEY|***KEY***|g" \
-    "$STATE/$f" > "$STATE/$f.masked" 2>/dev/null || true
+    -e "s|$PW|***PW***|g" "$STATE/$f" > "$STATE/$f.masked" 2>/dev/null || true
 done
 printf '\nstate dir: %s\n' "$STATE"
 cat "$STATE/summary.txt"
+# CI：打码后的摘要与客户端输出存进证据目录（原始 capture/proxy.log 含占位符原文映射，不存）
+if [[ -n "${EGATE_EVIDENCE_DIR:-}" ]]; then
+  mkdir -p "$EGATE_EVIDENCE_DIR"
+  cp "$STATE/summary.txt" "$EGATE_EVIDENCE_DIR/E-GATE-privacy-summary.txt"
+  for f in round1.out round2.out round4.out; do
+    [[ -f "$STATE/$f.masked" ]] && cp "$STATE/$f.masked" "$EGATE_EVIDENCE_DIR/E-GATE-$f.masked.txt"
+  done
+fi
 if (( errors > 0 )); then
   printf '\n%d assertion(s) failed\n' "$errors"
   exit 1

@@ -21,6 +21,10 @@ import {
 import { emitTauriEvent } from "../msw/tauriMocks";
 import { server } from "../msw/server";
 
+// The heaviest App integration cases kept a 10s budget on Linux; Windows
+// jsdom is several times slower (docs/aicli-handover/E-GATE.md).
+const APP_TEST_TIMEOUT = process.platform === "win32" ? 180_000 : 10_000;
+
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 const skillsPanelMocks = vi.hoisted(() => ({
@@ -304,7 +308,7 @@ describe("App integration with MSW", () => {
 
     expect(toastErrorMock).not.toHaveBeenCalled();
     expect(toastSuccessMock).toHaveBeenCalled();
-  }, 180_000);
+  }, APP_TEST_TIMEOUT);
 
   it("refreshes the route pointer when the proxy fails over to another provider", async () => {
     let routeProviderId = "claude-1";
@@ -375,7 +379,7 @@ describe("App integration with MSW", () => {
     expect(mainScrollContainer.scrollLeft).toBe(0);
     expect(providerScrollContainer()!.scrollTop).toBe(0);
     expect(providerScrollContainer()!.scrollLeft).toBe(0);
-  });
+  }, APP_TEST_TIMEOUT);
 
   it("closes provider panels when navigating away from the app page", async () => {
     const { default: App } = await import("@/App");
@@ -419,7 +423,7 @@ describe("App integration with MSW", () => {
     fireEvent.keyDown(window, { key: ",", metaKey: true });
     expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
     expect(screen.queryByTestId("add-provider-dialog")).not.toBeInTheDocument();
-  });
+  }, APP_TEST_TIMEOUT);
 
   it("asks before leaving an editor page with unsaved changes", async () => {
     const { default: App } = await import("@/App");
@@ -466,7 +470,7 @@ describe("App integration with MSW", () => {
     expect(
       screen.queryByTestId("edit-provider-dialog"),
     ).not.toBeInTheDocument();
-  });
+  }, APP_TEST_TIMEOUT);
 
   it("keeps the unsaved guard when re-clicking the current page", async () => {
     const { default: App } = await import("@/App");
@@ -494,7 +498,7 @@ describe("App integration with MSW", () => {
     );
     fireEvent.click(screen.getByText("cancel-delete"));
     expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
-  });
+  }, APP_TEST_TIMEOUT);
 
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");

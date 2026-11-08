@@ -206,10 +206,13 @@ fn build_sse(
         "content_block_start",
         &json!({"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}),
     ));
+    // thinking 里带上收到的占位符：响应还原须覆盖 thinking_delta
     frames.push_str(&sse_event(
         "content_block_delta",
         &json!({"type":"content_block_delta","index":0,
-            "delta":{"type":"thinking_delta","thinking":"E-GATE fixture thinking: checking the request payload."}}),
+            "delta":{"type":"thinking_delta","thinking":format!(
+                "E-GATE fixture thinking: checking the request payload. seen {}",
+                placeholders.join(" "))}}),
     ));
     if std::env::var("EGATE_SIGNATURE").is_ok() {
         frames.push_str(&sse_event(
@@ -262,11 +265,24 @@ fn build_sse(
             &json!({"type":"content_block_start","index":2,
                 "content_block":{"type":"tool_use","id":"toolu_egate_fixture","name":"Bash","input":{}}}),
         ));
-        frames.push_str(&sse_event(
-            "content_block_delta",
-            &json!({"type":"content_block_delta","index":2,
-                "delta":{"type":"input_json_delta","partial_json":"{\"command\":\"echo egate-tool-ok\"}"}}),
-        ));
+        // 工具命令带收到的 API_KEY 占位符，并从占位符中间切成两个
+        // input_json_delta：代理须跨片段拼齐还原，Claude Code 执行的才是原值
+        let key = placeholders
+            .iter()
+            .find(|p| p.starts_with("{{API_KEY_"))
+            .cloned()
+            .unwrap_or_default();
+        let command = format!("{{\"command\":\"echo egate-tool-ok {key}\"}}");
+        let cut = command
+            .find("{{API_KEY_")
+            .map_or(command.len() / 2, |i| i + 6);
+        for part in [&command[..cut], &command[cut..]] {
+            frames.push_str(&sse_event(
+                "content_block_delta",
+                &json!({"type":"content_block_delta","index":2,
+                    "delta":{"type":"input_json_delta","partial_json":part}}),
+            ));
+        }
         frames.push_str(&sse_event(
             "content_block_stop",
             &json!({"type":"content_block_stop","index":2}),

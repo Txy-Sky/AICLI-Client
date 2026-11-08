@@ -71,6 +71,17 @@ jobs:
       - name: Rust item tests with test-hooks (C1-04, C1-06)
         shell: bash
         run: bash scripts/aicli-item-tests.sh test-hooks "$RUNNER_TEMP/aicli-evidence"
+      - name: E-GATE real Claude Code privacy round
+        shell: bash
+        env:
+          EGATE_EVIDENCE_DIR: ${{ runner.temp }}/aicli-evidence
+        run: |
+          set -euo pipefail
+          # Real Claude Code CLI against the local proxy + capture upstream; no
+          # Anthropic endpoint is contacted (ANTHROPIC_BASE_URL is the proxy).
+          npm install -g @anthropic-ai/claude-code@2.1.293
+          claude --version
+          bash scripts/aicli-egate-privacy.sh 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/E-GATE-privacy.txt"
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
