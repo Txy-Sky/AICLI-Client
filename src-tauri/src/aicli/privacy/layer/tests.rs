@@ -128,7 +128,9 @@ fn mask_request_and_restore_response_roundtrip() {
     let gate = gate_bound(true, false, false);
     let key = ["sk-", "Zx9QvLtYb3Nc8UmKe4Hd"].concat();
     let body = format!(r#"{{"messages":[{{"content":"key is {key}"}}]}}"#);
-    let (masked, count) = gate.mask_request(&body).expect("mask ok");
+    let (masked, count) = gate
+        .mask_request(&body, &PrivacySettings::default())
+        .expect("mask ok");
     assert_eq!(count, 1);
     assert!(!masked.contains(&key), "{masked}");
     let restored = gate.restore_response(&masked).expect("restore ok");
@@ -136,6 +138,38 @@ fn mask_request_and_restore_response_roundtrip() {
     // 计数只记数量
     assert_eq!(gate.stats().masked_values, 1);
     assert_eq!(gate.stats().degraded, 0);
+}
+
+/// E-08 开关经设置快照进入 mask_request（关：人名原样；开：PERSON 占位符）。
+#[test]
+fn cjk_name_switch_reaches_mask_request() {
+    let gate = gate_bound(true, true, false);
+    let name = ["陈", "芳宇"].concat();
+    let body = format!(r#"{{"messages":[{{"content":"联系人：{name}，请尽快确认"}}]}}"#);
+    let off = gate.settings();
+    assert!(!off.detect_cjk_names, "default off");
+    let (masked, _) = gate.mask_request(&body, &off).expect("mask ok");
+    assert!(
+        masked.contains(&name),
+        "switch off keeps the name: {masked}"
+    );
+
+    gate.db
+        .conn
+        .lock()
+        .unwrap()
+        .execute("UPDATE aicli_account SET privacy_detect_cjk_names=1", [])
+        .unwrap();
+    bump_revision();
+    let on = gate.settings();
+    assert!(on.detect_cjk_names, "setting read from the row");
+    let (masked, _) = gate.mask_request(&body, &on).expect("mask ok");
+    assert!(
+        !masked.contains(&name),
+        "switch on masks the name: {masked}"
+    );
+    assert!(masked.contains("{{PERSON_"), "{masked}");
+    assert_eq!(gate.restore_response(&masked).expect("restore ok"), body);
 }
 
 #[cfg(feature = "test-hooks")]
@@ -146,11 +180,16 @@ fn fault_injection_panics_are_caught() {
     // 请求遮盖位置（降级计数由中间件调用方负责，e2e 覆盖）
     gate.inject_failure(FAULT_MASK);
     assert_eq!(gate.injected_failure(), FAULT_MASK);
-    assert!(gate.mask_request(body).is_err());
+    assert!(gate
+        .mask_request(body, &PrivacySettings::default())
+        .is_err());
     gate.inject_failure(0);
-    assert!(gate.mask_request(body).is_ok());
+    assert!(gate.mask_request(body, &PrivacySettings::default()).is_ok());
     // 整体还原位置
-    let masked = gate.mask_request(body).unwrap().0;
+    let masked = gate
+        .mask_request(body, &PrivacySettings::default())
+        .unwrap()
+        .0;
     gate.inject_failure(FAULT_RESTORE_JSON);
     assert!(gate.restore_response(&masked).is_err());
     gate.inject_failure(0);

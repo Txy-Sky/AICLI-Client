@@ -1557,3 +1557,59 @@ async fn second_request_completes_while_stream_is_open_full_chain() {
         }
     }
 }
+
+// ---- 18. E-08 中文姓名开关经真实代理生效（关 → 开 → 关） ----
+
+#[tokio::test]
+async fn cjk_name_switch_applies_through_proxy() {
+    let f = Fixture::new(UpstreamMode::Json, "ok").await;
+    f.set_privacy(true, "block", false);
+    let name = ["陈", "芳宇"].concat();
+    let body = json!({"model": claude_alias(&f.db), "max_tokens": 8, "messages": [
+        {"role":"user","content": format!("联系人：{name}，请尽快确认")}]});
+    let set_switch = |on: bool| {
+        routing_support::connection(&f.db)
+            .execute(
+                "UPDATE aicli_account SET privacy_detect_cjk_names=?1",
+                rusqlite::params![on],
+            )
+            .unwrap();
+        cc_switch_lib::aicli::privacy::layer::bump_revision();
+    };
+    let (fixture, request) = (&f, &body);
+    let send = move || async move {
+        let out = fixture
+            .client()
+            .post(format!("{}/v1/messages", fixture.origin))
+            .json(request)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(out.status(), 200);
+    };
+
+    send().await; // 默认关
+    let upstream = String::from_utf8(f.bodies()[0].clone()).unwrap();
+    assert!(
+        upstream.contains(&name),
+        "off: name forwarded as-is: {upstream}"
+    );
+
+    set_switch(true);
+    send().await;
+    let upstream = String::from_utf8(f.bodies()[1].clone()).unwrap();
+    assert!(!upstream.contains(&name), "on: name masked: {upstream}");
+    assert!(
+        upstream.contains("{{PERSON_"),
+        "on: PERSON placeholder: {upstream}"
+    );
+
+    set_switch(false);
+    send().await;
+    let upstream = String::from_utf8(f.bodies()[2].clone()).unwrap();
+    assert!(
+        upstream.contains(&name),
+        "off again: name forwarded: {upstream}"
+    );
+    f.stop().await;
+}

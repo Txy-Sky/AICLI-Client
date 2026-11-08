@@ -14,6 +14,14 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+/// 开关是否对用户开放（清单 E-08：精确率 < 95% 时保留代码、隐藏开关）。
+///
+/// 2026-11-08 验收复核：模板外句式（语料 `set=heldout`）精确率 0.73、
+/// 召回 0.12（误报如「发给周报群」「联系人：华东区」），不达标，故关闭。
+/// `zhname_corpus_precision` 把这个常量和评估结果绑定：检测器改进到
+/// 三种口径都 ≥ 95% 时，该测试会要求把它改成 true。
+pub const AVAILABLE: bool = false;
+
 use super::{FoundBy, Span};
 
 /// 常见单字姓氏（Magpie `zhSurnames`）。

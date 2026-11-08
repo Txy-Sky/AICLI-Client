@@ -25,6 +25,41 @@
   ]
  },
  {
+  "text": "postgres://admin:P@ssw0rd@db.example.com:5432/app",
+  "must_mask": [
+   "P@ssw0rd"
+  ],
+  "kind": "PASSWORD"
+ },
+ {
+  "text": "mysql://root:x#9Kq2@10.0.0.5:3306/db",
+  "must_mask": [
+   "x#9Kq2"
+  ],
+  "kind": "PASSWORD"
+ },
+ {
+  "text": "redis://:P@ss1234@cache.internal:6379/0",
+  "must_mask": [
+   "P@ss1234"
+  ],
+  "kind": "PASSWORD"
+ },
+ {
+  "text": "DATABASE_URL=postgres://admin:P@ssw0rd@db.example.com/app",
+  "must_mask": [
+   "P@ssw0rd"
+  ],
+  "kind": "PASSWORD"
+ },
+ {
+  "text": "AWS_SK=aK9wQ2mLpX4nR7tYuB3cE6fHs1Jd",
+  "must_mask": [
+   "aK9wQ2mLpX4nR7tYuB3cE6fHs1Jd"
+  ],
+  "kind": "SECRET"
+ },
+ {
   "text": "LTAI 后面不足 16 位的不算：LTAI4tGh9",
   "must_not_mask": [
    "LTAI4tGh9"
@@ -46,6 +81,36 @@
   "text": "SK 后太短不遮：SK：aK9wQ2",
   "must_not_mask": [
    "aK9wQ2"
+  ]
+ },
+ {
+  "text": "TASK: Xk9aB3mQ7pL2zR8tW4nV6cY1",
+  "must_not_mask": [
+   "Xk9aB3mQ7pL2zR8tW4nV6cY1"
+  ]
+ },
+ {
+  "text": "DISK=Xk9aB3mQ7pL2zR8tW4nV6cY1",
+  "must_not_mask": [
+   "Xk9aB3mQ7pL2zR8tW4nV6cY1"
+  ]
+ },
+ {
+  "text": "RISK: Xk9aB3mQ7pL2zR8tW4nV6cY1",
+  "must_not_mask": [
+   "Xk9aB3mQ7pL2zR8tW4nV6cY1"
+  ]
+ },
+ {
+  "text": "MASK=Xk9aB3mQ7pL2zR8tW4nV6cY1",
+  "must_not_mask": [
+   "Xk9aB3mQ7pL2zR8tW4nV6cY1"
+  ]
+ },
+ {
+  "text": "https://example.com:8443/path?q=1",
+  "must_not_mask": [
+   "example.com:8443"
   ]
  }
 ]

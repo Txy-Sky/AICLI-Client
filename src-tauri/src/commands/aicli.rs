@@ -25,6 +25,7 @@ use crate::aicli::cache::{
 use crate::aicli::catalog::Catalog;
 use crate::aicli::lines::{line, LINES};
 use crate::aicli::newapi::{self, NewApiError};
+use crate::aicli::privacy::rules::zhname::AVAILABLE as CJK_NAMES_AVAILABLE;
 use crate::aicli::profiles::{self, ModelRoute, Profile, ProfileError, ProfileStore, RepairStatus};
 use crate::aicli::runtime::{AicliRuntime, RoutesSnapshot, RuntimeError};
 use crate::aicli::secrets::SecretStore;
@@ -325,6 +326,8 @@ pub struct AicliPrivacyView {
     pub allow_unscanned_media: bool,
     /// E-08 中文姓名检测（默认关闭）。
     pub privacy_detect_cjk_names: bool,
+    /// E-08 开关是否开放；false 时界面不显示，设置为开会被拒绝。
+    pub privacy_detect_cjk_names_available: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1463,7 +1466,8 @@ impl AicliServices {
                 privacy_enabled,
                 privacy_failure_mode,
                 allow_unscanned_media,
-                privacy_detect_cjk_names: detect_cjk_names,
+                privacy_detect_cjk_names: detect_cjk_names && CJK_NAMES_AVAILABLE,
+                privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
             },
             None => AicliPrivacyView {
                 bound: false,
@@ -1471,6 +1475,7 @@ impl AicliServices {
                 privacy_failure_mode: "block".into(),
                 allow_unscanned_media: false,
                 privacy_detect_cjk_names: false,
+                privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
             },
         })
     }
@@ -1485,6 +1490,11 @@ impl AicliServices {
         if !matches!(privacy_failure_mode.as_str(), "block" | "pass") {
             return Err(AicliCommandError::invalid_input(
                 "privacy_failure_mode must be block or pass",
+            ));
+        }
+        if privacy_detect_cjk_names == Some(true) && !CJK_NAMES_AVAILABLE {
+            return Err(AicliCommandError::invalid_input(
+                "privacy_detect_cjk_names is not available",
             ));
         }
         let changed = self

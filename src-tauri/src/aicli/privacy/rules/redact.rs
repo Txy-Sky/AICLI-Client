@@ -797,12 +797,13 @@ fn core_rules() -> Vec<Rule> {
         },
         // ===== 我方新增（E-07 Maskit 对照发现的漏遮，非 Magpie 移植）=====
         // 连接串口令含 @ 或 #：Magpie 的口令字符类排除二者（URL 语法），
-        // postgres://user:p@ss@host:5432/db 整条不遮。锚定最后一个 @ 之后的
-        // host:port，口令段（组 1）须含 @/# 才触发；不含时由上面的 Magpie
-        // 规则处理（span 相同，去重取更长）。
+        // postgres://user:P@ssw0rd@host:5432/db 整条不遮。锚定最后一个 @
+        // 之后的 host[:port]，口令段（组 1）须含 @/# 才触发（@/# 可在首位
+        // 之后任意位置，用户名可空：redis://:P@ss@host）；不含时由上面的
+        // Magpie 规则处理（span 相同，去重取更长）。
         Rule {
             kind: "PASSWORD",
-            pattern: r#"(?i)\b[a-z][a-z0-9+.-]*://[^\s:@/?#"<>]{1,64}:([^\s/?#"<>]{2,}?[@#][^\s/?#"<>]*?)@[a-z0-9][a-z0-9.-]{2,}:[0-9]{2,5}(?:[/\s"']|$)"#,
+            pattern: r#"(?i)\b[a-z][a-z0-9+.-]*://[^\s:@/?#"<>]{0,64}:([^\s/?#"<>]*?[@#][^\s/?#"<>]*?)@[a-z0-9][a-z0-9.-]{2,}(?::[0-9]{2,5})?(?:[/\s"'?,;)\]>]|$)"#,
             markers: &["://"],
             ok: Some(not_a_variable),
             at: Some(hidden_in_url),
@@ -817,10 +818,11 @@ fn core_rules() -> Vec<Rule> {
             ok: Some(secret_value),
             ..Rule::base()
         },
-        // AccessKeySecret 赋值（SK：/SK=/access_key_secret=，24+ 位字母数字）
+        // AccessKeySecret 赋值（SK：/SK=/access_key_secret=，24+ 位字母数字）。
+        // 名字前须是非字母数字（TASK:/DISK=/RISK: 不算 SK；AWS_SK= 算）。
         Rule {
             kind: "SECRET",
-            pattern: r#"(?i)(?:SK|access[_-]?key[_-]?secret)[ 	]*[：:=][ 	]*["']?([A-Za-z0-9]{24,})"#,
+            pattern: r#"(?i)(?:^|[^a-z0-9])(?:SK|access[_-]?key[_-]?secret)[ 	]*[：:=][ 	]*["']?([A-Za-z0-9]{24,})"#,
             markers: &["SK", "sk", "Sk", "SECRET", "secret", "Secret"],
             ok: Some(secret_value),
             at: Some(fieldvalue::field_at),
@@ -1089,6 +1091,12 @@ pub struct MaskOptions {
 }
 
 impl MaskOptions {
+    /// 已知值再匹配的种类过滤（Magpie 只看 secrets）。我方偏差（E-08）：
+    /// PERSON 只在姓名开关打开时再匹配——开关关闭后不应继续遮人名。
+    pub(crate) fn known_covers(&self, kind: &str) -> bool {
+        self.secrets && (kind != "PERSON" || (self.personal && self.detect_cjk_names))
+    }
+
     fn covers(&self, cat: &str) -> bool {
         match cat {
             "" => self.secrets,
@@ -1278,7 +1286,7 @@ pub(crate) fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
         let idx = known::shared_index()
             .lock()
             .unwrap_or_else(|p| p.into_inner());
-        let known_spans = idx.spans(s, |_kind| o.secrets);
+        let known_spans = idx.spans(s, |kind| o.known_covers(kind));
         found.extend(known_spans);
     }
 

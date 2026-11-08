@@ -82,3 +82,32 @@ THIRD_PARTY_NOTICES 对应）+ 接线 + 测试 8 个 + 语料评估
 - 提交：a6d0a1eb；run
   https://github.com/Txy-Sky/AICLI-Client/actions/runs/42447834192
   （五 job 全 success，含 E-08-unit 8 passed）
+
+七、统一验收复核与审查方补修（2026-11-08）
+1. [阻断] 开关没接进代理：PrivacyGate::mask_request 构造 MaskOptions 时
+   未传 detect_cjk_names，用户打开后代理照样不遮人名。执行端的变异验证只
+   覆盖规则层 scan 一行。修复：mask_request(text, &settings)；新增
+   layer 测试 cjk_name_switch_reaches_mask_request 与 e2e 第 18 项
+   cjk_name_switch_applies_through_proxy（关 → 开 → 关，读上游实际收到
+   的 body）。
+2. 已知值索引在生产路径从未写入（KnownIndex::add 只有测试调用），所以
+   原「方式二含 known 记忆效应」不成立，方式二与方式一等价。另发现
+   known.rs 按 &str 切前 8 字节，中文值会在字符中间切断 panic；改为按
+   字节作键（新增 cjk_values_index_by_bytes）。已知值再匹配加 PERSON
+   门控（MaskOptions::known_covers：开关关时不再匹配人名；
+   known_person_values_follow_the_switch，变异验证会失败）。known 未接线
+   本身属 E-03/E-04 遗留，另行处理。
+3. 语料补模板外句式：gen_zhname_corpus.py 增加 64 个各用一次的正例句式
+   与 65 条「提示词 + 非人名」反例（标 set=heldout），语料 338 → 467 条。
+   zhname_corpus_precision 增加第三种口径（只算模板外）：
+   · 方式一 P=0.9797 R=0.7108（TP=145 FP=3 FN=59）
+   · 方式二 同方式一（known 未接线）
+   · 模板外 129 条 P=0.7273 R=0.1194（TP=8 FP=3 FN=59）
+   误报：「请把文件发给周报群」→周报群，「联系人：华东区」→华东区，
+   「收件人：全体员工」→全体员。漏报多为不带提示词的常见说法
+   （跟李娜确认、这是樊静写的代码等），属 Magpie 无模型路径的固有行为。
+4. 结论：较低值 0.7273 < 95%，按清单「功能不开放」：zhname::AVAILABLE
+   = false；aicli_get_privacy 返回 privacy_detect_cjk_names_available
+   = false，aicli_set_privacy 传 Some(true) 返回 invalid_input；代码与
+   代理接线保留。测试把 AVAILABLE 与评估结论绑定，检测器改进到三种口径
+   都 ≥ 95% 时会要求改为 true。

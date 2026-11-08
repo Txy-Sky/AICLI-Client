@@ -286,12 +286,17 @@ impl PrivacyGate {
     }
 
     /// 遮盖请求体。`Ok((text, count))`；`Err(())` = 引擎异常（含注入），
-    /// 调用方按模式处理。
-    pub fn mask_request(&self, text: &str) -> Result<(String, usize), EngineFailure> {
+    /// 调用方按模式处理。`settings` 取本次请求的设置快照（E-08 姓名开关）。
+    pub fn mask_request(
+        &self,
+        text: &str,
+        settings: &PrivacySettings,
+    ) -> Result<(String, usize), EngineFailure> {
         let engine = self.engine().ok_or(EngineFailure)?;
         let options = MaskOptions {
             secrets: true,
             personal: true,
+            detect_cjk_names: settings.detect_cjk_names,
             ..Default::default()
         };
         #[cfg(feature = "test-hooks")]
@@ -500,7 +505,7 @@ pub async fn privacy_middleware(
     if has_media {
         gate.note_media_passed();
     }
-    let masked = gate.mask_request(&text);
+    let masked = gate.mask_request(&text, &settings);
     let payload: Bytes = match masked {
         Ok((masked, _count)) => Bytes::from(masked),
         Err(EngineFailure) => {

@@ -843,6 +843,32 @@ fn privacy_requires_binding_and_validates_the_failure_mode() {
     let view = fixture.services.get_privacy().unwrap();
     assert!(view.bound && view.privacy_enabled && view.allow_unscanned_media);
     assert_eq!(view.privacy_failure_mode, "pass");
+    // E-08 中文姓名：精确率不达标时开关不开放（zhname::AVAILABLE）
+    assert_eq!(
+        view.privacy_detect_cjk_names_available,
+        crate::aicli::privacy::rules::zhname::AVAILABLE
+    );
+    if !crate::aicli::privacy::rules::zhname::AVAILABLE {
+        assert_eq!(
+            fixture
+                .services
+                .set_privacy(true, "pass".to_owned(), true, Some(true))
+                .unwrap_err()
+                .code,
+            "invalid_input"
+        );
+        assert!(
+            !fixture
+                .services
+                .get_privacy()
+                .unwrap()
+                .privacy_detect_cjk_names
+        );
+    }
+    fixture
+        .services
+        .set_privacy(true, "pass".to_owned(), true, Some(false))
+        .unwrap();
 }
 
 #[test]

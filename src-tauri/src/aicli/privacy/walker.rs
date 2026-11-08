@@ -656,7 +656,7 @@ pub fn mask_json(body: &str, o: &MaskOptions, engine: &mut PlaceholderEngine) ->
             let idx = known::shared_index()
                 .lock()
                 .unwrap_or_else(|p| p.into_inner());
-            idx.spans(&t, |_kind| o.secrets)
+            idx.spans(&t, |kind| o.known_covers(kind))
         };
         let (t2, n) = redact::apply(&t, found, o, engine);
         total += n;

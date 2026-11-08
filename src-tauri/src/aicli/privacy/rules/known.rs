@@ -22,8 +22,9 @@ pub(crate) struct KnownValue {
 
 /// 已知值索引（Magpie `known`/`knownBits`/`knownGen`）。
 pub(crate) struct KnownIndex {
-    /// 前 MIN_KNOWN 字节 → 已知值列表
-    by_head: HashMap<String, Vec<KnownValue>>,
+    /// 前 MIN_KNOWN 字节 → 已知值列表。按字节作键（Go 的 value[:8] 是
+    /// 字节切片）：中文值的第 8 字节常落在字符中间，按 &str 切会 panic。
+    by_head: HashMap<Vec<u8>, Vec<KnownValue>>,
     /// 4 字节 gram 位图（Magpie `knownBits`）
     bits: Vec<u64>,
     /// 变化世代（Magpie `knownGen`）
@@ -57,8 +58,8 @@ impl KnownIndex {
         if kind == "TERM" || value.len() < MIN_KNOWN {
             return;
         }
-        let head = &value[..MIN_KNOWN];
-        let existing = self.by_head.entry(head.to_string()).or_default();
+        let head = &value.as_bytes()[..MIN_KNOWN];
+        let existing = self.by_head.entry(head.to_vec()).or_default();
         for k in existing.iter() {
             if k.value == value {
                 return; // 已记录
@@ -99,7 +100,7 @@ impl KnownIndex {
                 i += 1;
                 continue;
             }
-            let head = &s[i..i + MIN_KNOWN];
+            let head = &bytes[i..i + MIN_KNOWN];
             let Some(candidates) = self.by_head.get(head) else {
                 i += 1;
                 continue;
@@ -109,7 +110,8 @@ impl KnownIndex {
                 if !covers_kind(&k.kind) {
                     continue;
                 }
-                if !s[i..].starts_with(&k.value) {
+                // 按字节比较：值是合法 UTF-8，命中处必然落在字符边界上
+                if !bytes[i..].starts_with(k.value.as_bytes()) {
                     continue;
                 }
                 if let Some(b) = best {
@@ -287,5 +289,20 @@ mod tests {
         // 版本号
         let s = b"1.2.3.4.5";
         assert!(!stands_alone("IP", s, 0, 7));
+    }
+
+    /// 中文值：第 8 字节落在字符中间，按字节索引不 panic；中文正文里
+    /// 每个字节位置都试探一遍也不 panic。
+    #[test]
+    fn cjk_values_index_by_bytes() {
+        let name = ["司马", "鸿远"].concat();
+        let idx = build(&[("{{PERSON_k7f3q9xa}}", &name)]);
+        let text = format!("这段代码是{name}写的，{name}。");
+        let spans = idx.spans(&text, covers_all);
+        assert_eq!(spans.len(), 2);
+        for sp in &spans {
+            assert_eq!(&text[sp.start..sp.end], name);
+        }
+        assert!(idx.spans("司马光砸缸的故事很长很长", covers_all).is_empty());
     }
 }

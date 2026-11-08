@@ -305,6 +305,9 @@ struct CorpusLine {
     text: String,
     /// 应被遮的姓名（可为空）。
     names: Vec<String>,
+    /// "heldout" = 模板外句式（验收复核补充），单独再算一遍。
+    #[serde(default)]
+    set: String,
 }
 
 fn load_corpus() -> Vec<CorpusLine> {
@@ -405,13 +408,67 @@ fn zhname_corpus_precision() {
     let p2 = tp2 as f64 / (tp2 + fp2) as f64;
     let r2 = tp2 as f64 / (tp2 + fn2) as f64;
 
+    // 方式三：只看模板外句式（每条新引擎）。模板内语料与检测器同源，
+    // 精确率以三者中最低者为准。
+    let (mut tp3, mut fp3, mut fn3) = (0u32, 0u32, 0u32);
+    let mut heldout = 0usize;
+    for line in corpus.iter().filter(|l| l.set == "heldout") {
+        heldout += 1;
+        let mut e = engine();
+        let spans = person_spans(&line.text, &mut e);
+        let (tp, fp, f) = score_line(&line.text, &line.names, &spans);
+        tp3 += tp;
+        fp3 += fp;
+        fn3 += f;
+        if fp > 0 || f > 0 {
+            eprintln!(
+                "  模板外 {}：{:?} 实际 {:?}",
+                line.text,
+                line.names,
+                spans
+                    .iter()
+                    .map(|(a, b)| &line.text[*a..*b])
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+    assert!(heldout >= 120, "heldout lines {heldout}");
+    let p3 = tp3 as f64 / (tp3 + fp3).max(1) as f64;
+    let r3 = tp3 as f64 / (tp3 + fn3).max(1) as f64;
+
     eprintln!(
-        "zhname 语料 {} 条：方式一 P={p1:.4} R={r1:.4}（TP={tp1} FP={fp1} FN={fn1}）；方式二（共用引擎）P={p2:.4} R={r2:.4}（TP={tp2} FP={fp2} FN={fn2}）",
+        "zhname 语料 {} 条：方式一 P={p1:.4} R={r1:.4}（TP={tp1} FP={fp1} FN={fn1}）；方式二（共用引擎）P={p2:.4} R={r2:.4}（TP={tp2} FP={fp2} FN={fn2}）；模板外 {heldout} 条 P={p3:.4} R={r3:.4}（TP={tp3} FP={fp3} FN={fn3}）",
         corpus.len()
     );
-    let lower = p1.min(p2);
-    assert!(
+    // 清单 E-08：精确率 < 95% 时开关不开放。可用性常量必须与评估结论一致。
+    let lower = p1.min(p2).min(p3);
+    assert_eq!(
+        super::AVAILABLE,
         lower >= 0.95,
-        "精确率 {lower:.4}（方式一 {p1:.4}，方式二 {p2:.4}）低于 95%：按验收要求需隐藏开关"
+        "精确率较低值 {lower:.4}（方式一 {p1:.4}，方式二 {p2:.4}，模板外 {p3:.4}）与 zhname::AVAILABLE 不一致"
     );
+}
+
+/// 已知值里的 PERSON 只在姓名开关打开时再匹配（我方偏差，Magpie 只看
+/// secrets）：开关关掉后，之前遮过的人名不应继续被遮。
+#[test]
+fn known_person_values_follow_the_switch() {
+    let name = ["司马", "鸿远"].concat(); // 12 字节 ≥ MIN_KNOWN
+    crate::aicli::privacy::rules::known::shared_index()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .add("{{PERSON_k7f3q9xa}}", &name);
+    let text = format!("这段代码是{name}写的"); // 无提示词：只有已知值能命中
+    let mut e = engine();
+    let off = MaskOptions {
+        secrets: true,
+        personal: true,
+        detect_cjk_names: false,
+        ..Default::default()
+    };
+    let (out, count) = mask(&text, &off, &mut e);
+    assert_eq!(count, 0, "switch off: {out}");
+    let (out, count) = mask(&text, &opts(), &mut e);
+    assert_eq!(count, 1, "switch on: {out}");
+    assert!(!out.contains(&name), "{out}");
 }

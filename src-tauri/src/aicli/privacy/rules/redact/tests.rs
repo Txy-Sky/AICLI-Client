@@ -462,6 +462,10 @@ struct E07Case {
     must_mask: Vec<String>,
     #[serde(default)]
     must_not_mask: Vec<String>,
+    /// 给出时 must_mask 的每个值须**整段**换成该类别的占位符（防止只遮
+    /// 一半也算通过：redis://:P@ss1234@host 曾只遮 ss1234@host）。
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[test]
@@ -476,6 +480,10 @@ fn e07_added_rules_mask_and_stay_quiet() {
         let (out, count) = mask(&case.text, &o, &mut e);
         for value in &case.must_mask {
             assert!(!out.contains(value.as_str()), "must mask: {value} in {out}");
+            if let Some(kind) = &case.kind {
+                let whole = e.mask(kind, value);
+                assert!(out.contains(&whole), "whole {kind} {value} in {out}");
+            }
         }
         for value in &case.must_not_mask {
             assert!(

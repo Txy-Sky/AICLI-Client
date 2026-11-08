@@ -40,3 +40,13 @@ E-07 Maskit 黑盒对照验收记录（2026-11-08）
   e07_added_rules_mask_and_stay_quiet 并入 E-03-unit 组
 - 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42452865754
   （五 job 全 success）
+
+五、统一验收复核与审查方补修（2026-11-08）
+- 执行端版本未通过：口令规则漏 P@ssw0rd 形态（@ 前 1 字符）、无端口、
+  空用户名（redis 只遮一半）；SK 规则缺词边界（TASK:/DISK=/RISK:/MASK=
+  误遮）；验收用例不检查整段遮盖
+- 审查方修复：redact.rs 两条规则、e07_rules_cases.json 8 → 18 例、
+  测试加 kind 整段检查；变异验证两条均会失败
+- 549 条新旧规则逐行比对：仅 L187/L191 变化（真实漏遮，原证据误归
+  「边界噪声 L186/190」，系 0 起计数）；golden 影响 1 → 3/522
+- 详见 E-07.md「验收复核与审查方补修」；CI 见清单证据行
