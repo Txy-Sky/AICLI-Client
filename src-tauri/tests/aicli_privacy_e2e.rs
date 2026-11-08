@@ -82,10 +82,11 @@ enum UpstreamMode {
     JsonEcho,
     /// SSE 文本按给定字节切点流式下发。
     Sse(String, Vec<usize>),
-    /// 先发首块，等 release 再发尾块（并发测试用）。
-    SseHeld(String, usize, Arc<Notify>),
     /// gzip 压缩 SSE（fail-closed 测试用）。
     SseCompressed(String),
+    /// 按请求决定：`"stream":true` 的请求回首个 SSE 事件后挂起，等 release
+    /// 再结束；其他请求立即回 JSON（全链路并发测试用，同一 mock 同时服务两类请求）。
+    HeldStreamOrJson(Arc<Notify>),
 }
 
 type Mode = Arc<Mutex<UpstreamMode>>;
@@ -139,15 +140,19 @@ async fn upstream(
                 .insert("x-oneapi-request-id", "up-fixture".parse().unwrap());
             response
         }
-        UpstreamMode::SseHeld(text, first_cut, release) => {
-            let first_cut = first_cut.min(text.len());
-            let head = text[..first_cut].to_owned();
-            let tail = text[first_cut..].to_owned();
-            let release = release.clone();
+        UpstreamMode::HeldStreamOrJson(release) => {
+            let streaming = serde_json::from_slice::<Value>(&bytes)
+                .ok()
+                .and_then(|body| body.get("stream").and_then(Value::as_bool))
+                .unwrap_or(false);
+            if !streaming {
+                return json_response(&path, "ok");
+            }
+            let (head, tail) = held_sse(&path);
             let stream = async_stream::stream! {
-                yield Ok::<_, std::io::Error>(bytes::Bytes::from(head.to_owned()));
+                yield Ok::<_, std::io::Error>(bytes::Bytes::from(head));
                 release.notified().await;
-                yield Ok(bytes::Bytes::from(tail.to_owned()));
+                yield Ok(bytes::Bytes::from(tail));
             };
             axum::response::Response::builder()
                 .header("content-type", "text/event-stream")
@@ -192,6 +197,36 @@ fn json_response(path: &str, text: &str) -> axum::response::Response {
         .headers_mut()
         .insert("x-oneapi-request-id", "up-fixture".parse().unwrap());
     response
+}
+
+/// 全链路并发测试的 SSE：首段（立即发出）与尾段（release 后发出）。
+fn held_sse(path: &str) -> (String, String) {
+    if path.ends_with("messages") {
+        let head = [
+            "event: message_start\n",
+            "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-held\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"upstream-fixture\",\"content\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n",
+            "event: content_block_start\n",
+            "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "event: content_block_delta\n",
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"first\"}}\n\n",
+        ]
+        .concat();
+        let tail = [
+            "event: content_block_stop\n",
+            "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+            "event: message_delta\n",
+            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n",
+            "event: message_stop\n",
+            "data: {\"type\":\"message_stop\"}\n\n",
+        ]
+        .concat();
+        (head, tail)
+    } else {
+        (
+            "data: {\"id\":\"chatcmpl-held\",\"object\":\"chat.completion.chunk\",\"model\":\"upstream-fixture\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"first\"}}]}\n\n".to_owned(),
+            "data: {\"id\":\"chatcmpl-held\",\"object\":\"chat.completion.chunk\",\"model\":\"upstream-fixture\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_owned(),
+        )
+    }
 }
 
 fn sse_chunks(
@@ -903,11 +938,9 @@ async fn unauthorized_requests_skip_privacy_layer() {
 
 // ---- 8. 流式响应进行中，另一个请求能完成遮盖（隐私层不跨流持锁） ----
 //
-// 全链路串行化已复现且定位（multi_thread 4 workers + 关闭隐私，详见
-// E-06.txt「验收打回修正」与第 12 节偏差行）：排队请求卡在 forward 的
-// prepare_success_response_for_failover_with_timeouts → bytes_with_limit
-// （读上游响应体），直到前一个流式响应结束。隐私层 [验收] 项以本
-// mini app 直测：只挂隐私中间件，一个 SSE 流挂着时另一请求能完成遮盖。
+// 只挂隐私中间件的 mini app：直接验证隐私层不跨流持锁（一个 SSE 流
+// 挂着时另一请求能拿到引擎写锁完成遮盖）。真实代理上的全链路并发见
+// 第 17 个测试。
 
 #[tokio::test]
 async fn masking_works_while_stream_is_open() {
@@ -1426,4 +1459,101 @@ data: [DONE]
     // 降级计数一次
     assert_eq!(f.gate().stats().degraded, 1);
     f.stop().await;
+}
+
+// ---- 17. 全链路并发：流式响应进行中，同一上游的另一个请求能完成 ----
+//
+// 真实代理 + 真实 mock，多线程运行时。mock 按请求决定回挂起的 SSE 还是
+// 立即回 JSON。E-06 验收时的「全链路串行化」诊断，最可能是因为 mock 用的是全局 mode：第二个
+// 请求同样拿到挂起的 SSE，响应体自然要等 release，并非代理串行。
+// 覆盖 OpenAI chat（共享连接池）与 Claude messages（hyper 原始连接）两条
+// 转发路径 × 隐私关闭/开启。
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn second_request_completes_while_stream_is_open_full_chain() {
+    let email = email_value();
+    for (label, privacy) in [("off", false), ("on", true)] {
+        for claude in [false, true] {
+            let release = Arc::new(Notify::new());
+            let f = Fixture::new(UpstreamMode::HeldStreamOrJson(release.clone()), "ok").await;
+            f.set_privacy(privacy, "block", false);
+            let (path, model) = if claude {
+                ("/v1/messages", claude_alias(&f.db))
+            } else {
+                ("/v1/chat/completions", PUBLIC.to_owned())
+            };
+            let body = |stream: bool, text: &str| {
+                json!({"model": model, "max_tokens": 8, "stream": stream,
+                    "messages":[{"role":"user","content": text}]})
+            };
+            let case = format!("privacy={label} path={path}");
+
+            // 1. 流式请求：拿到响应头与首个事件后保持打开
+            let started = std::time::Instant::now();
+            let stream_response = tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                f.client()
+                    .post(format!("{}{path}", f.origin))
+                    .json(&body(true, "hold"))
+                    .send(),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("{case}: stream headers"))
+            .unwrap();
+            assert_eq!(stream_response.status(), 200, "{case}");
+            let mut stream = stream_response.bytes_stream();
+            let first = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next())
+                .await
+                .unwrap_or_else(|_| panic!("{case}: first stream chunk"));
+            assert!(first.is_some(), "{case}: stream open");
+            eprintln!("{case}: stream open after {:?}", started.elapsed());
+
+            // 2. 流挂着：另一个非流式请求必须完成
+            let second_started = std::time::Instant::now();
+            let second = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                let out = f
+                    .client()
+                    .post(format!("{}{path}", f.origin))
+                    .json(&body(false, &format!("mail {email}")))
+                    .send()
+                    .await
+                    .unwrap();
+                let status = out.status();
+                (status, out.text().await.unwrap())
+            })
+            .await;
+            eprintln!(
+                "{case}: second request {} after {:?}",
+                if second.is_ok() {
+                    "finished"
+                } else {
+                    "TIMED OUT"
+                },
+                second_started.elapsed()
+            );
+            let (status, text) =
+                second.unwrap_or_else(|_| panic!("{case}: second request blocked"));
+            assert_eq!(status, 200, "{case}: {text}");
+            if privacy {
+                // 上游收到的是占位符，客户端拿到的是还原后的 JSON
+                let captured = f.bodies();
+                let last = std::str::from_utf8(captured.last().unwrap())
+                    .unwrap()
+                    .to_owned();
+                assert!(!last.contains(&email), "{case}: masked upstream");
+                assert!(f.gate().stats().masked_values >= 1, "{case}");
+            }
+
+            // 3. 放行流式尾段，流正常结束
+            release.notify_one();
+            let rest = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                while let Some(chunk) = stream.next().await {
+                    chunk.unwrap();
+                }
+            })
+            .await;
+            assert!(rest.is_ok(), "{case}: stream finished after release");
+            f.stop().await;
+        }
+    }
 }

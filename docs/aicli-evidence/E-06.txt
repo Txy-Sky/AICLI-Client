@@ -187,3 +187,30 @@ fail-closed。日志捕获断言。
 遗留（不属于 E-06）：第 12 节「全链路串行化」——同一上游有流式响应
 进行中时，后续请求读响应体排队；与隐私层无关，另行立项定位修复。
 首页显示降级计数属 F 阶段首页条目（stats() 尚未对外暴露）。
+
+十、全链路并发复核（2026-11-08，统一验收）
+执行端第二轮记录的「全链路串行化（同一上游有流式响应时，后续请求读
+响应体排队）」经复核**不成立**：
+- 原诊断未入库；当时的 mock 由全局 UpstreamMode 决定回什么。并发诊断
+  用的 SseHeld 模式下，第二个请求同样拿到「首块后挂起、等 release」
+  的 SSE，响应头已到而响应体要等 release——这正是记录里「上游往返已
+  完成、卡在 bytes_with_limit 直到前一个流结束」的现象。代码排查也没有
+  跨请求的锁：代理到上游走 HTTP/1（direct_client 连接池 / hyper 原始
+  连接，各请求独立连接），response_processor 的异步锁是每个流各自的
+  事件收集器
+- 新增 mock 模式 HeldStreamOrJson（按请求的 stream 字段决定挂起 SSE 或
+  立即回 JSON），e2e second_request_completes_while_stream_is_open_full_chain：
+  真实代理、multi_thread(4)，OpenAI chat（共享连接池）与 Claude
+  messages（hyper 原始连接）× 隐私关/开，流挂着时第二个请求完成，
+  隐私开启时上游收到占位符、masked_values 增加，放行后流正常结束
+- 诊断 run 42439950021（临时分支 diag/stream-concurrency，只跑该测试；
+  测试步骤 success，失败的是 setup-node 的缓存收尾步骤，因诊断任务未
+  安装 pnpm 依赖）：
+    privacy=off path=/v1/chat/completions: second request finished after 40.36ms
+    privacy=off path=/v1/messages: second request finished after 40.12ms
+    privacy=on path=/v1/chat/completions: second request finished after 43.45ms
+    privacy=on path=/v1/messages: second request finished after 40.17ms
+- 删除不再使用的 SseHeld 模式；masking_works_while_stream_is_open（mini
+  app 直测隐私层）保留，注释改为指向第 17 个测试
+- 第 12 节偏差行改为「已核实无串行化」；第九节「遗留」中的串行化一项
+  就此关闭
