@@ -79,5 +79,6 @@ THIRD_PARTY_NOTICES 对应）+ 接线 + 测试 8 个 + 语料评估
    反馈补充
 
 六、CI
-- 提交：<待填>
-- 运行：<待推送后填写>
+- 提交：a6d0a1eb；run
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/42447834192
+  （五 job 全 success，含 E-08-unit 8 passed）

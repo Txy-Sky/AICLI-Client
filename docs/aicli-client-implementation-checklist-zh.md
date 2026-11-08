@@ -818,7 +818,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [x] 完成
 - 修改：移植 `zhname.go`、`zhdict.txt`（Magpie 注释说明它是在开启模型时启用的，这里单独作为开关），默认关闭。设置项 `privacy_detect_cjk_names`。
 - 验收：用 ≥ 200 条自写中文语料评估：精确率 ≥ 95%，召回率写入证据。**精确率不达标时，功能不开放**：保留代码但隐藏开关，把结果写入第 12 节。
-- 证据：2026-11-08 完成。rules/zhname.rs（Magpie zhname.go @f11bf27 移植 + zhdict.txt jieba MIT）+ zhname/tests.rs 8 个测试（Magpie 用例 person=[] 移植，模型用例逐条列原因）；接线等价 zhNameSpans(s,[],false)、仅 personal+开关开时生效、类别 PERSON（kinds 含 PERSON，流式拆半拼齐测试过）；设置项 privacy_detect_cjk_names 幂等加列（SCHEMA_VERSION 25 不变）进 PrivacySettings 缓存与 get/set_privacy（Option 向后兼容）；语料 gen_zhname_corpus.py 生成 338 条（正 125/反 213，反例含交接说明全部点名词），两种方式评估 P=R=1.0000（较低值 ≥95%，开关开放）；变异验证过。item E-08-unit 登记。偏差（zhTrim 未移植、模板语料）见 docs/aicli-evidence/E-08.txt | CI run 见 E-08.txt 第六节
+- 证据：2026-11-08 完成。rules/zhname.rs（Magpie zhname.go @f11bf27 移植 + zhdict.txt jieba MIT）+ zhname/tests.rs 8 个测试（Magpie 用例 person=[] 移植，模型用例逐条列原因）；接线等价 zhNameSpans(s,[],false)、仅 personal+开关开时生效、类别 PERSON（kinds 含 PERSON，流式拆半拼齐测试过）；设置项 privacy_detect_cjk_names 幂等加列（SCHEMA_VERSION 25 不变）进 PrivacySettings 缓存与 get/set_privacy（Option 向后兼容）；语料 gen_zhname_corpus.py 生成 338 条（正 125/反 213，反例含交接说明全部点名词），两种方式评估 P=R=1.0000（较低值 ≥95%，开关开放）；变异验证过。item E-08-unit 登记。偏差（zhTrim 未移植、模板语料）见 docs/aicli-evidence/E-08.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42447834192
 
 ### E-GATE 阶段 E 门禁
 - [ ] 完成
