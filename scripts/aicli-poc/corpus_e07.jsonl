@@ -1,0 +1,27 @@
+{"text": "数据库连不上，备用连接串：postgres://app_user:Pg9x2Km4@db1.internal:5432/orders"}
+{"text": "数据库连不上，备用连接串：mongodb+srv://svc_reader:Mn7p!q3Z@cluster0.mongodb.net/analytics?retryWrites=true"}
+{"text": "数据库连不上，备用连接串：mysql://root:My5ql#8@db2.lan:3306/shop"}
+{"text": "数据库连不上，备用连接串：redis://default:Rd6s2Fj9@cache.internal:6379/0"}
+{"text": "数据库连不上，备用连接串：jdbc:mysql://replica.internal:3306/metrics?user=report&password=Jd3c8Kw2"}
+{"text": "前台座机 010-66889570，转分机 8021"}
+{"text": "售后热线：021-52384761 转 3104"}
+{"text": "办公室电话 0755-83981234-678"}
+{"text": "下面是服务证书的私钥，帮我看看配置对不对：-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA1X9mQv4LtR7pW2nS8uYh3GkD5JfB0aM6cZxE4NvH2qL9sTbU8wOiP5rC7dE3fGhJ6kV1yX0zAqB4nM8sW2tE9rC5uH7jL3pO6iK1mN4bV8cX0zSqW3eR7tY2uF9dA5gHjK4lM\n-----END RSA PRIVATE KEY-----"}
+{"text": "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIIMIIEowIBAAKCAQEA1X9mQv4LtR7pW2nS8uYh3GkD5JfB0aM6\n-----END EC PRIVATE KEY-----"}
+{"text": "阿里云 AK：LTAI4tGh9Kq2Wx7ZnD3Pm，SK：aK9wQ2mLpX4nR7tYuB3cE6fHs1Jd"}
+{"text": "AWS 凭证 aws_access_key_id = AKIAJ6QM3SLZ8PVK2RT4N, aws_secret_access_key = wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"}
+{"text": "华为云 AK: HWPUB8Zk3Lm9Xq2Rt, SK: Fg5Yh7Jm3Qp6Ws8Ed2Vc0Xz9Bn4Mr"}
+{"text": "办公网出口是 203.0.198.5，内网跳板 10.20.30.40，网关 192.168.8.1"}
+{"text": "对方接口白名单要加 172.31.240.9 和 198.51.100.23"}
+{"text": "IPv6 调试地址 2408:8207:1234:5678:9abc:def0:1234:5678"}
+{"text": "抓到的登录态：eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV"}
+{"text": "# .env 生产配置（勿外传）\nDATABASE_PASSWORD=Pr0d#Xk7Qm2L\nSTRIPE_SECRET_KEY=sk_live_9Za8Qw3Er5Ty1Ui6\nJWT_SIGNING_SECRET=j8sN2k4R6tVb7cXz9\nSMTP_PASS=Sm5tp!8Kq3"}
+{"text": "const client = new Client({ token: 'ghp_' + 'Xk7Qm2Lp9Rt4Vb' + 'N8cZ3wY6Jd1Hf' });"}
+{"text": "os.environ['OPENAI_API_KEY'] = 'sk-proj-' + 'Wq8Rx5Ty2Uz'"}
+{"text": "password = 'Py9!ssw0rd'  # TODO 上线前改掉"}
+{"text": "curl -H 'Authorization: Bearer xoxb-6626-8813-Tq2Wv9Xz' https://api.example.com"}
+{"text": "订单号 202605180009876543 已经发货"}
+{"text": "提交 hash 3f5a8c90e2b1d47f6a09c88e77b5d1aa 是本次回滚的基线"}
+{"text": "用户 ID 10086 和批次 8640021 对不上"}
+{"text": "版本号 2.11.3-rc.4 修复了这个 bug"}
+{"text": "路径 /usr/local/share/dotnet/sdk/8.0.401 存在"}

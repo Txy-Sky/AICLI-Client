@@ -1,0 +1,41 @@
+E-07 Maskit 黑盒对照验收记录（2026-11-08）
+
+状态：[x] 完成（对照跑通；密钥/证件类真实格式漏遮修复后为 0）
+
+一、运行环境（AGPL 边界）
+- Maskit 源码检出 source-reference/maskit（gitignore，不入库），只作黑盒：
+  仅经其 HTTP 端口发语料、从捕获上游读 body；未读其代码/正则/规则/夹具
+- 源码态运行：python engine/panel.py（LLM_SHIELD_DATA_DIR=.tmp-e07/
+  maskit-data 隔离目录；面板 15801（5801 被本机 Maskit 桌面版占用）、
+  反代 18721 指向本地捕获上游 18990）；依赖修复：pyOpenSSL 升 25
+  （mitmproxy 12.2.3 与本机 cryptography 50 不兼容，属环境问题）
+- 配置：builtin_rules 21 类全开（交接说明要求），NER 关（模型不随源码
+  分发且不在对照范围）；未跑默认 7 类第二轮（全开为其超集）
+
+二、工具（仓库内提交）
+- scripts/aicli-poc/maskit_diff.py：捕获上游 + 反代发送 + difflib 片段
+  对齐 + 四类归因；Rust 侧读 target/rust_raw.jsonl
+- scripts/aicli-poc/e07_run.py：一键驱动（面板令牌运行时拼接避让本地
+  网关；Rust 导出用新 #[ignore] 测试 write_rust_raw_jsonl_for_e07，
+  JSONL 行对应不受多行语料影响）
+- scripts/aicli-poc/gen_corpus_e07.py：27 条补充语料（连接串/座机/PEM/
+  云 AK/IP/JWT/.env/硬编码凭证 + 误报对照），运行时拼接生成、自检无
+  {{ / TAG_
+- scripts/aicli-poc/gen_e07_rule_cases.py + fixtures e07_rules_cases.json：
+  新增规则验收 8 例（含误报对照）
+
+三、结果（详见 E-07.md）
+- 只对方遮 55 片段：REAL_FORMAT（真实格式密钥/证件）漏遮修复后 0
+- 修复 3 类（我方新增规则，第 12 节偏差行）：①连接串口令含 @/#
+  ②阿里云 LTAI AccessKey ③AccessKeySecret 赋值；每类有误报对照；
+  变异验证过（去掉新规则 e07_added_rules 测试失败）
+- 其余归因：对方更宽松（截短假密钥）/ 口径不同（类别开关、连接串整条、
+  身份证校验位）/ 边界噪声；手机/座机/IP 按清单给了不修理由
+- golden 影响：E-03 语料 522 条中 1 条（L183 口令含 #）由不遮变遮——
+  有意增强的豁免，go_raw 未动、断言未放宽；E-03-fuzz/E-04-unit/
+  privacy 全量回归通过
+
+四、CI
+- 提交：<待填>；maskit_diff.py / e07_run.py 仅本机运行不进 CI；
+  e07_added_rules_mask_and_stay_quiet 并入 E-03-unit 组
+- 运行：<待推送后填写>

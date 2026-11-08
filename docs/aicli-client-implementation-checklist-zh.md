@@ -809,10 +809,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-08 完成。privacy/layer.rs：PrivacyGate（引擎懒构造一次挂 AicliRuntime、设置按全局修订号缓存、四项计数）、中间件（位于 local_auth 之内的 from_fn_with_state；关闭直通不读 body；AI 路径 POST 遮盖+解压+重建请求+identity；媒体接口/data: 按模式阻断或放行计数；SSE 包装 RestoreStream、整体 restore_json、压缩流 fail-closed；mask/restore 在 catch_unwind 内，block→privacy_engine_failed/流立即结束，pass→放行计数）；stream.rs 共享引擎化（短读锁不跨 .await）。e2e 11 个（四协议、SSE 拆半拼齐、关闭逐字节相同、Claude→Responses 转换占位符存活、重启占位符不变、故障注入 3×2、层顺序、并发遮盖、媒体、压缩流、日志捕获）+ 单元 7 个全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记。偏差（全链路串行化已定位另行立项、alpha/search 纳入遮盖、计数只有总数）与三轮验收修正见 docs/aicli-evidence/E-06.txt；统一验收 2026-11-08 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42438798416
 
 ### E-07 Maskit 黑盒对照（仅开发机）
-- [ ] 完成
+- [x] 完成
 - 修改：把 Maskit 放在 `/root/maskit-reference`（仓库外），按其文档独立运行。新增 `scripts/aicli-poc/maskit_diff.py`：把 E-03 的语料分别过两个引擎，输出差异到 `docs/aicli-evidence/E-07.md`。只提交**差异统计和自写语料的结论**，不提交 Maskit 的规则或代码。
 - 验收：每一类差异都有结论：我方漏遮（修复或说明不修的原因）、对方误报、口径不同。我方漏遮的密钥类、证件类条目必须修复后才能通过。运行不起来时标 `[!]`，不阻塞 E-GATE，但要在第 12 节说明。
-- 证据：
+- 证据：2026-11-08 完成。Maskit 黑盒对照（源码态 panel.py + 全 21 类规则开，反代指向本地捕获上游；未读其代码/夹具）：E-03 522 条 + 自写补充 27 条（连接串/座机/PEM/云 AK/IP/JWT/.env/硬编码，运行时拼接生成）。只对方遮 55 片段逐类归因：真实格式密钥/证件漏遮修复后 0（修复 3 类我方新增规则：连接串口令含 @/#、阿里云 LTAI、AccessKeySecret 赋值，各有误报对照 + 变异验证）；其余为对方更宽松/口径不同/边界噪声，手机/座机/IP 给了不修理由。golden 影响 1/522 条（有意增强豁免，断言未放宽）。工具 maskit_diff.py / e07_run.py 仅本机。详见 docs/aicli-evidence/E-07.md 与 E-07.txt | CI run 见 E-07.txt
 
 ### E-08 中文姓名（可选开关）
 - [x] 完成
@@ -1054,6 +1054,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | E-02 审查修正（密钥解析） | 清单只规定 32 字节随机密钥存 Keychain `privacy-hmac-key`。 | 存储值必须恰好 64 个十六进制字符；格式不对时重新生成并写回，不再把非十六进制字符当 0 字节。 | 统一验收审查（2026-11-07）发现坏值会退化成可预测密钥，占位符后缀发往上游后低熵值可被离线穷举。 |
 | E-03 审查修正（多字节切片） | 清单要求逐条移植 Magpie 规则，语义一致。 | `redact.rs` fold 窗口与 `phone.rs` 号码前文改为按字符边界切片；新增 `fuzz_tests.rs` 随机测试（不 panic、遮盖还原往返、流式切分一致）。 | Go 按字节切串不会出错，Rust 会 panic；随机测试找到两处普通中文输入即崩溃的位置。语义与 Go 等价，golden 不变。 |
 | E-04 审查修正（restore_json 快速路径） | 清单要求与 Magpie RestoreJSON 一致；Magpie 在正文不含 `{{` 时原样返回（json.go:521）。 | 改为值表为空或正文不含 `_` 时才原样返回。 | 有意偏离 Magpie：不带花括号的占位符正文在流式（word_tail）能还原、非流式不能，结果不一致。需严格对齐原版时可单独回退此项。 |
+| E-07（我方新增规则） | 清单要求逐条移植 Magpie（E-03）。 | E-07 对照发现 3 类漏遮后新增 3 条我方规则（非 Magpie 移植，redact.rs 文件头注明）：连接串口令含 @/#（锚定 host:port）、阿里云 LTAI AccessKey、AccessKeySecret 赋值；各有误报对照。E-03 golden 因此 1/522 条差异（L183 口令含 #，由不遮变遮），方向为多遮不漏，豁免原因已写明、断言未放宽。 | Maskit 黑盒对照发现的真实格式密钥类漏遮，验收要求必须修复；见 E-07.md。 |
 | E-08（模型路径未移植） | 清单要求移植 zhname.go。 | zhTrim（模型姓名的截断）未移植；Magpie 中靠模型遮的用例（感谢李老师、田中太郎等）按规则保留。 | 我方无模型（E-03 决定）；无模型语义为「开关打开即遮」，模型用例的行为以 model_only_cases_are_left 固定。 |
 | E-08（评估语料） | 清单要求 ≥200 条自写语料评估精确率。 | 338 条由脚本模板生成（固定种子），正例全部带规则可识别提示词，故 P=1.0 为模板数据预期；对抗覆盖由移植的 Magpie 测试承担。 | 生成式语料避免手写人名被本地网关替换；真实召回待 F 阶段使用反馈。 |
 | E-06（遮盖路径范围） | 清单列 /v1/messages、/chat/completions、/responses、Gemini generateContent 系列、/app/*。 | 另把 /alpha/search 计入遮盖路径（文本搜索入参）。 | 搜索查询与对话文本同属用户输入；关闭隐私即不受影响。 |
@@ -1166,6 +1167,7 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 C4-04 验收 c0867e55：C4-04-unit 2 passed（行级列值 + provider_id 保持种子 id + 三线路/非 AICLI/无路由/未知线路推导）；Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-04.txt。下一项 C5-GATE（需 H-01、H-02，均为 [HUMAN] 前置）。
 最近 E-06 并发复核（2026-11-08）：执行端记录的「全链路串行化」不成立——诊断 mock 用全局 mode，第二个请求也拿到挂起的 SSE。真实代理 multi_thread 下 chat/Claude 两条转发路径 × 隐私关/开，流挂着时第二个请求约 40ms 完成；新增 e2e 第 17 个测试固定，第 12 节偏差行改为已核实。详见 E-06.txt 第十节。
 最近 E-06 验收（2026-11-08，[x]）1a9dc56d：三轮打回修正后通过；审查方补修扣留事件在引擎真实 panic 时丢失（push 先记原文、注入点挪进引擎调用内）、finish 还原 catch_unwind、隐私优先失败后不再放出任何上游字节；新增 item E-06-stream-faults 3；E-06-unit 9、E-06-e2e 16、E-03-fuzz 6 passed，Rust 4697 passed / 11 skipped，五 job 全成功（run 42438798416）。遗留：全链路串行化另行立项。详见 E-06.txt 第九节。
+最近 E-07 Maskit 黑盒对照（2026-11-08）：全规则开对照 549 条语料，真实格式密钥/证件漏遮修复后 0（新增 3 条我方规则：连接串口令 @/#、阿里云 LTAI、SK 赋值，误报对照 + 变异验证；golden 1/522 豁免）；其余差异全部归因。详见 E-07.md。
 最近 E-08 中文姓名（2026-11-08）：zhname.go 移植 + zhdict（jieba MIT）、PERSON 类别与流式拼齐、设置项幂等加列进缓存与命令、338 条生成语料两种方式 P=1.0000（≥95% 开关开放）、Magpie 模型用例逐条列原因。详见 E-08.txt。
 最近 E-06 验收打回修正（2026-11-08，第三轮）：流式 panic 恢复改为 restorer 内部逐事件 catch_unwind（已还原事件照常输出、扣留/出错/剩余字节按原始字节放出、透传后续块；字节全程无 U+FFFD；注入点在事件还原内部）；refresh 查库出错改为本次 fail-closed 不写缓存（防止把关闭固化到新修订号）+ 1s 限频重试。e2e 16、单元 10、privacy 146 全过。详见 E-06.txt 第八节。
 最近 E-06 验收打回修正（2026-11-08，第二轮）：媒体识别补 Claude source/Gemini inlineData；pass 模式发解压明文；流式 pass 先放缓存字节（帧不重不漏）+ block 可见失败（engine_blocked 单独计数）；refresh 查库错误保留快照 fail-closed；全链路串行化 multi_thread 复现并定位到 forward 的响应体读取（未修，报负责人）；e2e 15 + 单元 10。详见 E-06.txt 第七节。

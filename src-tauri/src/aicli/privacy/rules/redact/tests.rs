@@ -453,6 +453,42 @@ fn cjk_rule_folds_match_patterns() {
     }
 }
 
+// ---- E-07 新增规则验收（Magpie 之外的我方规则，含误报对照） ----
+
+#[derive(serde::Deserialize)]
+struct E07Case {
+    text: String,
+    #[serde(default)]
+    must_mask: Vec<String>,
+    #[serde(default)]
+    must_not_mask: Vec<String>,
+}
+
+#[test]
+fn e07_added_rules_mask_and_stay_quiet() {
+    let cases: Vec<E07Case> = serde_json::from_str(include_str!(
+        "../../../../../tests/fixtures/privacy/e07_rules_cases.json"
+    ))
+    .expect("e07 cases parse");
+    let mut e = engine();
+    let o = opts();
+    for case in &cases {
+        let (out, count) = mask(&case.text, &o, &mut e);
+        for value in &case.must_mask {
+            assert!(!out.contains(value.as_str()), "must mask: {value} in {out}");
+        }
+        for value in &case.must_not_mask {
+            assert!(
+                out.contains(value.as_str()),
+                "must not mask: {value} in {out}"
+            );
+        }
+        if !case.must_mask.is_empty() {
+            assert!(count > 0, "expected masks: {}", case.text);
+        }
+    }
+}
+
 // ---- golden 对照（开发期，cargo test -- --ignored 手动跑） ----
 
 /// 与 tools/magpie_golden/main.go 的 fixedKeyHex 一致。
@@ -489,4 +525,31 @@ fn write_rust_raw_for_golden_diff() {
         lines.join("\n"),
     )
     .expect("write rust_raw.txt");
+}
+
+/// E-07 对照导出：JSONL（每行 {"out": …}）。语料含多行文本（PEM、.env），
+/// 纯文本 join 会破坏行对应关系，此导出一行一对象。
+#[test]
+#[ignore = "开发期 E-07 对照工具，不进 CI"]
+fn write_rust_raw_jsonl_for_e07() {
+    let corpus_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../target/corpus_full.json");
+    let corpus: Vec<String> = serde_json::from_str(
+        &std::fs::read_to_string(corpus_path).expect("先运行: python 生成 target/corpus_full.json"),
+    )
+    .expect("corpus_full.json parses");
+    let mut e = golden_engine();
+    let o = opts();
+    let mut lines = Vec::with_capacity(corpus.len());
+    for text in &corpus {
+        let (masked, _) = mask(text, &o, &mut e);
+        lines.push(serde_json::json!({ "out": masked }).to_string());
+    }
+    std::fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../target/rust_raw.jsonl"),
+        lines.join(
+            "
+",
+        ),
+    )
+    .expect("write rust_raw.jsonl");
 }

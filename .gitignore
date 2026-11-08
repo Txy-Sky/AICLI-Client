@@ -34,3 +34,4 @@ mainWindow.js
 /source-reference/
 /artifacts/
 /target/
+__pycache__/
