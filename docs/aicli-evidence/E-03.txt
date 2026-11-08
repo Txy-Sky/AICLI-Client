@@ -178,3 +178,10 @@ https://github.com/Txy-Sky/AICLI-Client/actions/runs/42385215888 六 job 全 suc
 153 个全过；clippy --tests 与 rustfmt --check 无告警。
 未做：已知值再匹配不按类别开关过滤（Magpie knownSpans 只看 secrets，照移植；
 PERSON 例外见 E-08）。类别关闭后，之前在开启时遮过的值仍会再遮——方向为多遮。
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42459880184（752e1e79，五 job 全
+success；A3-01 Rust 4711 passed / 12 skipped；e2e 第 19 项 masked_value_is_remembered_across_requests
+通过）。
+附：3dfe5ab0 的 CI（42457516540）两次失败于 commands::aicli::tests::
+refresh_validates_kinds_and_requires_a_binding（缓存条数先 2 后 1，期望 3）。该测试在
+refresh("all") 刚派出后台刷新时就断言缓存条数，属测试自身竞态，与本次改动无关；752e1e79
+改为派出后等缓存空闲再读，断言不变。nextest 首个失败即停，故以 752e1e79 的全量通过为准。
