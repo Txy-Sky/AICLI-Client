@@ -1053,6 +1053,8 @@ pub struct MaskOptions {
     pub kinds: HashMap<String, bool>,
     /// Shape 模式：密钥走合成键。
     pub shape: bool,
+    /// E-08 中文姓名检测（privacy_detect_cjk_names，默认关闭）。
+    pub detect_cjk_names: bool,
 }
 
 impl MaskOptions {
@@ -1232,6 +1234,12 @@ pub(crate) fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
     // 拆分遮盖的 user@host 段内不再按 EMAIL 重复遮盖（Magpie split）
     for (ss, se) in &split {
         found.retain(|f| !(f.kind == "EMAIL" && f.start == *ss && f.end <= *se));
+    }
+
+    // 中文姓名（E-08，Magpie 的 zhNameSpans；等价 person=[]、nicks=false，
+    // 仅在 personal 开启且开关打开时生效）
+    if o.personal && o.detect_cjk_names {
+        found.extend(super::zhname::zh_name_spans(s, &[], false));
     }
 
     // 已知值

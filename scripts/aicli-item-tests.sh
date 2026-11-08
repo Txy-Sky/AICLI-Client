@@ -57,6 +57,7 @@ case "$set_name" in
     item E-04-unit aicli::privacy::walker::tests
     item E-05-unit aicli::privacy::stream::tests
     item E-06-unit aicli::privacy::layer::tests
+    item E-08-unit aicli::privacy::rules::zhname
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests

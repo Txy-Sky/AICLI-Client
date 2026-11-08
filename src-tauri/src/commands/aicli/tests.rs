@@ -822,7 +822,7 @@ fn privacy_requires_binding_and_validates_the_failure_mode() {
     assert_eq!(
         fixture
             .services
-            .set_privacy(true, "block".to_owned(), false)
+            .set_privacy(true, "block".to_owned(), false, None)
             .unwrap_err()
             .code,
         "not_bound"
@@ -831,14 +831,14 @@ fn privacy_requires_binding_and_validates_the_failure_mode() {
     assert_eq!(
         fixture
             .services
-            .set_privacy(true, "degrade".to_owned(), false)
+            .set_privacy(true, "degrade".to_owned(), false, None)
             .unwrap_err()
             .code,
         "invalid_input"
     );
     fixture
         .services
-        .set_privacy(true, "pass".to_owned(), true)
+        .set_privacy(true, "pass".to_owned(), true, None)
         .unwrap();
     let view = fixture.services.get_privacy().unwrap();
     assert!(view.bound && view.privacy_enabled && view.allow_unscanned_media);

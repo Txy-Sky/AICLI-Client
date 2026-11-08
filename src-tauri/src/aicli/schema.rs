@@ -19,7 +19,8 @@ pub(crate) fn create_tables(conn: &Connection) -> Result<(), AppError> {
             selected_line_id TEXT NOT NULL DEFAULT 'main', active_profile_id TEXT,
             privacy_enabled INTEGER NOT NULL DEFAULT 0,
             privacy_failure_mode TEXT NOT NULL DEFAULT 'block',
-            allow_unscanned_media INTEGER NOT NULL DEFAULT 0, last_sync_at INTEGER
+            allow_unscanned_media INTEGER NOT NULL DEFAULT 0,
+            privacy_detect_cjk_names INTEGER NOT NULL DEFAULT 0, last_sync_at INTEGER
         );
         CREATE TABLE IF NOT EXISTS aicli_cache (
             kind TEXT PRIMARY KEY, fingerprint TEXT, fetched_at INTEGER NOT NULL,
@@ -56,7 +57,27 @@ pub(crate) fn create_tables(conn: &Connection) -> Result<(), AppError> {
             taken_over_at INTEGER
         );",
     )
-    .map_err(|error| AppError::Database(error.to_string()))
+    .map_err(|error| AppError::Database(error.to_string()))?;
+    // E-08：privacy_detect_cjk_names 随 v25 之后的功能加入；CREATE TABLE
+    // IF NOT EXISTS 不会给已存在的表补列，幂等 ALTER（沿用 REQUEST_LOG_COLUMNS
+    // 的做法），不提升 SCHEMA_VERSION。
+    ensure_columns(conn)
+}
+
+/// 幂等补列（已存在的旧库升级；新库 CREATE TABLE 已带上）。
+pub(crate) fn ensure_columns(conn: &Connection) -> Result<(), AppError> {
+    if crate::database::Database::has_column(conn, "aicli_account", "privacy_detect_cjk_names")? {
+        return Ok(());
+    }
+    if !crate::database::Database::table_exists(conn, "aicli_account")? {
+        return Ok(()); // 表还不存在（迁移稍后创建）
+    }
+    conn.execute(
+        "ALTER TABLE aicli_account ADD COLUMN privacy_detect_cjk_names INTEGER NOT NULL DEFAULT 0",
+        [],
+    )
+    .map_err(|error| AppError::Database(error.to_string()))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -139,7 +160,18 @@ mod tests {
         Database::apply_schema_migrations_on_conn(&conn).unwrap();
         create_tables(&conn).unwrap();
         assert_eq!(rows(&conn, "SELECT * FROM proxy_request_logs"), after);
-        assert_eq!(rows(&conn, "SELECT * FROM aicli_account"), before_account);
+        // E-08 幂等补列：privacy_detect_cjk_names 存在且为默认 0，
+        // 原有行重复迁移后不变（列在 CREATE TABLE 或幂等 ALTER 中带上）
+        let after_account = rows(&conn, "SELECT * FROM aicli_account");
+        assert_eq!(after_account, before_account);
+        let detect: i64 = conn
+            .query_row(
+                "SELECT privacy_detect_cjk_names FROM aicli_account WHERE id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(detect, 0);
         assert_eq!(
             rows(&conn, "SELECT * FROM aicli_managed_token"),
             before_tokens

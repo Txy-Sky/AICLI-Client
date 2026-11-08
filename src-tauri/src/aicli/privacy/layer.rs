@@ -58,6 +58,8 @@ pub struct PrivacySettings {
     /// true = block（隐私优先）；false = pass（可用性优先）。
     pub block: bool,
     pub allow_unscanned_media: bool,
+    /// E-08 中文姓名检测（aicli_account.privacy_detect_cjk_names，默认关）。
+    pub detect_cjk_names: bool,
 }
 
 impl Default for PrivacySettings {
@@ -66,6 +68,7 @@ impl Default for PrivacySettings {
             enabled: false,
             block: true,
             allow_unscanned_media: false,
+            detect_cjk_names: false,
         }
     }
 }
@@ -160,6 +163,7 @@ impl PrivacyGate {
             enabled: true,
             block: true,
             allow_unscanned_media: false,
+            detect_cjk_names: false,
         };
         // 限频：上次出错不足 1s，直接 fail-closed 不打库
         {
@@ -170,11 +174,12 @@ impl PrivacyGate {
                 }
             }
         }
-        let row: Result<Option<(bool, String, bool)>, ()> = (|| {
+        let row: Result<Option<(bool, String, bool, bool)>, ()> = (|| {
             use rusqlite::OptionalExtension;
             let conn = self.db.conn.lock().map_err(|_| ())?;
             conn.query_row(
-                "SELECT privacy_enabled, privacy_failure_mode, allow_unscanned_media
+                "SELECT privacy_enabled, privacy_failure_mode, allow_unscanned_media,
+                        privacy_detect_cjk_names
                      FROM aicli_account WHERE id=1",
                 [],
                 |row| {
@@ -182,6 +187,7 @@ impl PrivacyGate {
                         row.get::<_, bool>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, bool>(2)?,
+                        row.get::<_, bool>(3)?,
                     ))
                 },
             )
@@ -190,11 +196,12 @@ impl PrivacyGate {
         })();
         let mut guard = self.inner.write().unwrap_or_else(|p| p.into_inner());
         match row {
-            Ok(Some((enabled, mode, allow_media))) => {
+            Ok(Some((enabled, mode, allow_media, detect_cjk_names))) => {
                 let settings = PrivacySettings {
                     enabled,
                     block: mode != "pass",
                     allow_unscanned_media: allow_media,
+                    detect_cjk_names,
                 };
                 guard.cached = Some((rev, settings));
                 guard.last_error_at = None;

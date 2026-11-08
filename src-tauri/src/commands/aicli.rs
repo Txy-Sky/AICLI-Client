@@ -323,6 +323,8 @@ pub struct AicliPrivacyView {
     pub privacy_enabled: bool,
     pub privacy_failure_mode: String,
     pub allow_unscanned_media: bool,
+    /// E-08 中文姓名检测（默认关闭）。
+    pub privacy_detect_cjk_names: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1435,7 +1437,8 @@ impl AicliServices {
             .lock()
             .map_err(|_| AicliCommandError::database())?
             .query_row(
-                "SELECT privacy_enabled,privacy_failure_mode,allow_unscanned_media
+                "SELECT privacy_enabled,privacy_failure_mode,allow_unscanned_media,
+                        privacy_detect_cjk_names
                  FROM aicli_account WHERE id=1",
                 [],
                 |row| {
@@ -1443,25 +1446,31 @@ impl AicliServices {
                         row.get::<_, bool>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, bool>(2)?,
+                        row.get::<_, bool>(3)?,
                     ))
                 },
             )
             .optional()
             .map_err(|_| AicliCommandError::database())?;
         Ok(match row {
-            Some((privacy_enabled, privacy_failure_mode, allow_unscanned_media)) => {
-                AicliPrivacyView {
-                    bound: true,
-                    privacy_enabled,
-                    privacy_failure_mode,
-                    allow_unscanned_media,
-                }
-            }
+            Some((
+                privacy_enabled,
+                privacy_failure_mode,
+                allow_unscanned_media,
+                detect_cjk_names,
+            )) => AicliPrivacyView {
+                bound: true,
+                privacy_enabled,
+                privacy_failure_mode,
+                allow_unscanned_media,
+                privacy_detect_cjk_names: detect_cjk_names,
+            },
             None => AicliPrivacyView {
                 bound: false,
                 privacy_enabled: false,
                 privacy_failure_mode: "block".into(),
                 allow_unscanned_media: false,
+                privacy_detect_cjk_names: false,
             },
         })
     }
@@ -1471,6 +1480,7 @@ impl AicliServices {
         privacy_enabled: bool,
         privacy_failure_mode: String,
         allow_unscanned_media: bool,
+        privacy_detect_cjk_names: Option<bool>,
     ) -> Result<(), AicliCommandError> {
         if !matches!(privacy_failure_mode.as_str(), "block" | "pass") {
             return Err(AicliCommandError::invalid_input(
@@ -1484,8 +1494,14 @@ impl AicliServices {
             .map_err(|_| AicliCommandError::database())?
             .execute(
                 "UPDATE aicli_account SET privacy_enabled=?1,privacy_failure_mode=?2,
-                 allow_unscanned_media=?3 WHERE id=1",
-                rusqlite::params![privacy_enabled, privacy_failure_mode, allow_unscanned_media],
+                 allow_unscanned_media=?3,
+                 privacy_detect_cjk_names=COALESCE(?4, privacy_detect_cjk_names) WHERE id=1",
+                rusqlite::params![
+                    privacy_enabled,
+                    privacy_failure_mode,
+                    allow_unscanned_media,
+                    privacy_detect_cjk_names
+                ],
             )
             .map_err(|_| AicliCommandError::database())?;
         if changed == 0 {
@@ -1702,10 +1718,14 @@ pub async fn aicli_set_privacy(
     privacy_enabled: bool,
     privacy_failure_mode: String,
     allow_unscanned_media: bool,
+    privacy_detect_cjk_names: Option<bool>,
 ) -> Result<(), AicliCommandError> {
-    state
-        .0
-        .set_privacy(privacy_enabled, privacy_failure_mode, allow_unscanned_media)
+    state.0.set_privacy(
+        privacy_enabled,
+        privacy_failure_mode,
+        allow_unscanned_media,
+        privacy_detect_cjk_names,
+    )
 }
 
 #[cfg(test)]

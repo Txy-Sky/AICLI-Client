@@ -675,6 +675,8 @@ impl Database {
                 }
                 version = Self::get_user_version(conn)?;
             }
+            // 版本迁移之外的幂等补列（已在最新版本的旧库也会走到这里）。
+            crate::aicli::schema::ensure_columns(conn)?;
             Ok(())
         })();
 

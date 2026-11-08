@@ -18,6 +18,7 @@ pub mod redact;
 pub mod rules; // 名字与父模块同名是刻意的：对齐 Magpie rules.go
 pub mod scrub;
 pub mod shape;
+pub mod zhname;
 
 pub mod dateword;
 pub mod fieldvalue;

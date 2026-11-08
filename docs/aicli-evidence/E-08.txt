@@ -1,0 +1,83 @@
+E-08 中文姓名验收记录（2026-11-08）
+
+状态：[x] 完成（精确率达标，开关开放）
+代码：src-tauri/src/aicli/privacy/rules/zhname.rs（Magpie zhname.go @f11bf27
+移植，约 510 行）+ zhdict.txt（jieba v0.42.1 MIT，文件头保留来源与
+THIRD_PARTY_NOTICES 对应）+ 接线 + 测试 8 个 + 语料评估
+
+一、接线（对照交接说明 [验收] 项）
+1. 脱离模型：等价 zhNameSpans(s, person=[], nicks=false)，仅在
+   personal 开启且 privacy_detect_cjk_names 开启时生效（redact::scan
+   中规则之后、known 之前，对应 Magpie 的 modelSpans 位置）；
+   zhTrim 属模型路径，未移植（文件头注明）
+2. 设置项 privacy_detect_cjk_names：aicli_account 加列
+   （INTEGER NOT NULL DEFAULT 0），沿 REQUEST_LOG_COLUMNS 的幂等
+   补列方式（create_tables 尾部 ensure_columns + 迁移循环后无条件
+   ensure，SCHEMA_VERSION 保持 25 未提升）；进 PrivacySettings 内存
+   缓存（refresh 读取、fail_closed 时保持 false），由
+   aicli_get_privacy / aicli_set_privacy 读写（set 的
+   privacy_detect_cjk_names 为 Option，前端未传时保留原值），
+   提交后 bump_revision；PrivacyGate::mask_request 带上开关，
+   热路径不查库
+3. 占位符类别 PERSON：engine.kinds() 包含它（掩码后即注册），流式
+   word_tail 能识别 {{PERSON_ 半截；测试 person_placeholder_split_
+   across_events：姓名占位符切在两个事件之间，客户端收全名
+
+二、Magpie 测试移植（zhname/tests.rs，8 个测试）
+- TestChineseNames / TestChineseWordsAreNoNames / TestMaoliIsAMargin
+  以 person=[] 移植（chinese_names_by_cues 27 例、
+  chinese_words_are_no_names 31 词 × 11 句式 + 28 整句、
+  maoli_is_a_margin 10 句）
+- 未移植的模型用例及原因（model_only_cases_are_left 同时固定其
+  「无提示词时保留」行为）：TestChineseNamesByModelOnlyNicks
+  （NamesByModel 路径，我方无模型）、TestModelWordsAreNoNames 与
+  TestModelNamesBesideWords（断言模型把词当姓名/模型姓名在词旁时的
+  行为，我方没有模型输入）、TestChineseNamesNeedModel 中「无模型
+  不遮」半句（我方语义：开关打开就遮——off_by_default_and_
+  personal_required 覆盖：默认关、personal 关时不生效）
+- 逐字对齐的坑：Go unicode.IsPunct 不含反引号（S 类），Rust 的
+  ascii_punctuation 含——已对齐（否则 `gh pr view` 易触发 的
+  反引号被当句读、易触被当姓名）
+- Magpie 里靠模型遮的「感谢李老师」「感谢江山老师」「// author:
+  周杰伦」「田中太郎」等：按规则保留（模型不存在），归入
+  model_only_cases_are_left
+
+三、语料与评估（[验收] 项）
+- 语料：scripts/aicli-poc/gen_zhname_corpus.py 生成（姓氏 × 名字用字
+  组合、固定种子 20261108 可复现；生成后自检无 {{ / TAG_），
+  zhname_corpus.jsonl 共 338 条：正例 125（37%）/ 反例 213（63%）；
+  正例覆盖角色（客户/联系人：/负责人：/我叫）、动词（给…发/问一下/
+  回复一下…经理/转给…）、称谓（…先生/…老师/…经理/…总）、并列
+  （X和Y 昨天开会）、复姓（欧阳/司马/上官/诸葛/东方/公孙/慕容/司徒/
+  宇文/南宫）、昵称（小X/老X）；反例为交接说明点名的词表（王国、
+  张开、文案、毛利率、黄绿色、关键词、应用层、高兴、边界、建国路、
+  江山、方圆、常用、林业 等 150+ 词 × 10 句式 + 19 个整句）
+- 两种方式评估（zhname_corpus_precision，逐字节片段比对：TP=范围与
+  标注完全一致，不一致记 FP+FN）：
+  · 方式一（每条新引擎）：P=1.0000 R=1.0000（TP=137 FP=0 FN=0）
+  · 方式二（共用引擎顺序处理，含 known 记忆效应——三字名 9 字节 ≥
+    MIN_KNOWN=8 会被记住）：P=1.0000 R=1.0000（TP=137 FP=0 FN=0）
+  较低值 1.0000 ≥ 95%：开关开放
+  说明：语料由模板生成、正例全部带 Magpie 规则可识别的提示词，
+  100% 是模板数据的预期值；对抗性覆盖由移植的 Magpie 测试
+  （二）承担。评估逻辑随测试提交，语料更新时指标自动重算。
+- 变异验证：将 scan 接线行去掉后 zhname_corpus_precision 与
+  chinese_names_by_cues 失败（FN=137 / 27 例姓名未遮）✓
+
+四、测试登记
+- item E-08-unit aicli::privacy::rules::zhname（8 个测试）加入
+  scripts/aicli-item-tests.sh（lib 组）
+- 设置项读写经 commands::aicli::tests 的 privacy 测试（C3-11-unit
+  组内，set_privacy 签名扩展为 Option<bool> 向后兼容）；schema
+  加列进 aicli::schema::tests（v24 迁移重复性与列存在性断言更新）
+- 回归：privacy 156（test-hooks）/ 152 全过；E-03-fuzz、E-04-unit
+  不受影响（开关默认关，golden 路径行为不变）
+
+五、偏差（第 12 节同步）
+1. zhTrim 未移植（模型路径专用）；无模型语义下模型用例按规则保留
+2. 语料为模板生成（同上说明）；真实世界语料的召回由 F 阶段实际使用
+   反馈补充
+
+六、CI
+- 提交：<待填>
+- 运行：<待推送后填写>
