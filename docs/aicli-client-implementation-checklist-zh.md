@@ -806,7 +806,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 协议转换链路（Claude→Responses）同样通过，占位符不被转换破坏。
   - 重启后对话继续：同一历史两次发出的 body 中占位符相同（提示缓存前缀不变）。
   - 故障注入：两种模式行为符合设定。
-- 证据：2026-11-08 完成。privacy/layer.rs：PrivacyGate（引擎懒构造一次挂 AicliRuntime、设置按全局修订号缓存、四项计数）、中间件（位于 local_auth 之内的 from_fn_with_state；关闭直通不读 body；AI 路径 POST 遮盖+解压+重建请求+identity；媒体接口/data: 按模式阻断或放行计数；SSE 包装 RestoreStream、整体 restore_json、压缩流 fail-closed；mask/restore 在 catch_unwind 内，block→privacy_engine_failed/流立即结束，pass→放行计数）；stream.rs 共享引擎化（短读锁不跨 .await）。e2e 11 个（四协议、SSE 拆半拼齐、关闭逐字节相同、Claude→Responses 转换占位符存活、重启占位符不变、故障注入 3×2、层顺序、并发遮盖、媒体、压缩流、日志捕获）+ 单元 7 个全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记。偏差（全链路串行化为既有行为另测、alpha/search 纳入遮盖、计数只有总数）见 docs/aicli-evidence/E-06.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42390385298
+- 证据：2026-11-08 完成。privacy/layer.rs：PrivacyGate（引擎懒构造一次挂 AicliRuntime、设置按全局修订号缓存、四项计数）、中间件（位于 local_auth 之内的 from_fn_with_state；关闭直通不读 body；AI 路径 POST 遮盖+解压+重建请求+identity；媒体接口/data: 按模式阻断或放行计数；SSE 包装 RestoreStream、整体 restore_json、压缩流 fail-closed；mask/restore 在 catch_unwind 内，block→privacy_engine_failed/流立即结束，pass→放行计数）；stream.rs 共享引擎化（短读锁不跨 .await）。e2e 11 个（四协议、SSE 拆半拼齐、关闭逐字节相同、Claude→Responses 转换占位符存活、重启占位符不变、故障注入 3×2、层顺序、并发遮盖、媒体、压缩流、日志捕获）+ 单元 7 个全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记。偏差（全链路串行化已定位另行立项、alpha/search 纳入遮盖、计数只有总数）与三轮验收修正见 docs/aicli-evidence/E-06.txt；统一验收 2026-11-08 通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42438798416
 
 ### E-07 Maskit 黑盒对照（仅开发机）
 - [ ] 完成
@@ -1162,6 +1162,7 @@ A5-02 的 auto、max_count 结论：五个只读接口 HTTP 200；`auto` 在可�
 最近 E-01/E-02 验收（合并）ad6716fd：声明文件与依赖就位；占位符引擎 5 passed（Magpie golden 逐条一致、跨重启稳定、淘汰恢复、密钥持久）；Rust 4554 passed / 原有 10 skipped（+5）。三轮失败历史见 E-01_02.txt。下一项 E-03。
 最近 C5-GATE 验收（2026-11-06，[x]）：四组合全项通过（Claude→gpt-6.1-sol 双转换对比持平保持默认、Claude→claude-sonnet-5-5、Codex→gpt-6.1-sol、Gemini→gemini-4-argon），compat.json 四条 full；gemini-3.x 渠道不可用属服务端状态（第 12 节已关闭）；配置备份/还原 SHA256 全 OK，远端 Token 清理完毕。阶段 C 全部完成，下一项 E-01。
 最近 C4-04 验收 c0867e55：C4-04-unit 2 passed（行级列值 + provider_id 保持种子 id + 三线路/非 AICLI/无路由/未知线路推导）；Rust 4549 passed / 原有 10 skipped（增 2）、前端 264 文件 3360 passed；五 job 全成功。两轮失败历史见 C4-04.txt。下一项 C5-GATE（需 H-01、H-02，均为 [HUMAN] 前置）。
+最近 E-06 验收（2026-11-08，[x]）1a9dc56d：三轮打回修正后通过；审查方补修扣留事件在引擎真实 panic 时丢失（push 先记原文、注入点挪进引擎调用内）、finish 还原 catch_unwind、隐私优先失败后不再放出任何上游字节；新增 item E-06-stream-faults 3；E-06-unit 9、E-06-e2e 16、E-03-fuzz 6 passed，Rust 4697 passed / 11 skipped，五 job 全成功（run 42438798416）。遗留：全链路串行化另行立项。详见 E-06.txt 第九节。
 最近 E-06 验收打回修正（2026-11-08，第三轮）：流式 panic 恢复改为 restorer 内部逐事件 catch_unwind（已还原事件照常输出、扣留/出错/剩余字节按原始字节放出、透传后续块；字节全程无 U+FFFD；注入点在事件还原内部）；refresh 查库出错改为本次 fail-closed 不写缓存（防止把关闭固化到新修订号）+ 1s 限频重试。e2e 16、单元 10、privacy 146 全过。详见 E-06.txt 第八节。
 最近 E-06 验收打回修正（2026-11-08，第二轮）：媒体识别补 Claude source/Gemini inlineData；pass 模式发解压明文；流式 pass 先放缓存字节（帧不重不漏）+ block 可见失败（engine_blocked 单独计数）；refresh 查库错误保留快照 fail-closed；全链路串行化 multi_thread 复现并定位到 forward 的响应体读取（未修，报负责人）；e2e 15 + 单元 10。详见 E-06.txt 第七节。
 最近 E-06 中间件接入（2026-11-08）：privacy/layer.rs 中间件接线（local_auth 之内、引擎共享短锁、设置修订号缓存、媒体/压缩流/故障注入按模式处理）；e2e 11 + 单元 7 全过；item E-06-unit/E-06-e2e/E-03-fuzz 登记；CI run 42390385298 五 job 全 success。详见 E-06.txt。

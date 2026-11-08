@@ -158,3 +158,32 @@ fail-closed。日志捕获断言。
 - 提交：fb0eb392；run
   https://github.com/Txy-Sky/AICLI-Client/actions/runs/42437323264
   （五 job 全 success）
+
+九、统一验收（2026-11-08，审查方修正后验收）
+第三轮余留问题由审查方直接修正（1a9dc56d）：
+1. 扣留事件在引擎真实 panic 时丢失：event() 在调用引擎之前就取走
+   pending，panic 发生在 walk 内时，扣留事件的输出只在局部变量里随
+   panic 丢失。修正：push 在每个事件前记下扣留事件的原始字节，panic
+   后放出这份记录；注入点挪到引擎调用内部（扣留已被取走之后，与真实
+   panic 位置一致）。变异验证：去掉记录后
+   fault_after_held_event_releases_its_raw_bytes 失败，恢复后通过
+2. finish() 的剩余缓冲还原放进 catch_unwind：pass 按原始字节放出，
+   并报告失败；RestoreStream 在 finish 之后同样检查失败，block 以错误
+   结束
+3. 隐私优先失败后不再放出任何上游字节（set_fail_closed）：此前 block
+   模式会先发出失败事件与缓冲的原始字节再断流；现在扣留、出错事件、
+   缓冲与后续块一律丢弃，只发已还原前缀后以错误断开。block e2e 断言
+   加强为客户端收不到被扣留事件的任何部分
+4. 删除无调用方的 take_pending_raw
+- 新增 item E-06-stream-faults（--features test-hooks --lib，3 个：扣留
+  + 故障、fail-closed、finish 故障）；带 test-hooks 的单元测试此前没有
+  CI 组会运行
+- CI：run https://github.com/Txy-Sky/AICLI-Client/actions/runs/42438798416
+  （五 job 全 success）：E-06-unit 9、E-06-e2e 16、E-06-stream-faults 3、
+  E-05-unit、E-03-fuzz 6 passed；Rust 全量 4697 passed / 11 skipped
+
+验收结论：E-06 [x] 通过。交接说明标 [验收] 的各项（引擎共享与短锁、
+层顺序、故障注入 3 位置 × 2 模式、item 登记）与清单验收条款均已核对。
+遗留（不属于 E-06）：第 12 节「全链路串行化」——同一上游有流式响应
+进行中时，后续请求读响应体排队；与隐私层无关，另行立项定位修复。
+首页显示降级计数属 F 阶段首页条目（stats() 尚未对外暴露）。
