@@ -36,6 +36,7 @@ E-07 Maskit 黑盒对照验收记录（2026-11-08）
   privacy 全量回归通过
 
 四、CI
-- 提交：<待填>；maskit_diff.py / e07_run.py 仅本机运行不进 CI；
+- 提交：43e6de51；maskit_diff.py / e07_run.py 仅本机运行不进 CI；
   e07_added_rules_mask_and_stay_quiet 并入 E-03-unit 组
-- 运行：<待推送后填写>
+- 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42452865754
+  （五 job 全 success）

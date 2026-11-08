@@ -812,7 +812,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [x] 完成
 - 修改：把 Maskit 放在 `/root/maskit-reference`（仓库外），按其文档独立运行。新增 `scripts/aicli-poc/maskit_diff.py`：把 E-03 的语料分别过两个引擎，输出差异到 `docs/aicli-evidence/E-07.md`。只提交**差异统计和自写语料的结论**，不提交 Maskit 的规则或代码。
 - 验收：每一类差异都有结论：我方漏遮（修复或说明不修的原因）、对方误报、口径不同。我方漏遮的密钥类、证件类条目必须修复后才能通过。运行不起来时标 `[!]`，不阻塞 E-GATE，但要在第 12 节说明。
-- 证据：2026-11-08 完成。Maskit 黑盒对照（源码态 panel.py + 全 21 类规则开，反代指向本地捕获上游；未读其代码/夹具）：E-03 522 条 + 自写补充 27 条（连接串/座机/PEM/云 AK/IP/JWT/.env/硬编码，运行时拼接生成）。只对方遮 55 片段逐类归因：真实格式密钥/证件漏遮修复后 0（修复 3 类我方新增规则：连接串口令含 @/#、阿里云 LTAI、AccessKeySecret 赋值，各有误报对照 + 变异验证）；其余为对方更宽松/口径不同/边界噪声，手机/座机/IP 给了不修理由。golden 影响 1/522 条（有意增强豁免，断言未放宽）。工具 maskit_diff.py / e07_run.py 仅本机。详见 docs/aicli-evidence/E-07.md 与 E-07.txt | CI run 见 E-07.txt
+- 证据：2026-11-08 完成。Maskit 黑盒对照（源码态 panel.py + 全 21 类规则开，反代指向本地捕获上游；未读其代码/夹具）：E-03 522 条 + 自写补充 27 条（连接串/座机/PEM/云 AK/IP/JWT/.env/硬编码，运行时拼接生成）。只对方遮 55 片段逐类归因：真实格式密钥/证件漏遮修复后 0（修复 3 类我方新增规则：连接串口令含 @/#、阿里云 LTAI、AccessKeySecret 赋值，各有误报对照 + 变异验证）；其余为对方更宽松/口径不同/边界噪声，手机/座机/IP 给了不修理由。golden 影响 1/522 条（有意增强豁免，断言未放宽）。工具 maskit_diff.py / e07_run.py 仅本机。详见 docs/aicli-evidence/E-07.md 与 E-07.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42452865754
 
 ### E-08 中文姓名（可选开关）
 - [x] 完成
