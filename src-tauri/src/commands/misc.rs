@@ -430,6 +430,11 @@ fn run_tool_lifecycle_silently(command_line: &str, label: &str) -> Result<(), St
 fn windows_lifecycle_command(bat_file: &Path, effective_path: &str) -> std::process::Command {
     let mut command = std::process::Command::new("cmd");
     command
+        // /D 跳过注册表 AutoRun（如 doskey/clink 宏）：生命周期脚本用的是收窄后的
+        // PATH，AutoRun 引用的工具常不在其中，其报错会污染 stderr，让错误提取
+        // （finish_lifecycle_output）拿到噪声而非脚本真实输出。交互终端
+        // （windows_start_command）不受影响，仍保留 AutoRun。
+        .arg("/D")
         .arg("/C")
         .arg(bat_file)
         // MSI 自动重启可能丢失用户 PATH（#8171）。执行与探测共用补全后的 PATH，
@@ -10919,8 +10924,16 @@ mod tests {
         let home = dirs::home_dir().expect("home should resolve");
         let bun_bin = home.join(".bun").join("bin");
         assert!(build_tool_search_paths("omp").contains(&bun_bin));
-        // Other Bun-installable tools keep their previous search set.
-        assert!(!build_tool_search_paths("gemini").contains(&bun_bin));
+        // Other Bun-installable tools keep their previous search set. Machines
+        // that put `~/.bun/bin` on their PATH legitimately see it for every
+        // tool via the PATH merge in `extend_from_cli_path_env`, so only
+        // assert the negative when it is not on the effective PATH.
+        let bun_on_effective_path = effective_path_os()
+            .map(|raw| std::env::split_paths(&raw).any(|p| p == bun_bin))
+            .unwrap_or(false);
+        if !bun_on_effective_path {
+            assert!(!build_tool_search_paths("gemini").contains(&bun_bin));
+        }
     }
 
     #[cfg(target_os = "windows")]

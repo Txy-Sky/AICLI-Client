@@ -15,6 +15,12 @@ export XDG_CONFIG_HOME="$test_home/.config"
 export XDG_DATA_HOME="$test_home/.local/share"
 export XDG_CACHE_HOME="$test_home/.cache"
 
+# 本机 Windows 未配页面文件：24 核默认并行 rustc 会耗尽提交内存
+# （mmap rlib 报 os error 1455）。限制构建并行度，Linux CI 不受影响。
+if [[ "$(uname -s)" == *_NT-* ]]; then
+  export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-8}"
+fi
+
 run() {
   printf '\n==>'
   printf ' %q' "$@"

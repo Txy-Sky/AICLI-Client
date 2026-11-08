@@ -964,7 +964,18 @@ impl BindHome {
             AppType::Codex => self.root.join(".codex"),
             AppType::Gemini => self.root.join(".gemini"),
             AppType::GrokBuild => self.root.join(".grok"),
-            AppType::ClaudeDesktop => self.root.join(".config").join("Claude"),
+            AppType::ClaudeDesktop => {
+                // Windows 上 Claude Desktop 的目录来自 %LOCALAPPDATA%\Claude（BindHome 已把
+                // LOCALAPPDATA 重定向到 self.root），其余平台走 XDG 的 .config/Claude
+                #[cfg(windows)]
+                {
+                    self.root.join("Claude")
+                }
+                #[cfg(not(windows))]
+                {
+                    self.root.join(".config").join("Claude")
+                }
+            }
             _ => unreachable!("not a Tier 1 client"),
         };
         std::fs::create_dir_all(dir).unwrap();
