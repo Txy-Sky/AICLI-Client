@@ -1,5 +1,10 @@
 # E-GATE 续接交接（新会话从这里开始）
 
+> **【2026-11-08 已完成】**三条验收全部通过并合入：
+> - 03f90a48（第 1 项 aicli-check.sh 全绿，Windows 环境修复）
+> - 789d4a4c（第 2 项真实 Claude Code 隐私轮 + 第 3 项证据 E-GATE.txt）
+> CI run 42495819866 success。以下原文仅作历史参考。
+
 基线：`feat/aicli-client-v1` @ `8bf621ac`（E-01～E-08 全部验收通过，含审查方补修的已知值记忆）。工作区干净。
 本文件 + `egate-frontend-failures.log`（Windows 前端单测失败全量日志，2570 行）已入库随此提交。
 

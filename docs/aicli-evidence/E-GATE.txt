@@ -86,3 +86,5 @@ aicli-check.sh 的 Windows 条件分支）不改变 Linux CI 行为，a)
 前端超时只放宽不收紧断言，b) worker/asyncUtilTimeout/构建并行度均
 win32 条件生效，c) Rust 侧修复均为测试夹具/断言与 cmd /D（对
 无 AutoRun 机器字节等价）。CI 由 push 后的 acceptance 工作流覆盖。
+CI：run 42495819866（提交 789d4a4c，AICLI Acceptance）success，
+含 aicli-check.sh 全量与验收门禁作业。
