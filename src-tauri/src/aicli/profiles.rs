@@ -32,6 +32,9 @@ pub struct ProfileBody {
     pub resolved_conflicts: Vec<String>,
     pub line_policy: String,
     pub allow_fallback: bool,
+    /// F-05：用户排除的模型（不编译进路由，也不算冲突）。旧数据没有此字段时为空。
+    #[serde(default)]
+    pub excluded_models: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +130,7 @@ pub fn preset(id: &str, catalog: &Catalog) -> Result<Profile, ProfileError> {
             resolved_conflicts: Vec::new(),
             line_policy: "inherit".into(),
             allow_fallback: true,
+            excluded_models: Vec::new(),
         },
     })
 }
@@ -277,6 +281,10 @@ pub fn validate(profile: &Profile, catalog: &Catalog) -> Result<(), ProfileError
         .map(|b| b.model.as_str())
         .collect();
     for binding in &profile.body.model_bindings {
+        // 同一模型既排除又绑定来源 / 别名：自相矛盾
+        if profile.body.excluded_models.contains(&binding.model) {
+            return Err(ProfileError::Invalid);
+        }
         let model = catalog
             .models
             .get(&binding.model)
@@ -300,7 +308,7 @@ pub fn validate(profile: &Profile, catalog: &Catalog) -> Result<(), ProfileError
     let mut unresolved = Vec::new();
     for (name, model) in &catalog.models {
         let count = model.groups.iter().filter(|g| selected.contains(g)).count();
-        if count == 0 {
+        if count == 0 || profile.body.excluded_models.contains(name) {
             continue;
         }
         if !bound.contains(name.as_str()) && !public.insert(name.clone()) {
@@ -341,6 +349,9 @@ fn compile_available(
     let groups = ordered_groups(profile, catalog);
     let mut routes = Vec::new();
     for (name, model) in &catalog.models {
+        if profile.body.excluded_models.contains(name) {
+            continue;
+        }
         let candidates: Vec<_> = groups
             .iter()
             .filter(|g| model.groups.contains(g))

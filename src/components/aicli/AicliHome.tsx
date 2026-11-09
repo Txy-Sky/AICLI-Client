@@ -18,11 +18,12 @@ import { AicliAccountCard } from "./AicliAccountCard";
 import { AicliBindCard } from "./AicliBindCard";
 import { AicliLineSelector } from "./AicliLineSelector";
 import { AicliProfileCard } from "./AicliProfileCard";
+import { AicliProfilesPanel } from "./profiles/AicliProfilesPanel";
 
 interface AicliHomeProps {
   initialAppType?: AppTypeFilter;
   onOpenRoutingSettings?: () => void;
-  /** 「管理配置集」入口；F-05 前不传。 */
+  /** 「管理配置集」入口；不传时在首页内打开配置集管理（F-05）。 */
   onOpenProfiles?: () => void;
   /**
    * 深链 aicli-open-bind 的计数：每变一次打开绑定界面（未绑定时聚焦绑定卡片，
@@ -51,6 +52,7 @@ export function AicliHome({
   const cached = useAicliCachedValue("account", bound);
   const privacy = useAicliPrivacy();
   const [rebindOpen, setRebindOpen] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
 
   useEffect(() => {
     if (bindRequest && bound) setRebindOpen(true);
@@ -90,7 +92,7 @@ export function AicliHome({
               <AicliProfileCard
                 activeProfileId={account.active_profile_id}
                 enabled={bound}
-                onOpenProfiles={onOpenProfiles}
+                onOpenProfiles={onOpenProfiles ?? (() => setProfilesOpen(true))}
               />
             </div>
           </>
@@ -100,6 +102,10 @@ export function AicliHome({
         initialAppType={initialAppType}
         onOpenRoutingSettings={onOpenRoutingSettings}
         sourceNote={t("aicli.local.source")}
+      />
+      <AicliProfilesPanel
+        isOpen={profilesOpen}
+        onClose={() => setProfilesOpen(false)}
       />
       <Dialog open={rebindOpen} onOpenChange={setRebindOpen}>
         <DialogContent>

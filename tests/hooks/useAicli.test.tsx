@@ -67,6 +67,7 @@ describe("aicliApi", () => {
       resolved_conflicts: [],
       line_policy: "selected",
       allow_fallback: false,
+      excluded_models: [],
     },
   };
 

@@ -116,6 +116,8 @@ export interface AicliProfileBody {
   resolved_conflicts: string[];
   line_policy: string;
   allow_fallback: boolean;
+  /** 用户排除的模型（不进路由，也不算冲突）。 */
+  excluded_models: string[];
 }
 
 export interface AicliProfile {

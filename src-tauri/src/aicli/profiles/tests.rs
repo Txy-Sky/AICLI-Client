@@ -568,3 +568,39 @@ fn revoked_alias_source_does_not_publish_an_implicit_unaliased_route() {
         ["unique"]
     );
 }
+
+#[test]
+fn excluded_models_are_neither_routed_nor_conflicts() {
+    let mut profile = user();
+    profile.body.resolved_conflicts.clear();
+    // 未处理的冲突模型被排除：不再报冲突，也不编译进路由
+    profile.body.excluded_models = vec!["shared".into()];
+    assert_eq!(validate(&profile, &catalog()), Ok(()));
+    let routes = compile(&profile, &catalog(), 8).unwrap();
+    assert!(routes.iter().all(|route| route.upstream_model != "shared"));
+    assert!(routes.iter().any(|route| route.upstream_model == "unique"));
+
+    // 排除又绑定同一模型：自相矛盾
+    profile.body.model_bindings.push(ModelBinding {
+        model: "shared".into(),
+        source_group: Some("cheap".into()),
+        alias: None,
+    });
+    assert_eq!(validate(&profile, &catalog()), Err(ProfileError::Invalid));
+
+    // 目录里已不存在的排除项不影响校验
+    let mut gone = user();
+    gone.body.excluded_models = vec!["retired-model".into()];
+    assert_eq!(validate(&gone, &catalog()), Ok(()));
+}
+
+#[test]
+fn bodies_saved_before_exclusions_existed_still_parse() {
+    let body: ProfileBody = serde_json::from_value(json!({
+        "selected_groups": ["mid"], "selection_mode": "fixed_priority",
+        "model_bindings": [], "resolved_conflicts": [], "line_policy": "inherit",
+        "allow_fallback": true
+    }))
+    .unwrap();
+    assert!(body.excluded_models.is_empty());
+}
