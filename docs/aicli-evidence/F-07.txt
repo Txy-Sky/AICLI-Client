@@ -1,0 +1,36 @@
+F-07 绑定拦截验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：b62f16be feat(aicli): F-07 gate the app behind binding with a modal
+      （条目登记 b386fc28 docs(aicli): register F-07..F-11 and the 2026-11-09 UI revision decision）
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42614083446（b62f16be，四 job 及汇总
+    `Checklist acceptance (Linux)` 全 success；前端 275 文件 / 3484 测试；Rust 4722 passed / 12 skipped）
+
+来由：负责人 2026-11-09 要求未绑定网站系统访问令牌时不直接进入应用，改用 Modal 提示填入后再进入。
+
+实现
+1. src/components/aicli/AicliBindGate.tsx：App.tsx 中全部 hooks 照常注册（托盘、深链、事件桥），
+   render 时由 Gate 包住主界面与首次启动 / 更新说明对话框。
+   - 读取绑定状态中：只显示品牌背景（可拖动顶条 + 自绘窗口按钮），不渲染主界面。
+   - not_bound：不渲染主界面；对话框不可关闭（DialogContent 已拦截点遮罩，另拦截 Esc），标题
+     「欢迎使用 AICLI Client」，内容是原 AicliBindCard（第 0.4 节文案逐字不变）；绑定成功后
+     useAicliBind 使查询失效，账户变为 bound 即进入应用。
+   - needs_rebind：进入应用，本次运行弹出一次可关闭的「重新绑定」对话框（「稍后」），缓存仍可看；
+     首页令牌失效提示的「重新绑定」按钮经 useOpenAicliBind 再次打开。
+   - 读取绑定状态出错：不拦截，主界面照常，底部红色提示「读取绑定状态失败」。
+   - 深链 aicli-open-bind：计数变化即打开同一对话框（已绑定时为重新绑定）。
+2. AicliHome：删除内联绑定卡片与重新绑定对话框及 bindRequest 参数，令牌失效提示加「重新绑定」按钮。
+3. i18n：aicli.bind.gateTitle / gateSubtitle / later / rebindAction / loadFailed，五种语言。
+
+测试（CI 同一 run）
+- tests/components/aicli/AicliBindGate.test.tsx 15 passed：
+  F-03 未绑定 4 条原样迁入（0.4 节文案逐字、sk- 拒绝且不发起绑定、提交后立刻清空、打开网页走
+  open_external），断言未改；翻译检查 4 条原样迁入（含新增键）；
+  未绑定不渲染主界面且 Esc 关不掉、无「稍后」；绑定后进入；加载中只有背景；读取出错不拦截；
+  已绑定无对话框；令牌失效弹一次、可关闭、可由首页按钮再开；深链打开重新绑定。
+- tests/components/aicli/AicliHome.test.tsx 9 passed：未绑定用例移出；「来源：本机记录」断言移到
+  已绑定用例；令牌失效用例改为断言「重新绑定」按钮；深链用例移到 Gate。
+- tests/integration/App.test.tsx 18 passed：集成用例默认已绑定（MSW 默认账户为未绑定），先等侧栏
+  出现再操作；新增「未绑定时只出现绑定对话框、侧栏与首页不渲染」。
+
+偏差：见第 13 节「F-03 → F-07（绑定界面位置）」。
