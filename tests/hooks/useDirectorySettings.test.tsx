@@ -374,7 +374,9 @@ describe("useDirectorySettings", () => {
     });
     expect(result.current.resolvedDirs.claude).toBe("/home/mock/.claude");
     expect(result.current.resolvedDirs.codex).toBe("/home/mock/.codex");
-    expect(result.current.resolvedDirs.appConfig).toBe("/home/mock/.aicli-client");
+    expect(result.current.resolvedDirs.appConfig).toBe(
+      "/home/mock/.aicli-client",
+    );
   });
 
   it("updates openclaw directory when browsing succeeds", async () => {
