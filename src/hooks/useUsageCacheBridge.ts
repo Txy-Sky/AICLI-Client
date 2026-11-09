@@ -1,11 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { AppId } from "@/lib/api/types";
 import type { UsageResult } from "@/types";
-import type { SubscriptionQuota } from "@/types/subscription";
 import { usageKeys } from "@/lib/query/usage";
-import { subscriptionKeys } from "@/lib/query/subscription";
 import { useTauriEvent } from "./useTauriEvent";
 
+// G-02：官方订阅额度（kind: "subscription"）的前端缓存已随账号额度界面删除，这类事件直接忽略
 type UsageCacheUpdatedPayload =
   | {
       kind: "script";
@@ -13,11 +12,7 @@ type UsageCacheUpdatedPayload =
       providerId: string;
       data: UsageResult;
     }
-  | {
-      kind: "subscription";
-      appType: AppId;
-      data: SubscriptionQuota;
-    };
+  | { kind: "subscription" };
 
 /**
  * 后端 `UsageCache` 写入后会 emit `usage-cache-updated`，本 hook 把 payload 同步到
@@ -31,11 +26,6 @@ export function useUsageCacheBridge() {
     if (payload.kind === "script") {
       queryClient.setQueryData<UsageResult>(
         usageKeys.script(payload.providerId, payload.appType),
-        payload.data,
-      );
-    } else if (payload.kind === "subscription") {
-      queryClient.setQueryData<SubscriptionQuota>(
-        subscriptionKeys.quota(payload.appType),
         payload.data,
       );
     }

@@ -270,17 +270,30 @@ jobs:
               "claudeDesktop", "mcode", "mode", "failover", "streamCheck",
               "proxyConfig", "health", "openclawConfig", "deeplink", "console",
               "appSwitcher",
+              # G-02: official-account frontend (quota footers, auth center)
+              "copilot", "codexOauth", "xaiOauth", "managedAuth", "authCenter",
+              "subscription", "quota",
+          }
+          # G-02: nested keys of the removed auth center / Copilot hints
+          removed_keys = {
+              ("settings", "authCenter"),
+              ("notifications", "proxyReasonCopilot"),
+              ("notifications", "copilotProxyHint"),
           }
 
-          def compare(old, new, top=True):
+          def compare(old, new, path=()):
               assert type(old) is type(new)
               if isinstance(old, dict):
                   # Every rebrand-baseline key must survive with its interpolations;
                   # later stages may add keys (F: all new copy goes into five locales).
-                  kept = {key for key in old if not (top and key in removed_namespaces)}
+                  kept = {
+                      key for key in old
+                      if not (not path and key in removed_namespaces)
+                      and path + (key,) not in removed_keys
+                  }
                   assert kept <= new.keys(), "translation keys removed"
                   for key in kept:
-                      compare(old[key], new[key], False)
+                      compare(old[key], new[key], path + (key,))
               elif isinstance(old, str):
                   assert sorted(re.findall(r"\{\{.*?\}\}", old)) == sorted(re.findall(r"\{\{.*?\}\}", new))
 
@@ -290,10 +303,11 @@ jobs:
               after = json.loads(path.read_text())
               compare(before, after)
               gone = sorted(removed_namespaces & after.keys())
+              gone += [".".join(key) for key in sorted(removed_keys) if key[1] in after.get(key[0], {})]
               assert not gone, (path.stem, gone)
               # G-01 restores the full scan: no legacy brand anywhere, promotions included
               assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
-              print(f"{path.stem}: removed provider-UI namespaces={len(removed_namespaces)}; legacy brand hits=0")
+              print(f"{path.stem}: removed namespaces={len(removed_namespaces)} keys={len(removed_keys)}; legacy brand hits=0")
               assert after["app"]["title"] == "AICLI Client"
           original_license = subprocess.check_output(["git", "show", f"{baseline}:LICENSE"])
           license_text = Path("LICENSE").read_bytes()
@@ -307,7 +321,7 @@ jobs:
           assert len(Path("README.md").read_text().splitlines()) < 70
           for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
               assert Path(name).is_file(), name
-          print("B-07: PASS; five locales retain all keys/interpolations outside the G-01 removed namespaces; no legacy brand; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
+          print("B-07: PASS; five locales retain all keys/interpolations outside the G-01/G-02 removed namespaces and keys; no legacy brand; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
           PY
       - name: B-08 verify generated placeholder icons and debug build
         shell: bash

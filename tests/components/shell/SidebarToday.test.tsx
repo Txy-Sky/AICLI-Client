@@ -32,7 +32,6 @@ vi.mock("@/hooks/useSidebarStatus", () => ({
     todayTokens: status.todayTokens,
     todayRequests: status.todayRequests,
     todayHitRate: status.todayHitRate,
-    authNeedsAttention: false,
   }),
 }));
 

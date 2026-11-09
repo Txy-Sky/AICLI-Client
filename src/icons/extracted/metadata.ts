@@ -380,13 +380,6 @@ export const iconMetadata: Record<string, IconMetadata> = {
     ],
     defaultColor: "#000000",
   },
-  copilot: {
-    name: "copilot",
-    displayName: "copilot",
-    category: "other",
-    keywords: [],
-    defaultColor: "currentColor",
-  },
   etok: {
     name: "etok",
     displayName: "ETok",
@@ -483,13 +476,6 @@ export const iconMetadata: Record<string, IconMetadata> = {
     category: "tool",
     keywords: ["git", "version control"],
     defaultColor: "#181717",
-  },
-  githubcopilot: {
-    name: "githubcopilot",
-    displayName: "githubcopilot",
-    category: "other",
-    keywords: [],
-    defaultColor: "currentColor",
   },
   google: {
     name: "google",

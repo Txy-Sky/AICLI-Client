@@ -117,7 +117,7 @@ export const providersApi = {
 
   /**
    * 切换式应用的编辑器显示内容。编辑已有供应商时传 `providerId`：后端按库里那一行认
-   * 官方卡。`meta` 保留 Codex Copilot 等供应商的认证和协议身份，新增时取当前预设。
+   * 官方卡。`meta` 保留托管账号类供应商的认证和协议身份，新增时取当前预设。
    */
   async getEditorView(
     appId: AppId,
