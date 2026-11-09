@@ -157,6 +157,9 @@ impl PrivacyCustom {
     }
 }
 
+/// aicli_account 里的隐私设置一行：开关、失败模式、允许未扫描媒体、中文姓名、自定义项 JSON。
+type SettingsRow = (bool, String, bool, bool, String);
+
 struct GateInner {
     engine: Option<Arc<RwLock<PlaceholderEngine>>>,
     /// 引擎构造失败（钥匙串不可用等）：按模式处理，不再每次重试钥匙串。
@@ -232,7 +235,7 @@ impl PrivacyGate {
                 }
             }
         }
-        let row: Result<Option<(bool, String, bool, bool, String)>, ()> = (|| {
+        let row: Result<Option<SettingsRow>, ()> = (|| {
             use rusqlite::OptionalExtension;
             let conn = self.db.conn.lock().map_err(|_| ())?;
             conn.query_row(
