@@ -2,11 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>CC Switch 设计系统</title>
+<title>AICLI Client 设计系统</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* ============================================================
-     CC Switch Design System — v7
+     AICLI Client Design System — v7
      令牌对齐 src/index.css（:root / .dark）与 tailwind.config.cjs。
      主题色 #F97316 只覆盖 --action-* 与 --ring（index.css 注释约定的主题色槽位）。
      ============================================================ */
@@ -511,7 +511,7 @@
 
 <div class="shell">
   <aside class="rail">
-    <div class="brand"><span class="logo"><svg class="i sm"><use href="#shuffle"/></svg></span>CC Switch</div>
+    <div class="brand"><span class="logo"><svg class="i sm"><use href="#shuffle"/></svg></span>AICLI Client</div>
     <div class="tag">Design System · v7</div>
     <span class="grp">基础</span>
     <a href="#color">色彩</a>
@@ -530,7 +530,7 @@
     <a href="#notices">通知条 · 说明卡</a>
     <a href="#overlays">菜单 · 对话框 · Toast</a>
     <a href="#data">数据展示</a>
-    <span class="grp">CC Switch</span>
+    <span class="grp">AICLI Client</span>
     <a href="#modes">连接模式</a>
     <a href="#sidebar">侧栏</a>
     <span class="grp">规约</span>
@@ -541,7 +541,7 @@
   <main class="content">
     <header class="masthead">
       <div class="eyebrow">Claude Code · Codex · Gemini 供应商切换器</div>
-      <h1>CC Switch 设计系统</h1>
+      <h1>AICLI Client 设计系统</h1>
       <p>桌面端（Tauri + React）的视觉与交互规范。令牌直接取自 <code>src/index.css</code> 与 <code>tailwind.config.cjs</code>：
         中性黑白骨架、主题色 <strong style="color:var(--action-text)">#F97316</strong> 只落在操作色上，
         直连 / 路由 / 聚合三种模式各有一套颜色，13px 正文、6 / 10 / 14 三档圆角，明暗双主题一一对应。</p>
@@ -765,7 +765,7 @@
       <h2>输入</h2>
       <p class="lede">高 32、圆角 6、<code>border-strong</code> 描边；聚焦时描边和 3px 光晕换主题色。标签在上，说明在下，出错时说明换成红字，不弹 toast。密钥、URL、模型名用等宽。</p>
       <div class="stage" style="align-items:flex-start">
-        <div class="field"><label>供应商名称</label><input class="input" value="Anthropic 官方"><span class="hint">只在 CC Switch 里显示</span></div>
+        <div class="field"><label>供应商名称</label><input class="input" value="Anthropic 官方"><span class="hint">只在 AICLI Client 里显示</span></div>
         <div class="field"><label>API Key</label><input class="input mono" value="sk-ant-api03-••••••••"><span class="hint">保存在本机配置文件里</span></div>
         <div class="field"><label>请求地址</label><input class="input mono invalid" value="api.example.com/v1"><span class="err">要以 http:// 或 https:// 开头</span></div>
       </div>
@@ -981,7 +981,7 @@
 
     <!-- ================= 模式 ================= -->
     <section id="modes">
-      <div class="kicker">CC Switch / 01 · providers/mode/ModeTabs.tsx</div>
+      <div class="kicker">AICLI Client / 01 · providers/mode/ModeTabs.tsx</div>
       <h2>连接模式</h2>
       <p class="lede">每个应用有三种连接方式：<strong style="color:var(--direct-text)">直连</strong>（直接写配置文件）、
         <strong style="color:var(--route-text)">路由</strong>（本地代理按队列 / 故障转移）、<strong style="color:var(--stack-text)">聚合</strong>（多家模型合并）。
@@ -1009,7 +1009,7 @@
 
     <!-- ================= 侧栏 ================= -->
     <section id="sidebar">
-      <div class="kicker">CC Switch / 02 · shell/Sidebar.tsx</div>
+      <div class="kicker">AICLI Client / 02 · shell/Sidebar.tsx</div>
       <h2>侧栏</h2>
       <p class="lede">宽 200（收起 72），<code>bg-sidebar</code> 底。行高 28、圆角 6，当前项 <code>bg-selected</code>。应用行右侧的小标签用模式 text 色写当前模式。</p>
       <div class="stage app">
@@ -1055,7 +1055,7 @@
     </section>
 
     <footer style="padding:36px 0;color:var(--text-3);font-size:12px">
-      CC Switch 设计系统 · 令牌源自 <code>src/index.css</code> / <code>tailwind.config.cjs</code> · 主题色 #F97316 覆盖 <code>--action-*</code> 与 <code>--ring</code>
+      AICLI Client 设计系统 · 令牌源自 <code>src/index.css</code> / <code>tailwind.config.cjs</code> · 主题色 #F97316 覆盖 <code>--action-*</code> 与 <code>--ring</code>
     </footer>
   </main>
 </div>
