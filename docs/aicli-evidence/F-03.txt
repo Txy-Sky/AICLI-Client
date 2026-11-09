@@ -1,0 +1,42 @@
+F-03 首页验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：1d576016 feat(aicli): F-03 home page as the usage view
+      85abd404 test(aicli): F-03 add quota_display to the F-01 hook fixture
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42551495587（85abd404，五 job 全 success；
+    前端 268 文件 / 3433 测试；Rust 4714 passed / 12 skipped）
+
+实现（自上而下）
+1. 未绑定：AicliBindCard。标题、占位、说明、警告按 0.4 节文案常驻显示；密码型输入框，提交后立刻
+   清空；sk- 开头直接显示 0.4 节的误填错误、不发起绑定（后端 wrong_credential_type 同一文案）；
+   「打开网页获取令牌」经 open_external 在系统浏览器打开 https://aicliapi.com/profile。
+   深链 aicli-open-bind：App 切到首页（先走未保存保护），未绑定时聚焦绑定卡片，已绑定时弹「重新绑定」。
+2. 账户：AicliAccountCard。账户名、用户组、剩余 / 已用额度（服务端 /api/user/self 快照），标注
+   「来源：服务端」和最后同步时间；隐私开启时显示引擎状态，可用性优先且有降级时红色提示。
+3. 线路：AicliLineSelector。当前线路、延迟、类型、切换、测速；标注切换只影响之后的请求。
+4. 配置集：AicliProfileCard。当前配置集、可用模型数、needs_repair 警告（缺少的分组、受影响模型数）；
+   入口在 F-05 接上（本项不传时不显示）。
+5. 本地统计：原 UsagePage / UsageDashboard，标题旁标「来源：本机记录」（只加可选 sourceNote 参数）。
+状态规则：账户视图与快照来自本机缓存，有缓存立即渲染，无整页加载态，aicli-data-updated 原地更新；
+同步失败显示缓存与时间 + 「缓存数据」徽标；令牌失效（needs_rebind）显示「令牌已失效…」并给绑定卡片，
+缓存仍可看；无快照显示「暂无数据」，不显示 0。
+额度换算：src/lib/aicliQuota.ts，与网页端一致（÷ quota_per_unit；USD/CNY/CUSTOM 汇率与符号；
+TOKENS 原值与 k；≥1 两位小数、<1 四位；非零极小值不显示为 0）。按 new-api v1.0.0-rc.34 网页端行为
+自行实现（AGPL，未复制代码）；Node 实测输出与单测期望一致。
+
+后端（第 12 节）
+- 线路探测成功时把公开 /api/status 的 5 个额度显示字段存入 aicli_cache（kind=status，只存这 5 项），
+  aicli_get_account 带出 quota_display；aicli_get_privacy 带出 engine 计数（代理未运行为空）。
+  Rust 测试 3 项：默认值与非法值、探测后账户视图可见且不存其余字段、代理未运行无 engine。
+
+验收（tests/components/aicli/AicliHome.test.tsx 18 项、tests/lib/aicliQuota.test.ts 9 项）
+- 未绑定：加载真实中文资源，标题 / 占位 / 说明 / 警告与 0.4 节逐字一致；其余 4 种语言的绑定文案
+  逐项非空且与中文不同；粘贴 sk- 显示对应错误、不调用 aicli_bind、输入框清空；正常提交立刻清空并以
+  当前线路调用 aicli_bind；浏览器链接。
+- 已绑定（账户、额度 $2 / $1、当前线路、配置集）；有缓存时首屏不等待其余接口（线路 / 路由 / 隐私
+  永不返回时额度照常显示）；同步失败有缓存（徽标 + 时间）；同步失败无缓存（暂无数据、页面不含 0
+  额度）；令牌失效；需要修复；隐私降级（红色 Notice）与未降级；切线路；已绑定时深链弹重新绑定。
+
+失败历史
+- 1d576016 的 CI 42550097849：F-01 hooks 测试的账户样例缺新增的 quota_display 字段（TS2741），
+  85abd404 补上。

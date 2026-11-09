@@ -848,7 +848,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-09 完成。providers→client、删除 auth 页与侧栏入口、冷启动恒 usage、删除 storeView、旧名映射到 usage；App 集成新增 6 个冷启动用例与「切页不持久化」，navigation 单测 11 项；前端 266 文件 / 3406 测试全过。实现 24aecd21，修复 cdb5ccaa（B-07 检查允许新增键，第 12 节）。详见 docs/aicli-evidence/F-02.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42547322746
 
 ### F-03 首页
-- [ ] 完成
+- [x] 完成
 - 修改：`src/components/aicli/AicliHome.tsx`，作为 `usage` 页。自上而下：
   1. **未绑定**：`AicliBindCard`：按钮"打开网页获取令牌"（系统浏览器打开 `https://aicliapi.com/profile`），密码型输入框（调用 `aicli_bind`，提交后立刻清空），标题、占位、说明、警告都用第 0.4 节的文案并常驻显示。深链事件 `aicli-open-bind` 打开同一界面。
   2. **账户**：账户名、用户组、剩余额度、已用额度，标注"来源：服务端"和最后同步时间。
@@ -857,7 +857,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   5. **本地统计**：现有 `UsagePage`/`UsageDashboard` 不改动，标题标注"来源：本机记录"。
 - 状态规则：**有缓存时立即渲染，不显示整页加载态**，后台刷新完成后原地更新。同步失败时**显示缓存和时间**，徽标"缓存数据"；令牌失效时显示"令牌已失效，可能已在其他地方重新生成，请粘贴新令牌"，缓存仍可看；没有缓存时显示"暂无数据"，**不得显示 0**。隐私开启时显示引擎状态；可用性优先降级时显示红色提示。
 - 验收：组件测试分别覆盖：未绑定（断言绑定界面文案在中文下与第 0.4 节逐字一致，且另外 4 种语言都有翻译；粘贴 `sk-` 开头的值时显示对应错误）；已绑定；有缓存时首屏不等待接口；同步失败有缓存；同步失败无缓存（断言页面不含 `0` 额度）；令牌失效；需要修复；隐私降级。
-- 证据：
+- 证据：2026-11-09 完成。AicliHome（绑定卡片 0.4 节文案逐字、账户 / 线路 / 配置集、本地统计标「来源：本机记录」），缓存优先、失败显示缓存与时间、无数据不显示 0、令牌失效、需要修复、隐私降级红色提示；额度按网页端规则换算（后端新增 quota_display 与隐私 engine，第 12 节）。组件测试 18 项 + 换算 9 项 + Rust 3 项。实现 1d576016、85abd404。详见 docs/aicli-evidence/F-03.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42551495587
 
 ### F-04 客户端页
 - [ ] 完成
