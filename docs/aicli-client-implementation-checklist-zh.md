@@ -838,14 +838,14 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-09 完成。src/types/aicli.ts、src/lib/api/aicli.ts（C3-11 全部 20 个命令）、useAicliAccount/Lines/Usage/Profiles 四个 hooks 文件；pnpm typecheck 通过，hooks 单测 29 项（命令名与参数逐个核对、缓存优先、失效、事件桥接）。实现 5d47ef40、447787b0。详见 docs/aicli-evidence/F-01.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42544205511
 
 ### F-02 导航和冷启动
-- [ ] 完成
+- [x] 完成
 - 修改：`src/lib/navigation.ts`：
   - `AppPage` 的 `"providers"` 改为 `"client"`，`appPageBelongsTo` 同步。
   - `GlobalPage` 删除 `"auth"`。
   - `readStoredView()` 恒返回 `"usage"`，删除 `storeView` 和 `App.tsx:210` 的持久化。
   - `LEGACY_VIEWS` 增加 `providers → usage`、`auth → usage`。
 - 验收：测试：localStorage 中存有任意旧值时冷启动都是 `usage`；运行期切页正常。
-- 证据：
+- 证据：2026-11-09 完成。providers→client、删除 auth 页与侧栏入口、冷启动恒 usage、删除 storeView、旧名映射到 usage；App 集成新增 6 个冷启动用例与「切页不持久化」，navigation 单测 11 项；前端 266 文件 / 3406 测试全过。实现 24aecd21，修复 cdb5ccaa（B-07 检查允许新增键，第 12 节）。详见 docs/aicli-evidence/F-02.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42547322746
 
 ### F-03 首页
 - [ ] 完成
