@@ -5181,6 +5181,48 @@
     },
     "local": {
       "source": "来源：本机记录"
+    },
+    "client": {
+      "takeoverTitle": "接管",
+      "takeOver": "接管",
+      "release": "停止接管",
+      "cancel": "取消",
+      "overrideAndTakeOver": "覆盖并接管",
+      "status": {
+        "active": "已接管",
+        "pending": "处理中",
+        "inactive": "未接管",
+        "conflict": "冲突"
+      },
+      "confirmTakeOverTitle": "接管 {{app}}",
+      "confirmTakeOverBody": "接管后会改写 {{app}} 的配置，让请求经过本机代理；停止接管时还原为接管前的配置。",
+      "confirmReleaseTitle": "停止接管 {{app}}",
+      "confirmReleaseBody": "停止接管会把 {{app}} 的配置还原为接管前的样子。",
+      "conflictTitle": "检测到旧的代理配置",
+      "conflictBody": "{{app}} 的配置里有旧版本地代理留下的设置。继续接管会覆盖它们，停止接管时还原为接管前的样子。",
+      "conflictNotice": "{{app}} 的配置与旧版本地代理的设置冲突，确认覆盖后才能接管。",
+      "unsupported": "{{app}} 暂不支持 AICLI 接管。",
+      "notBound": "绑定账户后才能接管客户端。",
+      "currentProfile": "当前配置集：{{name}}",
+      "modelsTitle": "本客户端可用模型",
+      "refreshCatalog": "刷新模型目录",
+      "noModels": "当前配置集没有可用模型。",
+      "partialNotice": "有 {{count}} 个模型在 Claude Code 中只能部分兼容，部分功能（如工具调用或图片）可能不可用。",
+      "failed": "操作失败：{{message}}",
+      "columns": {
+        "model": "模型",
+        "profile": "配置集",
+        "line": "线路",
+        "compat": "兼容级别",
+        "capabilities": "能力"
+      },
+      "compat": {
+        "full": "完全兼容",
+        "partial": "部分兼容",
+        "text_only": "仅文本",
+        "unavailable": "不可用",
+        "unverified": "未验证"
+      }
     }
   }
 }

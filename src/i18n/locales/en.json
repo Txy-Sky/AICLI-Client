@@ -5181,6 +5181,48 @@
     },
     "local": {
       "source": "Source: this device"
+    },
+    "client": {
+      "takeoverTitle": "Takeover",
+      "takeOver": "Take over",
+      "release": "Stop takeover",
+      "cancel": "Cancel",
+      "overrideAndTakeOver": "Overwrite and take over",
+      "status": {
+        "active": "Taken over",
+        "pending": "In progress",
+        "inactive": "Not taken over",
+        "conflict": "Conflict"
+      },
+      "confirmTakeOverTitle": "Take over {{app}}",
+      "confirmTakeOverBody": "Taking over rewrites the {{app}} configuration so requests go through the local proxy; stopping the takeover restores the configuration from before.",
+      "confirmReleaseTitle": "Stop taking over {{app}}",
+      "confirmReleaseBody": "Stopping the takeover restores the {{app}} configuration to how it was before.",
+      "conflictTitle": "Old proxy settings detected",
+      "conflictBody": "The {{app}} configuration contains settings left by an older local proxy. Taking over overwrites them; stopping the takeover restores how it was before.",
+      "conflictNotice": "The {{app}} configuration conflicts with settings from an older local proxy; confirm overwriting them to take over.",
+      "unsupported": "{{app}} does not support AICLI takeover yet.",
+      "notBound": "Bind an account before taking over clients.",
+      "currentProfile": "Current profile: {{name}}",
+      "modelsTitle": "Models available to this client",
+      "refreshCatalog": "Refresh model catalog",
+      "noModels": "The current profile has no models.",
+      "partialNotice": "{{count}} models are only partially compatible with Claude Code; some features (such as tool calls or images) may not work.",
+      "failed": "Action failed: {{message}}",
+      "columns": {
+        "model": "Model",
+        "profile": "Profile",
+        "line": "Line",
+        "compat": "Compatibility",
+        "capabilities": "Capabilities"
+      },
+      "compat": {
+        "full": "Full",
+        "partial": "Partial",
+        "text_only": "Text only",
+        "unavailable": "Unavailable",
+        "unverified": "Unverified"
+      }
     }
   }
 }

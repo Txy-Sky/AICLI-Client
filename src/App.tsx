@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { invoke } from "@tauri-apps/api/core";
@@ -23,7 +16,6 @@ import {
   useSettingsQuery,
 } from "@/lib/query";
 import {
-  piApi,
   providersApi,
   settingsApi,
   type AppId,
@@ -49,7 +41,6 @@ import {
   translatePiProviderMutationError,
 } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
-import { deepClone } from "@/utils/deepClone";
 import { isLinux, isMac, isWindows } from "@/lib/platform";
 import {
   APP_STORAGE_KEY,
@@ -71,12 +62,7 @@ import {
 import { WindowControls } from "@/components/shell/WindowControls";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import { ProfileSwitcher } from "@/components/profiles/ProfileSwitcher";
-import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
-import {
-  hasOpencodeDefinition,
-  isNativeOpencodeConfig,
-} from "@/components/providers/forms/helpers/opencodeFormUtils";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { OpenTerminalDialog } from "@/components/providers/OpenTerminalDialog";
@@ -88,10 +74,10 @@ import {
   useToolUpdatesAvailable,
 } from "@/components/apps/useToolManagement";
 import { AicliHome } from "@/components/aicli/AicliHome";
+import { AicliClientPage } from "@/components/aicli/AicliClientPage";
 import { useAicliEventBridge } from "@/hooks/useAicliAccount";
 import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
-import { SwitchModePanel } from "@/components/providers/mode/SwitchModePanel";
 import { proxyApi } from "@/lib/api/proxy";
 import type { AppMode, StartupAttachFailure } from "@/types/proxy";
 import UsageScriptModal from "@/components/UsageScriptModal";
@@ -112,10 +98,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
-import {
-  useDisableCurrentOmo,
-  useDisableCurrentOmoSlim,
-} from "@/lib/query/omo";
 import { invalidatePiProviderCaches, usePiCurrentState } from "@/lib/query/pi";
 import WorkspaceFilesPanel from "@/components/workspace/WorkspaceFilesPanel";
 import EnvPanel from "@/components/openclaw/EnvPanel";
@@ -132,7 +114,6 @@ import {
   isPiFamilyApp,
   orderAppIds,
 } from "@/config/appConfig";
-import type { PiFamilyAppId } from "@/lib/api/pi";
 
 interface SyncStatusUpdatedPayload {
   source?: string;
@@ -171,24 +152,19 @@ function App() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   // 供应商搜索面板：页头按钮和 ⌘F 都能打开；换应用或离开供应商页就收起
   const [providerSearchOpen, setProviderSearchOpen] = useState(false);
-  const [connectionStatusSlot, setConnectionStatusSlot] =
-    useState<HTMLDivElement | null>(null);
+  const [, setConnectionStatusSlot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     setProviderSearchOpen(false);
   }, [activeApp, currentView]);
-  // 供应商页顶部正在看的那格（直连 / 路由 / 聚合），由 SwitchModePanel 报上来。打开新增、
-  // 编辑时记下当时那格，表单按它选布局：在聚合那格打开就是聚合的简化表单。
-  const [providerModeView, setProviderModeView] = useState<{
+  // 原供应商页顶部正在看的那格（直连 / 路由 / 聚合）。F-04 起客户端页取代供应商列表，
+  // 不再有组件上报，恒为 null；页头的新增 / 编辑表单仍按它选布局（G 阶段随供应商一起移除）。
+  const [providerModeView] = useState<{
     app: AppId;
     view: AppMode;
   } | null>(null);
   const [formModeView, setFormModeView] = useState<AppMode>();
-  const handleProviderModeViewChange = useCallback(
-    (app: AppId, view: AppMode) => setProviderModeView({ app, view }),
-    [],
-  );
   // 托盘里点了直连下需要路由的那家：打开应用页后弹「需要路由」对话框
-  const [trayNeedsRoute, setTrayNeedsRoute] = useState<{
+  const [, setTrayNeedsRoute] = useState<{
     app: AppId;
     providerId: string;
     nonce: number;
@@ -246,9 +222,7 @@ function App() {
   }, [checkToolUpdatesOnStartup]);
 
   // 启动时没能接上路由 / 聚合、已退回直连的应用：在对应的应用页提示一次并给「重试」
-  const [startupFailures, setStartupFailures] = useState<
-    StartupAttachFailure[]
-  >([]);
+  const [, setStartupFailures] = useState<StartupAttachFailure[]>([]);
   useEffect(() => {
     proxyApi
       .takeStartupAttachFailures()
@@ -325,7 +299,7 @@ function App() {
     ? takeoverStatus?.[modeAppId] || false
     : false;
 
-  const { data, isLoading, refetch } = useProvidersQuery(activeApp, {
+  const { data, refetch } = useProvidersQuery(activeApp, {
     isProxyRunning: currentAppUsesProxy && isProxyRunning,
   });
   const { data: piCurrentState } = usePiCurrentState(activeApp === "pi");
@@ -334,105 +308,8 @@ function App() {
   const isOpenClawView = activeApp === "openclaw" && isAppPage(currentView);
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
-  const {
-    addProvider,
-    updateProvider,
-    switchProvider,
-    deleteProvider,
-    saveUsageScript,
-    setAsDefaultModel,
-  } = useProviderActions(
-    activeApp,
-    isProxyRunning && isCurrentAppTakeoverActive,
-  );
-  const handleEnablePiProvider = async (
-    provider: Provider,
-    app: PiFamilyAppId,
-  ) => {
-    try {
-      await providersApi.switch(provider.id, app);
-      await invalidatePiProviderCaches(queryClient, app);
-      await providersApi.updateTrayMenu().catch((error) => {
-        console.error(
-          "Failed to update tray menu after enabling Pi provider",
-          error,
-        );
-      });
-      toast.success(
-        t(`${app}.provider.enabled`, {
-          defaultValue: "已在 Pi 中启用",
-        }),
-        { closeButton: true },
-      );
-    } catch (error) {
-      const detail = extractErrorMessage(error);
-      toast.error(
-        t(`${app}.provider.enableFailed`, {
-          defaultValue: "无法在 Pi 中启用此供应商",
-        }),
-        {
-          description:
-            translatePiProviderMutationError(detail, t) || detail || undefined,
-          closeButton: true,
-        },
-      );
-    }
-  };
-
-  // Kimi「添加」只写进 config.toml、不改默认模型；「切换」走 switchProvider
-  const handleAddKimiProvider = async (provider: Provider) => {
-    try {
-      await providersApi.addToLiveConfig(provider.id, "kimi");
-    } catch (error) {
-      toast.error(
-        t("notifications.addFailed", {
-          error: extractErrorMessage(error) || t("common.unknown"),
-        }),
-        { closeButton: true },
-      );
-      return;
-    } finally {
-      await queryClient.invalidateQueries({ queryKey: ["providers", "kimi"] });
-    }
-    toast.success(
-      t("notifications.addToConfigSuccess", { defaultValue: "已添加到配置" }),
-      { closeButton: true },
-    );
-  };
-
-  const disableOmoMutation = useDisableCurrentOmo();
-  const handleDisableOmo = () => {
-    disableOmoMutation.mutate(undefined, {
-      onSuccess: () => {
-        toast.success(t("omo.disabled", { defaultValue: "OMO 已停用" }));
-      },
-      onError: (error: Error) => {
-        toast.error(
-          t("omo.disableFailed", {
-            defaultValue: "停用 OMO 失败: {{error}}",
-            error: extractErrorMessage(error),
-          }),
-        );
-      },
-    });
-  };
-
-  const disableOmoSlimMutation = useDisableCurrentOmoSlim();
-  const handleDisableOmoSlim = () => {
-    disableOmoSlimMutation.mutate(undefined, {
-      onSuccess: () => {
-        toast.success(t("omo.disabled", { defaultValue: "OMO 已停用" }));
-      },
-      onError: (error: Error) => {
-        toast.error(
-          t("omo.disableFailed", {
-            defaultValue: "停用 OMO 失败: {{error}}",
-            error: extractErrorMessage(error),
-          }),
-        );
-      },
-    });
-  };
+  const { addProvider, updateProvider, deleteProvider, saveUsageScript } =
+    useProviderActions(activeApp, isProxyRunning && isCurrentAppTakeoverActive);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -963,19 +840,6 @@ function App() {
     setLaunchDashboardOpen(true),
   );
 
-  const handleOpenWebsite = async (url: string) => {
-    try {
-      await settingsApi.openExternal(url);
-    } catch (error) {
-      const detail =
-        extractErrorMessage(error) ||
-        t("notifications.openLinkFailed", {
-          defaultValue: "链接打开失败",
-        });
-      toast.error(detail);
-    }
-  };
-
   const handleEditProvider = async ({
     provider,
     originalId,
@@ -1062,181 +926,6 @@ function App() {
       }
     }
     setConfirmAction(null);
-  };
-
-  const generateUniqueProviderCopyKey = (
-    originalKey: string,
-    existingKeys: string[],
-  ): string => {
-    const baseKey = `${originalKey}-copy`;
-
-    if (!existingKeys.includes(baseKey)) {
-      return baseKey;
-    }
-
-    let counter = 2;
-    while (existingKeys.includes(`${baseKey}-${counter}`)) {
-      counter++;
-    }
-    return `${baseKey}-${counter}`;
-  };
-
-  const handleDuplicateProvider = async (provider: Provider) => {
-    if (
-      activeApp === "opencode" &&
-      provider.category !== "omo" &&
-      provider.category !== "omo-slim"
-    ) {
-      // A copy gets a new ID, so it cannot inherit a built-in definition.
-      // Native V2 declarations name their package in `package`, not `npm`.
-      const isNative = isNativeOpencodeConfig(
-        JSON.stringify(provider.settingsConfig),
-        provider.meta?.opencodeConfigFormat,
-      );
-      if (
-        !hasOpencodeDefinition(
-          provider.settingsConfig,
-          isNative ? "package" : "npm",
-        )
-      ) {
-        toast.error(
-          t(
-            isNative
-              ? "opencode.duplicateRequiresNativeDefinition"
-              : "opencode.duplicateRequiresDefinition",
-          ),
-        );
-        return;
-      }
-    }
-
-    const newSortIndex =
-      provider.sortIndex !== undefined ? provider.sortIndex + 1 : undefined;
-
-    const duplicatedProvider: Omit<Provider, "id" | "createdAt"> & {
-      providerKey?: string;
-      addToLive?: boolean;
-    } = {
-      name: `${provider.name} copy`,
-      settingsConfig: deepClone(provider.settingsConfig),
-      websiteUrl: provider.websiteUrl,
-      category: provider.category,
-      sortIndex: newSortIndex, // 复制原 sortIndex + 1
-      meta: provider.meta ? deepClone(provider.meta) : undefined,
-      icon: provider.icon,
-      iconColor: provider.iconColor,
-    };
-
-    if (
-      activeApp === "opencode" ||
-      activeApp === "openclaw" ||
-      activeApp === "hermes" ||
-      activeApp === "pi" ||
-      activeApp === "omp"
-    ) {
-      let liveProviderIds: string[] = [];
-      try {
-        liveProviderIds =
-          activeApp === "opencode"
-            ? await queryClient.ensureQueryData({
-                queryKey: ["opencodeLiveProviderIds"],
-                queryFn: () => providersApi.getOpenCodeLiveProviderIds(),
-              })
-            : activeApp === "openclaw"
-              ? await queryClient.ensureQueryData({
-                  queryKey: openclawKeys.liveProviderIds,
-                  queryFn: () => providersApi.getOpenClawLiveProviderIds(),
-                })
-              : activeApp === "hermes"
-                ? await queryClient.ensureQueryData({
-                    queryKey: hermesKeys.liveProviderIds,
-                    queryFn: () => providersApi.getHermesLiveProviderIds(),
-                  })
-                : (
-                    await queryClient.ensureQueryData({
-                      queryKey: [activeApp, "currentState"],
-                      queryFn: () =>
-                        piApi.getCurrentState(
-                          activeApp === "omp" ? "omp" : "pi",
-                        ),
-                    })
-                  ).enabledProviderIds;
-      } catch (error) {
-        console.error(
-          "[App] Failed to load live provider IDs for duplication",
-          error,
-        );
-        const errorMessage = extractErrorMessage(error);
-        toast.error(
-          t("provider.duplicateLiveIdsLoadFailed", {
-            defaultValue: "读取配置中的供应商标识失败，请先修复配置后再试",
-          }) + (errorMessage ? `: ${errorMessage}` : ""),
-        );
-        return;
-      }
-      const existingKeys = Array.from(
-        new Set([...Object.keys(providers), ...liveProviderIds]),
-      );
-      duplicatedProvider.providerKey = generateUniqueProviderCopyKey(
-        provider.id,
-        existingKeys,
-      );
-      duplicatedProvider.addToLive = false;
-    } else if (
-      activeApp === "mcode" ||
-      activeApp === "dsh" ||
-      activeApp === "kimi"
-    ) {
-      // The MCode list already includes its live custom nodes; the backend
-      // rejects a key that MCode itself owns.
-      duplicatedProvider.providerKey = generateUniqueProviderCopyKey(
-        provider.id,
-        Object.keys(providers),
-      );
-      if (activeApp === "kimi") {
-        const models = duplicatedProvider.settingsConfig.models ?? {};
-        duplicatedProvider.settingsConfig.models = Object.fromEntries(
-          Object.entries(models).map(([key, value]) => [
-            `${duplicatedProvider.providerKey}/${key.startsWith(`${provider.id}/`) ? key.slice(provider.id.length + 1) : key}`,
-            {
-              ...(value as Record<string, unknown>),
-              provider: duplicatedProvider.providerKey,
-            },
-          ]),
-        );
-        duplicatedProvider.addToLive = false;
-      }
-    }
-
-    if (provider.sortIndex !== undefined) {
-      const updates = Object.values(providers)
-        .filter(
-          (p) =>
-            p.sortIndex !== undefined &&
-            p.sortIndex >= newSortIndex! &&
-            p.id !== provider.id,
-        )
-        .map((p) => ({
-          id: p.id,
-          sortIndex: p.sortIndex! + 1,
-        }));
-
-      if (updates.length > 0) {
-        try {
-          await providersApi.updateSortOrder(updates, activeApp);
-        } catch (error) {
-          console.error("[App] Failed to update sort order", error);
-          toast.error(
-            t("provider.sortUpdateFailed", {
-              defaultValue: "排序更新失败",
-            }),
-          );
-          return; // 如果排序更新失败，不继续添加
-        }
-      }
-    }
-
-    await addProvider(duplicatedProvider);
   };
 
   const confirmActionMessage = useMemo(() => {
@@ -1480,109 +1169,6 @@ function App() {
     return null;
   };
 
-  const listCallbacks = {
-    onEdit: (provider: Provider) => {
-      setFormModeView(currentModeView);
-      setEditingProvider(provider);
-    },
-    onDelete: (provider: Provider) =>
-      setConfirmAction({ provider, action: "delete" }),
-    onDuplicate: handleDuplicateProvider,
-    onConfigureUsage: setUsageProvider,
-    onOpenWebsite: handleOpenWebsite,
-    onOpenTerminal:
-      activeApp === "claude" || activeApp === "codex" || activeApp === "agy"
-        ? setTerminalProvider
-        : undefined,
-    onCreate: () => openAddProvider(currentModeView),
-    searchOpen: providerSearchOpen,
-    onSearchOpenChange: setProviderSearchOpen,
-  };
-
-  const renderProviderList = () => {
-    if (modeAppId) {
-      const startupFailure = startupFailures.find(
-        (failure) => failure.appType === modeAppId,
-      );
-      return (
-        <SwitchModePanel
-          key={modeAppId}
-          app={modeAppId}
-          statusSlot={connectionStatusSlot}
-          providers={providers}
-          currentProviderId={currentProviderId}
-          isLoading={isLoading}
-          scrollRef={providerScrollContainerRef}
-          onSwitch={switchProvider}
-          onOpenRoutingSettings={() => openSettings("routing")}
-          needsRouteRequest={
-            trayNeedsRoute?.app === modeAppId ? trayNeedsRoute : undefined
-          }
-          onNeedsRouteHandled={() => setTrayNeedsRoute(null)}
-          onViewChange={handleProviderModeViewChange}
-          startupFailure={startupFailure}
-          onDismissStartupFailure={() =>
-            setStartupFailures((list) =>
-              list.filter((failure) => failure.appType !== modeAppId),
-            )
-          }
-          {...listCallbacks}
-        />
-      );
-    }
-
-    return (
-      <div
-        ref={providerScrollContainerRef}
-        id="main-content"
-        className="min-h-0 flex-1 overflow-y-auto scroll-stable overflow-x-hidden px-6 pb-12 pt-4"
-      >
-        <div className="space-y-4">
-          <ProviderList
-            {...listCallbacks}
-            providers={providers}
-            currentProviderId={currentProviderId}
-            appId={activeApp}
-            isLoading={isLoading}
-            onSwitch={(provider) =>
-              void (isPiFamilyApp(activeApp)
-                ? handleEnablePiProvider(provider, activeApp)
-                : activeApp === "kimi"
-                  ? handleAddKimiProvider(provider)
-                  : switchProvider(provider))
-            }
-            onRemoveFromConfig={
-              activeApp === "opencode" ||
-              activeApp === "openclaw" ||
-              activeApp === "hermes" ||
-              activeApp === "pi" ||
-              activeApp === "mcode" ||
-              activeApp === "kimi" ||
-              activeApp === "dsh" ||
-              activeApp === "omp"
-                ? (provider) => setConfirmAction({ provider, action: "remove" })
-                : undefined
-            }
-            onDisableOmo={
-              activeApp === "opencode" ? handleDisableOmo : undefined
-            }
-            onDisableOmoSlim={
-              activeApp === "opencode" ? handleDisableOmoSlim : undefined
-            }
-            onSetAsDefault={
-              activeApp === "openclaw" || activeApp === "opencode"
-                ? (provider, modelId) =>
-                    void setAsDefaultModel(provider, modelId)
-                : activeApp === "hermes" || activeApp === "kimi"
-                  ? (provider) => void switchProvider(provider)
-                  : undefined
-            }
-          />
-        </div>
-      </div>
-    );
-  };
-
   const renderAppPage = () => {
     const body = (() => {
       switch (currentView) {
@@ -1633,7 +1219,8 @@ function App() {
             </div>
           );
         default:
-          return renderProviderList();
+          // F-04：客户端页（接管状态、配置集、模型表）取代原来的供应商列表
+          return <AicliClientPage app={activeApp} />;
       }
     })();
 

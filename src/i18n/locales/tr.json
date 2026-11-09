@@ -5123,6 +5123,48 @@
     },
     "local": {
       "source": "Kaynak: bu cihaz"
+    },
+    "client": {
+      "takeoverTitle": "Devralma",
+      "takeOver": "Devral",
+      "release": "Devralmayı durdur",
+      "cancel": "İptal",
+      "overrideAndTakeOver": "Üzerine yaz ve devral",
+      "status": {
+        "active": "Devralındı",
+        "pending": "İşleniyor",
+        "inactive": "Devralınmadı",
+        "conflict": "Çakışma"
+      },
+      "confirmTakeOverTitle": "{{app}} devralınsın mı",
+      "confirmTakeOverBody": "Devralma, istekler yerel proxy üzerinden gitsin diye {{app}} yapılandırmasını yeniden yazar; devralma durdurulunca önceki yapılandırma geri yüklenir.",
+      "confirmReleaseTitle": "{{app}} devralması durdurulsun mu",
+      "confirmReleaseBody": "Devralmayı durdurmak {{app}} yapılandırmasını devralmadan önceki hâline geri getirir.",
+      "conflictTitle": "Eski proxy ayarları bulundu",
+      "conflictBody": "{{app}} yapılandırmasında eski bir yerel proxy'den kalan ayarlar var. Devralma bunların üzerine yazar; devralma durdurulunca önceki hâline geri döner.",
+      "conflictNotice": "{{app}} yapılandırması eski bir yerel proxy'nin ayarlarıyla çakışıyor; devralmak için üzerine yazmayı onaylayın.",
+      "unsupported": "{{app}} henüz AICLI devralmayı desteklemiyor.",
+      "notBound": "İstemcileri devralmak için önce bir hesap bağlayın.",
+      "currentProfile": "Geçerli yapılandırma seti: {{name}}",
+      "modelsTitle": "Bu istemcinin kullanabileceği modeller",
+      "refreshCatalog": "Model kataloğunu yenile",
+      "noModels": "Geçerli yapılandırma setinde model yok.",
+      "partialNotice": "{{count}} model Claude Code ile yalnızca kısmen uyumlu; bazı özellikler (araç çağrıları veya görseller gibi) çalışmayabilir.",
+      "failed": "İşlem başarısız: {{message}}",
+      "columns": {
+        "model": "Model",
+        "profile": "Yapılandırma seti",
+        "line": "Hat",
+        "compat": "Uyumluluk",
+        "capabilities": "Yetenekler"
+      },
+      "compat": {
+        "full": "Tam",
+        "partial": "Kısmi",
+        "text_only": "Yalnızca metin",
+        "unavailable": "Kullanılamıyor",
+        "unverified": "Doğrulanmadı"
+      }
     }
   }
 }

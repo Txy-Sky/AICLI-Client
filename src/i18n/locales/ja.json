@@ -5181,6 +5181,48 @@
     },
     "local": {
       "source": "出典：このデバイスの記録"
+    },
+    "client": {
+      "takeoverTitle": "引き継ぎ",
+      "takeOver": "引き継ぐ",
+      "release": "引き継ぎを停止",
+      "cancel": "キャンセル",
+      "overrideAndTakeOver": "上書きして引き継ぐ",
+      "status": {
+        "active": "引き継ぎ中",
+        "pending": "処理中",
+        "inactive": "未引き継ぎ",
+        "conflict": "競合"
+      },
+      "confirmTakeOverTitle": "{{app}} を引き継ぐ",
+      "confirmTakeOverBody": "引き継ぐと {{app}} の設定を書き換え、リクエストをローカルプロキシ経由にします。引き継ぎを停止すると元の設定に戻ります。",
+      "confirmReleaseTitle": "{{app}} の引き継ぎを停止",
+      "confirmReleaseBody": "引き継ぎを停止すると {{app}} の設定を引き継ぎ前の状態に戻します。",
+      "conflictTitle": "古いプロキシ設定が見つかりました",
+      "conflictBody": "{{app}} の設定に旧バージョンのローカルプロキシが残した設定があります。引き継ぐと上書きされ、引き継ぎを停止すると引き継ぎ前の状態に戻ります。",
+      "conflictNotice": "{{app}} の設定が旧バージョンのローカルプロキシの設定と競合しています。上書きを確認すると引き継げます。",
+      "unsupported": "{{app}} はまだ AICLI の引き継ぎに対応していません。",
+      "notBound": "クライアントを引き継ぐにはアカウントを連携してください。",
+      "currentProfile": "現在の構成セット：{{name}}",
+      "modelsTitle": "このクライアントで使えるモデル",
+      "refreshCatalog": "モデル一覧を更新",
+      "noModels": "現在の構成セットには使えるモデルがありません。",
+      "partialNotice": "{{count}} 件のモデルは Claude Code で部分的にしか互換性がなく、一部の機能（ツール呼び出しや画像など）が使えない場合があります。",
+      "failed": "操作に失敗しました：{{message}}",
+      "columns": {
+        "model": "モデル",
+        "profile": "構成セット",
+        "line": "回線",
+        "compat": "互換レベル",
+        "capabilities": "機能"
+      },
+      "compat": {
+        "full": "完全互換",
+        "partial": "部分互換",
+        "text_only": "テキストのみ",
+        "unavailable": "利用不可",
+        "unverified": "未検証"
+      }
     }
   }
 }

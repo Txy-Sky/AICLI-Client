@@ -9,17 +9,8 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { http, HttpResponse } from "msw";
-import { providersApi } from "@/lib/api/providers";
-import {
-  resetProviderState,
-  setCurrentProviderId,
-  setLiveProviderIds,
-  setProviders,
-  setSettings,
-} from "../msw/state";
+import { resetProviderState, setSettings } from "../msw/state";
 import { emitTauriEvent } from "../msw/tauriMocks";
-import { server } from "../msw/server";
 
 // The heaviest App integration cases kept a 10s budget on Linux; Windows
 // jsdom is several times slower (docs/aicli-handover/E-GATE.md).
@@ -259,235 +250,34 @@ describe("App integration with MSW", () => {
     localStorage.removeItem("aicli-client-last-app");
   });
 
-  it(
-    "covers basic provider flows via real hooks",
-    async () => {
-      const { default: App } = await import("@/App");
-      renderApp(App);
-      enterClientPage("Claude Code");
-
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "claude-1",
-        ),
-      );
-
-      fireEvent.click(sidebarApp("Codex"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "codex-1",
-        ),
-      );
-
-      fireEvent.click(screen.getByText("usage"));
-      expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
-      fireEvent.click(screen.getByText("save-script"));
-      fireEvent.click(screen.getByText("close-usage"));
-
-      fireEvent.click(screen.getByText("create"));
-      expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
-      fireEvent.click(screen.getByText("confirm-add"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toMatch(
-          /New codex Provider/,
-        ),
-      );
-
-      fireEvent.click(screen.getByText("edit"));
-      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-      fireEvent.click(screen.getByText("confirm-edit"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toMatch(
-          /-edited/,
-        ),
-      );
-
-      fireEvent.click(screen.getByText("switch"));
-      fireEvent.click(screen.getByText("duplicate"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toMatch(/copy/),
-      );
-
-      fireEvent.click(screen.getByText("open-website"));
-
-      emitTauriEvent("provider-switched", {
-        appType: "codex",
-        providerId: "codex-2",
-      });
-
-      expect(toastErrorMock).not.toHaveBeenCalled();
-      expect(toastSuccessMock).toHaveBeenCalled();
-    },
-    APP_TEST_TIMEOUT,
-  );
-
-  it("refreshes the route pointer when the proxy fails over to another provider", async () => {
-    let routeProviderId = "claude-1";
-    let modeRequests = 0;
-    server.use(
-      http.post("http://tauri.local/get_app_mode", async ({ request }) => {
-        const { appType } = (await request.json()) as { appType: string };
-        if (appType !== "claude") return;
-        modeRequests += 1;
-        return HttpResponse.json({
-          mode: "route",
-          attached: true,
-          routeProviderId,
-          directProviderId: "claude-1",
-        });
-      }),
-    );
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("Claude Code");
-
-    await waitFor(() => expect(modeRequests).toBeGreaterThan(0));
-    const before = modeRequests;
-
-    // 故障转移只改后端的路由指针，再发 provider-switched
-    routeProviderId = "claude-2";
-    emitTauriEvent("provider-switched", {
-      appType: "claude",
-      providerId: "claude-2",
-      source: "failover",
-    });
-
-    await waitFor(() => expect(modeRequests).toBeGreaterThan(before));
-  });
-
-  it(
-    "resets provider view scroll when switching apps",
-    async () => {
-      const { default: App } = await import("@/App");
-      const { container } = renderApp(App);
-      enterClientPage("Claude Code");
-
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "claude-1",
-        ),
-      );
-
-      const mainScrollContainer = container.querySelector(
-        "main",
-      ) as HTMLElement;
-      // 列表的滚动区在模式行下面（切换式应用每个应用一份）
-      const providerScrollContainer = () =>
-        container.querySelector<HTMLElement>("#main-content");
-
-      expect(mainScrollContainer).not.toBeNull();
-      expect(providerScrollContainer()).not.toBeNull();
-
-      mainScrollContainer.scrollTop = 320;
-      mainScrollContainer.scrollLeft = 12;
-      providerScrollContainer()!.scrollTop = 640;
-      providerScrollContainer()!.scrollLeft = 24;
-
-      fireEvent.click(sidebarApp("Codex"));
-
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "codex-1",
-        ),
-      );
-
-      expect(mainScrollContainer.scrollTop).toBe(0);
-      expect(mainScrollContainer.scrollLeft).toBe(0);
-      expect(providerScrollContainer()!.scrollTop).toBe(0);
-      expect(providerScrollContainer()!.scrollLeft).toBe(0);
-    },
-    APP_TEST_TIMEOUT,
-  );
-
-  it(
-    "closes provider panels when navigating away from the app page",
-    async () => {
-      const { default: App } = await import("@/App");
-      renderApp(App);
-      enterClientPage("Claude Code");
-
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "claude-1",
-        ),
-      );
-
-      // 面板只盖住内容区，侧栏还能点：切应用时编辑面板必须关掉，否则 Claude 的
-      // 供应商会以 appId=codex 保存进 Codex
-      fireEvent.click(screen.getByText("edit"));
-      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-      fireEvent.click(sidebarApp("Codex"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "codex-1",
-        ),
-      );
-      expect(
-        screen.queryByTestId("edit-provider-dialog"),
-      ).not.toBeInTheDocument();
-
-      fireEvent.click(screen.getByText("usage"));
-      expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
-      fireEvent.click(sidebarApp("nav.usage"));
-      await waitFor(() =>
-        expect(screen.queryByTestId("usage-modal")).not.toBeInTheDocument(),
-      );
-
-      fireEvent.click(sidebarApp("Codex"));
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "codex-1",
-        ),
-      );
-      fireEvent.click(screen.getByText("create"));
-      expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
-      fireEvent.keyDown(window, { key: ",", metaKey: true });
-      expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
-      expect(
-        screen.queryByTestId("add-provider-dialog"),
-      ).not.toBeInTheDocument();
-    },
-    APP_TEST_TIMEOUT,
-  );
-
+  // F-04：供应商编辑面板随供应商列表移除，未保存保护改用 MCP 编辑页（同一套
+  // useUnsavedChangesTracker）验证
   it(
     "asks before leaving an editor page with unsaved changes",
     async () => {
       const { default: App } = await import("@/App");
       renderApp(App);
-      enterClientPage("Claude Code");
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "claude-1",
-        ),
-      );
 
       // 没改过：照常离开，不问
-      fireEvent.click(screen.getByText("edit"));
-      fireEvent.click(sidebarApp("Codex"));
+      fireEvent.click(sidebarApp("MCP"));
+      expect(await screen.findByTestId("mcp-editor")).toBeInTheDocument();
+      fireEvent.click(sidebarApp("nav.usage"));
       await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "codex-1",
-        ),
+        expect(screen.queryByTestId("mcp-editor")).not.toBeInTheDocument(),
       );
       expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
 
-      // 改过：先问；继续编辑就留在原页
-      // （ConfirmDialog 在这个文件里是 mock：只渲染消息和 confirm-delete / cancel-delete）
-      fireEvent.click(screen.getByText("edit"));
-      fireEvent.input(screen.getByLabelText("edit-field"), {
+      // 改过：切应用先问；继续编辑就留在原页
+      fireEvent.click(sidebarApp("MCP"));
+      fireEvent.input(await screen.findByLabelText("mcp-field"), {
         target: { value: "draft" },
       });
-      fireEvent.click(sidebarApp("Claude Code"));
+      fireEvent.click(sidebarApp("Codex"));
       expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
         "common.unsavedLeaveMessage",
       );
       fireEvent.click(screen.getByText("cancel-delete"));
-      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      );
+      expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
 
       // ⌘, 也问；放弃后才离开
       fireEvent.keyDown(window, { key: ",", metaKey: true });
@@ -496,9 +286,7 @@ describe("App integration with MSW", () => {
       );
       fireEvent.click(screen.getByText("confirm-delete"));
       expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
-      expect(
-        screen.queryByTestId("edit-provider-dialog"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("mcp-editor")).not.toBeInTheDocument();
     },
     APP_TEST_TIMEOUT,
   );
@@ -508,12 +296,6 @@ describe("App integration with MSW", () => {
     async () => {
       const { default: App } = await import("@/App");
       renderApp(App);
-      enterClientPage("Claude Code");
-      await waitFor(() =>
-        expect(screen.getByTestId("provider-list").textContent).toContain(
-          "claude-1",
-        ),
-      );
 
       fireEvent.click(sidebarApp("MCP"));
       fireEvent.input(await screen.findByLabelText("mcp-field"), {
@@ -539,13 +321,14 @@ describe("App integration with MSW", () => {
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
-    enterClientPage("Claude Code");
 
+    // 等首页渲染完（监听在挂载后异步注册）
     await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
+      expect(sidebarApp("nav.usage")).toHaveAttribute("aria-current", "page"),
     );
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(() => {
       emitTauriEvent("webdav-sync-status-updated", null);
@@ -577,462 +360,6 @@ describe("App integration with MSW", () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalled();
     });
-  });
-
-  it("duplicates openclaw providers with a generated key that avoids live-only ids", async () => {
-    setProviders("openclaw", {
-      deepseek: {
-        id: "deepseek",
-        name: "DeepSeek",
-        settingsConfig: {
-          baseUrl: "https://api.deepseek.com",
-          apiKey: "test-key",
-          api: "openai-completions",
-          models: [],
-        },
-        category: "custom",
-        sortIndex: 0,
-        createdAt: Date.now(),
-      },
-    });
-    setCurrentProviderId("openclaw", "deepseek");
-    setLiveProviderIds("openclaw", ["deepseek-copy"]);
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-
-    fireEvent.click(sidebarApp("OpenClaw"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "deepseek",
-      ),
-    );
-
-    fireEvent.click(screen.getByText("duplicate"));
-
-    await waitFor(() => {
-      const providerList = screen.getByTestId("provider-list").textContent;
-      expect(providerList).toContain("deepseek-copy-2");
-      expect(providerList).toContain("DeepSeek copy");
-    });
-
-    expect(toastErrorMock).not.toHaveBeenCalledWith(
-      expect.stringContaining("Provider key is required for openclaw"),
-    );
-  });
-
-  it.each([
-    { options: { apiKey: "test-key" } },
-    { npm: "@ai-sdk/openai-compatible", models: {} },
-    { models: { "glm-5": { name: "GLM 5" } } },
-  ])(
-    "blocks incomplete OpenCode copies before saving or sorting: %j",
-    async (settingsConfig) => {
-      localStorage.setItem("aicli-client-last-app", "opencode");
-      setProviders("opencode", {
-        "opencode-go": {
-          id: "opencode-go",
-          name: "OpenCode Go",
-          settingsConfig,
-          sortIndex: 0,
-        },
-        other: { id: "other", name: "Other", settingsConfig: {}, sortIndex: 1 },
-      });
-      setCurrentProviderId("opencode", "opencode-go");
-      setLiveProviderIds("opencode", ["opencode-go"]);
-      const add = vi.spyOn(providersApi, "add");
-      const sort = vi.spyOn(providersApi, "updateSortOrder");
-      try {
-        const { default: App } = await import("@/App");
-        renderApp(App);
-        enterClientPage("OpenCode");
-        await waitFor(() =>
-          expect(screen.getByTestId("provider-list").textContent).toContain(
-            "opencode-go",
-          ),
-        );
-        fireEvent.click(screen.getByText("duplicate"));
-        await waitFor(() =>
-          expect(toastErrorMock).toHaveBeenCalledWith(
-            "opencode.duplicateRequiresDefinition",
-          ),
-        );
-        expect(add).not.toHaveBeenCalled();
-        expect(sort).not.toHaveBeenCalled();
-        expect(screen.getByTestId("provider-list").textContent).not.toContain(
-          "opencode-go-copy",
-        );
-      } finally {
-        add.mockRestore();
-        sort.mockRestore();
-      }
-    },
-  );
-
-  it("duplicates complete OpenCode providers using an unused ID", async () => {
-    localStorage.setItem("aicli-client-last-app", "opencode");
-    setProviders("opencode", {
-      custom: {
-        id: "custom",
-        name: "Custom",
-        sortIndex: 0,
-        settingsConfig: {
-          npm: "@ai-sdk/openai-compatible",
-          models: { "glm-5": { name: "GLM 5" } },
-        },
-      },
-    });
-    setCurrentProviderId("opencode", "custom");
-    setLiveProviderIds("opencode", ["custom-copy"]);
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("OpenCode");
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "custom",
-      ),
-    );
-    fireEvent.click(screen.getByText("duplicate"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "custom-copy-2",
-      ),
-    );
-    expect(toastErrorMock).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { settingsConfig: { settings: { baseURL: "https://native.example" } } },
-    {
-      settingsConfig: { models: { "glm-5": { name: "GLM 5" } } },
-      meta: { opencodeConfigFormat: "v2" as const },
-    },
-  ])(
-    "blocks incomplete native OpenCode copies with a V2 message: %j",
-    async ({ settingsConfig, meta }) => {
-      localStorage.setItem("aicli-client-last-app", "opencode");
-      setProviders("opencode", {
-        native: {
-          id: "native",
-          name: "Native",
-          settingsConfig,
-          meta,
-          sortIndex: 0,
-        },
-      });
-      setCurrentProviderId("opencode", "native");
-      setLiveProviderIds("opencode", ["native"]);
-      const add = vi.spyOn(providersApi, "add");
-      try {
-        const { default: App } = await import("@/App");
-        renderApp(App);
-        enterClientPage("OpenCode");
-        await waitFor(() =>
-          expect(screen.getByTestId("provider-list").textContent).toContain(
-            "native",
-          ),
-        );
-        fireEvent.click(screen.getByText("duplicate"));
-        await waitFor(() =>
-          expect(toastErrorMock).toHaveBeenCalledWith(
-            "opencode.duplicateRequiresNativeDefinition",
-          ),
-        );
-        expect(add).not.toHaveBeenCalled();
-      } finally {
-        add.mockRestore();
-      }
-    },
-  );
-
-  it("duplicates complete native OpenCode providers using an unused ID", async () => {
-    localStorage.setItem("aicli-client-last-app", "opencode");
-    setProviders("opencode", {
-      native: {
-        id: "native",
-        name: "Native",
-        sortIndex: 0,
-        settingsConfig: {
-          package: "@opencode/ai/providers/openai",
-          models: { "gpt-5": { name: "GPT 5" } },
-        },
-        meta: { opencodeConfigFormat: "v2" },
-      },
-    });
-    setCurrentProviderId("opencode", "native");
-    setLiveProviderIds("opencode", ["native-copy"]);
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("OpenCode");
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "native",
-      ),
-    );
-    fireEvent.click(screen.getByText("duplicate"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "native-copy-2",
-      ),
-    );
-    expect(toastErrorMock).not.toHaveBeenCalled();
-  });
-
-  it("duplicates MiniMax Code providers under a generated unused key", async () => {
-    localStorage.setItem("aicli-client-last-app", "mcode");
-    const provider = (id: string, name: string) => ({
-      id,
-      name,
-      settingsConfig: {},
-      category: "custom" as const,
-      sortIndex: 0,
-      createdAt: Date.now(),
-    });
-    setProviders("mcode", {
-      kimi: provider("kimi", "Kimi"),
-      "kimi-copy": provider("kimi-copy", "Kimi copy"),
-    });
-    setCurrentProviderId("mcode", "kimi");
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("MiniMax Code");
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "kimi-copy",
-      ),
-    );
-    fireEvent.click(screen.getByText("duplicate"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "kimi-copy-2",
-      ),
-    );
-    expect(toastErrorMock).not.toHaveBeenCalledWith(
-      expect.stringContaining("Provider key is required for mcode"),
-    );
-  });
-
-  it("refreshes MiniMax Code provider membership after removing it from live config", async () => {
-    localStorage.setItem("aicli-client-last-app", "mcode");
-    let liveConfigManaged = true;
-    let providerRequests = 0;
-    server.use(
-      http.post("http://tauri.local/get_providers", async ({ request }) => {
-        const { app } = (await request.json()) as { app: string };
-        if (app !== "mcode") return;
-        providerRequests += 1;
-        return HttpResponse.json({
-          custom: {
-            id: "custom",
-            name: "Custom MiniMax Code",
-            settingsConfig: {},
-            meta: { liveConfigManaged },
-          },
-        });
-      }),
-      http.post(
-        "http://tauri.local/remove_provider_from_live_config",
-        async ({ request }) => {
-          expect(await request.json()).toEqual({ id: "custom", app: "mcode" });
-          liveConfigManaged = false;
-          return HttpResponse.json(true);
-        },
-      ),
-    );
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("MiniMax Code");
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list")).toHaveTextContent(
-        '"liveConfigManaged":true',
-      ),
-    );
-    const requestsBeforeRemoval = providerRequests;
-    fireEvent.click(screen.getByText("remove"));
-    fireEvent.click(screen.getByText("confirm-delete"));
-
-    await waitFor(() =>
-      expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument(),
-    );
-    expect(liveConfigManaged).toBe(false);
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list")).toHaveTextContent(
-        '"liveConfigManaged":false',
-      ),
-    );
-    expect(providerRequests).toBeGreaterThan(requestsBeforeRemoval);
-    expect(screen.getByTestId("provider-list")).toHaveTextContent(
-      "Custom MiniMax Code",
-    );
-  });
-
-  it("rereads Kimi's default after a removal is refused for a stale default", async () => {
-    localStorage.setItem("aicli-client-last-app", "kimi");
-    let kimiCurrent = "kimi-sub";
-    let currentRequests = 0;
-    server.use(
-      http.post("http://tauri.local/get_providers", async ({ request }) => {
-        const { app } = (await request.json()) as { app: string };
-        if (app !== "kimi") return;
-        return HttpResponse.json({
-          go: {
-            id: "go",
-            name: "OpenCode Go",
-            settingsConfig: {},
-            meta: { liveConfigManaged: true },
-          },
-          "kimi-sub": {
-            id: "kimi-sub",
-            name: "Kimi subscription",
-            settingsConfig: {},
-            meta: { liveConfigManaged: true },
-          },
-        });
-      }),
-      http.post(
-        "http://tauri.local/get_current_provider",
-        async ({ request }) => {
-          const { app } = (await request.json()) as { app: string };
-          if (app !== "kimi") return;
-          currentRequests += 1;
-          return HttpResponse.json(kimiCurrent);
-        },
-      ),
-      http.post("http://tauri.local/remove_provider_from_live_config", () =>
-        HttpResponse.json(
-          "无效输入: Select another default model in Kimi Code before removing this model or provider",
-          { status: 500 },
-        ),
-      ),
-    );
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("Kimi Code");
-
-    await waitFor(() =>
-      expect(screen.getByTestId("current-provider")).toHaveTextContent(
-        "kimi-sub",
-      ),
-    );
-    // 用户在 Kimi Code 里用 /model 换到了 OpenCode Go 的模型，页面还没重读
-    kimiCurrent = "go";
-    const requestsBeforeRemoval = currentRequests;
-    fireEvent.click(screen.getByText("remove"));
-    fireEvent.click(screen.getByText("confirm-delete"));
-
-    await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith(
-        "notifications.removeFromConfigFailed",
-        expect.objectContaining({
-          description: "kimi.error.defaultModelInUse",
-        }),
-      ),
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("current-provider")).toHaveTextContent("go"),
-    );
-    expect(currentRequests).toBeGreaterThan(requestsBeforeRemoval);
-  });
-
-  it("warns without blocking when removing Pi's global default provider", async () => {
-    localStorage.setItem("aicli-client-last-app", "pi");
-    setProviders("pi", {
-      custom: {
-        id: "custom",
-        name: "Custom Pi",
-        settingsConfig: {
-          baseUrl: "https://api.example.com/v1",
-          apiKey: "test-key",
-          api: "openai-completions",
-          models: [{ id: "model-a" }],
-        },
-        category: "custom",
-        sortIndex: 0,
-        createdAt: Date.now(),
-      },
-    });
-    server.use(
-      http.post("http://tauri.local/get_pi_current_state", () =>
-        HttpResponse.json({
-          enabledProviderIds: ["custom"],
-          defaultProviderId: "custom",
-        }),
-      ),
-    );
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    enterClientPage("Pi");
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "Custom Pi",
-      ),
-    );
-    fireEvent.click(screen.getByText("remove"));
-
-    expect(screen.getByTestId("confirm-message")).toHaveTextContent(
-      "confirm.piDefaultProviderWarning",
-    );
-    fireEvent.click(screen.getByText("confirm-delete"));
-    await waitFor(() =>
-      expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument(),
-    );
-  });
-
-  it("shows toast when duplicate cannot load live provider ids", async () => {
-    setProviders("openclaw", {
-      deepseek: {
-        id: "deepseek",
-        name: "DeepSeek",
-        settingsConfig: {
-          baseUrl: "https://api.deepseek.com",
-          apiKey: "test-key",
-          api: "openai-completions",
-          models: [],
-        },
-        category: "custom",
-        sortIndex: 0,
-        createdAt: Date.now(),
-      },
-    });
-    setCurrentProviderId("openclaw", "deepseek");
-
-    const liveIdsSpy = vi
-      .spyOn(providersApi, "getOpenClawLiveProviderIds")
-      .mockRejectedValueOnce(new Error("broken config"));
-
-    const { default: App } = await import("@/App");
-    renderApp(App);
-
-    fireEvent.click(sidebarApp("OpenClaw"));
-
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "deepseek",
-      ),
-    );
-
-    fireEvent.click(screen.getByText("duplicate"));
-
-    await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith(
-        expect.stringContaining("读取配置中的供应商标识失败"),
-      );
-    });
-
-    expect(screen.getByTestId("provider-list").textContent).not.toContain(
-      "deepseek-copy",
-    );
-
-    liveIdsSpy.mockRestore();
   });
 
   it("renders the Skills page with its own header", async () => {
@@ -1158,9 +485,7 @@ describe("App integration with MSW", () => {
       await screen.findByTestId("unified-skills-panel"),
     ).toBeInTheDocument();
     enterClientPage("Claude Code");
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list")).toBeInTheDocument(),
-    );
+    expect(await screen.findByTestId("aicli-client-page")).toBeInTheDocument();
     expect(localStorage.getItem("aicli-client-last-view")).toBeNull();
   });
 

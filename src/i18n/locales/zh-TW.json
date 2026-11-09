@@ -5182,6 +5182,48 @@
     },
     "local": {
       "source": "來源：本機紀錄"
+    },
+    "client": {
+      "takeoverTitle": "接管",
+      "takeOver": "接管",
+      "release": "停止接管",
+      "cancel": "取消",
+      "overrideAndTakeOver": "覆寫並接管",
+      "status": {
+        "active": "已接管",
+        "pending": "處理中",
+        "inactive": "未接管",
+        "conflict": "衝突"
+      },
+      "confirmTakeOverTitle": "接管 {{app}}",
+      "confirmTakeOverBody": "接管後會改寫 {{app}} 的設定，讓請求經過本機代理；停止接管時還原為接管前的設定。",
+      "confirmReleaseTitle": "停止接管 {{app}}",
+      "confirmReleaseBody": "停止接管會把 {{app}} 的設定還原為接管前的樣子。",
+      "conflictTitle": "偵測到舊的代理設定",
+      "conflictBody": "{{app}} 的設定裡有舊版本機代理留下的設定。繼續接管會覆寫它們，停止接管時還原為接管前的樣子。",
+      "conflictNotice": "{{app}} 的設定與舊版本機代理的設定衝突，確認覆寫後才能接管。",
+      "unsupported": "{{app}} 暫不支援 AICLI 接管。",
+      "notBound": "綁定帳戶後才能接管用戶端。",
+      "currentProfile": "目前設定集：{{name}}",
+      "modelsTitle": "此用戶端可用模型",
+      "refreshCatalog": "重新整理模型目錄",
+      "noModels": "目前設定集沒有可用模型。",
+      "partialNotice": "有 {{count}} 個模型在 Claude Code 中只能部分相容，部分功能（如工具呼叫或圖片）可能無法使用。",
+      "failed": "操作失敗：{{message}}",
+      "columns": {
+        "model": "模型",
+        "profile": "設定集",
+        "line": "線路",
+        "compat": "相容等級",
+        "capabilities": "能力"
+      },
+      "compat": {
+        "full": "完全相容",
+        "partial": "部分相容",
+        "text_only": "僅文字",
+        "unavailable": "無法使用",
+        "unverified": "未驗證"
+      }
     }
   }
 }
