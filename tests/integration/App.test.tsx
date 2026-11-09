@@ -220,6 +220,12 @@ const sidebarApp = (name: string) =>
     hidden: true,
   });
 
+/**
+ * F-02：冷启动恒停在用量页。要看某个应用的客户端页，先点侧栏里它的应用行
+ * （应用本身仍按 aicli-client-last-app 恢复）。
+ */
+const enterClientPage = (name: string) => fireEvent.click(sidebarApp(name));
+
 const renderApp = (AppComponent: ComponentType) => {
   const client = new QueryClient();
   return render(
@@ -253,62 +259,67 @@ describe("App integration with MSW", () => {
     localStorage.removeItem("aicli-client-last-app");
   });
 
-  it("covers basic provider flows via real hooks", async () => {
-    const { default: App } = await import("@/App");
-    renderApp(App);
+  it(
+    "covers basic provider flows via real hooks",
+    async () => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
+      enterClientPage("Claude Code");
 
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "claude-1",
+        ),
+      );
 
-    fireEvent.click(sidebarApp("Codex"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      ),
-    );
+      fireEvent.click(sidebarApp("Codex"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "codex-1",
+        ),
+      );
 
-    fireEvent.click(screen.getByText("usage"));
-    expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("save-script"));
-    fireEvent.click(screen.getByText("close-usage"));
+      fireEvent.click(screen.getByText("usage"));
+      expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("save-script"));
+      fireEvent.click(screen.getByText("close-usage"));
 
-    fireEvent.click(screen.getByText("create"));
-    expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("confirm-add"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(
-        /New codex Provider/,
-      ),
-    );
+      fireEvent.click(screen.getByText("create"));
+      expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("confirm-add"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toMatch(
+          /New codex Provider/,
+        ),
+      );
 
-    fireEvent.click(screen.getByText("edit"));
-    expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("confirm-edit"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(
-        /-edited/,
-      ),
-    );
+      fireEvent.click(screen.getByText("edit"));
+      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("confirm-edit"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toMatch(
+          /-edited/,
+        ),
+      );
 
-    fireEvent.click(screen.getByText("switch"));
-    fireEvent.click(screen.getByText("duplicate"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toMatch(/copy/),
-    );
+      fireEvent.click(screen.getByText("switch"));
+      fireEvent.click(screen.getByText("duplicate"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toMatch(/copy/),
+      );
 
-    fireEvent.click(screen.getByText("open-website"));
+      fireEvent.click(screen.getByText("open-website"));
 
-    emitTauriEvent("provider-switched", {
-      appType: "codex",
-      providerId: "codex-2",
-    });
+      emitTauriEvent("provider-switched", {
+        appType: "codex",
+        providerId: "codex-2",
+      });
 
-    expect(toastErrorMock).not.toHaveBeenCalled();
-    expect(toastSuccessMock).toHaveBeenCalled();
-  }, APP_TEST_TIMEOUT);
+      expect(toastErrorMock).not.toHaveBeenCalled();
+      expect(toastSuccessMock).toHaveBeenCalled();
+    },
+    APP_TEST_TIMEOUT,
+  );
 
   it("refreshes the route pointer when the proxy fails over to another provider", async () => {
     let routeProviderId = "claude-1";
@@ -329,6 +340,7 @@ describe("App integration with MSW", () => {
 
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("Claude Code");
 
     await waitFor(() => expect(modeRequests).toBeGreaterThan(0));
     const before = modeRequests;
@@ -344,165 +356,190 @@ describe("App integration with MSW", () => {
     await waitFor(() => expect(modeRequests).toBeGreaterThan(before));
   });
 
-  it("resets provider view scroll when switching apps", async () => {
-    const { default: App } = await import("@/App");
-    const { container } = renderApp(App);
+  it(
+    "resets provider view scroll when switching apps",
+    async () => {
+      const { default: App } = await import("@/App");
+      const { container } = renderApp(App);
+      enterClientPage("Claude Code");
 
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "claude-1",
+        ),
+      );
 
-    const mainScrollContainer = container.querySelector("main") as HTMLElement;
-    // 列表的滚动区在模式行下面（切换式应用每个应用一份）
-    const providerScrollContainer = () =>
-      container.querySelector<HTMLElement>("#main-content");
+      const mainScrollContainer = container.querySelector(
+        "main",
+      ) as HTMLElement;
+      // 列表的滚动区在模式行下面（切换式应用每个应用一份）
+      const providerScrollContainer = () =>
+        container.querySelector<HTMLElement>("#main-content");
 
-    expect(mainScrollContainer).not.toBeNull();
-    expect(providerScrollContainer()).not.toBeNull();
+      expect(mainScrollContainer).not.toBeNull();
+      expect(providerScrollContainer()).not.toBeNull();
 
-    mainScrollContainer.scrollTop = 320;
-    mainScrollContainer.scrollLeft = 12;
-    providerScrollContainer()!.scrollTop = 640;
-    providerScrollContainer()!.scrollLeft = 24;
+      mainScrollContainer.scrollTop = 320;
+      mainScrollContainer.scrollLeft = 12;
+      providerScrollContainer()!.scrollTop = 640;
+      providerScrollContainer()!.scrollLeft = 24;
 
-    fireEvent.click(sidebarApp("Codex"));
+      fireEvent.click(sidebarApp("Codex"));
 
-    await waitFor(() =>
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "codex-1",
+        ),
+      );
+
+      expect(mainScrollContainer.scrollTop).toBe(0);
+      expect(mainScrollContainer.scrollLeft).toBe(0);
+      expect(providerScrollContainer()!.scrollTop).toBe(0);
+      expect(providerScrollContainer()!.scrollLeft).toBe(0);
+    },
+    APP_TEST_TIMEOUT,
+  );
+
+  it(
+    "closes provider panels when navigating away from the app page",
+    async () => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
+      enterClientPage("Claude Code");
+
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "claude-1",
+        ),
+      );
+
+      // 面板只盖住内容区，侧栏还能点：切应用时编辑面板必须关掉，否则 Claude 的
+      // 供应商会以 appId=codex 保存进 Codex
+      fireEvent.click(screen.getByText("edit"));
+      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
+      fireEvent.click(sidebarApp("Codex"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "codex-1",
+        ),
+      );
+      expect(
+        screen.queryByTestId("edit-provider-dialog"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("usage"));
+      expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
+      fireEvent.click(sidebarApp("nav.usage"));
+      await waitFor(() =>
+        expect(screen.queryByTestId("usage-modal")).not.toBeInTheDocument(),
+      );
+
+      fireEvent.click(sidebarApp("Codex"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "codex-1",
+        ),
+      );
+      fireEvent.click(screen.getByText("create"));
+      expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: ",", metaKey: true });
+      expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("add-provider-dialog"),
+      ).not.toBeInTheDocument();
+    },
+    APP_TEST_TIMEOUT,
+  );
+
+  it(
+    "asks before leaving an editor page with unsaved changes",
+    async () => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
+      enterClientPage("Claude Code");
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "claude-1",
+        ),
+      );
+
+      // 没改过：照常离开，不问
+      fireEvent.click(screen.getByText("edit"));
+      fireEvent.click(sidebarApp("Codex"));
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "codex-1",
+        ),
+      );
+      expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
+
+      // 改过：先问；继续编辑就留在原页
+      // （ConfirmDialog 在这个文件里是 mock：只渲染消息和 confirm-delete / cancel-delete）
+      fireEvent.click(screen.getByText("edit"));
+      fireEvent.input(screen.getByLabelText("edit-field"), {
+        target: { value: "draft" },
+      });
+      fireEvent.click(sidebarApp("Claude Code"));
+      expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
+        "common.unsavedLeaveMessage",
+      );
+      fireEvent.click(screen.getByText("cancel-delete"));
+      expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
       expect(screen.getByTestId("provider-list").textContent).toContain(
         "codex-1",
-      ),
-    );
+      );
 
-    expect(mainScrollContainer.scrollTop).toBe(0);
-    expect(mainScrollContainer.scrollLeft).toBe(0);
-    expect(providerScrollContainer()!.scrollTop).toBe(0);
-    expect(providerScrollContainer()!.scrollLeft).toBe(0);
-  }, APP_TEST_TIMEOUT);
+      // ⌘, 也问；放弃后才离开
+      fireEvent.keyDown(window, { key: ",", metaKey: true });
+      expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
+        "common.unsavedLeaveMessage",
+      );
+      fireEvent.click(screen.getByText("confirm-delete"));
+      expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("edit-provider-dialog"),
+      ).not.toBeInTheDocument();
+    },
+    APP_TEST_TIMEOUT,
+  );
 
-  it("closes provider panels when navigating away from the app page", async () => {
-    const { default: App } = await import("@/App");
-    renderApp(App);
+  it(
+    "keeps the unsaved guard when re-clicking the current page",
+    async () => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
+      enterClientPage("Claude Code");
+      await waitFor(() =>
+        expect(screen.getByTestId("provider-list").textContent).toContain(
+          "claude-1",
+        ),
+      );
 
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
+      fireEvent.click(sidebarApp("MCP"));
+      fireEvent.input(await screen.findByLabelText("mcp-field"), {
+        target: { value: "draft" },
+      });
 
-    // 面板只盖住内容区，侧栏还能点：切应用时编辑面板必须关掉，否则 Claude 的
-    // 供应商会以 appId=codex 保存进 Codex
-    fireEvent.click(screen.getByText("edit"));
-    expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-    fireEvent.click(sidebarApp("Codex"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      ),
-    );
-    expect(
-      screen.queryByTestId("edit-provider-dialog"),
-    ).not.toBeInTheDocument();
+      // 再点当前页：不离开，所以不问，也不能把未保存登记清掉
+      fireEvent.click(sidebarApp("MCP"));
+      expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
+      expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("usage"));
-    expect(screen.getByTestId("usage-modal")).toBeInTheDocument();
-    fireEvent.click(sidebarApp("nav.usage"));
-    await waitFor(() =>
-      expect(screen.queryByTestId("usage-modal")).not.toBeInTheDocument(),
-    );
-
-    fireEvent.click(sidebarApp("Codex"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      ),
-    );
-    fireEvent.click(screen.getByText("create"));
-    expect(screen.getByTestId("add-provider-dialog")).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: ",", metaKey: true });
-    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
-    expect(screen.queryByTestId("add-provider-dialog")).not.toBeInTheDocument();
-  }, APP_TEST_TIMEOUT);
-
-  it("asks before leaving an editor page with unsaved changes", async () => {
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
-
-    // 没改过：照常离开，不问
-    fireEvent.click(screen.getByText("edit"));
-    fireEvent.click(sidebarApp("Codex"));
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "codex-1",
-      ),
-    );
-    expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
-
-    // 改过：先问；继续编辑就留在原页
-    // （ConfirmDialog 在这个文件里是 mock：只渲染消息和 confirm-delete / cancel-delete）
-    fireEvent.click(screen.getByText("edit"));
-    fireEvent.input(screen.getByLabelText("edit-field"), {
-      target: { value: "draft" },
-    });
-    fireEvent.click(sidebarApp("Claude Code"));
-    expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
-      "common.unsavedLeaveMessage",
-    );
-    fireEvent.click(screen.getByText("cancel-delete"));
-    expect(screen.getByTestId("edit-provider-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("provider-list").textContent).toContain(
-      "codex-1",
-    );
-
-    // ⌘, 也问；放弃后才离开
-    fireEvent.keyDown(window, { key: ",", metaKey: true });
-    expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
-      "common.unsavedLeaveMessage",
-    );
-    fireEvent.click(screen.getByText("confirm-delete"));
-    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("edit-provider-dialog"),
-    ).not.toBeInTheDocument();
-  }, APP_TEST_TIMEOUT);
-
-  it("keeps the unsaved guard when re-clicking the current page", async () => {
-    const { default: App } = await import("@/App");
-    renderApp(App);
-    await waitFor(() =>
-      expect(screen.getByTestId("provider-list").textContent).toContain(
-        "claude-1",
-      ),
-    );
-
-    fireEvent.click(sidebarApp("MCP"));
-    fireEvent.input(await screen.findByLabelText("mcp-field"), {
-      target: { value: "draft" },
-    });
-
-    // 再点当前页：不离开，所以不问，也不能把未保存登记清掉
-    fireEvent.click(sidebarApp("MCP"));
-    expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
-    expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
-
-    // 之后真的离开时照样要问
-    fireEvent.click(sidebarApp("nav.usage"));
-    expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
-      "common.unsavedLeaveMessage",
-    );
-    fireEvent.click(screen.getByText("cancel-delete"));
-    expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
-  }, APP_TEST_TIMEOUT);
+      // 之后真的离开时照样要问
+      fireEvent.click(sidebarApp("nav.usage"));
+      expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
+        "common.unsavedLeaveMessage",
+      );
+      fireEvent.click(screen.getByText("cancel-delete"));
+      expect(screen.getByTestId("mcp-editor")).toBeInTheDocument();
+    },
+    APP_TEST_TIMEOUT,
+  );
 
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("Claude Code");
 
     await waitFor(() =>
       expect(screen.getByTestId("provider-list").textContent).toContain(
@@ -609,6 +646,7 @@ describe("App integration with MSW", () => {
       try {
         const { default: App } = await import("@/App");
         renderApp(App);
+        enterClientPage("OpenCode");
         await waitFor(() =>
           expect(screen.getByTestId("provider-list").textContent).toContain(
             "opencode-go",
@@ -649,6 +687,7 @@ describe("App integration with MSW", () => {
     setLiveProviderIds("opencode", ["custom-copy"]);
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("OpenCode");
     await waitFor(() =>
       expect(screen.getByTestId("provider-list").textContent).toContain(
         "custom",
@@ -688,6 +727,7 @@ describe("App integration with MSW", () => {
       try {
         const { default: App } = await import("@/App");
         renderApp(App);
+        enterClientPage("OpenCode");
         await waitFor(() =>
           expect(screen.getByTestId("provider-list").textContent).toContain(
             "native",
@@ -724,6 +764,7 @@ describe("App integration with MSW", () => {
     setLiveProviderIds("opencode", ["native-copy"]);
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("OpenCode");
     await waitFor(() =>
       expect(screen.getByTestId("provider-list").textContent).toContain(
         "native",
@@ -756,6 +797,7 @@ describe("App integration with MSW", () => {
 
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("MiniMax Code");
 
     await waitFor(() =>
       expect(screen.getByTestId("provider-list").textContent).toContain(
@@ -804,6 +846,7 @@ describe("App integration with MSW", () => {
 
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("MiniMax Code");
 
     await waitFor(() =>
       expect(screen.getByTestId("provider-list")).toHaveTextContent(
@@ -871,6 +914,7 @@ describe("App integration with MSW", () => {
 
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("Kimi Code");
 
     await waitFor(() =>
       expect(screen.getByTestId("current-provider")).toHaveTextContent(
@@ -886,7 +930,9 @@ describe("App integration with MSW", () => {
     await waitFor(() =>
       expect(toastErrorMock).toHaveBeenCalledWith(
         "notifications.removeFromConfigFailed",
-        expect.objectContaining({ description: "kimi.error.defaultModelInUse" }),
+        expect.objectContaining({
+          description: "kimi.error.defaultModelInUse",
+        }),
       ),
     );
     await waitFor(() =>
@@ -923,6 +969,7 @@ describe("App integration with MSW", () => {
 
     const { default: App } = await import("@/App");
     renderApp(App);
+    enterClientPage("Pi");
 
     await waitFor(() =>
       expect(screen.getByTestId("provider-list").textContent).toContain(
@@ -989,9 +1036,9 @@ describe("App integration with MSW", () => {
   });
 
   it("renders the Skills page with its own header", async () => {
-    localStorage.setItem("aicli-client-last-view", "skills");
     const { default: App } = await import("@/App");
     renderApp(App);
+    fireEvent.click(sidebarApp("Skills"));
 
     expect(await screen.findByTestId("unified-skills-panel")).toHaveTextContent(
       "installed",
@@ -1010,7 +1057,7 @@ describe("App integration with MSW", () => {
     });
     const pageTabs = within(openclawTabs).getAllByRole("tab", { hidden: true });
     expect(pageTabs.map((tab) => tab.textContent)).toEqual([
-      "appPage.providers",
+      "appPage.client",
       "appPage.workspace",
       "appPage.openclawConfig",
     ]);
@@ -1041,7 +1088,7 @@ describe("App integration with MSW", () => {
       hidden: true,
     });
     expect(hermesPageTabs.map((tab) => tab.textContent)).toEqual([
-      "appPage.providers",
+      "appPage.client",
       "appPage.memory",
     ]);
 
@@ -1076,14 +1123,45 @@ describe("App integration with MSW", () => {
     );
   });
 
-  it("opens the old skillsDiscovery view as the Discover segment", async () => {
-    localStorage.setItem("aicli-client-last-view", "skillsDiscovery");
+  // F-02：存过什么旧视图都不恢复，冷启动恒进用量页（含已删除的供应商页、
+  // 授权中心和旧的 skillsDiscovery）
+  it.each([
+    "providers",
+    "auth",
+    "skillsDiscovery",
+    "skills",
+    "mcp",
+    "settings",
+  ])(
+    "cold-starts on the usage page whatever view was stored (%s)",
+    async (stored) => {
+      localStorage.setItem("aicli-client-last-view", stored);
+      const { default: App } = await import("@/App");
+      renderApp(App);
+
+      await waitFor(() =>
+        expect(sidebarApp("nav.usage")).toHaveAttribute("aria-current", "page"),
+      );
+      expect(screen.queryByTestId("provider-list")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("unified-skills-panel"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
+    },
+  );
+
+  it("does not persist the view while switching pages", async () => {
     const { default: App } = await import("@/App");
     renderApp(App);
-
-    expect(await screen.findByTestId("unified-skills-panel")).toHaveTextContent(
-      "discover",
+    fireEvent.click(sidebarApp("Skills"));
+    expect(
+      await screen.findByTestId("unified-skills-panel"),
+    ).toBeInTheDocument();
+    enterClientPage("Claude Code");
+    await waitFor(() =>
+      expect(screen.getByTestId("provider-list")).toBeInTheDocument(),
     );
+    expect(localStorage.getItem("aicli-client-last-view")).toBeNull();
   });
 
   it("shows all eight native resize cursors and restores existing inline styles", async () => {

@@ -4267,6 +4267,7 @@
     "installAndUpgrade": "Install and upgrade",
     "hideFromSidebar": "Hide from sidebar",
     "providers": "Providers",
+    "client": "Client",
     "workspace": "Workspace",
     "openclawConfig": "Config",
     "memory": "Memory",

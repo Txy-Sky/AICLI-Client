@@ -13,7 +13,6 @@ import {
   Globe,
   History,
   Info,
-  KeyRound,
   Layers,
   LayoutGrid,
   Route,
@@ -220,14 +219,8 @@ function MainDirectory({
   const { moneyShort } = useMoneyFormat();
   const { data: settings } = useSettingsQuery();
   const { hasUpdate } = useUpdate();
-  const {
-    appStatus,
-    todayCost,
-    todayTokens,
-    todayRequests,
-    todayHitRate,
-    authNeedsAttention,
-  } = useSidebarStatus();
+  const { appStatus, todayCost, todayTokens, todayRequests, todayHitRate } =
+    useSidebarStatus();
   // 顺序跟应用页拖出来的一致
   const apps = orderAppIds(settings?.appOrder).filter(
     (app) => visibleApps[app],
@@ -277,12 +270,6 @@ function MainDirectory({
     { page: "skills", label: "Skills", icon: SkillsIcon },
     { page: "prompts", label: t("nav.prompts"), icon: BookOpen },
     { page: "sessions", label: t("nav.sessions"), icon: History },
-    {
-      page: "auth",
-      label: t("nav.auth"),
-      icon: KeyRound,
-      alert: authNeedsAttention ? t("nav.authNeedsReauth") : undefined,
-    },
     {
       page: "usage",
       label: t("nav.usage"),

@@ -4230,6 +4230,7 @@
     "installAndUpgrade": "Yükleme ve yükseltme",
     "hideFromSidebar": "Kenar çubuğundan gizle",
     "providers": "Sağlayıcılar",
+    "client": "İstemci",
     "workspace": "Çalışma alanı",
     "openclawConfig": "Yapılandırma",
     "memory": "Bellek",

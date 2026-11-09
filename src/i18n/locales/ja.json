@@ -4267,6 +4267,7 @@
     "installAndUpgrade": "インストールとアップグレード",
     "hideFromSidebar": "サイドバーから隠す",
     "providers": "プロバイダー",
+    "client": "クライアント",
     "workspace": "ワークスペース",
     "openclawConfig": "設定",
     "memory": "メモリ",

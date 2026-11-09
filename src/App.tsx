@@ -10,13 +10,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ExternalLink,
-  KeyRound,
-  MoreHorizontal,
-  Plus,
-  Search,
-} from "lucide-react";
+import { ExternalLink, MoreHorizontal, Plus, Search } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import { KNOWN_APP_TYPES, type AppTypeFilter } from "@/types/usage";
@@ -63,7 +57,6 @@ import {
   isAppPage,
   readStoredView,
   sharedFeatureAppOf,
-  storeView,
   type GlobalPage,
   type SettingsSection,
   type View,
@@ -89,7 +82,6 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { OpenTerminalDialog } from "@/components/providers/OpenTerminalDialog";
 import { discardUnsavedChanges, hasUnsavedChanges } from "@/lib/unsavedChanges";
 import { SettingsPage } from "@/components/settings/SettingsPage";
-import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
 import { AppsPage } from "@/components/apps/AppsPage";
 import {
   checkToolUpdatesInBackground,
@@ -107,10 +99,8 @@ import { PROMPT_APP_IDS } from "@/lib/query/prompts";
 import UnifiedSkillsPanel from "@/components/skills/UnifiedSkillsPanel";
 import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
 import { WhatsNewNotice } from "@/components/WhatsNewDialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HoverTip } from "@/components/ui/hover-tip";
-import { HelpTip } from "@/components/ui/help-tip";
 import { PageTabs } from "@/components/ui/page-tabs";
 import {
   DropdownMenu,
@@ -170,7 +160,7 @@ function App() {
     useState<SettingsSection>("general");
   const [appConfigScrollTarget, setAppConfigScrollTarget] = useState<AppId>();
   // 进设置前停留的页面：设置目录里的「← 返回」回到这里
-  const settingsReturnViewRef = useRef<View>("providers");
+  const settingsReturnViewRef = useRef<View>("client");
   const [openclawConfigTab, setOpenclawConfigTab] =
     useState<OpenClawConfigTab>("env");
   const [promptsApp, setPromptsApp] = useState<AppId>(() =>
@@ -204,10 +194,6 @@ function App() {
   const [mcpManagementBusy, setMcpManagementBusy] = useState(false);
   const [skillsNavigationBusy, setSkillsNavigationBusy] = useState(false);
   const [promptNavigationBusy, setPromptNavigationBusy] = useState(false);
-
-  useEffect(() => {
-    storeView(currentView);
-  }, [currentView]);
 
   const { data: settingsData } = useSettingsQuery();
   // Windows 一律去掉系统标题栏，用页头里的应用内窗口按钮；Linux 由设置决定
@@ -273,7 +259,7 @@ function App() {
   // 应用专属页（工作区、记忆…）只属于它的应用；换了应用就回到供应商页
   useEffect(() => {
     if (isAppPage(currentView) && !appPageBelongsTo(currentView, activeApp)) {
-      setCurrentView("providers");
+      setCurrentView("client");
     }
   }, [activeApp, currentView]);
 
@@ -297,7 +283,7 @@ function App() {
   useUsageCacheBridge();
 
   useLayoutEffect(() => {
-    if (currentView !== "providers") return;
+    if (currentView !== "client") return;
 
     for (const container of [
       mainScrollRef.current,
@@ -868,7 +854,7 @@ function App() {
     closeProviderPanels();
     setActiveApp(app);
     localStorage.setItem(APP_STORAGE_KEY, app);
-    setCurrentView("providers");
+    setCurrentView("client");
   };
 
   const openPage = (page: GlobalPage | "settings") => {
@@ -889,7 +875,7 @@ function App() {
     }
     setCurrentView(page);
   };
-  useTrayAppPageSeen(currentView === "providers" ? activeApp : null);
+  useTrayAppPageSeen(currentView === "client" ? activeApp : null);
 
   useTrayNavigation((navigation) => {
     const navigate = () => {
@@ -1369,9 +1355,9 @@ function App() {
       variant="app"
       icon={<AppGlyph app={activeApp} size={20} badgeClassName="bg-app" />}
       title={APP_DISPLAY_NAME[activeApp]}
-      truncateTitle={currentView === "providers" && Boolean(modeAppId)}
+      truncateTitle={currentView === "client" && Boolean(modeAppId)}
       titleExtra={
-        currentView === "providers" && modeAppId ? (
+        currentView === "client" && modeAppId ? (
           <div
             ref={setConnectionStatusSlot}
             className="ms-2 flex min-w-0 max-w-[280px] items-center"
@@ -1381,13 +1367,13 @@ function App() {
       subtitle={
         activeApp === "openclaw" ||
         activeApp === "hermes" ||
-        (currentView === "providers" && modeAppId)
+        (currentView === "client" && modeAppId)
           ? undefined
           : appPageName
       }
       actions={
         <>
-          {currentView === "providers" &&
+          {currentView === "client" &&
             activeApp !== "mcode" &&
             activeApp !== "dsh" &&
             activeApp !== "kimi" &&
@@ -1404,7 +1390,7 @@ function App() {
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           )}
-          {currentView === "providers" &&
+          {currentView === "client" &&
             (settingsData?.showProviderSearch ?? true) && (
               <HoverTip
                 content={t("provider.searchButtonTip", {
@@ -1423,7 +1409,7 @@ function App() {
                 </Button>
               </HoverTip>
             )}
-          {currentView === "providers" && (
+          {currentView === "client" && (
             <Button
               variant="solid"
               size="regular"
@@ -1452,7 +1438,7 @@ function App() {
             value={currentView}
             onValueChange={(view) => setCurrentView(view)}
             items={[
-              { value: "providers", label: t("appPage.providers") },
+              { value: "client", label: t("appPage.client") },
               { value: "workspace", label: t("appPage.workspace") },
               { value: "openclawConfig", label: t("appPage.openclawConfig") },
             ]}
@@ -1469,7 +1455,7 @@ function App() {
             value={currentView}
             onValueChange={(view) => setCurrentView(view)}
             items={[
-              { value: "providers", label: t("appPage.providers") },
+              { value: "client", label: t("appPage.client") },
               { value: "hermesMemory", label: t("appPage.memory") },
             ]}
           />
@@ -1658,36 +1644,6 @@ function App() {
             initialAppType={usageAppFilter}
             onOpenRoutingSettings={() => openSettings("routing")}
           />
-        );
-      case "auth":
-        return (
-          <>
-            <AppPageHeader
-              icon={<KeyRound className="h-5 w-5" strokeWidth={1.5} />}
-              title={t("nav.auth")}
-              titleExtra={
-                <>
-                  <HelpTip title={t("authCenter.helpTitle")}>
-                    {t("settings.authCenter.description")}
-                  </HelpTip>
-                  <Badge
-                    variant="outline"
-                    className="ms-1 h-5 px-1.5 text-badge font-medium"
-                  >
-                    {t("settings.authCenter.beta", { defaultValue: "Beta" })}
-                  </Badge>
-                </>
-              }
-            />
-            <div
-              id="main-content"
-              className="min-h-0 flex-1 overflow-y-auto scroll-stable"
-            >
-              <div className="px-6 pb-10 pt-4">
-                <AuthCenterPanel showIntro={false} />
-              </div>
-            </div>
-          </>
         );
       case "mcp":
         return (
