@@ -455,6 +455,10 @@ pub struct AppSettings {
     /// 代理接管记账与启动费用回填（不读会话文件）不受此开关影响。
     #[serde(default = "default_session_auto_sync_enabled")]
     pub session_auto_sync_enabled: bool,
+    /// 用量统计是否包含各 CLI 的会话日志。AICLI 默认关闭：本地统计只算经过本地代理的
+    /// 请求，不与其他工具（同样读这些会话日志）的数字混在一起；打开后与原来一致。
+    #[serde(default)]
+    pub usage_include_session_logs: bool,
     /// Whether to show the failover toggle independently on the main page
     #[serde(default)]
     pub enable_failover_toggle: bool,
@@ -663,6 +667,7 @@ impl Default for AppSettings {
             usage_dashboard_refresh_interval_ms: None,
             usage_display: None,
             session_auto_sync_enabled: true,
+            usage_include_session_logs: false,
             enable_failover_toggle: false,
             show_profile_switcher: false,
             show_provider_search: true,

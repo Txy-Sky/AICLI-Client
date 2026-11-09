@@ -5339,6 +5339,12 @@
       "charged": "實扣",
       "pending": "等待伺服器記帳",
       "estimated": "預估"
+    },
+    "usage": {
+      "includeSessionLogs": "統計 CLI 工作階段日誌",
+      "includeSessionLogsHelp": "關閉時，本機統計只包含經過 AICLI 本機代理的請求。開啟後也統計各 CLI 自己保存的工作階段日誌——其中可能有不經過 AICLI 的用量（例如其他工具或直連），數字會與其他讀取同一日誌的工具一致。",
+      "includeSessionLogsOn": "已包含各 CLI 的工作階段日誌。",
+      "includeSessionLogsOff": "只統計經過 AICLI 本機代理的請求。"
     }
   }
 }

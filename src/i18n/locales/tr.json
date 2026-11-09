@@ -5280,6 +5280,12 @@
       "charged": "Tahsil edilen",
       "pending": "Sunucunun faturalandırması bekleniyor",
       "estimated": "Tahmini"
+    },
+    "usage": {
+      "includeSessionLogs": "CLI oturum günlüklerini say",
+      "includeSessionLogsHelp": "Kapalıyken yerel istatistikler yalnızca AICLI yerel proxy'sinden geçen istekleri içerir. Açıkken her CLI'nin kendi oturum günlükleri de sayılır; bunlar AICLI'den geçmeyen kullanımı (diğer araçlar veya doğrudan bağlantılar) içerebilir ve sayılar aynı günlükleri okuyan diğer araçlarla aynı olur.",
+      "includeSessionLogsOn": "CLI oturum günlükleri dahil.",
+      "includeSessionLogsOff": "Yalnızca AICLI yerel proxy'sinden geçen istekler sayılıyor."
     }
   }
 }

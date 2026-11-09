@@ -5338,6 +5338,12 @@
       "charged": "Charged",
       "pending": "Waiting for the server to bill",
       "estimated": "Estimated"
+    },
+    "usage": {
+      "includeSessionLogs": "Count CLI session logs",
+      "includeSessionLogsHelp": "When off, local statistics only include requests that went through the AICLI local proxy. When on, they also count each CLI's own session logs, which may include usage that did not go through AICLI (other tools or direct connections); the numbers then match other tools that read the same logs.",
+      "includeSessionLogsOn": "CLI session logs are included.",
+      "includeSessionLogsOff": "Only requests through the AICLI local proxy are counted."
     }
   }
 }

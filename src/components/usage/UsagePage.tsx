@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
+import { usageKeys } from "@/lib/query/usage";
 import type { SettingsFormState } from "@/hooks/useSettings";
 import type { AppTypeFilter } from "@/types/usage";
 import { UsageDashboard } from "./UsageDashboard";
@@ -19,6 +21,7 @@ export function UsagePage({
   sourceNote,
 }: UsagePageProps = {}) {
   const { settings, autoSaveSettings } = useSettings();
+  const queryClient = useQueryClient();
 
   const save = async (updates: Partial<SettingsFormState>) => {
     try {
@@ -45,6 +48,13 @@ export function UsagePage({
       usageDisplay={settings?.usageDisplay}
       onUsageDisplayChange={(usageDisplay) => save({ usageDisplay })}
       sourceNote={sourceNote}
+      includeSessionLogs={settings?.usageIncludeSessionLogs ?? false}
+      onIncludeSessionLogsChange={async (usageIncludeSessionLogs) => {
+        // 后端按此设置过滤所有用量查询：保存后整页重新取数
+        if (await save({ usageIncludeSessionLogs })) {
+          await queryClient.invalidateQueries({ queryKey: usageKeys.all });
+        }
+      }}
     />
   );
 }

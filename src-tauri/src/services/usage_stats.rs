@@ -541,6 +541,50 @@ pub(crate) fn effective_usage_log_filter_for_range(
     start_date: Option<i64>,
     end_date: Option<i64>,
 ) -> Result<String, AppError> {
+    // 只看本地代理记录时没有会话日志，也就不需要跨源去重
+    if session_logs_hidden() {
+        return Ok(format!("{} = 'proxy'", data_source_expr(log_alias)));
+    }
+    dedup_filter_for_range(conn, log_alias, start_date, end_date)
+}
+
+/// 用量页是否隐藏各 CLI 的会话日志（设置 `usageIncludeSessionLogs` 关闭时，AICLI 默认）。
+/// 单元测试构建默认显示会话日志，保持既有测试的口径；需要验证隐藏的测试用
+/// [`set_session_logs_hidden_for_test`] 切换（线程内有效）。
+#[cfg(not(test))]
+fn session_logs_hidden() -> bool {
+    !crate::settings::get_settings().usage_include_session_logs
+}
+
+#[cfg(test)]
+thread_local! {
+    static HIDE_SESSION_LOGS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn session_logs_hidden() -> bool {
+    HIDE_SESSION_LOGS.with(|hidden| hidden.get())
+}
+
+#[cfg(test)]
+pub(crate) fn set_session_logs_hidden_for_test(hidden: bool) {
+    HIDE_SESSION_LOGS.with(|cell| cell.set(hidden));
+}
+
+/// 汇总表没有来源列：会话日志的供应商 ID 都以下划线开头（`_session`、`_codex_session` …），
+/// 隐藏会话日志时按它排除。
+fn push_session_rollup_filter(conditions: &mut Vec<String>) {
+    if session_logs_hidden() {
+        conditions.push(r"r.provider_id NOT LIKE '\_%' ESCAPE '\'".to_string());
+    }
+}
+
+fn dedup_filter_for_range(
+    conn: &Connection,
+    log_alias: &str,
+    start_date: Option<i64>,
+    end_date: Option<i64>,
+) -> Result<String, AppError> {
     let lo = start_date
         .map(|v| v.saturating_sub(SESSION_PROXY_DEDUP_WINDOW_SECONDS))
         .unwrap_or(i64::MIN / 2);
@@ -992,6 +1036,7 @@ impl Database {
 
         // Only include rolled-up rows for full local days that are fully covered by the range.
         let mut rollup_conditions: Vec<String> = Vec::new();
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         let rollup_bounds = compute_rollup_date_bounds(start_date, end_date)?;
 
@@ -1146,6 +1191,7 @@ impl Database {
 
         let rollup_bounds = compute_rollup_date_bounds(start_date, end_date)?;
         let mut rollup_conditions: Vec<String> = Vec::new();
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         push_rollup_date_filters(
             &mut rollup_conditions,
@@ -1496,6 +1542,7 @@ impl Database {
 
         let rollup_bounds = compute_rollup_date_bounds(Some(start_ts), Some(end_ts))?;
         let mut rollup_conditions = Vec::new();
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         push_rollup_date_filters(
             &mut rollup_conditions,
@@ -1664,6 +1711,8 @@ impl Database {
             .transpose()?;
 
         let mut rollup_conditions = Vec::new();
+
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         if let Some(at) = app_type {
             rollup_conditions.push(format!("{} = ?", folded_app_type_sql("r.app_type")));
@@ -1750,6 +1799,8 @@ impl Database {
         };
 
         let mut rollup_conditions = Vec::new();
+
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         let rollup_bounds = compute_rollup_date_bounds(start_date, end_date)?;
         push_rollup_date_filters(
@@ -1948,6 +1999,8 @@ impl Database {
         };
 
         let mut rollup_conditions = Vec::new();
+
+        push_session_rollup_filter(&mut rollup_conditions);
         let mut rollup_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         let rollup_bounds = compute_rollup_date_bounds(start_date, end_date)?;
         push_rollup_date_filters(
@@ -4757,6 +4810,70 @@ mod tests {
         assert_eq!(gemini_session_count, None);
         assert_eq!(session_log_count, None);
 
+        Ok(())
+    }
+
+    /// 设置 usageIncludeSessionLogs 关闭（AICLI 默认）：明细与汇总表都只算本地代理记录；
+    /// 打开后与原来一致（会话日志计入，并与代理日志去重）。
+    #[test]
+    fn test_hidden_session_logs_leave_only_proxy_rows() -> Result<(), AppError> {
+        let db = Database::memory()?;
+        {
+            let conn = lock_conn!(db.conn);
+            insert_usage_log(
+                &conn, "proxy-1", "claude", "aicli", "m", "proxy", 10_000, 100, 20, 0, 0, 200,
+                "0.10",
+            )?;
+            insert_usage_log(
+                &conn,
+                "session-1",
+                "claude",
+                "_session",
+                "m",
+                "session_log",
+                50_000,
+                7,
+                3,
+                0,
+                0,
+                200,
+                "0.05",
+            )?;
+            insert_usage_log(
+                &conn,
+                "codex-session-1",
+                "codex",
+                "_codex_session",
+                "m",
+                "codex_session",
+                60_000,
+                9,
+                1,
+                0,
+                0,
+                200,
+                "0.02",
+            )?;
+            conn.execute(
+                "INSERT INTO usage_daily_rollups (
+                    date, app_type, provider_id, model,
+                    request_count, success_count, input_tokens, output_tokens,
+                    cache_read_tokens, cache_creation_tokens, total_cost_usd, avg_latency_ms
+                ) VALUES ('2024-03-05', 'claude', '_session', 'm', 4, 4, 10, 5, 0, 0, '0', 100),
+                         ('2024-03-05', 'claude', 'aicli', 'm', 2, 2, 10, 5, 0, 0, '0', 100)",
+                [],
+            )?;
+        }
+
+        set_session_logs_hidden_for_test(false);
+        let all = db.get_usage_summary(None, None, None, None, None)?;
+        assert_eq!(all.total_requests, 3 + 4 + 2);
+
+        set_session_logs_hidden_for_test(true);
+        let proxy_only = db.get_usage_summary(None, None, None, None, None);
+        set_session_logs_hidden_for_test(false);
+        let proxy_only = proxy_only?;
+        assert_eq!(proxy_only.total_requests, 1 + 2);
         Ok(())
     }
 

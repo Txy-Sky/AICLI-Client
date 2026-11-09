@@ -5338,6 +5338,12 @@
       "charged": "確定",
       "pending": "サーバーの記帳待ち",
       "estimated": "見積もり"
+    },
+    "usage": {
+      "includeSessionLogs": "CLI のセッションログを集計",
+      "includeSessionLogsHelp": "オフのときは、AICLI のローカルプロキシを経由したリクエストだけを集計します。オンにすると各 CLI が保存しているセッションログも集計します。そこには AICLI を経由しない利用（他のツールや直接接続）が含まれる場合があり、同じログを読む他のツールと同じ数字になります。",
+      "includeSessionLogsOn": "各 CLI のセッションログを含めています。",
+      "includeSessionLogsOff": "AICLI のローカルプロキシ経由のリクエストだけを集計しています。"
     }
   }
 }

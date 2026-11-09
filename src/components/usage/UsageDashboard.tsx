@@ -244,6 +244,9 @@ interface UsageDashboardProps {
   ) => Promise<boolean> | boolean | void;
   /** 标题旁的数据来源标注（F-03 首页：「来源：本机记录」）；不传不显示。 */
   sourceNote?: string;
+  /** 统计是否包含各 CLI 的会话日志（设置 usageIncludeSessionLogs）；不传不显示该开关。 */
+  includeSessionLogs?: boolean;
+  onIncludeSessionLogsChange?: (next: boolean) => void;
 }
 
 /**
@@ -260,6 +263,8 @@ export function UsageDashboard({
   usageDisplay,
   onUsageDisplayChange,
   sourceNote,
+  includeSessionLogs,
+  onIncludeSessionLogsChange,
 }: UsageDashboardProps = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -991,6 +996,8 @@ export function UsageDashboard({
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         sessionAutoSyncEnabled={sessionAutoSyncEnabled}
+        includeSessionLogs={includeSessionLogs}
+        onIncludeSessionLogsChange={onIncludeSessionLogsChange}
         onSessionAutoSyncEnabledChange={(value) =>
           void onSessionAutoSyncEnabledChange?.(value)
         }

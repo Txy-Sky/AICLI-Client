@@ -5338,6 +5338,12 @@
       "charged": "实扣",
       "pending": "等待服务端记账",
       "estimated": "预估"
+    },
+    "usage": {
+      "includeSessionLogs": "统计 CLI 会话日志",
+      "includeSessionLogsHelp": "关闭时，本地统计只包含经过 AICLI 本地代理的请求。打开后也统计各 CLI 自己保存的会话日志——其中可能有不经过 AICLI 的用量（例如其他工具或直连），数字会与其他读取同一日志的工具一致。",
+      "includeSessionLogsOn": "已包含各 CLI 的会话日志。",
+      "includeSessionLogsOff": "只统计经过 AICLI 本地代理的请求。"
     }
   }
 }
