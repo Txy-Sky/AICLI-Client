@@ -1,0 +1,25 @@
+F-01 API 层验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：5d47ef40 feat(aicli): F-01 API layer and react-query hooks
+      447787b0 test(aicli): F-01 type the request-bill hook's initial props
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42544205511（447787b0，五 job 全 success）
+
+实现
+- src/types/aicli.ts：C3-11 全部 DTO 的前端类型，字段名与后端 serde 输出逐字一致
+  （多数视图 snake_case；AicliBindResult / AicliTakeoverOutcome 为 camelCase）；作用域按后端
+  只接受的 global | app。
+- src/lib/api/aicli.ts：20 个命令各一个方法（参数按 Tauri 约定 camelCase）；事件名常量
+  aicli-data-updated / aicli-takeover-results / aicli-open-bind；AicliCommandError 判别。
+- hooks：useAicliAccount（账户、缓存优先的服务端快照、绑定、解绑、隐私、事件桥接）、
+  useAicliLines（列表、切换、探测）、useAicliUsage（汇总；账单在有 request id 后才查）、
+  useAicliProfiles（配置集、路由、目录、保存、删除、设为默认、接管状态/接管/停止接管）。
+  共用键 aicliKeys（以 "aicli" 开头）与 data kind → 查询映射。
+
+验收
+- pnpm typecheck：CI A3-01 通过（首个提交因测试里 initialProps 推断为 {id:null} 失败，
+  447787b0 修正类型标注）。
+- hooks 单测 tests/hooks/useAicli.test.tsx 29 项通过（mock invoke）：20 个命令名与参数逐个
+  表驱动核对；缓存值取首项 / 空缓存为 null / 未绑定不查；绑定与切线路后相关查询失效重取；
+  aicli-data-updated 只刷新该 kind 喂的查询；账单查询等到有 id 才发。
+- 前端 265 文件全过。

@@ -832,10 +832,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 共同要求：每项都要补 vitest；所有文案写入 5 种语言文件，不留硬编码；组件遵循现有样式。额度显示按线上 `/api/status` 的 `quota_per_unit`、`quota_display_type` 换算，与网页端一致。
 
 ### F-01 API 层
-- [ ] 完成
+- [x] 完成
 - 修改：`src/lib/api/aicli.ts`（对应 C3-11 全部命令）、`src/hooks/useAicliAccount.ts`、`useAicliLines.ts`、`useAicliUsage.ts`、`useAicliProfiles.ts`（react-query）。类型放 `src/types/aicli.ts`。
 - 验收：`pnpm typecheck`；hooks 单测（msw 或 mock invoke）。
-- 证据：
+- 证据：2026-11-09 完成。src/types/aicli.ts、src/lib/api/aicli.ts（C3-11 全部 20 个命令）、useAicliAccount/Lines/Usage/Profiles 四个 hooks 文件；pnpm typecheck 通过，hooks 单测 29 项（命令名与参数逐个核对、缓存优先、失效、事件桥接）。实现 5d47ef40、447787b0。详见 docs/aicli-evidence/F-01.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42544205511
 
 ### F-02 导航和冷启动
 - [ ] 完成
