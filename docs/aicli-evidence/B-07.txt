@@ -92,3 +92,4 @@ at /tmp/aicli-B-07-41554786813; only this summary is committed.
 - 防回归：tests/config/productBrand.test.ts 扫描 src 下全部 .tsx——JSX 文本不得为「CC Switch」、不得
   再引用 assets/icons/logo.svg（修复前该测试 2 项失败，修复后通过）。注释、翻译缺失时的 defaultValue
   兜底文案、合作方链接参数不在此检查范围（界面实际显示走语言文件，已在 B-07 改好）。
+- 提交 ef5b0126；CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42576432942 五 job 全 success。
