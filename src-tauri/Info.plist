@@ -7,7 +7,7 @@
   <array>
     <dict>
       <key>CFBundleURLName</key>
-      <string>CC Switch Deep Link</string>
+      <string>AICLI Client Deep Link</string>
       <key>CFBundleURLSchemes</key>
       <array>
         <string>aicliapi</string>
@@ -17,6 +17,6 @@
 
   <!-- macOS local-network privacy prompt for LAN API endpoints -->
   <key>NSLocalNetworkUsageDescription</key>
-  <string>CC Switch needs access to your local network to connect to local API endpoints.</string>
+  <string>AICLI Client needs access to your local network to connect to local API endpoints.</string>
 </dict>
 </plist>

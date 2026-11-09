@@ -22,7 +22,14 @@ use super::reasoning_bridge::{
     anthropic_block_from_openai_reasoning_item, openai_reasoning_item_from_anthropic_block,
 };
 
-pub(crate) const TOOL_RESULT_ERROR_MARKER: &str = "[cc-switch:tool-result-error]";
+pub(crate) const TOOL_RESULT_ERROR_MARKER: &str = "[aicli-client:tool-result-error]";
+/// 改名前写入的同一标记；对话历史里可能还留着，识别时一并接受。
+const LEGACY_TOOL_RESULT_ERROR_MARKER: &str = "[cc-switch:tool-result-error]";
+
+/// 是否为工具结果出错标记（含改名前的旧写法）。
+pub(crate) fn is_tool_result_error_marker(text: &str) -> bool {
+    text == TOOL_RESULT_ERROR_MARKER || text == LEGACY_TOOL_RESULT_ERROR_MARKER
+}
 
 /// OpenAI Responses API 拒绝 `max_output_tokens` 小于 16。Anthropic 侧的合法
 /// 小预算探测请求（如 Claude Desktop 的模型可用性探测发 `max_tokens=1`）
@@ -4029,7 +4036,7 @@ mod tests {
             .filter_map(|part| part.get("text").and_then(Value::as_str))
             .all(|text| !text.contains("STRING_RESPONSES_SENTINEL")));
         let serialized = result.to_string();
-        assert!(serialized.contains("[cc-switch: omitted 20000 bytes]"));
+        assert!(serialized.contains("[aicli-client: omitted 20000 bytes]"));
         assert!(!serialized.contains(&"A".repeat(64)));
     }
 

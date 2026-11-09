@@ -65,7 +65,7 @@ pub enum SyncMethod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillStorageLocation {
-    /// CC Switch 管理目录 (~/.aicli-client/skills/)
+    /// AICLI Client 管理目录 (~/.aicli-client/skills/)
     #[default]
     CcSwitch,
     /// Agent Skills 统一标准目录 (~/.agents/skills/)
@@ -404,7 +404,7 @@ const FILE_ENTRY_BUDGET_COST: u64 = DIRECTORY_BUDGET_COST;
 const MAX_ARCHIVE_DOWNLOAD_BYTES: u64 = MAX_ARCHIVE_TOTAL_BYTES;
 
 /// 技能归档下载请求的 User-Agent。
-const SKILL_DOWNLOAD_USER_AGENT: &str = concat!("CC-Switch/", env!("CARGO_PKG_VERSION"));
+const SKILL_DOWNLOAD_USER_AGENT: &str = crate::branding::USER_AGENT;
 
 /// 技能元数据 (从 SKILL.md 解析)
 #[derive(Debug, Clone, Deserialize)]
@@ -1161,7 +1161,7 @@ impl SkillService {
                     }
 
                     // Pi、Omp 目录可能包含用户自己维护的同名 Skill。删除 SSOT 前仅移除
-                    // 能验证为 CC Switch 部署的副本；其余路径保留并返回警告。
+                    // 能验证为 AICLI Client 部署的副本；其余路径保留并返回警告。
                     for (app, destination) in removal_paths {
                         if let Err(err) =
                             Self::remove_verified_pi_destination(&source, &destination, &directory)
@@ -2006,7 +2006,7 @@ impl SkillService {
                     }
                 }
             }
-            // Omp 没有开关列，是否部署只看原生目录里有没有 CC Switch 的副本。
+            // Omp 没有开关列，是否部署只看原生目录里有没有 AICLI Client 的副本。
             let omp_destination = Self::get_app_skills_dir(&AppType::Omp)?.join(&directory);
             if let Some(deployment) =
                 Self::inspect_pi_skill_destination(&src, &omp_destination, &directory)
@@ -2235,7 +2235,7 @@ impl SkillService {
             Self::ensure_pi_skill_destination_matches(&source, &native, &directory)?;
             fs::create_dir_all(&native_dir)?;
             let staging = tempfile::Builder::new()
-                .prefix(".cc-switch-toggle-")
+                .prefix(".aicli-client-toggle-")
                 .tempdir_in(&native_dir)?;
             let previous = staging.path().join("old");
             let existed = native.exists() || Self::is_symlink(&native);
@@ -2287,7 +2287,7 @@ impl SkillService {
 
     /// 扫描未管理的 Skills
     ///
-    /// 扫描各应用目录，找出未被 CC Switch 管理的 Skills
+    /// 扫描各应用目录，找出未被 AICLI Client 管理的 Skills
     pub fn scan_unmanaged(db: &Arc<Database>) -> Result<Vec<UnmanagedSkill>> {
         let _state_guard = skill_state_read_guard();
         let managed_skills = db.get_all_installed_skills()?;
@@ -2351,7 +2351,7 @@ impl SkillService {
 
     /// 从应用目录导入 Skills
     ///
-    /// 将未管理的 Skills 导入到 CC Switch 统一管理
+    /// 将未管理的 Skills 导入到 AICLI Client 统一管理
     pub fn import_from_apps(
         db: &Arc<Database>,
         imports: Vec<ImportSkillSelection>,
@@ -3006,7 +3006,7 @@ impl SkillService {
     }
 
     /// Skills 不由 `sync_to_app` 投影的应用：Claude Desktop、OpenClaw 不支持 Skills，
-    /// Pi 没有数据库列、按目录是否存在现算。这些应用的 skills 目录不归 CC Switch 管，
+    /// Pi 没有数据库列、按目录是否存在现算。这些应用的 skills 目录不归 AICLI Client 管，
     /// 同步时一个字节都不能碰——OpenClaw 自己的 `~/.openclaw/skills` 里和受管
     /// Skill 同名的真实目录，否则会被当成「已关掉的投影」删掉。
     fn is_sync_managed_app(app: &AppType) -> bool {
@@ -3057,7 +3057,7 @@ impl SkillService {
             .map(|skill| (skill.directory.to_lowercase(), skill))
             .collect();
 
-        // Unselected MCode, Agy and Kimi directories may have been installed outside CC Switch.
+        // Unselected MCode, Agy and Kimi directories may have been installed outside AICLI Client.
         // Explicit disable/uninstall handles removal of managed deployments.
         if app_dir.exists()
             && !matches!(

@@ -670,7 +670,7 @@ pub enum StackMiss {
     Unknown,
     /// 这家已经从 Stack 名单移除。
     Removed,
-    /// 这家已经从 CC Switch 删除。
+    /// 这家已经从 AICLI Client 删除。
     Deleted,
 }
 
@@ -682,10 +682,10 @@ impl StackMiss {
                 "聚合的模型 {model} 只能在聚合模式下使用，当前没有开启聚合模式，请在模型列表里重新选择 (Aggregated model {model} only works in Stack mode, which is off; pick a model from the model list again)"
             ),
             Self::Unknown => format!(
-                "聚合的模型 {model} 在 CC Switch 里不存在，请在模型列表里重新选择 (Aggregated model {model} is unknown to CC Switch; pick a model from the model list again)"
+                "聚合的模型 {model} 在 AICLI Client 里不存在，请在模型列表里重新选择 (Aggregated model {model} is unknown to AICLI Client; pick a model from the model list again)"
             ),
             Self::Removed => format!(
-                "聚合的模型 {model} 已从 CC Switch 移除，请在模型列表里重新选择 (Aggregated model {model} was removed from CC Switch; pick a model from the model list again)"
+                "聚合的模型 {model} 已从 AICLI Client 移除，请在模型列表里重新选择 (Aggregated model {model} was removed from AICLI Client; pick a model from the model list again)"
             ),
             Self::Deleted => format!(
                 "聚合的模型 {model} 对应的供应商已删除，请在模型列表里重新选择 (The provider of aggregated model {model} was deleted; pick a model from the model list again)"

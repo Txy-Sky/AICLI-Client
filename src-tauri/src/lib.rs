@@ -5,6 +5,7 @@ pub mod aicli;
 mod app_config;
 mod app_store;
 mod auto_launch;
+pub mod branding;
 mod claude_desktop_config;
 mod claude_mcp;
 mod claude_plugin;

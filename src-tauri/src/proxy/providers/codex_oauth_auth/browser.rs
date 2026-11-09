@@ -111,7 +111,7 @@ async fn callback(
                     (header::CACHE_CONTROL, "no-store"),
                     (header::REFERRER_POLICY, "no-referrer"),
                 ],
-                "Invalid login callback. Return to CC Switch and try again.",
+                "Invalid login callback. Return to AICLI Client and try again.",
             )
         }
     };
@@ -135,9 +135,9 @@ async fn callback(
             (header::REFERRER_POLICY, "no-referrer"),
         ],
         if success {
-            "Authorization received. Return to CC Switch to finish signing in."
+            "Authorization received. Return to AICLI Client to finish signing in."
         } else {
-            "Authorization was denied. Return to CC Switch to try again."
+            "Authorization was denied. Return to AICLI Client to try again."
         },
     )
 }

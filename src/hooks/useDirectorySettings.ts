@@ -4,6 +4,7 @@ import { toast } from "@/lib/toast";
 import { homeDir, join } from "@tauri-apps/api/path";
 import { settingsApi, type AppId } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
+import { APP_DIR_NAME } from "@/config/branding";
 
 export type DirectoryAppId = Exclude<
   AppId,
@@ -74,7 +75,7 @@ const sanitizeDir = (value?: string | null): string | undefined => {
 const computeDefaultAppConfigDir = async (): Promise<string | undefined> => {
   try {
     const home = await homeDir();
-    return await join(home, ".cc-switch");
+    return await join(home, APP_DIR_NAME);
   } catch (error) {
     console.error(
       "[useDirectorySettings] Failed to resolve default app config dir",

@@ -494,10 +494,7 @@ fn identify(request: reqwest::RequestBuilder, device_id: &str) -> reqwest::Reque
     request
         .timeout(Duration::from_secs(30))
         .header("Accept", "application/json")
-        .header(
-            "User-Agent",
-            concat!("cc-switch/", env!("CARGO_PKG_VERSION")),
-        )
+        .header("User-Agent", crate::branding::USER_AGENT)
         .header("X-Msh-Platform", "kimi_code_cli")
         .header("X-Msh-Version", env!("CARGO_PKG_VERSION"))
         .header("X-Msh-Device-Id", device_id)

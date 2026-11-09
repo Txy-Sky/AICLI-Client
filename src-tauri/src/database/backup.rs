@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tempfile::{Builder, NamedTempFile};
 
-const CC_SWITCH_SQL_EXPORT_HEADER: &str = "-- CC Switch SQLite 导出";
+const CC_SWITCH_SQL_EXPORT_HEADER: &str = "-- AICLI Client SQLite 导出";
+/// 改名前的导出文件头：仍然接受导入（缺少的必需表另有检查兜底）。
+const LEGACY_SQL_EXPORT_HEADER: &str = "-- CC Switch SQLite 导出";
 
 /// Bound combined INSERT batches while still amortizing statement parsing.
 /// A row larger than this cap is emitted alone because it cannot be split.
@@ -282,14 +284,16 @@ impl Database {
 
     fn validate_cc_switch_sql_export(sql: &str) -> Result<(), AppError> {
         let trimmed = sql.trim_start();
-        if trimmed.starts_with(CC_SWITCH_SQL_EXPORT_HEADER) {
+        if trimmed.starts_with(CC_SWITCH_SQL_EXPORT_HEADER)
+            || trimmed.starts_with(LEGACY_SQL_EXPORT_HEADER)
+        {
             return Ok(());
         }
 
         Err(AppError::localized(
             "backup.sql.invalid_format",
-            "仅支持导入由 CC Switch 导出的 SQL 备份文件。",
-            "Only SQL backups exported by CC Switch are supported.",
+            "仅支持导入由 AICLI Client 导出的 SQL 备份文件。",
+            "Only SQL backups exported by AICLI Client are supported.",
         ))
     }
 
@@ -533,7 +537,7 @@ impl Database {
         // discovery and retention only see the final path after the complete
         // SQLite image has been atomically published.
         let mut temp_path = Builder::new()
-            .prefix(".cc-switch-backup-")
+            .prefix(".aicli-client-backup-")
             .suffix(".tmp")
             .tempfile_in(&backup_dir)
             .map_err(|e| AppError::io(&backup_dir, e))?
@@ -671,7 +675,7 @@ impl Database {
         ))
     }
 
-    /// Validate that the external SQL created a recognizable CC Switch schema.
+    /// Validate that the external SQL created a recognizable AICLI Client schema.
     ///
     /// These tables all existed in the oldest supported SQL-export schema
     /// (v3.8.x). Checking before migrations keeps header-only/truncated files
@@ -698,8 +702,8 @@ impl Database {
             let names = missing.join(", ");
             return Err(AppError::localized(
                 "backup.sql.invalid_schema",
-                format!("导入的 SQL 缺少 CC Switch 必需表：{names}"),
-                format!("The imported SQL is missing required CC Switch tables: {names}"),
+                format!("导入的 SQL 缺少 AICLI Client 必需表：{names}"),
+                format!("The imported SQL is missing required AICLI Client tables: {names}"),
             ));
         }
         Ok(())
@@ -714,7 +718,7 @@ impl Database {
             .unwrap_or(0);
 
         output.push_str(&format!(
-            "-- CC Switch SQLite 导出\n-- 生成时间: {timestamp}\n-- user_version: {user_version}\n"
+            "-- AICLI Client SQLite 导出\n-- 生成时间: {timestamp}\n-- user_version: {user_version}\n"
         ));
         output.push_str("PRAGMA foreign_keys=OFF;\n");
         output.push_str(&format!("PRAGMA user_version={user_version};\n"));
@@ -1455,8 +1459,8 @@ mod tests {
             .import_sql_string(&header_only)
             .expect_err("缺少原始 schema 的文件必须被拒绝");
         assert!(
-            error.to_string().contains("required CC Switch tables")
-                || error.to_string().contains("CC Switch 必需表"),
+            error.to_string().contains("required AICLI Client tables")
+                || error.to_string().contains("AICLI Client 必需表"),
             "应由原始 schema 校验拒绝，实际错误: {error}"
         );
 
@@ -1601,7 +1605,7 @@ mod tests {
         let exported = source.export_sql_string()?;
         let truncated = exported
             .strip_suffix("COMMIT;\nPRAGMA foreign_keys=ON;\n")
-            .expect("CC Switch export should end with a committed transaction");
+            .expect("AICLI Client export should end with a committed transaction");
 
         let target = Database::memory()?;
         {
@@ -2512,7 +2516,7 @@ mod tests {
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(".cc-switch-backup-")
+                    .starts_with(".aicli-client-backup-")
             })
             .count();
         assert_eq!(

@@ -125,7 +125,8 @@ pub struct WebDavSyncStatus {
 }
 
 fn default_remote_root() -> String {
-    "cc-switch-sync".to_string()
+    // 不与原 cc-switch 的远端目录（cc-switch-sync）共用，免得两边的同步数据混在一起
+    "aicli-client-sync".to_string()
 }
 fn default_profile() -> String {
     "default".to_string()

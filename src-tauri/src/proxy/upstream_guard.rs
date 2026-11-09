@@ -39,7 +39,7 @@ pub(super) async fn reject_self_forwarding(
     if targets_listener {
         // Do not include the URL: provider paths and queries can contain API keys.
         return Err(ProxyError::ConfigError(
-            "Upstream URL points to CC Switch's own proxy listener. Set the provider base URL to the real upstream service.".to_string(),
+            "Upstream URL points to AICLI Client's own proxy listener. Set the provider base URL to the real upstream service.".to_string(),
         ));
     }
     Ok(())

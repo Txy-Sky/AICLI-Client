@@ -135,7 +135,7 @@ fn sync_locked(id: &str, change: OmpChange<'_>) -> Result<(), AppError> {
                         .get(id)
                         .is_some_and(|native| transport_spec(native) != transport_spec(spec))
                 }) {
-                    return Err(AppError::InvalidInput(format!("Oh My Pi MCP '{id}' changed outside CC Switch; native configuration preserved")));
+                    return Err(AppError::InvalidInput(format!("Oh My Pi MCP '{id}' changed outside AICLI Client; native configuration preserved")));
                 }
                 servers.remove(id);
                 update_list(document, "disabledServers", id, false)?;

@@ -522,7 +522,7 @@ describe("WebdavSyncSection", () => {
       );
     });
 
-    fireEvent.change(screen.getByPlaceholderText("cc-switch-sync"), {
+    fireEvent.change(screen.getByPlaceholderText("aicli-client-sync"), {
       target: { value: "new-root" },
     });
     fireEvent.click(

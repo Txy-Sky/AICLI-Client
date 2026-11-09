@@ -564,7 +564,7 @@ fn tier_name_for_reset(resets_at: Option<i64>, now_secs: i64) -> &'static str {
 /// 参数化 `tool_label` / `relogin_hint` 让该函数可被两个调用点共用（与
 /// `query_codex_quota` 的双调用点设计一致）：
 /// - `"grokbuild"` + "grok login"（Grok CLI 凭据路径）
-/// - `"xai_oauth"` + "re-login via cc-switch"（cc-switch 自管 xAI OAuth 路径，
+/// - `"xai_oauth"` + "re-login via AICLI Client"（客户端自管 xAI OAuth 路径，
 ///   见 `commands::xai_oauth::get_xai_oauth_quota`；两者是同一个 OAuth client，
 ///   token 对 grok.com 账单端点等效）
 pub(crate) async fn query_grok_quota(

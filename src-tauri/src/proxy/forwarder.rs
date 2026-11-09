@@ -2490,10 +2490,7 @@ impl RequestForwarder {
         //    custom UA. An explicitly configured custom UA still wins.
         let opencode_fallback_user_agent =
             if custom_user_agent.is_none() && is_opencode_upstream(upstream_host.as_deref()) {
-                Some(http::HeaderValue::from_static(concat!(
-                    "cc-switch/",
-                    env!("CARGO_PKG_VERSION")
-                )))
+                Some(http::HeaderValue::from_static(crate::branding::USER_AGENT))
             } else {
                 None
             };

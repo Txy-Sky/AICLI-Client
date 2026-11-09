@@ -23,6 +23,7 @@ import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 import { WHATS_NEW_ENTRIES, entriesUpTo } from "@/lib/whatsNew";
 import appLogo from "@/assets/icons/aicli-logo.png";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { RELEASES_URL, REPOSITORY_URL, WEBSITE_URL } from "@/config/branding";
 
 interface AboutSectionProps {
   isPortable: boolean;
@@ -104,15 +105,11 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           : "";
 
       if (!displayVersion) {
-        await settingsApi.openExternal(
-          "https://github.com/farion1231/cc-switch/releases",
-        );
+        await settingsApi.openExternal(RELEASES_URL);
         return;
       }
 
-      await settingsApi.openExternal(
-        `https://github.com/farion1231/cc-switch/releases/tag/${displayVersion}`,
-      );
+      await settingsApi.openExternal(`${RELEASES_URL}/tag/${displayVersion}`);
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
       toast.error(t("settings.openReleaseNotesFailed"));
@@ -120,7 +117,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   }, [t, updateInfo?.availableVersion, version]);
 
   const handleOpenGithub = useCallback(() => {
-    void settingsApi.openExternal("https://github.com/farion1231/cc-switch");
+    void settingsApi.openExternal(REPOSITORY_URL);
   }, []);
 
   const handleDismissStarPrompt = useCallback(() => {
@@ -290,7 +287,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           type="button"
           variant="neutral"
           size="compact"
-          onClick={() => settingsApi.openExternal("https://ccswitch.io")}
+          onClick={() => settingsApi.openExternal(WEBSITE_URL)}
         >
           <Globe className="h-3.5 w-3.5" />
           {t("settings.officialWebsite")}
@@ -317,7 +314,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         )}
       </div>
 
-      {/* 下载与更新都走 ccswitch.io，用户不再经过仓库页，邀 Star 单独占一行；按钮即 GitHub 入口。
+      {/* 邀 Star 单独占一行，按钮即项目仓库入口（branding.REPOSITORY_URL）。
           关掉后链接行补回 GitHub 按钮 */}
       {!starPromptDismissed && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3 bg-action-soft py-3.5 ps-5 pe-3">

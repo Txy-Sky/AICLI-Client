@@ -81,17 +81,14 @@ pub async fn check_for_updates(handle: AppHandle) -> Result<bool, String> {
     }
     handle
         .opener()
-        .open_url(
-            "https://github.com/farion1231/cc-switch/releases/latest",
-            None::<String>,
-        )
+        .open_url(crate::branding::RELEASES_URL, None::<String>)
         .map_err(|e| format!("打开更新页面失败: {e}"))?;
 
     Ok(true)
 }
 
 /// 便携版新版本压缩包的下载地址，命名与 release.yml 的「Prepare Windows Assets」一致：
-/// `CC-Switch-v<版本>-Windows[-arm64]-Portable.zip`。版本号不像版本号时返回 None。
+/// `AICLI-Client-v<版本>-Windows[-arm64]-Portable.zip`。版本号不像版本号时返回 None。
 fn portable_zip_url(version: &str, arm64: bool) -> Option<String> {
     let version = version.trim().trim_start_matches('v');
     let looks_like_version = version.starts_with(|c: char| c.is_ascii_digit())
@@ -103,11 +100,12 @@ fn portable_zip_url(version: &str, arm64: bool) -> Option<String> {
     }
     let suffix = if arm64 { "-arm64" } else { "" };
     Some(format!(
-        "https://github.com/farion1231/cc-switch/releases/download/v{version}/CC-Switch-v{version}-Windows{suffix}-Portable.zip"
+        "{}/download/v{version}/AICLI-Client-v{version}-Windows{suffix}-Portable.zip",
+        crate::branding::RELEASES_URL
     ))
 }
 
-/// 便携版更新：直接下载对应架构的新版压缩包（解压覆盖即可，数据在 ~/.cc-switch 不受影响）。
+/// 便携版更新：直接下载对应架构的新版压缩包（解压覆盖即可，数据在 ~/.aicli-client 不受影响）。
 /// 不做原地替换自身 exe：那样很容易被杀毒软件当成病毒拦截。
 #[tauri::command]
 pub async fn open_portable_update_download(
@@ -118,7 +116,7 @@ pub async fn open_portable_update_download(
         return Err("AICLI Client updater is disabled".to_string());
     }
     let url = portable_zip_url(&version, cfg!(target_arch = "aarch64"))
-        .unwrap_or_else(|| "https://github.com/farion1231/cc-switch/releases/latest".to_string());
+        .unwrap_or_else(|| crate::branding::RELEASES_URL.to_string());
     handle
         .opener()
         .open_url(url, None::<String>)
@@ -1570,7 +1568,7 @@ async fn fetch_github_latest_version(client: &reqwest::Client, repo: &str) -> Op
     let url = format!("https://api.github.com/repos/{repo}/releases/latest");
     let resp = client
         .get(&url)
-        .header("User-Agent", "cc-switch")
+        .header("User-Agent", crate::branding::USER_AGENT)
         .header("Accept", "application/vnd.github+json")
         .timeout(LATEST_PROBE_TIMEOUT)
         .send()
@@ -2417,7 +2415,7 @@ fn effective_path_string() -> String {
 
 /// fnm only puts Node on PATH through `fnm env`, which prepends a per-shell
 /// `%LOCALAPPDATA%\fnm_multishells\<id>` link to that shell's PATH. Nothing is
-/// written to the registry PATH, so a GUI-launched CC Switch sees neither node,
+/// written to the registry PATH, so a GUI-launched AICLI Client sees neither node,
 /// npm nor the npm global CLIs (#8484, #6991). `<fnm dir>\aliases\default` is a
 /// stable link to the default Node installation; on Windows node.exe, npm.cmd
 /// and npm global commands live directly in that directory (no `bin`).
@@ -5224,7 +5222,7 @@ impl ProviderLaunch {
         self.batch_command.push_str(flag);
     }
 
-    /// 用户在「打开终端」里填的附加参数，接在 CC Switch 生成的参数后面，同样只给这一次。
+    /// 用户在「打开终端」里填的附加参数，接在 AICLI Client 生成的参数后面，同样只给这一次。
     /// Windows 上每个参数经 .bat 变量传、用引号包住，cmd 的 `&`、`|` 之类不会接出别的命令。
     fn append_user_args(&mut self, args: Vec<String>) -> Result<(), String> {
         // Codex 的启动行带 `call`：`%` 会再展开一遍、引号里的 `^` 会加倍，和 `-c` 值同一条限制。
@@ -6442,10 +6440,10 @@ fn run_windows_start_command(args: &[&str], terminal_name: &str) -> Result<(), S
     run_windows_start_command_with_env(args, terminal_name, &[])
 }
 
-/// 组装 `cmd /C start ...`。终端里跑的 `claude` 等命令按这里的 PATH 查找：CC Switch
+/// 组装 `cmd /C start ...`。终端里跑的 `claude` 等命令按这里的 PATH 查找：AICLI Client
 /// 被 MSI 自动重启后只剩机器级 PATH（#6061），或是在装 CLI 之前就已启动，进程 PATH
 /// 都会缺用户级条目（#3877、#8446）。和检测、生命周期命令（#8173）一样用补全后的 PATH，
-/// 只影响启动的终端，不改 CC Switch 自身的环境；Windows Terminal 从命令行开新标签时
+/// 只影响启动的终端，不改 AICLI Client 自身的环境；Windows Terminal 从命令行开新标签时
 /// 也沿用调用方的环境。
 #[cfg(target_os = "windows")]
 fn windows_start_command(
@@ -6511,11 +6509,11 @@ pub(crate) fn launch_terminal_running(command_line: &str, label: &str) -> Result
         let content = format!(
             r#"#!/usr/bin/env sh
 trap 'rm -f "{script_path}"' EXIT
-echo "[cc-switch] Starting: {label}"
+echo "[aicli-client] Starting: {label}"
 echo ""
 {cmd}
 echo ""
-echo "[cc-switch] Command exited. Press Enter to close."
+echo "[aicli-client] Command exited. Press Enter to close."
 read -r _
 "#,
             script_path = file.display(),
@@ -6636,7 +6634,7 @@ read -r _
 
         let bat_file = temp_dir.join(format!("cc_switch_{}_{}.bat", label, pid));
         let content = format!(
-            "@echo off\r\necho [cc-switch] Starting: {label}\r\necho.\r\n{cmd}\r\necho.\r\necho [cc-switch] Command exited. Press any key to close.\r\npause >nul\r\ndel \"%~f0\" >nul 2>&1\r\n",
+            "@echo off\r\necho [aicli-client] Starting: {label}\r\necho.\r\n{cmd}\r\necho.\r\necho [aicli-client] Command exited. Press any key to close.\r\npause >nul\r\ndel \"%~f0\" >nul 2>&1\r\n",
             label = label,
             cmd = command_line,
         );
@@ -6729,11 +6727,11 @@ mod tests {
     fn portable_zip_url_matches_release_asset_names() {
         assert_eq!(
             portable_zip_url("4.0.12", false).as_deref(),
-            Some("https://github.com/farion1231/cc-switch/releases/download/v4.0.12/CC-Switch-v4.0.12-Windows-Portable.zip")
+            Some("https://github.com/Txy-Sky/AICLI-Client/releases/download/v4.0.12/AICLI-Client-v4.0.12-Windows-Portable.zip")
         );
         assert_eq!(
             portable_zip_url("v4.1.0-beta.1", true).as_deref(),
-            Some("https://github.com/farion1231/cc-switch/releases/download/v4.1.0-beta.1/CC-Switch-v4.1.0-beta.1-Windows-arm64-Portable.zip")
+            Some("https://github.com/Txy-Sky/AICLI-Client/releases/download/v4.1.0-beta.1/AICLI-Client-v4.1.0-beta.1-Windows-arm64-Portable.zip")
         );
         for bad in ["", "v", "latest", "4.0/../x", "4.0.0?x=1"] {
             assert!(portable_zip_url(bad, false).is_none(), "{bad}");

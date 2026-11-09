@@ -4,7 +4,7 @@
 //! 不用先把 agy 切到这个号。服务端按 User-Agent 决定回什么：不带 `antigravity` 一律
 //! 403「没有有效许可」；带了但不是 `antigravity/cli/<版本>`（或版本低于 1.2.0）时只回
 //! Claude 和 GPT 那组，Gemini 那组整个省掉。所以 UA 写成
-//! `cc-switch/<版本> (antigravity/cli/<本机 agy 版本>)`：照实报 CC Switch，括号里补上
+//! `aicli-client/<版本> (antigravity/cli/<本机 agy 版本>)`：照实报 AICLI Client，括号里补上
 //! 服务端要的客户端标识，版本取本机装的 agy，读不到时用 `FALLBACK_AGY_VERSION`。
 //! 只查额度，不调模型、不做预热，也不据额度自动换号。
 //!
@@ -96,7 +96,7 @@ struct ErrorDetail {
 
 fn user_agent(agy_version: &str) -> String {
     format!(
-        "cc-switch/{} (antigravity/cli/{agy_version})",
+        "aicli-client/{} (antigravity/cli/{agy_version})",
         env!("CARGO_PKG_VERSION")
     )
 }
@@ -313,7 +313,7 @@ mod tests {
     fn user_agent_names_cc_switch_and_the_agy_cli_version() {
         // 服务端只在看到 `antigravity/cli/<版本>` 时才回 Gemini 那组，写成 `(antigravity)` 会漏
         let ua = user_agent("1.4.6");
-        assert!(ua.starts_with("cc-switch/"));
+        assert!(ua.starts_with("aicli-client/"));
         assert!(ua.ends_with(" (antigravity/cli/1.4.6)"));
         assert!(user_agent(FALLBACK_AGY_VERSION).contains("antigravity/cli/"));
     }

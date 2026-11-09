@@ -15,7 +15,7 @@ describe("error utilities", () => {
 
     expect(
       translatePiProviderMutationError(
-        "Pi models.json changed outside CC Switch",
+        "Pi models.json changed outside AICLI Client",
         t,
       ),
     ).toBe("pi.provider.writeConflict");
