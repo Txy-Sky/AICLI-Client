@@ -93,3 +93,21 @@ at /tmp/aicli-B-07-41554786813; only this summary is committed.
   再引用 assets/icons/logo.svg（修复前该测试 2 项失败，修复后通过）。注释、翻译缺失时的 defaultValue
   兜底文案、合作方链接参数不在此检查范围（界面实际显示走语言文件，已在 B-07 改好）。
 - 提交 ef5b0126；CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42576432942 五 job 全 success。
+
+补修二（2026-11-09，负责人要求全库扫描 cc-switch / CC Switch / ccswitch.io / farion1231 并清理文档）
+- 代码 05cc3ae9：后端运行时文案、托盘各语言、开机自启项名、SQL 导出头（导入仍接受旧头）、备份临时
+  前缀、WebDAV 默认远端目录 aicli-client-sync、卸载与重新登录提示改为 AICLI Client；检查更新、便携版
+  下载、更新内容链接改到 Txy-Sky/AICLI-Client 的 Releases；「打开日志」改找 aicli-client.log；各处
+  User-Agent 与注入给模型的标记改为 aicli-client（工具出错标记仍识别旧写法）；Windows 安装包关闭
+  aicli-client.exe（原为 cc-switch.exe）；Info.plist 文案。保留项与理由见清单第 13 节对应行。
+- 文档 ca0c8241：删除上游用户手册、指南及配图、发布说明、集成设计文档、FUNDING.yml、4.0.x 更新摘要；
+  Issue 模板、CODEOWNERS、行为准则联系方式、SECURITY 版本表、设计系统页、flatpak 注释、ci.yml 临时
+  路径、.gitignore 改为本项目。B-07 要求保留的文件、README 署名、LICENSE 不动。
+- 防回归：tests/config/productBrand.test.ts 新增 4 项——前端链接不指向上游仓库与官网、后端运行时字符串
+  字面量（测试模块之前、去掉注释行）不含旧品牌名与 [cc-switch: 标记（白名单 3 条：接管冲突指旧应用、
+  旧 SQL 导出头、旧工具出错标记）、WiX 模板不关 cc-switch.exe、Info.plist 无旧名。
+- 失败历史：60321501 的 CI 42581135909 类型检查 TS6133（isMac 未用，见 F-04 补记，9c58f1dd 修）；
+  9c58f1dd 的 CI 42582542962 中 useDirectorySettings 两条用例仍期望 /home/mock/.cc-switch（钩子已按
+  0.4 节改为 .aicli-client），324ca20b 改期望值，同目录的三处测试输入夹具一并改名，未放宽断言。
+- 最终 324ca20b；CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42584106754 五 job 全 success：前端 274 文件全过（productBrand 7 项），Rust 4722 passed /
+  12 skipped。

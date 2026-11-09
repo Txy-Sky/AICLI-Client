@@ -39,3 +39,12 @@ CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42553829235（c1fedfb4
 
 失败历史
 - 1a136132 的 CI 42552795554：src/App.tsx 的 providers 声明未再读取（TS6133），c1fedfb4 删除。
+
+补修（2026-11-09，负责人反馈客户端页仍有「搜索」「添加供应商」）
+- 原因：F-04 只替换了页面主体，App.tsx 页头 actions 仍渲染供应商搜索（切换已无人读取的状态）和
+  「添加供应商」（打开旧供应商表单，结果不在客户端页显示）。
+- 修复 60321501：删除两个按钮、搜索状态和只给新增表单用的模式状态；设置「常规」去掉控制该按钮的
+  「显示供应商搜索」开关（字段随 G-04 删除）。新增 App 集成用例：Claude Code、Codex 客户端页页头均无
+  这两个按钮。新增 / 编辑对话框与托盘「添加」入口按清单在 G-01 / G-04 移除。
+- 失败历史：60321501 的 CI 42581135909 TS6133（isMac 只用于已删按钮的快捷键提示），9c58f1dd 删除导入。
+- 最终随 324ca20b 的 CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42584106754 五 job 全 success。

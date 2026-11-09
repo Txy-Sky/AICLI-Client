@@ -40,3 +40,10 @@ TOKENS 原值与 k；≥1 两位小数、<1 四位；非零极小值不显示为
 失败历史
 - 1d576016 的 CI 42550097849：F-01 hooks 测试的账户样例缺新增的 quota_display 字段（TS2741），
   85abd404 补上。
+
+补记：本地统计是否包含 CLI 会话日志的开关（负责人 2026-11-09「增加个开关」，第 13 节）
+- 实现 c5d86155。其 CI（随 23dd7ff3，run 42578298972）A3-01 失败：UsagePage 新用 useQueryClient，
+  UsagePage.test.tsx 未包 QueryClientProvider（4 项 "No QueryClient set"）。
+- 修复 1cb5abf7：改用 renderWithQueryClient，并新增用例「开关默认关闭、保存写入
+  usageIncludeSessionLogs」。CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42579702349
+  五 job 全 success。
