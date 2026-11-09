@@ -158,6 +158,16 @@ describe("aicliApi", () => {
     ],
     ["getPrivacy", () => aicliApi.getPrivacy(), "aicli_get_privacy", undefined],
     [
+      "setPrivacyCustom",
+      () =>
+        aicliApi.setPrivacyCustom(
+          ["Nightjar"],
+          [{ kind: "ticket", regex: "TCK-\\d{6}" }],
+        ),
+      "aicli_set_privacy_custom",
+      { words: ["Nightjar"], rules: [{ kind: "ticket", regex: "TCK-\\d{6}" }] },
+    ],
+    [
       "setPrivacy",
       () =>
         aicliApi.setPrivacy({
@@ -191,7 +201,8 @@ describe("aicliApi", () => {
 
   it("covers every registered AICLI command", () => {
     const commands = new Set(cases.map(([, , command]) => command));
-    expect(commands.size).toBe(20);
+    // C3-11 的 20 个 + F-06 的 aicli_set_privacy_custom
+    expect(commands.size).toBe(21);
   });
 
   it("recognises AICLI command errors by their machine code", () => {

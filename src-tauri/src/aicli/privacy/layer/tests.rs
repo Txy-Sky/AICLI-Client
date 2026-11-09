@@ -287,3 +287,76 @@ fn unbound_row_means_disabled() {
     let gate = PrivacyGate::new(db, store);
     assert!(!gate.settings().enabled);
 }
+
+/// F-06：自定义词与规则随设置修订号进入 mask_request；坏 JSON 按空处理。
+#[test]
+fn custom_words_and_rules_reach_mask_request() {
+    let gate = gate_bound(true, true, false);
+    let body = r#"{"messages":[{"content":"Project Nightjar ships TCK-482913"}]}"#;
+    let settings = gate.settings();
+    let (plain, count) = gate.mask_request(body, &settings).expect("mask ok");
+    assert_eq!(count, 0, "{plain}");
+
+    gate.db
+        .conn
+        .lock()
+        .unwrap()
+        .execute(
+            r#"UPDATE aicli_account SET privacy_custom_json='{"words":["Project Nightjar"],"rules":[{"kind":"ticket","regex":"TCK-\\d{6}"}]}'"#,
+            [],
+        )
+        .unwrap();
+    bump_revision();
+    let settings = gate.settings();
+    assert_eq!(gate.custom().words, ["Project Nightjar"]);
+    let (masked, count) = gate.mask_request(body, &settings).expect("mask ok");
+    assert_eq!(count, 2, "{masked}");
+    assert!(
+        !masked.contains("Nightjar") && !masked.contains("482913"),
+        "{masked}"
+    );
+    assert_eq!(gate.restore_response(&masked).expect("restore ok"), body);
+
+    gate.db
+        .conn
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE aicli_account SET privacy_custom_json='not json'",
+            [],
+        )
+        .unwrap();
+    bump_revision();
+    let _ = gate.settings();
+    assert_eq!(*gate.custom(), PrivacyCustom::default());
+}
+
+#[test]
+fn custom_terms_are_normalised_and_validated() {
+    use crate::aicli::privacy::rules::rules::UserRule;
+    let custom = PrivacyCustom::normalized(
+        vec![
+            "  Nightjar ".into(),
+            "".into(),
+            "Nightjar".into(),
+            "代号".into(),
+        ],
+        vec![UserRule {
+            kind: "acme key".into(),
+            prefix: " ACME- ".into(),
+            regex: String::new(),
+        }],
+    )
+    .unwrap();
+    assert_eq!(custom.words, ["Nightjar", "代号"]);
+    assert_eq!(custom.rules[0].kind, "ACME_KEY");
+    assert_eq!(custom.rules[0].prefix, "ACME-");
+    assert!(PrivacyCustom::normalized(vec!["x".into()], vec![]).is_err());
+    assert!(PrivacyCustom::normalized(vec!["长".repeat(201)], vec![]).is_err());
+    let bad_regex = UserRule {
+        kind: "bad".into(),
+        prefix: String::new(),
+        regex: "(".into(),
+    };
+    assert!(PrivacyCustom::normalized(vec![], vec![bad_regex]).is_err());
+}

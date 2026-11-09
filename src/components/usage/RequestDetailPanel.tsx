@@ -30,6 +30,9 @@ import {
 } from "./format";
 import { appDisplayName } from "./RequestLogTable";
 import { getUsageProviderLabel } from "./providerLabel";
+import { useAicliRequestBill } from "@/hooks/useAicliUsage";
+import { useAicliAccount } from "@/hooks/useAicliAccount";
+import { formatAicliQuota } from "@/lib/aicliQuota";
 
 interface RequestDetailPanelProps {
   /** 要看的请求；null 时抽屉关闭 */
@@ -210,12 +213,13 @@ function useDetailSections(request: RequestLog) {
       value: `×${request.costMultiplier}`,
     });
   }
+  // F-06：本机按定价算出的是预估值，不是服务端实扣，合计行必须标「预估」
   cost.push({
     key: "total",
     label:
       multiplier != null && multiplier !== 1
-        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")})`
-        : t("usage.detail.total"),
+        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${t("aicli.bill.estimated")}`
+        : `${t("usage.detail.total")} · ${t("aicli.bill.estimated")}`,
     value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
     strong: !unpriced,
     muted: unpriced,
@@ -316,19 +320,65 @@ function useDetailSections(request: RequestLog) {
   return { basic, tokens, cost, performance };
 }
 
+/**
+ * F-06：服务端账单（线路、配置集、服务端分组、服务端实扣额度）。billed_at 为空 =
+ * 尚未记账，显示「等待服务端记账」，不拿本机估算值冒充实扣。没有 AICLI 记录时不显示。
+ */
+function useServerBillRows(requestId: string): DetailRow[] | null {
+  const { t, i18n } = useTranslation();
+  const bill = useAicliRequestBill(requestId).data;
+  const display = useAicliAccount().data?.quota_display ?? null;
+  if (!bill) return null;
+  const pending = bill.billed_at == null;
+  const charged = pending
+    ? null
+    : formatAicliQuota(bill.billed_quota, display, i18n.language);
+  return [
+    {
+      key: "line",
+      label: t("aicli.bill.line"),
+      value: bill.line_id ? t(`aicli.lines.${bill.line_id}`) : "—",
+      muted: !bill.line_id,
+    },
+    {
+      key: "profile",
+      label: t("aicli.bill.profile"),
+      value: bill.profile_id ?? "—",
+      muted: !bill.profile_id,
+    },
+    {
+      key: "group",
+      label: t("aicli.bill.serverGroup"),
+      value: bill.server_group ?? "—",
+      muted: !bill.server_group,
+    },
+    {
+      key: "billed",
+      label: `${t("aicli.bill.serverCharge")} · ${t("aicli.bill.charged")}`,
+      value: pending ? t("aicli.bill.pending") : (charged ?? "—"),
+      muted: pending,
+      strong: !pending,
+    },
+  ];
+}
+
 function RequestDetailBody({ request }: { request: RequestLog }) {
   const { t } = useTranslation();
   const { currency } = useMoneyFormat();
   const sections = useDetailSections(request);
+  const serverBill = useServerBillRows(request.requestId);
   return (
     <div className="flex flex-col gap-4">
       <DetailSection title={t("usage.basicInfo")} rows={sections.basic} />
+      {serverBill && (
+        <DetailSection title={t("aicli.bill.title")} rows={serverBill} />
+      )}
       <DetailSection
         title={t("usage.detail.tokensTitle")}
         rows={sections.tokens}
       />
       <DetailSection
-        title={t("usage.detail.costTitle", { currency })}
+        title={`${t("usage.detail.costTitle", { currency })} · ${t("aicli.bill.estimated")}`}
         rows={sections.cost}
       />
       <DetailSection

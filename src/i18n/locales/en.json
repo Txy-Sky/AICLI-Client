@@ -5296,6 +5296,48 @@
         "needsRepair": "Repair the profile before saving.",
         "other": "Saving failed: {{message}}"
       }
+    },
+    "settings": {
+      "linesTitle": "AICLI lines",
+      "lineDetail": "{{transport}} · first byte {{firstByte}}s · streaming up to {{stream}}s · non-streaming up to {{nonStream}}s",
+      "privacyTitle": "Privacy protection",
+      "privacyEnabled": "Turn on privacy protection",
+      "privacyEnabledHint": "Keys, emails and other sensitive values are replaced with placeholders before a request leaves and restored in the reply.",
+      "failureMode": "When the privacy engine fails",
+      "failureModeBlockHint": "Privacy first: block the request instead of sending the original text.",
+      "failureModePassHint": "Availability first: send the original text; the home page shows a red notice.",
+      "allowMedia": "Allow unscanned images and files",
+      "allowMediaHint": "The privacy engine cannot scan base64 images and files; when this is off, such requests are blocked in privacy-first mode.",
+      "customWords": "Custom masked words",
+      "customWordsHint": "One per line, at least 2 characters; masked wherever they appear in a request.",
+      "customRules": "Custom rules",
+      "customRulesHint": "A prefix rule masks tokens starting with the prefix (at least 3 characters); a regex rule masks the whole match. Up to 32 rules.",
+      "ruleKind": "Kind",
+      "ruleMode": "Rule type",
+      "rulePrefix": "Prefix",
+      "ruleRegex": "Regex",
+      "ruleValue": "Rule",
+      "rulePrefixPlaceholder": "e.g. ACME-",
+      "ruleRegexPlaceholder": "e.g. TCK-\\d{6}",
+      "removeRule": "Remove rule",
+      "addRule": "Add rule",
+      "saveCustom": "Save custom items",
+      "customSaved": "Saved.",
+      "customInvalid": "Not saved: {{message}}",
+      "secretFallback": "The system keychain is unavailable, so credentials are stored in a local file. Check the keychain and restart the client.",
+      "takeoverTitle": "Clients taken over",
+      "noTakeover": "No client is currently taken over by AICLI.",
+      "stopBlocked": "Some clients are still taken over by AICLI. Stop the takeover before stopping the service."
+    },
+    "bill": {
+      "title": "Server bill",
+      "line": "Line",
+      "profile": "Profile",
+      "serverGroup": "Server group",
+      "serverCharge": "Server quota",
+      "charged": "Charged",
+      "pending": "Waiting for the server to bill",
+      "estimated": "Estimated"
     }
   }
 }

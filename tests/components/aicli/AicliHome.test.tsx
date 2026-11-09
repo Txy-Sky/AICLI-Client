@@ -128,6 +128,9 @@ const privacyOff: AicliPrivacyView = {
   privacy_detect_cjk_names: false,
   privacy_detect_cjk_names_available: false,
   engine: null,
+  custom_words: [],
+  custom_rules: [],
+  secret_backend: null,
 };
 
 type Responses = Partial<Record<string, unknown | (() => unknown)>>;

@@ -1441,3 +1441,57 @@ fn privacy_view_has_no_engine_counts_while_the_proxy_is_stopped() {
     fixture.seed_bound(7, ACCESS);
     assert!(fixture.services.get_privacy().unwrap().engine.is_none());
 }
+
+// ---- F-06：自定义遮盖词与规则、凭据后端 ----
+
+#[test]
+fn privacy_custom_terms_round_trip_and_validate() {
+    use crate::aicli::privacy::rules::rules::UserRule;
+    let fixture = Fixture::new();
+    let rule = UserRule {
+        kind: "ticket".into(),
+        prefix: String::new(),
+        regex: r"TCK-\d{6}".into(),
+    };
+    assert_eq!(
+        fixture
+            .services
+            .set_privacy_custom(vec!["Nightjar".into()], vec![rule.clone()])
+            .unwrap_err()
+            .code,
+        "not_bound"
+    );
+    fixture.seed_bound(7, ACCESS);
+    let empty = fixture.services.get_privacy().unwrap();
+    assert!(empty.custom_words.is_empty() && empty.custom_rules.is_empty());
+    // 测试用 MemoryStore 不区分后端
+    assert!(empty.secret_backend.is_none());
+
+    fixture
+        .services
+        .set_privacy_custom(vec![" Nightjar ".into(), "Nightjar".into()], vec![rule])
+        .unwrap();
+    let view = fixture.services.get_privacy().unwrap();
+    assert_eq!(view.custom_words, ["Nightjar"]);
+    assert_eq!(view.custom_rules.len(), 1);
+    assert_eq!(view.custom_rules[0].kind, "TICKET");
+
+    let bad = UserRule {
+        kind: "bad".into(),
+        prefix: String::new(),
+        regex: "(".into(),
+    };
+    assert_eq!(
+        fixture
+            .services
+            .set_privacy_custom(vec![], vec![bad])
+            .unwrap_err()
+            .code,
+        "invalid_input"
+    );
+    // 失败不改已存的内容
+    assert_eq!(
+        fixture.services.get_privacy().unwrap().custom_words,
+        ["Nightjar"]
+    );
+}

@@ -1970,6 +1970,7 @@ pub fn run() {
             commands::aicli_get_request_bill,
             commands::aicli_get_privacy,
             commands::aicli_set_privacy,
+            commands::aicli_set_privacy_custom,
         ]);
 
     let app = builder

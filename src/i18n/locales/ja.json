@@ -5296,6 +5296,48 @@
         "needsRepair": "保存する前に構成セットを修復してください。",
         "other": "保存に失敗しました：{{message}}"
       }
+    },
+    "settings": {
+      "linesTitle": "AICLI 回線",
+      "lineDetail": "{{transport}} · 最初のバイトまで {{firstByte}}s · ストリーミング最長 {{stream}}s · 非ストリーミング最長 {{nonStream}}s",
+      "privacyTitle": "プライバシー保護",
+      "privacyEnabled": "プライバシー保護をオンにする",
+      "privacyEnabledHint": "リクエスト送信前にキーやメールなどの機密値をプレースホルダーに置き換え、応答で元に戻します。",
+      "failureMode": "プライバシーエンジンが失敗したとき",
+      "failureModeBlockHint": "プライバシー優先：原文を送らずにリクエストをブロックします。",
+      "failureModePassHint": "可用性優先：原文のまま送信し、ホームに赤い通知を表示します。",
+      "allowMedia": "スキャンできない画像とファイルを許可",
+      "allowMediaHint": "プライバシーエンジンは base64 の画像とファイルをスキャンできません。オフのときはプライバシー優先モードでこうしたリクエストをブロックします。",
+      "customWords": "カスタムマスク語",
+      "customWordsHint": "1 行に 1 つ、2 文字以上。リクエストに現れるとマスクされます。",
+      "customRules": "カスタムルール",
+      "customRulesHint": "プレフィックスルールはそのプレフィックスで始まるトークンをマスクします（3 文字以上）。正規表現ルールは一致した部分全体をマスクします。最大 32 件。",
+      "ruleKind": "種類",
+      "ruleMode": "ルールの種類",
+      "rulePrefix": "プレフィックス",
+      "ruleRegex": "正規表現",
+      "ruleValue": "ルール内容",
+      "rulePrefixPlaceholder": "例：ACME-",
+      "ruleRegexPlaceholder": "例：TCK-\\d{6}",
+      "removeRule": "ルールを削除",
+      "addRule": "ルールを追加",
+      "saveCustom": "カスタム項目を保存",
+      "customSaved": "保存しました。",
+      "customInvalid": "保存されませんでした：{{message}}",
+      "secretFallback": "システムのキーチェーンが使えないため、認証情報をローカルファイルに保存しています。キーチェーンを確認してクライアントを再起動してください。",
+      "takeoverTitle": "引き継ぎ中のクライアント",
+      "noTakeover": "AICLI が引き継いでいるクライアントはありません。",
+      "stopBlocked": "AICLI が引き継いでいるクライアントがあります。引き継ぎを停止してからサービスを停止してください。"
+    },
+    "bill": {
+      "title": "サーバーの請求",
+      "line": "回線",
+      "profile": "構成セット",
+      "serverGroup": "サーバーのグループ",
+      "serverCharge": "サーバーのクォータ",
+      "charged": "確定",
+      "pending": "サーバーの記帳待ち",
+      "estimated": "見積もり"
     }
   }
 }

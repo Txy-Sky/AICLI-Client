@@ -23,7 +23,7 @@ pub(crate) struct KnownValue {
 
 /// 种类名驻留：Span.kind 是 &'static str，种类来自占位符字符串。种类集合
 /// 有限（规则种类 + 自定义词条），每种只泄漏一次。
-fn intern_kind(kind: &str) -> &'static str {
+pub(crate) fn intern_kind(kind: &str) -> &'static str {
     static KINDS: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
     let mut kinds = KINDS.lock().unwrap_or_else(|p| p.into_inner());
     if let Some(k) = kinds.iter().find(|k| **k == kind) {

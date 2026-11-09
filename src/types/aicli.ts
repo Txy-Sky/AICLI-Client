@@ -256,6 +256,18 @@ export interface AicliPrivacyView {
   privacy_detect_cjk_names_available: boolean;
   /** 隐私引擎本次运行以来的计数；代理未运行时为 null。 */
   engine: AicliPrivacyEngine | null;
+  /** 用户自定义的遮盖词与规则（只存本机）。 */
+  custom_words: string[];
+  custom_rules: AicliPrivacyRule[];
+  /** 凭据实际存储后端；file_fallback = 系统钥匙串不可用，已降级为本地文件。 */
+  secret_backend: "keychain" | "file_fallback" | null;
+}
+
+/** 自定义遮盖规则（后端 UserRule，camelCase）：前缀规则或正则规则二选一。 */
+export interface AicliPrivacyRule {
+  kind: string;
+  prefix?: string;
+  regex?: string;
 }
 
 export interface AicliPrivacyEngine {

@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { useQueries } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { AppId } from "@/lib/api";
-import { proxyApi } from "@/lib/api/proxy";
-import { useProvidersQuery } from "@/lib/query";
 import {
   useGlobalProxyConfig,
   useProxyClientHost,
@@ -15,31 +12,22 @@ import {
   useUpdateGlobalProxyConfig,
 } from "@/lib/query/proxy";
 import { useProxyStatus } from "@/hooks/useProxyStatus";
-import {
-  MODE_APP_IDS,
-  PROXY_APP_IDS,
-  type ProxyAppId,
-} from "@/config/appConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HelpTip, DisabledReason } from "@/components/ui/help-tip";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { AutoFailoverConfigPanel } from "@/components/proxy/AutoFailoverConfigPanel";
 import { RectifierConfigPanel } from "@/components/settings/RectifierConfigPanel";
-import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
-import { MODE_TONE } from "@/components/providers/mode/ModeTabs";
+import { AicliRoutingSettings } from "@/components/aicli/AicliRoutingSettings";
+import { useAicliTakeoverStatus } from "@/hooks/useAicliProfiles";
 import {
   SettingsBlock,
   SettingsCard,
   SettingsRow,
   SettingsSwitchRow,
 } from "@/components/settings/SettingsLayout";
-import type { AppMode } from "@/types/proxy";
 import { cn } from "@/lib/utils";
 
 interface RoutingSectionProps {
-  /** 「前往」打开这个应用的供应商页 */
+  /** 「前往」打开这个应用的客户端页 */
   onOpenApp: (app: AppId) => void;
 }
 
@@ -87,15 +75,15 @@ function formatUptime(seconds: number, t: TFunction) {
 }
 
 /**
- * 设置 → 本地路由（v7）：服务（状态、统计、启停、监听地址、请求日志）→ 正在使用路由的应用
- * → 全部回到直连 → 故障转移参数 → 整流与优化。进出路由在各应用页的模式 tab 里。
+ * 设置 → 本地路由：服务（状态、统计、启停、监听地址、请求日志）→ AICLI（线路说明、隐私、
+ * 凭据存储、接管中的客户端，F-06）→ 整流与优化。与供应商相关的分组（路由中的应用、全部回到
+ * 直连、故障转移队列）随供应商一起移除。
  */
 export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
   const { t } = useTranslation();
   const { data: status } = useProxyStatusQuery();
   const running = status?.running ?? false;
-  const { startProxyServer, stopProxyServer, stopWithRestore, isPending } =
-    useProxyStatus();
+  const { startProxyServer, stopProxyServer, isPending } = useProxyStatus();
   const { data: config } = useGlobalProxyConfig();
   const updateConfig = useUpdateGlobalProxyConfig();
   const { data: savedClientHost } = useProxyClientHost();
@@ -106,8 +94,6 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
   const [portError, setPortError] = useState<string | null>(null);
   const [clientHost, setClientHost] = useState("");
   const [clientHostError, setClientHostError] = useState<string | null>(null);
-  const [confirmExitAll, setConfirmExitAll] = useState(false);
-  const [failoverApp, setFailoverApp] = useState<ProxyAppId>("claude");
 
   useEffect(() => {
     if (config) {
@@ -119,31 +105,6 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
   useEffect(() => {
     if (savedClientHost !== undefined) setClientHost(savedClientHost);
   }, [savedClientHost]);
-
-  const modeQueries = useQueries({
-    queries: MODE_APP_IDS.map((app) => ({
-      queryKey: ["providers", app, "mode"],
-      queryFn: () => proxyApi.getAppMode(app),
-    })),
-  });
-  const providerQueries = {
-    claude: useProvidersQuery("claude").data,
-    codex: useProvidersQuery("codex").data,
-    gemini: useProvidersQuery("gemini").data,
-    grokbuild: useProvidersQuery("grokbuild").data,
-    "claude-desktop": useProvidersQuery("claude-desktop").data,
-  };
-
-  const usingApps = MODE_APP_IDS.flatMap((app, index) => {
-    const view = modeQueries[index]?.data;
-    if (!view || view.mode === "direct") return [];
-    const routeName =
-      (view.routeProviderId &&
-        providerQueries[app]?.providers[view.routeProviderId]?.name) ||
-      "—";
-    return [{ app, mode: view.mode as AppMode, routeName }];
-  });
-  const usingCount = usingApps.length;
 
   const saveListen = async () => {
     if (!config) return;
@@ -192,8 +153,12 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
     }
   };
 
+  // 有客户端处于 AICLI 接管中时不能停服务（停了它们的请求就没有去处）
+  const takenOver = (useAicliTakeoverStatus().data ?? []).filter(
+    (entry) => entry.state === "active",
+  ).length;
   const stopReason =
-    running && usingCount > 0 ? t("routingSettings.stopBlocked") : undefined;
+    running && takenOver > 0 ? t("aicli.settings.stopBlocked") : undefined;
 
   return (
     <>
@@ -386,63 +351,7 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
         </SettingsCard>
       </SettingsBlock>
 
-      <SettingsBlock
-        title={t("routingSettings.usingApps", { count: usingCount })}
-      >
-        {usingCount === 0 ? (
-          <div className="rounded-panel border border-dashed border-border px-4 py-3 text-caption text-fg-3">
-            {t("routingSettings.noApps")}
-          </div>
-        ) : (
-          <SettingsCard>
-            {usingApps.map(({ app, mode, routeName }) => (
-              <UsingAppRow
-                key={app}
-                app={app}
-                modeLabel={t(`mode.names.${mode}`)}
-                dotClass={MODE_TONE[mode].dot}
-                detail={
-                  mode === "stack"
-                    ? t("routingSettings.stackDetail", { name: routeName })
-                    : t("routingSettings.routeDetail", { name: routeName })
-                }
-                onOpen={() => onOpenApp(app)}
-              />
-            ))}
-          </SettingsCard>
-        )}
-        {usingApps.length > 0 && (
-          <Button
-            variant="neutral"
-            size="regular"
-            onClick={() => setConfirmExitAll(true)}
-          >
-            {t("routingSettings.exitAll")}
-          </Button>
-        )}
-      </SettingsBlock>
-
-      <SettingsBlock
-        title={t("settings.advanced.failover.title")}
-        help={{
-          title: t("settings.advanced.failover.title"),
-          body: t("routingSettings.failoverHelp"),
-        }}
-      >
-        <div className="space-y-4 rounded-panel border border-border bg-surface p-5">
-          <SegmentedControl
-            size="sm"
-            aria-label={t("settings.advanced.failover.title")}
-            value={failoverApp}
-            onValueChange={setFailoverApp}
-            items={PROXY_APP_IDS.map((app) => ({
-              value: app,
-              label: APP_DISPLAY_NAME[app],
-            }))}
-          />
-          <AutoFailoverConfigPanel key={failoverApp} appType={failoverApp} />
-        </div>
-      </SettingsBlock>
+      <AicliRoutingSettings onOpenApp={onOpenApp} />
 
       <SettingsBlock
         title={t("settings.advanced.rectifier.title")}
@@ -455,57 +364,6 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
           <RectifierConfigPanel />
         </div>
       </SettingsBlock>
-
-      {/* 可恢复的操作（路由目标、队列、聚合名单都保留），不用红色 */}
-      <ConfirmDialog
-        isOpen={confirmExitAll}
-        variant="info"
-        title={t("routingSettings.exitAllTitle")}
-        message={t("routingSettings.exitAllMessage")}
-        confirmText={t("routingSettings.exitAllConfirm")}
-        onConfirm={() => {
-          setConfirmExitAll(false);
-          void stopWithRestore();
-        }}
-        onCancel={() => setConfirmExitAll(false)}
-      />
     </>
-  );
-}
-
-function UsingAppRow({
-  app,
-  modeLabel,
-  dotClass,
-  detail,
-  onOpen,
-}: {
-  app: AppId;
-  modeLabel: string;
-  dotClass: string;
-  detail: string;
-  onOpen: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
-      <AppGlyph app={app} size={18} badgeClassName="bg-surface" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-body font-medium text-fg-1">
-          {APP_DISPLAY_NAME[app]}
-          <span className="text-fg-3">·</span>
-          <span
-            aria-hidden="true"
-            className={cn("h-1.5 w-1.5 rounded-full", dotClass)}
-          />
-          <span className="font-normal text-fg-2">{modeLabel}</span>
-        </div>
-        <div className="truncate text-caption text-fg-2">{detail}</div>
-      </div>
-      <Button variant="quiet" size="compact" onClick={onOpen}>
-        {t("routingSettings.goTo")}
-        <ChevronRight className="h-3.5 w-3.5" />
-      </Button>
-    </div>
   );
 }

@@ -608,3 +608,41 @@ fn masked_value_is_remembered_in_later_requests() {
     let (out, _) = mask(&bare, &off, &mut e);
     assert!(out.contains(&pw), "secrets off: {out}");
 }
+
+// ---- 用户自定义词与规则（F-06 接线） ----
+
+#[test]
+fn user_words_and_rules_are_masked_with_their_kind() {
+    forget_known();
+    let mut e = engine();
+    let o = MaskOptions {
+        words: vec!["Project Nightjar".into()],
+        custom_rules: vec![
+            crate::aicli::privacy::rules::rules::UserRule {
+                kind: "acme key".into(),
+                prefix: "ACME-".into(),
+                regex: String::new(),
+            },
+            crate::aicli::privacy::rules::rules::UserRule {
+                kind: "ticket".into(),
+                prefix: String::new(),
+                regex: r"TCK-\d{6}".into(),
+            },
+        ],
+        ..opts()
+    };
+    let text = "Project Nightjar uses ACME-k9Zq2Lm7Xw and TCK-482913";
+    let (out, n) = mask(text, &o, &mut e);
+    assert_eq!(n, 3, "{out}");
+    assert!(
+        !out.contains("Nightjar") && !out.contains("k9Zq2Lm7Xw") && !out.contains("482913"),
+        "{out}"
+    );
+    assert!(out.contains("{{TERM_"), "{out}");
+    assert!(out.contains("{{ACME_KEY_"), "{out}");
+    assert!(out.contains("{{TICKET_"), "{out}");
+    // 没有自定义项时这些都不遮
+    forget_known();
+    let (plain, n) = mask(text, &opts(), &mut engine());
+    assert_eq!(n, 0, "{plain}");
+}

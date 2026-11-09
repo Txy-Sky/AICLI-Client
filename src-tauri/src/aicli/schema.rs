@@ -20,7 +20,8 @@ pub(crate) fn create_tables(conn: &Connection) -> Result<(), AppError> {
             privacy_enabled INTEGER NOT NULL DEFAULT 0,
             privacy_failure_mode TEXT NOT NULL DEFAULT 'block',
             allow_unscanned_media INTEGER NOT NULL DEFAULT 0,
-            privacy_detect_cjk_names INTEGER NOT NULL DEFAULT 0, last_sync_at INTEGER
+            privacy_detect_cjk_names INTEGER NOT NULL DEFAULT 0, last_sync_at INTEGER,
+            privacy_custom_json TEXT NOT NULL DEFAULT '{}'
         );
         CREATE TABLE IF NOT EXISTS aicli_cache (
             kind TEXT PRIMARY KEY, fingerprint TEXT, fetched_at INTEGER NOT NULL,
@@ -64,19 +65,27 @@ pub(crate) fn create_tables(conn: &Connection) -> Result<(), AppError> {
     ensure_columns(conn)
 }
 
+/// v25 之后补进 aicli_account 的列（E-08 中文姓名开关、F-06 自定义遮盖词与规则）。
+const ACCOUNT_COLUMNS: [(&str, &str); 2] = [
+    ("privacy_detect_cjk_names", "INTEGER NOT NULL DEFAULT 0"),
+    ("privacy_custom_json", "TEXT NOT NULL DEFAULT '{}'"),
+];
+
 /// 幂等补列（已存在的旧库升级；新库 CREATE TABLE 已带上）。
 pub(crate) fn ensure_columns(conn: &Connection) -> Result<(), AppError> {
-    if crate::database::Database::has_column(conn, "aicli_account", "privacy_detect_cjk_names")? {
-        return Ok(());
-    }
     if !crate::database::Database::table_exists(conn, "aicli_account")? {
         return Ok(()); // 表还不存在（迁移稍后创建）
     }
-    conn.execute(
-        "ALTER TABLE aicli_account ADD COLUMN privacy_detect_cjk_names INTEGER NOT NULL DEFAULT 0",
-        [],
-    )
-    .map_err(|error| AppError::Database(error.to_string()))?;
+    for (column, definition) in ACCOUNT_COLUMNS {
+        if crate::database::Database::has_column(conn, "aicli_account", column)? {
+            continue;
+        }
+        conn.execute(
+            &format!("ALTER TABLE aicli_account ADD COLUMN {column} {definition}"),
+            [],
+        )
+        .map_err(|error| AppError::Database(error.to_string()))?;
+    }
     Ok(())
 }
 

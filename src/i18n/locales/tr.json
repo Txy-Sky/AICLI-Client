@@ -5238,6 +5238,48 @@
         "needsRepair": "Kaydetmeden önce seti onarın.",
         "other": "Kaydetme başarısız: {{message}}"
       }
+    },
+    "settings": {
+      "linesTitle": "AICLI hatları",
+      "lineDetail": "{{transport}} · ilk bayt {{firstByte}}s · akış en fazla {{stream}}s · akışsız en fazla {{nonStream}}s",
+      "privacyTitle": "Gizlilik koruması",
+      "privacyEnabled": "Gizlilik korumasını aç",
+      "privacyEnabledHint": "İstek gönderilmeden önce anahtarlar, e-postalar gibi hassas değerler yer tutucularla değiştirilir ve yanıtta geri getirilir.",
+      "failureMode": "Gizlilik motoru başarısız olduğunda",
+      "failureModeBlockHint": "Önce gizlilik: özgün metni göndermek yerine isteği engeller.",
+      "failureModePassHint": "Önce erişilebilirlik: özgün metni gönderir; ana sayfada kırmızı uyarı gösterilir.",
+      "allowMedia": "Taranmamış görsellere ve dosyalara izin ver",
+      "allowMediaHint": "Gizlilik motoru base64 görselleri ve dosyaları tarayamaz; kapalıyken bu tür istekler önce gizlilik modunda engellenir.",
+      "customWords": "Özel maskelenen sözcükler",
+      "customWordsHint": "Her satıra bir tane, en az 2 karakter; istekte geçtiği her yerde maskelenir.",
+      "customRules": "Özel kurallar",
+      "customRulesHint": "Önek kuralı bu önekle başlayan belirteçleri maskeler (en az 3 karakter); düzenli ifade kuralı eşleşmenin tamamını maskeler. En fazla 32 kural.",
+      "ruleKind": "Tür",
+      "ruleMode": "Kural türü",
+      "rulePrefix": "Önek",
+      "ruleRegex": "Düzenli ifade",
+      "ruleValue": "Kural",
+      "rulePrefixPlaceholder": "ör. ACME-",
+      "ruleRegexPlaceholder": "ör. TCK-\\d{6}",
+      "removeRule": "Kuralı kaldır",
+      "addRule": "Kural ekle",
+      "saveCustom": "Özel öğeleri kaydet",
+      "customSaved": "Kaydedildi.",
+      "customInvalid": "Kaydedilmedi: {{message}}",
+      "secretFallback": "Sistem anahtarlığı kullanılamıyor; kimlik bilgileri yerel bir dosyada saklanıyor. Anahtarlığı kontrol edip istemciyi yeniden başlatın.",
+      "takeoverTitle": "Devralınan istemciler",
+      "noTakeover": "Şu anda AICLI tarafından devralınan istemci yok.",
+      "stopBlocked": "AICLI tarafından devralınan istemciler var. Hizmeti durdurmadan önce devralmayı durdurun."
+    },
+    "bill": {
+      "title": "Sunucu faturası",
+      "line": "Hat",
+      "profile": "Yapılandırma seti",
+      "serverGroup": "Sunucu grubu",
+      "serverCharge": "Sunucu kotası",
+      "charged": "Tahsil edilen",
+      "pending": "Sunucunun faturalandırması bekleniyor",
+      "estimated": "Tahmini"
     }
   }
 }

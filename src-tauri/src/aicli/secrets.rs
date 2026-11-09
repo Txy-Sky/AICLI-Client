@@ -25,6 +25,10 @@ pub trait SecretStore: fmt::Debug + Send + Sync {
     fn get(&self, account: &str) -> Result<Option<String>, SecretError>;
     fn set(&self, account: &str, value: &str) -> Result<(), SecretError>;
     fn delete(&self, account: &str) -> Result<(), SecretError>;
+    /// 当前实际使用的存储后端（F-06 设置页的降级提示）；不区分后端的实现返回 None。
+    fn backend(&self) -> Option<SecretBackend> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -210,6 +214,10 @@ impl KeyringStore {
 impl SecretStore for KeyringStore {
     fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
         self.access(|store| store.get(account))
+    }
+
+    fn backend(&self) -> Option<SecretBackend> {
+        Some(self.secret_backend())
     }
 
     fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {

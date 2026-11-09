@@ -5,6 +5,17 @@ import { RequestDetailPanel } from "@/components/usage/RequestDetailPanel";
 import type { RequestLog } from "@/types/usage";
 
 const useRequestDetailMock = vi.hoisted(() => vi.fn());
+const useAicliRequestBillMock = vi.hoisted(() =>
+  vi.fn((_id: string) => ({ data: undefined as unknown })),
+);
+
+vi.mock("@/hooks/useAicliUsage", () => ({
+  useAicliRequestBill: (id: string) => useAicliRequestBillMock(id),
+}));
+
+vi.mock("@/hooks/useAicliAccount", () => ({
+  useAicliAccount: () => ({ data: { quota_display: null } }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -203,5 +214,57 @@ describe("RequestDetailPanel", () => {
 
     expect(screen.getByText("usage.requestNotFound")).toBeInTheDocument();
     expect(screen.queryByText("usage.requestLoadFailed")).toBeNull();
+  });
+
+  // ---- F-06：服务端账单与「预估」标注 ----
+
+  const bill = (patch: Record<string, unknown> = {}) => ({
+    request_id: "req_1",
+    created_at: 1,
+    app_type: "claude",
+    model: "claude-opus-5-5",
+    status_code: 200,
+    line_id: "main",
+    profile_id: "recommended",
+    upstream_request_id: "up-1",
+    server_group: "vip",
+    billed_quota: null,
+    billed_at: null,
+    ...patch,
+  });
+
+  it("labels the local cost as an estimate", () => {
+    renderWith(log({}));
+    expect(
+      screen.getByText("usage.detail.costTitle · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("usage.detail.total · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+    // 没有 AICLI 账单记录时不显示服务端账单
+    expect(screen.queryByText("aicli.bill.title")).not.toBeInTheDocument();
+  });
+
+  it("waits for the server bill instead of passing off an estimate as charged", () => {
+    useAicliRequestBillMock.mockReturnValue({ data: bill() });
+    renderWith(log({}));
+    expect(screen.getByText("aicli.bill.title")).toBeInTheDocument();
+    expect(screen.getByText("aicli.bill.pending")).toBeInTheDocument();
+    expect(screen.getByText("aicli.lines.main")).toBeInTheDocument();
+    expect(screen.getByText("recommended")).toBeInTheDocument();
+    expect(screen.getByText("vip")).toBeInTheDocument();
+    expect(useAicliRequestBillMock).toHaveBeenCalledWith("req_1");
+  });
+
+  it("shows the server's charged quota once billed", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ billed_quota: 1_000_000, billed_at: 2 }),
+    });
+    renderWith(log({}));
+    expect(
+      screen.getByText("aicli.bill.serverCharge · aicli.bill.charged"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("$2")).toBeInTheDocument();
+    expect(screen.queryByText("aicli.bill.pending")).not.toBeInTheDocument();
   });
 });

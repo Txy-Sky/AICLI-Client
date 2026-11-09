@@ -5297,6 +5297,48 @@
         "needsRepair": "設定集需要修復後才能儲存。",
         "other": "儲存失敗：{{message}}"
       }
+    },
+    "settings": {
+      "linesTitle": "AICLI 線路",
+      "lineDetail": "{{transport}} · 首位元組逾時 {{firstByte}}s · 串流最長 {{stream}}s · 非串流最長 {{nonStream}}s",
+      "privacyTitle": "隱私保護",
+      "privacyEnabled": "開啟隱私保護",
+      "privacyEnabledHint": "請求送出前把金鑰、電子郵件等敏感值換成佔位符，回來時還原。",
+      "failureMode": "隱私引擎失敗時",
+      "failureModeBlockHint": "隱私優先：引擎出錯時阻斷請求，不送出原文。",
+      "failureModePassHint": "可用性優先：引擎出錯時按原文送出，首頁會用紅色提示。",
+      "allowMedia": "允許未掃描的圖片和檔案",
+      "allowMediaHint": "隱私引擎無法掃描 base64 圖片和檔案；關閉時含這類內容的請求在隱私優先模式下被阻斷。",
+      "customWords": "自訂遮蓋詞",
+      "customWordsHint": "每行一個，至少 2 個字元；出現在請求裡就會被遮蓋。",
+      "customRules": "自訂規則",
+      "customRulesHint": "前綴規則遮蓋以該前綴開頭的權杖（前綴至少 3 個字元）；正規表示式規則遮蓋相符的整段。最多 32 條。",
+      "ruleKind": "種類",
+      "ruleMode": "規則類型",
+      "rulePrefix": "前綴",
+      "ruleRegex": "正規表示式",
+      "ruleValue": "規則內容",
+      "rulePrefixPlaceholder": "例如 ACME-",
+      "ruleRegexPlaceholder": "例如 TCK-\\d{6}",
+      "removeRule": "刪除規則",
+      "addRule": "新增規則",
+      "saveCustom": "儲存自訂項",
+      "customSaved": "已儲存。",
+      "customInvalid": "未儲存：{{message}}",
+      "secretFallback": "系統鑰匙圈無法使用，憑證已改存本機檔案。請檢查系統鑰匙圈後重新啟動用戶端。",
+      "takeoverTitle": "接管中的用戶端",
+      "noTakeover": "目前沒有用戶端處於 AICLI 接管中。",
+      "stopBlocked": "還有用戶端處於 AICLI 接管中，先停止接管再停止服務。"
+    },
+    "bill": {
+      "title": "伺服器帳單",
+      "line": "線路",
+      "profile": "設定集",
+      "serverGroup": "伺服器群組",
+      "serverCharge": "伺服器額度",
+      "charged": "實扣",
+      "pending": "等待伺服器記帳",
+      "estimated": "預估"
     }
   }
 }

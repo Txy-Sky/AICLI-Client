@@ -631,6 +631,11 @@ export const handlers = [
       privacy_detect_cjk_names: false,
       privacy_detect_cjk_names_available: false,
       engine: null,
+      custom_words: [],
+      custom_rules: [],
+      secret_backend: null,
     }),
   ),
+  http.post(`${TAURI_ENDPOINT}/aicli_get_request_bill`, () => success(null)),
+  http.post(`${TAURI_ENDPOINT}/aicli_takeover_status`, () => success([])),
 ];

@@ -8,6 +8,7 @@ import { aicliApi, AICLI_EVENTS } from "@/lib/api/aicli";
 import type {
   AicliCacheKind,
   AicliCachedValue,
+  AicliPrivacyRule,
   AicliPrivacySettings,
 } from "@/types/aicli";
 import { useTauriEvent } from "./useTauriEvent";
@@ -83,6 +84,21 @@ export function useAicliSetPrivacy() {
   return useMutation({
     mutationFn: (settings: AicliPrivacySettings) =>
       aicliApi.setPrivacy(settings),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: aicliKeys.privacy }),
+  });
+}
+
+export function useAicliSetPrivacyCustom() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      words,
+      rules,
+    }: {
+      words: string[];
+      rules: AicliPrivacyRule[];
+    }) => aicliApi.setPrivacyCustom(words, rules),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: aicliKeys.privacy }),
   });

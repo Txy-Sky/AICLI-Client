@@ -377,6 +377,11 @@ pub struct AicliPrivacyView {
     pub privacy_detect_cjk_names_available: bool,
     /// F-03：隐私引擎本次运行以来的计数（只有数量，不含任何值）；代理未运行时为空。
     pub engine: Option<AicliPrivacyEngineView>,
+    /// F-06：用户自定义的遮盖词与规则（只存本机）。
+    pub custom_words: Vec<String>,
+    pub custom_rules: Vec<crate::aicli::privacy::rules::rules::UserRule>,
+    /// F-06：凭据实际存储后端；file_fallback = 系统钥匙串不可用，已降级为本地文件。
+    pub secret_backend: Option<crate::aicli::secrets::SecretBackend>,
 }
 
 #[derive(Serialize)]
@@ -1537,7 +1542,7 @@ impl AicliServices {
             .map_err(|_| AicliCommandError::database())?
             .query_row(
                 "SELECT privacy_enabled,privacy_failure_mode,allow_unscanned_media,
-                        privacy_detect_cjk_names
+                        privacy_detect_cjk_names,privacy_custom_json
                  FROM aicli_account WHERE id=1",
                 [],
                 |row| {
@@ -1546,26 +1551,35 @@ impl AicliServices {
                         row.get::<_, String>(1)?,
                         row.get::<_, bool>(2)?,
                         row.get::<_, bool>(3)?,
+                        row.get::<_, String>(4)?,
                     ))
                 },
             )
             .optional()
             .map_err(|_| AicliCommandError::database())?;
+        let secret_backend = self.secrets.backend();
         Ok(match row {
             Some((
                 privacy_enabled,
                 privacy_failure_mode,
                 allow_unscanned_media,
                 detect_cjk_names,
-            )) => AicliPrivacyView {
-                bound: true,
-                privacy_enabled,
-                privacy_failure_mode,
-                allow_unscanned_media,
-                privacy_detect_cjk_names: detect_cjk_names && CJK_NAMES_AVAILABLE,
-                privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
-                engine: self.privacy_engine(),
-            },
+                custom,
+            )) => {
+                let custom = crate::aicli::privacy::layer::PrivacyCustom::parse(&custom);
+                AicliPrivacyView {
+                    bound: true,
+                    privacy_enabled,
+                    privacy_failure_mode,
+                    allow_unscanned_media,
+                    privacy_detect_cjk_names: detect_cjk_names && CJK_NAMES_AVAILABLE,
+                    privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
+                    engine: self.privacy_engine(),
+                    custom_words: custom.words,
+                    custom_rules: custom.rules,
+                    secret_backend,
+                }
+            }
             None => AicliPrivacyView {
                 bound: false,
                 privacy_enabled: false,
@@ -1574,8 +1588,37 @@ impl AicliServices {
                 privacy_detect_cjk_names: false,
                 privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
                 engine: self.privacy_engine(),
+                custom_words: Vec::new(),
+                custom_rules: Vec::new(),
+                secret_backend,
             },
         })
+    }
+
+    /// F-06：保存自定义遮盖词与规则（整理后整体替换；校验失败返回 invalid_input）。
+    pub fn set_privacy_custom(
+        &self,
+        words: Vec<String>,
+        rules: Vec<crate::aicli::privacy::rules::rules::UserRule>,
+    ) -> Result<(), AicliCommandError> {
+        let custom = crate::aicli::privacy::layer::PrivacyCustom::normalized(words, rules)
+            .map_err(AicliCommandError::invalid_input)?;
+        let json = serde_json::to_string(&custom).map_err(|_| AicliCommandError::database())?;
+        let changed = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| AicliCommandError::database())?
+            .execute(
+                "UPDATE aicli_account SET privacy_custom_json=?1 WHERE id=1",
+                [json],
+            )
+            .map_err(|_| AicliCommandError::database())?;
+        if changed == 0 {
+            return Err(AicliCommandError::not_bound());
+        }
+        crate::aicli::privacy::layer::bump_revision();
+        Ok(())
     }
 
     pub fn set_privacy(
@@ -1818,6 +1861,15 @@ pub async fn aicli_get_privacy(
     state: State<'_, AicliState>,
 ) -> Result<AicliPrivacyView, AicliCommandError> {
     state.0.get_privacy()
+}
+
+#[tauri::command]
+pub async fn aicli_set_privacy_custom(
+    state: State<'_, AicliState>,
+    words: Vec<String>,
+    rules: Vec<crate::aicli::privacy::rules::rules::UserRule>,
+) -> Result<(), AicliCommandError> {
+    state.0.set_privacy_custom(words, rules)
 }
 
 #[tauri::command]

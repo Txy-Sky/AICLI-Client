@@ -7,6 +7,7 @@ import type {
   AicliCatalog,
   AicliCommandError,
   AicliLinesView,
+  AicliPrivacyRule,
   AicliPrivacySettings,
   AicliPrivacyView,
   AicliProbe,
@@ -46,7 +47,7 @@ export function aicliErrorCode(error: unknown): string | undefined {
   return isAicliCommandError(error) ? error.code : undefined;
 }
 
-/** 对应 C3-11 的全部 AICLI 命令（参数名按 Tauri 约定用 camelCase）。 */
+/** 对应 C3-11 的全部 AICLI 命令及 F-06 新增的自定义遮盖项（参数名按 Tauri 约定用 camelCase）。 */
 export const aicliApi = {
   // ---- 账户 ----
   getAccount: (): Promise<AicliAccountView> => invoke("aicli_get_account"),
@@ -114,6 +115,12 @@ export const aicliApi = {
 
   // ---- 隐私 ----
   getPrivacy: (): Promise<AicliPrivacyView> => invoke("aicli_get_privacy"),
+
+  /** 整体替换自定义遮盖词与规则（后端整理并校验，失败返回 invalid_input）。 */
+  setPrivacyCustom: (
+    words: string[],
+    rules: AicliPrivacyRule[],
+  ): Promise<void> => invoke("aicli_set_privacy_custom", { words, rules }),
 
   setPrivacy: (settings: AicliPrivacySettings): Promise<void> =>
     invoke("aicli_set_privacy", {

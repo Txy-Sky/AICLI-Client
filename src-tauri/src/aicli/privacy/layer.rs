@@ -102,6 +102,61 @@ pub struct PrivacyGate {
     fault_stream_at: std::sync::atomic::AtomicU32,
 }
 
+/// F-06：用户自定义的遮盖词与规则（`aicli_account.privacy_custom_json`）。
+/// 与 [`PrivacySettings`] 分开缓存（后者按值复制，留在热路径上），随同一修订号刷新。
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PrivacyCustom {
+    #[serde(default)]
+    pub words: Vec<String>,
+    #[serde(default)]
+    pub rules: Vec<super::rules::rules::UserRule>,
+}
+
+/// 自定义词上限与单个词的最大字符数。
+pub const MAX_CUSTOM_WORDS: usize = 500;
+pub const MAX_CUSTOM_WORD_CHARS: usize = 200;
+
+impl PrivacyCustom {
+    /// 整理并校验：词去空白、去空、去重并限长；规则走 Magpie 的 CheckRules。
+    pub fn normalized(
+        words: Vec<String>,
+        rules: Vec<super::rules::rules::UserRule>,
+    ) -> Result<Self, String> {
+        let mut kept: Vec<String> = Vec::new();
+        for word in words {
+            let word = word.trim();
+            if word.is_empty() {
+                continue;
+            }
+            // 扫描跳过不足 2 字节的词（单个 ASCII 字符会到处误遮）：保存时直接拒绝
+            if word.len() < 2 {
+                return Err("custom words need at least 2 characters".into());
+            }
+            if word.chars().count() > MAX_CUSTOM_WORD_CHARS {
+                return Err(format!(
+                    "custom words are at most {MAX_CUSTOM_WORD_CHARS} characters"
+                ));
+            }
+            if !kept.iter().any(|existing| existing == word) {
+                kept.push(word.to_owned());
+            }
+        }
+        if kept.len() > MAX_CUSTOM_WORDS {
+            return Err(format!("at most {MAX_CUSTOM_WORDS} custom words"));
+        }
+        let rules = super::rules::rules::check_rules(&rules)?;
+        Ok(Self { words: kept, rules })
+    }
+
+    /// 读库里的 JSON；损坏或不再通过校验时按空处理（不让一条坏规则卡住整个代理）。
+    pub fn parse(json: &str) -> Self {
+        serde_json::from_str::<Self>(json)
+            .ok()
+            .and_then(|raw| Self::normalized(raw.words, raw.rules).ok())
+            .unwrap_or_default()
+    }
+}
+
 struct GateInner {
     engine: Option<Arc<RwLock<PlaceholderEngine>>>,
     /// 引擎构造失败（钥匙串不可用等）：按模式处理，不再每次重试钥匙串。
@@ -110,6 +165,8 @@ struct GateInner {
     cached: Option<(u64, PrivacySettings)>,
     /// 上次查库出错的时间（最短重试间隔内不再打库，期间 fail-closed）。
     last_error_at: Option<std::time::Instant>,
+    /// 自定义词与规则（随设置一起刷新；查库出错时保留上一份）。
+    custom: Arc<PrivacyCustom>,
 }
 
 impl PrivacyGate {
@@ -122,6 +179,7 @@ impl PrivacyGate {
                 engine_failed: false,
                 cached: None,
                 last_error_at: None,
+                custom: Arc::new(PrivacyCustom::default()),
             }),
             masked_values: AtomicU64::new(0),
             degraded: AtomicU64::new(0),
@@ -174,12 +232,12 @@ impl PrivacyGate {
                 }
             }
         }
-        let row: Result<Option<(bool, String, bool, bool)>, ()> = (|| {
+        let row: Result<Option<(bool, String, bool, bool, String)>, ()> = (|| {
             use rusqlite::OptionalExtension;
             let conn = self.db.conn.lock().map_err(|_| ())?;
             conn.query_row(
                 "SELECT privacy_enabled, privacy_failure_mode, allow_unscanned_media,
-                        privacy_detect_cjk_names
+                        privacy_detect_cjk_names, privacy_custom_json
                      FROM aicli_account WHERE id=1",
                 [],
                 |row| {
@@ -188,6 +246,7 @@ impl PrivacyGate {
                         row.get::<_, String>(1)?,
                         row.get::<_, bool>(2)?,
                         row.get::<_, bool>(3)?,
+                        row.get::<_, String>(4)?,
                     ))
                 },
             )
@@ -196,7 +255,7 @@ impl PrivacyGate {
         })();
         let mut guard = self.inner.write().unwrap_or_else(|p| p.into_inner());
         match row {
-            Ok(Some((enabled, mode, allow_media, detect_cjk_names))) => {
+            Ok(Some((enabled, mode, allow_media, detect_cjk_names, custom))) => {
                 let settings = PrivacySettings {
                     enabled,
                     block: mode != "pass",
@@ -205,12 +264,14 @@ impl PrivacyGate {
                 };
                 guard.cached = Some((rev, settings));
                 guard.last_error_at = None;
+                guard.custom = Arc::new(PrivacyCustom::parse(&custom));
                 settings
             }
             // 查不到行（未绑定）：视为关闭
             Ok(None) => {
                 guard.cached = Some((rev, PrivacySettings::default()));
                 guard.last_error_at = None;
+                guard.custom = Arc::new(PrivacyCustom::default());
                 PrivacySettings::default()
             }
             // 查库出错：fail-closed，不更新缓存（下次重试），记录限频时间
@@ -219,6 +280,15 @@ impl PrivacyGate {
                 fail_closed
             }
         }
+    }
+
+    /// 当前的自定义词与规则（与最近一次刷新的设置同一修订号）。
+    pub fn custom(&self) -> Arc<PrivacyCustom> {
+        self.inner
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .custom
+            .clone()
     }
 
     /// 引擎（懒构造一次）：占位符密钥只在首次使用时读一次钥匙串。
@@ -293,10 +363,14 @@ impl PrivacyGate {
         settings: &PrivacySettings,
     ) -> Result<(String, usize), EngineFailure> {
         let engine = self.engine().ok_or(EngineFailure)?;
+        let custom = self.custom();
         let options = MaskOptions {
             secrets: true,
             personal: true,
             detect_cjk_names: settings.detect_cjk_names,
+            // F-06：用户自定义词与规则
+            words: custom.words.clone(),
+            custom_rules: custom.rules.clone(),
             ..Default::default()
         };
         #[cfg(feature = "test-hooks")]

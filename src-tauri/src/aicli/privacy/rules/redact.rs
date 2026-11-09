@@ -1157,6 +1157,21 @@ pub(crate) fn mask_escaped(
     apply_with(raw, found, o, engine, record, true)
 }
 
+/// 用户规则编译后缓存（按前缀 / 正则文本），每条只编译一次。
+fn user_rule_regex(rule: &super::rules::UserRule) -> Option<&'static Regex> {
+    static CACHE: std::sync::Mutex<Option<HashMap<(String, String), &'static Regex>>> =
+        std::sync::Mutex::new(None);
+    let key = (rule.prefix.clone(), rule.regex.clone());
+    let mut guard = CACHE.lock().unwrap_or_else(|p| p.into_inner());
+    let cache = guard.get_or_insert_with(HashMap::new);
+    if let Some(re) = cache.get(&key) {
+        return Some(re);
+    }
+    let re: &'static Regex = Box::leak(Box::new(rule.compile().ok()?));
+    cache.insert(key, re);
+    Some(re)
+}
+
 /// scan（Magpie `mask` 内的查找部分）：返回全部找到的 Span。
 pub(crate) fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
     let mut found = Vec::new();
@@ -1185,6 +1200,27 @@ pub(crate) fn scan(s: &str, o: &MaskOptions) -> Vec<Span> {
                 bare: false,
             });
             i = b;
+        }
+    }
+
+    // 用户规则（Magpie 的 yours 规则；F-06 接线）：前缀规则或正则，整段匹配
+    // 按规则的种类遮盖。规则已在保存时经 check_rules 校验，这里编译失败的跳过。
+    for rule in &o.custom_rules {
+        let Some(re) = user_rule_regex(rule) else {
+            continue;
+        };
+        let kind = super::known::intern_kind(&super::rules::rule_kind(&rule.kind));
+        for m in re.find_iter(s) {
+            if m.start() == m.end() {
+                continue;
+            }
+            found.push(Span {
+                start: m.start(),
+                end: m.end(),
+                kind,
+                by: FoundBy::Yours,
+                bare: false,
+            });
         }
     }
 
