@@ -32,7 +32,6 @@ function interpolationVariables(value: string): string[] {
 const reference = flattenStrings(en);
 const piKeysOutsideNamespace = new Set([
   "apps.pi",
-  "deeplink.api",
   "sessionManager.piDiscoveryUnavailable",
   "sessionManager.piRelativeSessionDir",
   "settings.browsePlaceholderPi",
@@ -124,16 +123,8 @@ describe("Turkish locale", () => {
   it("preserves protocol fields, configuration literals, and commands", () => {
     const translations = flattenStrings(tr);
     const exactLiterals = [
-      "opencode.extraOptionKeyPlaceholder",
-      "opencode.modelExtraFieldKeyPlaceholder",
-      "opencode.modelOptionKeyPlaceholder",
-      "opencode.modelOptionValuePlaceholder",
-      "opencode.providerKeyPlaceholder",
       "openclaw.providerKeyPlaceholder",
       "hermes.form.providerKeyPlaceholder",
-      "grokBuild.rawConfig",
-      "codexConfig.configToml",
-      "providerPreset.plan.aksk",
       "mcp.envPlaceholder",
       "mcp.wizard.envPlaceholder",
       "skills.searchSource.skillssh",
@@ -143,13 +134,8 @@ describe("Turkish locale", () => {
       expect(translations.get(key), key).toBe(reference.get(key));
     }
 
-    expect(translations.get("usageScript.fieldRemaining")).toContain(
-      "• remaining:",
-    );
-    expect(translations.get("usageScript.fieldUnit")).toContain("• unit:");
-    expect(translations.get("usageScript.fieldTotal")).toContain("• total:");
-    expect(translations.get("usageScript.fieldUsed")).toContain("• used:");
-    expect(translations.get("usageScript.fieldExtra")).toContain("• extra:");
+    // G-01：opencode / grokBuild / codexConfig / providerPreset / usageScript 的
+    // 字面量随供应商表单与用量脚本一起删除
     expect(translations.get("settings.s3Sync.presets.r2Hint")).toContain(
       "'auto'",
     );

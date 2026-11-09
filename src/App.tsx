@@ -5,41 +5,22 @@ import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Provider, VisibleApps } from "@/types";
+import type { VisibleApps } from "@/types";
 import { KNOWN_APP_TYPES, type AppTypeFilter } from "@/types/usage";
 import type { EnvConflict } from "@/types/env";
-import type { SubscriptionQuota } from "@/types/subscription";
-import {
-  providersQueryOptions,
-  proxyKeys,
-  useProvidersQuery,
-  useSettingsQuery,
-} from "@/lib/query";
-import {
-  providersApi,
-  settingsApi,
-  type AppId,
-  type ProviderSwitchEvent,
-} from "@/lib/api";
+import { proxyKeys, useSettingsQuery } from "@/lib/query";
+import { providersApi, settingsApi, type AppId } from "@/lib/api";
 import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
-import { useProviderActions } from "@/hooks/useProviderActions";
-import { openclawKeys, useOpenClawHealth } from "@/hooks/useOpenClaw";
-import { hermesKeys, useOpenHermesWebUI } from "@/hooks/useHermes";
+import { useOpenClawHealth } from "@/hooks/useOpenClaw";
+import { useOpenHermesWebUI } from "@/hooks/useHermes";
 import { hermesApi } from "@/lib/api/hermes";
-import type { ProviderEditorSave } from "@/lib/api/providers";
-import { useProxyStatus } from "@/hooks/useProxyStatus";
 import { useUsageCacheBridge } from "@/hooks/useUsageCacheBridge";
 import {
   useTrayAppPageSeen,
   useTrayNavigation,
 } from "@/hooks/useTrayNavigation";
 import { useTauriEvent } from "@/hooks/useTauriEvent";
-import { useLastValidValue } from "@/hooks/useLastValidValue";
-import {
-  extractErrorMessage,
-  translateKimiProviderMutationError,
-  translatePiProviderMutationError,
-} from "@/utils/errorUtils";
+import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { isLinux, isWindows } from "@/lib/platform";
 import {
@@ -62,10 +43,7 @@ import {
 import { WindowControls } from "@/components/shell/WindowControls";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import { ProfileSwitcher } from "@/components/profiles/ProfileSwitcher";
-import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
-import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { OpenTerminalDialog } from "@/components/providers/OpenTerminalDialog";
 import { discardUnsavedChanges, hasUnsavedChanges } from "@/lib/unsavedChanges";
 import { SettingsPage } from "@/components/settings/SettingsPage";
 import { AppsPage } from "@/components/apps/AppsPage";
@@ -80,8 +58,7 @@ import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { AicliBindGate } from "@/components/aicli/AicliBindGate";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { proxyApi } from "@/lib/api/proxy";
-import type { AppMode, StartupAttachFailure } from "@/types/proxy";
-import UsageScriptModal from "@/components/UsageScriptModal";
+import type { StartupAttachFailure } from "@/types/proxy";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
 import { PROMPT_APP_IDS } from "@/lib/query/prompts";
@@ -99,7 +76,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
-import { invalidatePiProviderCaches, usePiCurrentState } from "@/lib/query/pi";
 import WorkspaceFilesPanel from "@/components/workspace/WorkspaceFilesPanel";
 import EnvPanel from "@/components/openclaw/EnvPanel";
 import ToolsPanel from "@/components/openclaw/ToolsPanel";
@@ -112,7 +88,6 @@ import {
   APP_IDS,
   DEFAULT_VISIBLE_APPS,
   isModeAppId,
-  isPiFamilyApp,
   orderAppIds,
 } from "@/config/appConfig";
 
@@ -150,15 +125,7 @@ function App() {
   const [promptsApp, setPromptsApp] = useState<AppId>(() =>
     PROMPT_APP_IDS.includes(sharedFeatureApp) ? sharedFeatureApp : "claude",
   );
-  const [isAddOpen, setIsAddOpen] = useState(false);
   const [, setConnectionStatusSlot] = useState<HTMLDivElement | null>(null);
-  const [formModeView, setFormModeView] = useState<AppMode>();
-  // 托盘里点了直连下需要路由的那家：打开应用页后弹「需要路由」对话框
-  const [, setTrayNeedsRoute] = useState<{
-    app: AppId;
-    providerId: string;
-    nonce: number;
-  } | null>(null);
   const [mcpManagementBusy, setMcpManagementBusy] = useState(false);
   const [skillsNavigationBusy, setSkillsNavigationBusy] = useState(false);
   const [promptNavigationBusy, setPromptNavigationBusy] = useState(false);
@@ -187,18 +154,6 @@ function App() {
       setActiveApp(getFirstVisibleApp());
     }
   }, [visibleApps, activeApp]);
-
-  // 启动后把其他可见应用的供应商列表预取进缓存：第一次切过去直接有数据，不先画骨架
-  const providersPrefetchedRef = useRef(false);
-  useEffect(() => {
-    if (!settingsData || providersPrefetchedRef.current) return;
-    providersPrefetchedRef.current = true;
-    for (const app of APP_IDS) {
-      if (app !== activeApp && visibleApps[app]) {
-        void queryClient.prefetchQuery(providersQueryOptions(app));
-      }
-    }
-  }, [settingsData, visibleApps, activeApp, queryClient]);
 
   // 「启动时检查应用更新」（默认关）：打开了才在后台查一次，查到新版本侧栏「应用」上出现圆点
   const checkToolUpdatesOnStartup =
@@ -229,22 +184,10 @@ function App() {
     }
   }, [activeApp, currentView]);
 
-  const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
-  const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{
-    provider: Provider;
-    action: "remove" | "delete";
-  } | null>(null);
-  const [terminalProvider, setTerminalProvider] = useState<Provider | null>(
-    null,
-  );
   const [envConflicts, setEnvConflicts] = useState<EnvConflict[]>([]);
   const [showEnvBanner, setShowEnvBanner] = useState(false);
 
-  const effectiveEditingProvider = useLastValidValue(editingProvider);
-  const effectiveUsageProvider = useLastValidValue(usageProvider);
   const mainScrollRef = useRef<HTMLElement>(null);
-  const providerScrollContainerRef = useRef<HTMLDivElement>(null);
 
   useUsageCacheBridge();
   // F-01：后端缓存刷新完成 → 对应的 AICLI 查询原地更新
@@ -253,7 +196,6 @@ function App() {
   const [aicliBindRequest, setAicliBindRequest] = useState(0);
   useTauriEvent(AICLI_EVENTS.openBind, () => {
     const navigate = () => {
-      closeProviderPanels();
       setCurrentView("usage");
       setAicliBindRequest((count) => count + 1);
     };
@@ -264,10 +206,7 @@ function App() {
   useLayoutEffect(() => {
     if (currentView !== "client") return;
 
-    for (const container of [
-      mainScrollRef.current,
-      providerScrollContainerRef.current,
-    ]) {
+    for (const container of [mainScrollRef.current]) {
       if (container) {
         container.scrollTop = 0;
         container.scrollLeft = 0;
@@ -275,87 +214,11 @@ function App() {
     }
   }, [activeApp, currentView]);
 
-  const { isRunning: isProxyRunning, takeoverStatus } = useProxyStatus();
   const modeAppId = isModeAppId(activeApp) ? activeApp : null;
-  const openAddProvider = (modeView: AppMode | undefined) => {
-    setFormModeView(modeView);
-    setIsAddOpen(true);
-  };
-  const currentAppUsesProxy = modeAppId !== null;
-  const isCurrentAppTakeoverActive = modeAppId
-    ? takeoverStatus?.[modeAppId] || false
-    : false;
 
-  const { data, refetch } = useProvidersQuery(activeApp, {
-    isProxyRunning: currentAppUsesProxy && isProxyRunning,
-  });
-  const { data: piCurrentState } = usePiCurrentState(activeApp === "pi");
-  const currentProviderId = data?.currentProviderId ?? "";
   const isOpenClawView = activeApp === "openclaw" && isAppPage(currentView);
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
-  const { addProvider, updateProvider, deleteProvider, saveUsageScript } =
-    useProviderActions(activeApp, isProxyRunning && isCurrentAppTakeoverActive);
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let active = true;
-
-    const setupListener = async () => {
-      try {
-        const off = await providersApi.onSwitched(
-          async (event: ProviderSwitchEvent) => {
-            // 按前缀失效：故障转移只改路由指针，「路由中」标记读的是
-            // ["providers", app, "mode"]，只 refetch 列表会让它停在旧那家
-            await queryClient.invalidateQueries({
-              queryKey: ["providers", event.appType],
-            });
-            if (event.appType === "pi") {
-              await invalidatePiProviderCaches(queryClient);
-            }
-            if (event.appType === "claude") {
-              // 托盘切卡、应用项目同样可能把默认登录收成新账号
-              await queryClient.invalidateQueries({
-                queryKey: ["managed-auth-status", "claude_official"],
-              });
-            }
-            // 切换会顺带刷新托管 ChatGPT 账号的令牌（托盘切换也一样）：
-            // 重查停在失败上的账号额度，免得主界面一直显示旧的「登录过期」
-            await queryClient.invalidateQueries({
-              predicate: (query) =>
-                query.queryKey[0] === "codex_oauth" &&
-                query.queryKey[1] === "quota" &&
-                (query.state.status === "error" ||
-                  (query.state.data as SubscriptionQuota | undefined)
-                    ?.success === false),
-            });
-          },
-        );
-        if (!active) {
-          off();
-          return;
-        }
-        unsubscribe = off;
-      } catch (error) {
-        console.error("[App] Failed to subscribe provider switch event", error);
-      }
-    };
-
-    void setupListener();
-    return () => {
-      active = false;
-      unsubscribe?.();
-    };
-  }, [queryClient]);
-
-  useTauriEvent("universal-provider-synced", async () => {
-    await queryClient.invalidateQueries({ queryKey: ["providers"] });
-    try {
-      await providersApi.updateTrayMenu();
-    } catch (error) {
-      console.error("[App] Failed to update tray menu", error);
-    }
-  });
 
   // 应用项目后刷新相关缓存（providers 由既有 provider-switched 监听承接；
   // proxy 状态由后端直接改 DB，不走 mutation，必须显式刷新）
@@ -400,19 +263,6 @@ function App() {
         t("settings.s3Sync.autoSyncFailedToast", {
           error: statusPayload.error || t("common.unknown"),
         }),
-      );
-    },
-  );
-
-  useTauriEvent<{ appType: string; providerName: string }>(
-    "proxy-official-warning",
-    (payload) => {
-      toast.warning(
-        t("notifications.proxyOfficialWarning", {
-          name: payload.providerName,
-          defaultValue: `当前供应商 ${payload.providerName} 是官方供应商，建议切换到第三方供应商后再使用代理接管`,
-        }),
-        { duration: 8000 },
       );
     },
   );
@@ -691,14 +541,6 @@ function App() {
   // ─── 导航 ───────────────────────────────────────────────────────────────
   // MCP / Skills / 提示词在进行中的操作会锁住导航（卸载面板会丢掉进行中的状态）
 
-  // 添加 / 编辑 / 用量脚本面板只盖住内容区，侧栏还能点。离开当前页就把它们关掉：
-  // 面板的 appId 跟着 activeApp 走，开着切应用会把 A 应用的供应商保存进 B 应用
-  const closeProviderPanels = () => {
-    setIsAddOpen(false);
-    setEditingProvider(null);
-    setUsageProvider(null);
-  };
-
   // 整页编辑器里有未保存的修改：先确认，确认放弃后再执行这次导航
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const confirmLeave = (proceed: () => void) => {
@@ -713,7 +555,6 @@ function App() {
   ) => {
     if (managementBusyRef.current) return;
     if (confirmLeave(() => openSettings(section, appConfigTarget))) return;
-    closeProviderPanels();
     if (currentViewRef.current !== "settings") {
       settingsReturnViewRef.current = currentViewRef.current;
     }
@@ -729,7 +570,6 @@ function App() {
   const selectApp = (app: AppId) => {
     if (managementBusyRef.current) return;
     if (confirmLeave(() => selectApp(app))) return;
-    closeProviderPanels();
     setActiveApp(app);
     localStorage.setItem(APP_STORAGE_KEY, app);
     setCurrentView("client");
@@ -744,7 +584,6 @@ function App() {
     // 再点当前页不会离开：不弹确认，也不能清掉编辑页的未保存登记
     if (currentViewRef.current === page) return;
     if (confirmLeave(() => openPage(page))) return;
-    closeProviderPanels();
     if (page === "prompts" && currentViewRef.current !== "prompts") {
       // 提示词页默认选中侧栏里最后选的那个应用
       setPromptsApp(
@@ -762,16 +601,8 @@ function App() {
         return;
       }
       if (!navigation.app) return;
+      // G-01：添加供应商入口已移除，托盘的 add / needsRoute 意图只打开该应用页
       selectApp(navigation.app);
-      // 托盘先换应用：新应用那格还没报上来，按它实际生效的模式
-      if (navigation.intent === "add") openAddProvider(undefined);
-      if (navigation.intent === "needsRoute" && navigation.providerId) {
-        setTrayNeedsRoute({
-          app: navigation.app,
-          providerId: navigation.providerId,
-          nonce: Date.now(),
-        });
-      }
     };
     if (managementBusyRef.current || !confirmLeave(navigate)) navigate();
   });
@@ -826,114 +657,6 @@ function App() {
     setLaunchDashboardOpen(true),
   );
 
-  const handleEditProvider = async ({
-    provider,
-    originalId,
-    editorSave,
-  }: {
-    provider: Provider;
-    originalId?: string;
-    editorSave?: ProviderEditorSave;
-  }) => {
-    await updateProvider(provider, originalId, editorSave);
-    setEditingProvider(null);
-  };
-
-  // 累加式应用的「已添加」和「默认」都现读客户端文件，移除前后重读一遍
-  const refreshAdditiveLiveState = async (app: AppId) => {
-    if (isPiFamilyApp(app)) {
-      await invalidatePiProviderCaches(queryClient, app);
-    } else if (app === "opencode") {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["opencodeLiveProviderIds"],
-        }),
-        queryClient.invalidateQueries({ queryKey: ["opencodeDefaultModel"] }),
-      ]);
-    } else if (app === "openclaw") {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: openclawKeys.liveProviderIds,
-        }),
-        queryClient.invalidateQueries({ queryKey: openclawKeys.defaultModel }),
-        queryClient.invalidateQueries({ queryKey: openclawKeys.health }),
-      ]);
-    } else if (app === "hermes") {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: hermesKeys.liveProviderIds }),
-        queryClient.invalidateQueries({ queryKey: hermesKeys.modelConfig }),
-      ]);
-    } else if (app === "mcode" || app === "dsh" || app === "kimi") {
-      await queryClient.invalidateQueries({ queryKey: ["providers", app] });
-    }
-  };
-
-  const handleConfirmAction = async () => {
-    if (!confirmAction) return;
-    const { provider, action } = confirmAction;
-
-    if (action === "remove") {
-      // Remove from live config only (for additive mode apps like OpenCode/OpenClaw)
-      // Does NOT delete from database - provider remains in the list
-      try {
-        await providersApi.removeFromLiveConfig(provider.id, activeApp);
-      } catch (error) {
-        const detail = extractErrorMessage(error);
-        const description =
-          (isPiFamilyApp(activeApp)
-            ? translatePiProviderMutationError(detail, t)
-            : activeApp === "kimi"
-              ? translateKimiProviderMutationError(detail, t)
-              : "") || detail;
-        // 默认模型可能在客户端里改过、页面还是旧的：失败了也重读，让「默认」和移除按钮跟上
-        void refreshAdditiveLiveState(activeApp).catch(() => undefined);
-        toast.error(t("notifications.removeFromConfigFailed"), {
-          description: description || t("common.unknown"),
-          closeButton: true,
-        });
-        return;
-      }
-      await refreshAdditiveLiveState(activeApp);
-      toast.success(
-        isPiFamilyApp(activeApp)
-          ? t(`${activeApp}.provider.removed`, {
-              defaultValue: "已从 Pi 移除",
-            })
-          : t("notifications.removeFromConfigSuccess", {
-              defaultValue: "已从配置移除",
-            }),
-        { closeButton: true },
-      );
-    } else {
-      try {
-        await deleteProvider(provider.id);
-      } catch {
-        // useDeleteProviderMutation 的 onError 已经弹了错误 toast；确认框照样关掉
-      }
-    }
-    setConfirmAction(null);
-  };
-
-  const confirmActionMessage = useMemo(() => {
-    if (!confirmAction) return "";
-
-    const message =
-      confirmAction.action === "remove"
-        ? t("confirm.removeProviderMessage", {
-            name: confirmAction.provider.name,
-          })
-        : t("confirm.deleteProviderMessage", {
-            name: confirmAction.provider.name,
-          });
-    const isPiGlobalDefault =
-      activeApp === "pi" &&
-      piCurrentState?.defaultProviderId === confirmAction.provider.id;
-
-    return isPiGlobalDefault
-      ? `${message}\n\n${t("confirm.piDefaultProviderWarning")}`
-      : message;
-  }, [activeApp, confirmAction, piCurrentState?.defaultProviderId, t]);
-
   const handleImportSuccess = async () => {
     try {
       await queryClient.invalidateQueries({
@@ -946,7 +669,6 @@ function App() {
       });
     } catch (error) {
       console.error("[App] Failed to refresh providers after import", error);
-      await refetch();
     }
     try {
       await providersApi.updateTrayMenu();
@@ -1333,64 +1055,6 @@ function App() {
             </div>
           </main>
         </div>
-
-        <AddProviderDialog
-          open={isAddOpen}
-          onOpenChange={setIsAddOpen}
-          appId={activeApp}
-          onSubmit={addProvider}
-          modeView={formModeView}
-        />
-
-        <EditProviderDialog
-          open={Boolean(editingProvider)}
-          provider={effectiveEditingProvider}
-          onOpenChange={(open) => {
-            if (!open) {
-              setEditingProvider(null);
-            }
-          }}
-          onSubmit={handleEditProvider}
-          appId={activeApp}
-          isProxyTakeover={isCurrentAppTakeoverActive}
-          isCurrent={effectiveEditingProvider?.id === currentProviderId}
-          modeView={formModeView}
-        />
-
-        {effectiveUsageProvider && (
-          <UsageScriptModal
-            key={effectiveUsageProvider.id}
-            provider={effectiveUsageProvider}
-            appId={activeApp}
-            isOpen={Boolean(usageProvider)}
-            onClose={() => setUsageProvider(null)}
-            onSave={(script) => {
-              if (usageProvider) {
-                void saveUsageScript(usageProvider, script);
-              }
-            }}
-          />
-        )}
-
-        <OpenTerminalDialog
-          provider={terminalProvider}
-          appId={activeApp}
-          onClose={() => setTerminalProvider(null)}
-        />
-
-        <ConfirmDialog
-          isOpen={Boolean(confirmAction)}
-          title={
-            confirmAction?.action === "remove"
-              ? t("confirm.removeProvider")
-              : t("confirm.deleteProvider")
-          }
-          message={confirmActionMessage}
-          // 「移除」只是从应用配置里拿掉、CC Switch 里还留着，可以再加回去，不用红色
-          variant={confirmAction?.action === "remove" ? "info" : "destructive"}
-          onConfirm={() => void handleConfirmAction()}
-          onCancel={() => setConfirmAction(null)}
-        />
 
         <ConfirmDialog
           isOpen={pendingLeave !== null}

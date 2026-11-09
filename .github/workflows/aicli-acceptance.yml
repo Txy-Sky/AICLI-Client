@@ -259,29 +259,41 @@ jobs:
           files = sorted(Path("src/i18n/locales").glob("*.json"))
           assert len(files) == 5
 
-          def compare(old, new):
+          # G-01 (owner 2026-11-09): namespaces owned only by the removed provider UI
+          # (forms, presets incl. providerForm.partnerPromotion, usage scripts, mode
+          # and failover panels) go away with it. Nothing else may be removed.
+          removed_namespaces = {
+              "providerForm", "providerPreset", "presetSelector", "providerCard",
+              "providerIcon", "iconPicker", "universalProvider", "usageScript",
+              "endpointTest", "apiKeyInput", "claudeConfig", "codexConfig",
+              "geminiConfig", "opencode", "omo", "grokBuild", "claudeCode", "codex",
+              "claudeDesktop", "mcode", "mode", "failover", "streamCheck",
+              "proxyConfig", "health", "openclawConfig", "deeplink", "console",
+              "appSwitcher",
+          }
+
+          def compare(old, new, top=True):
               assert type(old) is type(new)
               if isinstance(old, dict):
                   # Every rebrand-baseline key must survive with its interpolations;
                   # later stages may add keys (F: all new copy goes into five locales).
-                  assert old.keys() <= new.keys(), "translation keys removed"
-                  for key in old:
-                      compare(old[key], new[key])
+                  kept = {key for key in old if not (top and key in removed_namespaces)}
+                  assert kept <= new.keys(), "translation keys removed"
+                  for key in kept:
+                      compare(old[key], new[key], False)
               elif isinstance(old, str):
                   assert sorted(re.findall(r"\{\{.*?\}\}", old)) == sorted(re.findall(r"\{\{.*?\}\}", new))
 
-          expected_hits = {"en": 28, "ja": 28, "tr": 28, "zh": 29, "zh-TW": 29}
           legacy = re.compile(r"cc switch|cc-switch", re.IGNORECASE)
           for path in files:
               before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:{path}"], text=True))
               after = json.loads(path.read_text())
               compare(before, after)
-              promotions = after["providerForm"].pop("partnerPromotion")
-              assert promotions == before["providerForm"]["partnerPromotion"], "promotion copy changed"
-              hits = sum(bool(legacy.search(value)) for value in promotions.values())
-              assert hits == expected_hits[path.stem], (path.stem, hits)
+              gone = sorted(removed_namespaces & after.keys())
+              assert not gone, (path.stem, gone)
+              # G-01 restores the full scan: no legacy brand anywhere, promotions included
               assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
-              print(f"{path.stem}: preserved promotion entries matching legacy brand={hits}; remainder=0")
+              print(f"{path.stem}: removed provider-UI namespaces={len(removed_namespaces)}; legacy brand hits=0")
               assert after["app"]["title"] == "AICLI Client"
           original_license = subprocess.check_output(["git", "show", f"{baseline}:LICENSE"])
           license_text = Path("LICENSE").read_bytes()
@@ -295,7 +307,7 @@ jobs:
           assert len(Path("README.md").read_text().splitlines()) < 70
           for name in ("CONTRIBUTING.md", "SUPPORT.md", "SECURITY.md", "session-manager.md", "CHANGELOG.md"):
               assert Path(name).is_file(), name
-          print("B-07: PASS; five locales retain all keys/interpolations; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
+          print("B-07: PASS; five locales retain all keys/interpolations outside the G-01 removed namespaces; no legacy brand; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
           PY
       - name: B-08 verify generated placeholder icons and debug build
         shell: bash

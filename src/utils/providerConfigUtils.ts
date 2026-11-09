@@ -1,9 +1,16 @@
 // 供应商配置处理工具函数
 
-import type { TemplateValueConfig } from "../config/claudeProviderPresets";
 import type { CodexApiFormat } from "@/types";
 import { normalizeTomlText } from "@/utils/textNormalization";
 import { parse as parseToml } from "smol-toml";
+
+/** 预设模板变量（原定义在 Claude 预设文件里，该文件已随 G-01 删除）。 */
+export interface TemplateValueConfig {
+  label: string;
+  placeholder: string;
+  defaultValue?: string;
+  editorValue: string;
+}
 
 const isPlainObject = (value: unknown): value is Record<string, any> => {
   return Object.prototype.toString.call(value) === "[object Object]";
