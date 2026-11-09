@@ -82,3 +82,13 @@ Actual A3-01 summary: 4449 tests run: 4449 passed, 10 skipped; frontend
 267 files / 3416 passed. No tests removed or ignored, no assertion relaxed.
 Final A6 and B-01 through B-07 all passed. Artifacts read outside the repo
 at /tmp/aicli-B-07-41554786813; only this summary is committed.
+
+补修（2026-11-09，执行端 F-GATE 前 pnpm tauri dev 发现）
+- 现象：Windows / Linux 侧栏左上角品牌仍显示「CC Switch」与旧 logo；设置「关于」、托盘面板标题同样。
+- 原因：B-07 的检查只扫语言文件（JSON），这几处是组件里写死的 JSX 文本与 logo.svg 引用。
+- 修复：侧栏（左上角两种布局与底部版本行）、关于页、托盘面板改为产品名「AICLI Client」（0.4 节固定
+  取值，各语言相同）；logo 改用 B-08 的占位图标（src/assets/icons/aicli-logo.png，复制自
+  src-tauri/icons/128x128.png）。
+- 防回归：tests/config/productBrand.test.ts 扫描 src 下全部 .tsx——JSX 文本不得为「CC Switch」、不得
+  再引用 assets/icons/logo.svg（修复前该测试 2 项失败，修复后通过）。注释、翻译缺失时的 defaultValue
+  兜底文案、合作方链接参数不在此检查范围（界面实际显示走语言文件，已在 B-07 改好）。
