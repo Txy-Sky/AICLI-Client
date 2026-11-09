@@ -5300,7 +5300,23 @@
         "readOnly": "システムプリセットは読み取り専用です。プリセットから作成してください。",
         "needsRepair": "保存する前に構成セットを修復してください。",
         "other": "保存に失敗しました：{{message}}"
-      }
+      },
+      "presets": {
+        "recommended": {
+          "name": "おすすめ",
+          "desc": "サーバーの自動グループ順にモデルを選びます。そのまま使えます。"
+        },
+        "low_cost": {
+          "name": "低コスト",
+          "desc": "グループ倍率の低い順に選び、費用を抑えます。"
+        }
+      },
+      "stats": "モデル {{models}} 個 · グループ {{groups}} 個",
+      "groupCount": "グループ {{count}} 個",
+      "groupsMore": "+{{count}}",
+      "inUseBy": "{{app}} で使用中",
+      "moreActions": "「{{name}}」のその他の操作",
+      "useForClientTitle": "クライアントに使用"
     },
     "settings": {
       "linesTitle": "AICLI 回線",

@@ -39,9 +39,10 @@ const catalog: AicliCatalog = {
   },
 };
 
+// 后端预设的 name 就是 id（profiles.rs::preset），显示名由前端翻译（F-11）
 const preset: AicliProfile = {
   id: "recommended",
-  name: "推荐",
+  name: "recommended",
   source: "system",
   preset_id: "recommended",
   revision: 0,
@@ -81,7 +82,7 @@ const routes = (repair = false): AicliRoutesView => ({
   profiles: [
     {
       id: "recommended",
-      name: "推荐",
+      name: "recommended",
       source: "system",
       preset_id: "recommended",
       revision: 0,
@@ -142,6 +143,15 @@ function respond(patch: Record<string, unknown> = {}) {
   });
 }
 
+// 次要操作收在每张卡片的「更多」菜单里；Radix 菜单在 jsdom 里用回车打开最稳
+async function openMenu(card: HTMLElement) {
+  fireEvent.keyDown(
+    within(card).getByRole("button", { name: "aicli.profiles.moreActions" }),
+    { key: "Enter" },
+  );
+  return screen.findByRole("menu");
+}
+
 const open = () =>
   renderWithQueryClient(
     <AicliProfilesPanel isOpen onClose={() => undefined} />,
@@ -184,6 +194,28 @@ describe("AicliProfilesPanel — list", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows system presets by their translated names, not their ids", async () => {
+    respond();
+    open();
+    const presetRow = await screen.findByTestId("aicli-preset-recommended");
+    expect(
+      within(presetRow).getByRole("heading", {
+        name: "aicli.profiles.presets.recommended.name",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(presetRow).getByText("aicli.profiles.presets.recommended.desc"),
+    ).toBeInTheDocument();
+    expect(
+      within(presetRow).queryByText("recommended"),
+    ).not.toBeInTheDocument();
+    // 我的配置集用自己的名字，没有预设说明
+    const mineRow = screen.getByTestId("aicli-profile-mine");
+    expect(
+      within(mineRow).getByRole("heading", { name: "我的" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the preset's model differences against the default profile", async () => {
     respond({
       aicli_get_profiles: view({
@@ -191,13 +223,11 @@ describe("AicliProfilesPanel — list", () => {
       }),
     });
     open();
+    const menu = await openMenu(
+      await screen.findByTestId("aicli-preset-recommended"),
+    );
     fireEvent.click(
-      within(await screen.findByTestId("aicli-preset-recommended")).getByRole(
-        "button",
-        {
-          name: "aicli.profiles.viewDiff",
-        },
-      ),
+      within(menu).getByRole("menuitem", { name: "aicli.profiles.viewDiff" }),
     );
     expect(
       await screen.findByTestId("aicli-diff-only-preset"),
@@ -210,7 +240,9 @@ describe("AicliProfilesPanel — list", () => {
     open();
     const row = await screen.findByTestId("aicli-profile-mine");
     fireEvent.click(
-      within(row).getByRole("button", { name: "aicli.profiles.setDefault" }),
+      within(await openMenu(row)).getByRole("menuitem", {
+        name: "aicli.profiles.setDefault",
+      }),
     );
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
@@ -219,11 +251,13 @@ describe("AicliProfilesPanel — list", () => {
         id: "mine",
       }),
     );
-    fireEvent.change(
-      within(row).getByRole("combobox", {
-        name: "aicli.profiles.useForClient",
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(
+      within(await openMenu(row)).getByRole("menuitemcheckbox", {
+        name: "Codex",
       }),
-      { target: { value: "codex" } },
     );
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
@@ -239,7 +273,9 @@ describe("AicliProfilesPanel — list", () => {
     open();
     const row = await screen.findByTestId("aicli-profile-mine");
     fireEvent.click(
-      within(row).getByRole("button", { name: "aicli.profiles.delete" }),
+      within(await openMenu(row)).getByRole("menuitem", {
+        name: "aicli.profiles.delete",
+      }),
     );
     const dialog = await screen.findByRole("dialog");
     expect(invokeMock).not.toHaveBeenCalledWith(

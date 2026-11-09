@@ -96,7 +96,8 @@ const routes = (needsRepair = false): AicliRoutesView => ({
   profiles: [
     {
       id: "recommended",
-      name: "推荐",
+      // 后端预设的 name 就是 id（profiles.rs::preset），显示名由前端翻译（F-11）
+      name: "recommended",
       source: "system",
       preset_id: null,
       revision: 1,
@@ -172,7 +173,9 @@ describe("AicliHome — bound", () => {
         "aicli.lines.current",
       ),
     ).toBeInTheDocument();
-    expect(await screen.findByText("推荐")).toBeInTheDocument();
+    expect(
+      await screen.findByText("aicli.profiles.presets.recommended.name"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("aicli.account.cached")).not.toBeInTheDocument();
     // 本地统计标注来源（原未绑定用例里的断言，F-07 起首页只在已绑定时出现）
     expect(screen.getByTestId("usage-page")).toHaveTextContent(

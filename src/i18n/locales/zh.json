@@ -5300,7 +5300,23 @@
         "readOnly": "系统预设是只读的，请从预设新建。",
         "needsRepair": "配置集需要修复后才能保存。",
         "other": "保存失败：{{message}}"
-      }
+      },
+      "presets": {
+        "recommended": {
+          "name": "推荐",
+          "desc": "按服务端自动分组的顺序选模型，开箱即用。"
+        },
+        "low_cost": {
+          "name": "低成本",
+          "desc": "按你的分组倍率从低到高选来源，优先省钱。"
+        }
+      },
+      "stats": "{{models}} 个模型 · {{groups}} 个分组",
+      "groupCount": "{{count}} 个分组",
+      "groupsMore": "+{{count}}",
+      "inUseBy": "{{app}} 正在使用",
+      "moreActions": "「{{name}}」的更多操作",
+      "useForClientTitle": "用于客户端"
     },
     "settings": {
       "linesTitle": "AICLI 线路",

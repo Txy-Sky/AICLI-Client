@@ -19,7 +19,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, GripVertical, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { fieldClass, Input } from "@/components/ui/input";
+import { usageTable } from "@/components/usage/usageTable";
+import { cn } from "@/lib/utils";
 import { Notice } from "@/components/ui/notice";
 import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
 import { useAicliSaveProfile } from "@/hooks/useAicliProfiles";
@@ -64,6 +67,7 @@ function SortableGroup({
   index,
   count,
   ratio,
+  description,
   onMove,
   onRemove,
 }: {
@@ -71,6 +75,7 @@ function SortableGroup({
   index: number;
   count: number;
   ratio: string;
+  description?: string;
   onMove: (from: number, to: number) => void;
   onRemove: () => void;
 }) {
@@ -82,7 +87,7 @@ function SortableGroup({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       data-testid={`aicli-group-${id}`}
-      className="flex items-center gap-2 rounded-control border border-border bg-surface px-2 py-1 text-body"
+      className="flex items-center gap-2 rounded-control border border-border bg-surface px-2 py-1.5 text-body"
     >
       <button
         type="button"
@@ -96,8 +101,15 @@ function SortableGroup({
       <span className="w-6 text-caption tabular-nums text-fg-3">
         {index + 1}
       </span>
-      <span className="min-w-0 flex-1 truncate text-fg-1">{id}</span>
-      <span className="text-caption text-fg-3">{ratio}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-fg-1">{id}</span>
+        {description && (
+          <span className="truncate text-caption text-fg-3">{description}</span>
+        )}
+      </span>
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-subtle px-2 text-badge tabular-nums text-fg-2">
+        {ratio}
+      </span>
       <Button
         type="button"
         variant="quiet"
@@ -250,6 +262,7 @@ export function AicliProfileEditor({
                   index={index}
                   count={body.selected_groups.length}
                   ratio={ratioText(group)}
+                  description={catalog?.groups[group]?.description || undefined}
                   onMove={(from, to) =>
                     setBody((current) => moveGroup(current, from, to))
                   }
@@ -266,12 +279,11 @@ export function AicliProfileEditor({
             {unselected.map((group) => (
               <label
                 key={group}
-                className="flex items-center gap-1.5 text-body text-fg-2"
+                className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1 text-body text-fg-2 transition-colors hover:border-border-strong"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={false}
-                  onChange={() =>
+                  onCheckedChange={() =>
                     setBody((current) => toggleGroup(current, group, true))
                   }
                 />
@@ -284,13 +296,12 @@ export function AicliProfileEditor({
           </div>
         )}
         <label className="flex items-center gap-2 text-body text-fg-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={body.allow_fallback}
-            onChange={(event) =>
+            onCheckedChange={(checked) =>
               setBody((current) => ({
                 ...current,
-                allow_fallback: event.target.checked,
+                allow_fallback: checked,
               }))
             }
           />
@@ -327,138 +338,163 @@ export function AicliProfileEditor({
             })}
           />
         )}
-        <table className="w-full border-collapse text-body">
-          <thead>
-            <tr className="text-caption text-fg-3">
-              <th className="py-1 pe-3 text-start font-normal">
-                {t("aicli.profiles.columns.model")}
-              </th>
-              <th className="py-1 pe-3 text-start font-normal">
-                {t("aicli.profiles.columns.sources")}
-              </th>
-              <th className="py-1 pe-3 text-start font-normal">
-                {t("aicli.profiles.columns.protocols")}
-              </th>
-              <th className="py-1 pe-3 text-start font-normal">
-                {t("aicli.profiles.columns.capabilities")}
-              </th>
-              <th className="py-1 pe-3 text-start font-normal">
-                {t("aicli.profiles.columns.choice")}
-              </th>
-              <th className="py-1 text-start font-normal">
-                {t("aicli.profiles.columns.alias")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.model}
-                data-testid={`aicli-preview-${row.model}`}
-                data-status={row.status}
-                className="border-t border-border align-top"
-              >
-                <td className="py-1.5 pe-3">
-                  <div className="text-fg-1">{row.model}</div>
-                  <div className="text-caption text-fg-3">
-                    {statusText(row)}
-                  </div>
-                </td>
-                <td className="py-1.5 pe-3 text-fg-2">
-                  {row.sourceGroups
-                    .map((group) => `${group}（${ratioText(group)}）`)
-                    .join("、")}
-                </td>
-                <td className="py-1.5 pe-3 text-fg-2">
-                  {row.protocols.join(", ")}
-                </td>
-                <td className="py-1.5 pe-3">
-                  <span className="flex flex-wrap gap-1">
-                    {row.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="outline"
-                        className="h-5 px-1.5 text-badge"
+        <div className="overflow-hidden rounded-panel border border-border bg-surface">
+          <div className={usageTable.scroller}>
+            <table className={usageTable.table}>
+              <thead>
+                <tr className={usageTable.headRow}>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.model")}
+                  </th>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.sources")}
+                  </th>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.protocols")}
+                  </th>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.capabilities")}
+                  </th>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.choice")}
+                  </th>
+                  <th className={usageTable.th}>
+                    {t("aicli.profiles.columns.alias")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.model}
+                    data-testid={`aicli-preview-${row.model}`}
+                    data-status={row.status}
+                    className={cn(usageTable.row, "h-auto")}
+                  >
+                    <td className={cn(usageTable.td, "py-2")}>
+                      <div className="text-fg-1">{row.model}</div>
+                      <div
+                        className={cn(
+                          "text-caption",
+                          row.status === "conflict"
+                            ? "text-warning-text"
+                            : "text-fg-3",
+                        )}
                       >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </span>
-                </td>
-                <td className="py-1.5 pe-3">
-                  {row.sourceGroups.length > 1 || row.status === "excluded" ? (
-                    <select
-                      aria-label={t("aicli.profiles.choiceFor", {
-                        model: row.model,
-                      })}
-                      className="rounded-control border border-border-strong bg-surface px-1.5 py-0.5 text-body"
-                      value={choiceValue(row)}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setBody((current) =>
-                          applyChoice(
-                            current,
-                            row.model,
-                            value === "exclude"
-                              ? { kind: "exclude" }
-                              : value.startsWith("source:")
-                                ? { kind: "source", group: value.slice(7) }
-                                : { kind: "order" },
-                          ),
-                        );
-                      }}
-                    >
-                      <option value="" disabled>
-                        {t("aicli.profiles.choicePlaceholder")}
-                      </option>
-                      <option value="order">
-                        {t("aicli.profiles.choiceOrder")}
-                      </option>
-                      {row.sourceGroups.map((group) => (
-                        <option key={group} value={`source:${group}`}>
-                          {t("aicli.profiles.choiceSource", { group })}
-                        </option>
-                      ))}
-                      <option value="exclude">
-                        {t("aicli.profiles.choiceExclude")}
-                      </option>
-                    </select>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="quiet"
-                      size="compact"
-                      onClick={() =>
-                        setBody((current) =>
-                          applyChoice(current, row.model, { kind: "exclude" }),
-                        )
-                      }
-                    >
-                      {t("aicli.profiles.choiceExclude")}
-                    </Button>
-                  )}
-                </td>
-                <td className="py-1.5">
-                  {row.status !== "excluded" && (
-                    <Input
-                      aria-label={t("aicli.profiles.aliasFor", {
-                        model: row.model,
-                      })}
-                      placeholder={row.model}
-                      value={row.binding?.alias ?? ""}
-                      onChange={(event) =>
-                        setBody((current) =>
-                          applyAlias(current, row.model, event.target.value),
-                        )
-                      }
-                      className="h-7"
-                    />
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                        {statusText(row)}
+                      </div>
+                    </td>
+                    <td className={cn(usageTable.td, "py-2 text-fg-2")}>
+                      <span className="flex flex-wrap gap-1">
+                        {row.sourceGroups.map((group) => (
+                          <span
+                            key={group}
+                            className="inline-flex h-5 items-center rounded-full bg-subtle px-2 text-badge"
+                          >
+                            {group} · {ratioText(group)}
+                          </span>
+                        ))}
+                      </span>
+                    </td>
+                    <td className={cn(usageTable.td, "py-2 text-fg-2")}>
+                      {row.protocols.join(", ")}
+                    </td>
+                    <td className={cn(usageTable.td, "py-2")}>
+                      <span className="flex flex-wrap gap-1">
+                        {row.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="h-5 px-1.5 text-badge"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </span>
+                    </td>
+                    <td className={cn(usageTable.td, "py-2")}>
+                      {row.sourceGroups.length > 1 ||
+                      row.status === "excluded" ? (
+                        <select
+                          aria-label={t("aicli.profiles.choiceFor", {
+                            model: row.model,
+                          })}
+                          className={cn(fieldClass, "h-7 w-auto pe-7")}
+                          value={choiceValue(row)}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setBody((current) =>
+                              applyChoice(
+                                current,
+                                row.model,
+                                value === "exclude"
+                                  ? { kind: "exclude" }
+                                  : value.startsWith("source:")
+                                    ? { kind: "source", group: value.slice(7) }
+                                    : { kind: "order" },
+                              ),
+                            );
+                          }}
+                        >
+                          <option value="" disabled>
+                            {t("aicli.profiles.choicePlaceholder")}
+                          </option>
+                          <option value="order">
+                            {t("aicli.profiles.choiceOrder")}
+                          </option>
+                          {row.sourceGroups.map((group) => (
+                            <option key={group} value={`source:${group}`}>
+                              {t("aicli.profiles.choiceSource", { group })}
+                            </option>
+                          ))}
+                          <option value="exclude">
+                            {t("aicli.profiles.choiceExclude")}
+                          </option>
+                        </select>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="quiet"
+                          size="compact"
+                          onClick={() =>
+                            setBody((current) =>
+                              applyChoice(current, row.model, {
+                                kind: "exclude",
+                              }),
+                            )
+                          }
+                        >
+                          {t("aicli.profiles.choiceExclude")}
+                        </Button>
+                      )}
+                    </td>
+                    <td className={cn(usageTable.td, "py-2")}>
+                      {row.status !== "excluded" && (
+                        <Input
+                          aria-label={t("aicli.profiles.aliasFor", {
+                            model: row.model,
+                          })}
+                          placeholder={row.model}
+                          value={row.binding?.alias ?? ""}
+                          onChange={(event) =>
+                            setBody((current) =>
+                              applyAlias(
+                                current,
+                                row.model,
+                                event.target.value,
+                              ),
+                            )
+                          }
+                          className="h-7"
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       {error && (

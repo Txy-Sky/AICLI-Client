@@ -26,6 +26,7 @@ import {
   useAicliTakeOver,
   useAicliTakeoverStatus,
 } from "@/hooks/useAicliProfiles";
+import { aicliProfileName } from "./profiles/profileName";
 import type {
   AicliCatalog,
   AicliCompatibility,
@@ -125,9 +126,7 @@ export function AicliClientPage({ app }: { app: AppId }) {
     routes.data?.active_profile_id ??
     "recommended";
   const profile = routes.data?.profiles.find((entry) => entry.id === profileId);
-  const profileName =
-    profile?.name ??
-    (profileId === "recommended" ? t("aicli.profile.recommended") : profileId);
+  const profileName = aicliProfileName(t, profile, profileId);
   const lineId = routes.data?.selected_line_id ?? account?.selected_line_id;
   const lineName = lineId ? t(`aicli.lines.${lineId}`) : "";
   const protocol = protocolForApp(app);

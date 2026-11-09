@@ -5300,7 +5300,23 @@
         "readOnly": "System presets are read only; create a profile from the preset.",
         "needsRepair": "Repair the profile before saving.",
         "other": "Saving failed: {{message}}"
-      }
+      },
+      "presets": {
+        "recommended": {
+          "name": "Recommended",
+          "desc": "Picks models in the server's auto group order. Works out of the box."
+        },
+        "low_cost": {
+          "name": "Low cost",
+          "desc": "Prefers your groups with the lowest ratio first to save credit."
+        }
+      },
+      "stats": "{{models}} models · {{groups}} groups",
+      "groupCount": "{{count}} groups",
+      "groupsMore": "+{{count}}",
+      "inUseBy": "Used by {{app}}",
+      "moreActions": "More actions for “{{name}}”",
+      "useForClientTitle": "Use for client"
     },
     "settings": {
       "linesTitle": "AICLI lines",

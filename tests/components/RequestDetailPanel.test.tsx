@@ -251,7 +251,11 @@ describe("RequestDetailPanel", () => {
     expect(screen.getByText("aicli.bill.title")).toBeInTheDocument();
     expect(screen.getByText("aicli.bill.pending")).toBeInTheDocument();
     expect(screen.getByText("aicli.lines.main")).toBeInTheDocument();
-    expect(screen.getByText("recommended")).toBeInTheDocument();
+    // F-11：系统预设按语言显示名称，不显示 id
+    expect(
+      screen.getByText("aicli.profiles.presets.recommended.name"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("recommended")).not.toBeInTheDocument();
     expect(screen.getByText("vip")).toBeInTheDocument();
     expect(useAicliRequestBillMock).toHaveBeenCalledWith("req_1");
   });

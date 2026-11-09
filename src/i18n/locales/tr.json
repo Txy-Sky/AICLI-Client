@@ -5242,7 +5242,23 @@
         "readOnly": "Sistem ön ayarları salt okunurdur; ön ayardan bir set oluşturun.",
         "needsRepair": "Kaydetmeden önce seti onarın.",
         "other": "Kaydetme başarısız: {{message}}"
-      }
+      },
+      "presets": {
+        "recommended": {
+          "name": "Önerilen",
+          "desc": "Modelleri sunucunun otomatik grup sırasına göre seçer. Hemen kullanıma hazır."
+        },
+        "low_cost": {
+          "name": "Düşük maliyet",
+          "desc": "Tasarruf için önce en düşük oranlı gruplarınızı seçer."
+        }
+      },
+      "stats": "{{models}} model · {{groups}} grup",
+      "groupCount": "{{count}} grup",
+      "groupsMore": "+{{count}}",
+      "inUseBy": "{{app}} kullanıyor",
+      "moreActions": "“{{name}}” için diğer işlemler",
+      "useForClientTitle": "İstemci için kullan"
     },
     "settings": {
       "linesTitle": "AICLI hatları",

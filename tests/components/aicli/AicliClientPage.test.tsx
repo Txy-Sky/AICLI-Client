@@ -38,7 +38,8 @@ const routes: AicliRoutesView = {
   profiles: [
     {
       id: "recommended",
-      name: "推荐",
+      // 后端预设的 name 就是 id（profiles.rs::preset），显示名由前端翻译（F-11）
+      name: "recommended",
       source: "system",
       preset_id: null,
       revision: 1,
@@ -305,7 +306,9 @@ describe("AicliClientPage", () => {
     const row = await screen.findByTestId("aicli-model-sonnet");
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("sonnet");
-    expect(cells[1]).toHaveTextContent("推荐");
+    expect(cells[1]).toHaveTextContent(
+      "aicli.profiles.presets.recommended.name",
+    );
     expect(cells[2]).toHaveTextContent("aicli.lines.main");
     expect(cells[3]).toHaveTextContent("aicli.client.compat.full");
     expect(within(cells[4]).getByText("tools")).toBeInTheDocument();

@@ -5301,7 +5301,23 @@
         "readOnly": "系統預設是唯讀的，請從預設新建。",
         "needsRepair": "設定集需要修復後才能儲存。",
         "other": "儲存失敗：{{message}}"
-      }
+      },
+      "presets": {
+        "recommended": {
+          "name": "推薦",
+          "desc": "依伺服端自動分組的順序選模型，開箱即用。"
+        },
+        "low_cost": {
+          "name": "低成本",
+          "desc": "依你的分組倍率由低到高選來源，優先省錢。"
+        }
+      },
+      "stats": "{{models}} 個模型 · {{groups}} 個分組",
+      "groupCount": "{{count}} 個分組",
+      "groupsMore": "+{{count}}",
+      "inUseBy": "{{app}} 正在使用",
+      "moreActions": "「{{name}}」的更多操作",
+      "useForClientTitle": "用於客戶端"
     },
     "settings": {
       "linesTitle": "AICLI 線路",

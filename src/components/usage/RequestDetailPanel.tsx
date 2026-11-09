@@ -33,6 +33,11 @@ import { getUsageProviderLabel } from "./providerLabel";
 import { useAicliRequestBill } from "@/hooks/useAicliUsage";
 import { useAicliAccount } from "@/hooks/useAicliAccount";
 import { formatAicliQuota } from "@/lib/aicliQuota";
+import { useAicliProfiles } from "@/hooks/useAicliProfiles";
+import {
+  aicliProfileName,
+  isAicliPresetId,
+} from "@/components/aicli/profiles/profileName";
 
 interface RequestDetailPanelProps {
   /** 要看的请求；null 时抽屉关闭 */
@@ -328,7 +333,20 @@ function useServerBillRows(requestId: string): DetailRow[] | null {
   const { t, i18n } = useTranslation();
   const bill = useAicliRequestBill(requestId).data;
   const display = useAicliAccount().data?.quota_display ?? null;
+  // 用户配置集的名字要查本机配置集；系统预设直接按语言翻译（F-11）
+  const userProfileId =
+    bill?.profile_id && !isAicliPresetId(bill.profile_id)
+      ? bill.profile_id
+      : null;
+  const profiles = useAicliProfiles(userProfileId != null).data;
   if (!bill) return null;
+  const profileName = bill.profile_id
+    ? aicliProfileName(
+        t,
+        profiles?.profiles.find((item) => item.id === bill.profile_id),
+        bill.profile_id,
+      )
+    : null;
   const pending = bill.billed_at == null;
   const charged = pending
     ? null
@@ -343,8 +361,8 @@ function useServerBillRows(requestId: string): DetailRow[] | null {
     {
       key: "profile",
       label: t("aicli.bill.profile"),
-      value: bill.profile_id ?? "—",
-      muted: !bill.profile_id,
+      value: profileName ?? "—",
+      muted: !profileName,
     },
     {
       key: "group",

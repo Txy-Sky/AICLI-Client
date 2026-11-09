@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { useAicliRoutes } from "@/hooks/useAicliProfiles";
+import { aicliProfileName } from "./profiles/profileName";
 
 interface AicliProfileCardProps {
   /** 账户上的当前配置集；为空时用推荐预设。 */
@@ -22,9 +23,7 @@ export function AicliProfileCard({
   const view = routes.data;
   const id = activeProfileId ?? view?.active_profile_id ?? "recommended";
   const profile = view?.profiles.find((entry) => entry.id === id);
-  const name =
-    profile?.name ??
-    (id === "recommended" ? t("aicli.profile.recommended") : id);
+  const name = aicliProfileName(t, profile, id);
   const count = profile?.routes.length ?? 0;
   const repair = profile?.repair;
 
