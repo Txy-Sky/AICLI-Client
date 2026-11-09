@@ -303,7 +303,6 @@ function App() {
     isProxyRunning: currentAppUsesProxy && isProxyRunning,
   });
   const { data: piCurrentState } = usePiCurrentState(activeApp === "pi");
-  const providers = useMemo(() => data?.providers ?? {}, [data]);
   const currentProviderId = data?.currentProviderId ?? "";
   const isOpenClawView = activeApp === "openclaw" && isAppPage(currentView);
   const { data: openclawHealthWarnings = [] } =
