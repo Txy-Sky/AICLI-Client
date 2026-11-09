@@ -36,6 +36,7 @@ const boundAccount: AicliAccountView = {
   selected_line_id: "main",
   active_profile_id: null,
   managed_tokens: [],
+  quota_display: null,
 };
 
 function wrapperFor(client: QueryClient) {
