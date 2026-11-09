@@ -350,7 +350,10 @@ describe("AICLI hooks", () => {
     invokeMock.mockResolvedValue(null);
     const { rerender } = renderHook(
       ({ id }: { id: string | null }) => useAicliRequestBill(id),
-      { wrapper: wrapperFor(client), initialProps: { id: null } },
+      {
+        wrapper: wrapperFor(client),
+        initialProps: { id: null as string | null },
+      },
     );
     await act(async () => {
       await Promise.resolve();
