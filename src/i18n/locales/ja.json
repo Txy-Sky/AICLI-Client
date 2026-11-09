@@ -5132,7 +5132,12 @@
       "submit": "連携",
       "binding": "連携中…",
       "failed": "連携に失敗しました：{{message}}",
-      "rebindTitle": "再連携"
+      "rebindTitle": "再連携",
+      "gateTitle": "AICLI Client へようこそ",
+      "gateSubtitle": "Web サイトのアカウントを連携すると使い始められます。",
+      "later": "後で",
+      "rebindAction": "再連携",
+      "loadFailed": "連携状態を読み込めませんでした：{{message}}"
     },
     "account": {
       "title": "アカウント",

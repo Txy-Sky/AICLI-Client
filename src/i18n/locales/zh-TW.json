@@ -5133,7 +5133,12 @@
       "submit": "綁定",
       "binding": "正在綁定…",
       "failed": "綁定失敗：{{message}}",
-      "rebindTitle": "重新綁定"
+      "rebindTitle": "重新綁定",
+      "gateTitle": "歡迎使用 AICLI Client",
+      "gateSubtitle": "綁定網站帳戶後即可進入。",
+      "later": "稍後",
+      "rebindAction": "重新綁定",
+      "loadFailed": "讀取綁定狀態失敗：{{message}}"
     },
     "account": {
       "title": "帳戶",

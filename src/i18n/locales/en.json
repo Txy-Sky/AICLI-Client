@@ -5132,7 +5132,12 @@
       "submit": "Bind",
       "binding": "Binding…",
       "failed": "Binding failed: {{message}}",
-      "rebindTitle": "Bind again"
+      "rebindTitle": "Bind again",
+      "gateTitle": "Welcome to AICLI Client",
+      "gateSubtitle": "Bind your website account to get started.",
+      "later": "Later",
+      "rebindAction": "Bind again",
+      "loadFailed": "Could not read the binding state: {{message}}"
     },
     "account": {
       "title": "Account",

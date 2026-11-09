@@ -77,6 +77,7 @@ import { AicliHome } from "@/components/aicli/AicliHome";
 import { AicliClientPage } from "@/components/aicli/AicliClientPage";
 import { useAicliEventBridge } from "@/hooks/useAicliAccount";
 import { AICLI_EVENTS } from "@/lib/api/aicli";
+import { AicliBindGate } from "@/components/aicli/AicliBindGate";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { proxyApi } from "@/lib/api/proxy";
 import type { AppMode, StartupAttachFailure } from "@/types/proxy";
@@ -248,7 +249,7 @@ function App() {
   useUsageCacheBridge();
   // F-01：后端缓存刷新完成 → 对应的 AICLI 查询原地更新
   useAicliEventBridge();
-  // F-03：深链 aicliapi://bind 打开首页的绑定界面
+  // F-07：深链 aicliapi://bind 打开绑定对话框（AicliBindGate）
   const [aicliBindRequest, setAicliBindRequest] = useState(0);
   useTauriEvent(AICLI_EVENTS.openBind, () => {
     const navigate = () => {
@@ -1202,7 +1203,6 @@ function App() {
           <AicliHome
             initialAppType={usageAppFilter}
             onOpenRoutingSettings={() => openSettings("routing")}
-            bindRequest={aicliBindRequest}
           />
         );
       case "mcp":
@@ -1272,166 +1272,168 @@ function App() {
     <WindowControlsContext.Provider
       value={useAppWindowControls ? <WindowControls /> : null}
     >
-      <div className="flex h-screen overflow-hidden bg-app text-fg-1 selection:bg-action/25">
-        <Sidebar
-          activeApp={activeApp}
-          view={currentView}
-          visibleApps={visibleApps}
-          settingsSection={settingsSection}
-          onSelectApp={selectApp}
-          onSelectPage={openPageFromNav}
-          onSelectSettingsSection={(section) => {
-            setAppConfigScrollTarget(undefined);
-            setSettingsSection(section);
-          }}
-          onExitSettings={exitSettings}
-          appsUpdateAvailable={
-            checkToolUpdatesOnStartup && toolUpdatesAvailable
-          }
-        />
-        <main
-          ref={mainScrollRef}
-          id="content-area"
-          className="relative isolate flex min-w-0 flex-1 flex-col overflow-hidden bg-app"
-        >
-          {showEnvBanner && envConflicts.length > 0 && (
-            <EnvWarningBanner
-              conflicts={envConflicts}
-              onDismiss={() => {
-                setShowEnvBanner(false);
-                sessionStorage.setItem("env_banner_dismissed", "true");
-              }}
-              onDeleted={async () => {
-                try {
-                  const allConflicts = await checkAllEnvConflicts();
-                  const flatConflicts = Object.values(allConflicts).flat();
-                  setEnvConflicts(flatConflicts);
-                  if (flatConflicts.length === 0) {
-                    setShowEnvBanner(false);
-                  }
-                } catch (error) {
-                  console.error(
-                    "[App] Failed to re-check conflicts after deletion:",
-                    error,
-                  );
-                }
-              }}
-            />
-          )}
-          <div
-            key={
-              currentView === "settings"
-                ? "settings"
-                : isAppPage(currentView)
-                  ? "app"
-                  : currentView
+      <AicliBindGate bindRequest={aicliBindRequest}>
+        <div className="flex h-screen overflow-hidden bg-app text-fg-1 selection:bg-action/25">
+          <Sidebar
+            activeApp={activeApp}
+            view={currentView}
+            visibleApps={visibleApps}
+            settingsSection={settingsSection}
+            onSelectApp={selectApp}
+            onSelectPage={openPageFromNav}
+            onSelectSettingsSection={(section) => {
+              setAppConfigScrollTarget(undefined);
+              setSettingsSection(section);
+            }}
+            onExitSettings={exitSettings}
+            appsUpdateAvailable={
+              checkToolUpdatesOnStartup && toolUpdatesAvailable
             }
-            className="flex min-h-0 flex-1 flex-col"
+          />
+          <main
+            ref={mainScrollRef}
+            id="content-area"
+            className="relative isolate flex min-w-0 flex-1 flex-col overflow-hidden bg-app"
           >
-            {renderContent()}
-          </div>
-        </main>
-      </div>
+            {showEnvBanner && envConflicts.length > 0 && (
+              <EnvWarningBanner
+                conflicts={envConflicts}
+                onDismiss={() => {
+                  setShowEnvBanner(false);
+                  sessionStorage.setItem("env_banner_dismissed", "true");
+                }}
+                onDeleted={async () => {
+                  try {
+                    const allConflicts = await checkAllEnvConflicts();
+                    const flatConflicts = Object.values(allConflicts).flat();
+                    setEnvConflicts(flatConflicts);
+                    if (flatConflicts.length === 0) {
+                      setShowEnvBanner(false);
+                    }
+                  } catch (error) {
+                    console.error(
+                      "[App] Failed to re-check conflicts after deletion:",
+                      error,
+                    );
+                  }
+                }}
+              />
+            )}
+            <div
+              key={
+                currentView === "settings"
+                  ? "settings"
+                  : isAppPage(currentView)
+                    ? "app"
+                    : currentView
+              }
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              {renderContent()}
+            </div>
+          </main>
+        </div>
 
-      <AddProviderDialog
-        open={isAddOpen}
-        onOpenChange={setIsAddOpen}
-        appId={activeApp}
-        onSubmit={addProvider}
-        modeView={formModeView}
-      />
-
-      <EditProviderDialog
-        open={Boolean(editingProvider)}
-        provider={effectiveEditingProvider}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingProvider(null);
-          }
-        }}
-        onSubmit={handleEditProvider}
-        appId={activeApp}
-        isProxyTakeover={isCurrentAppTakeoverActive}
-        isCurrent={effectiveEditingProvider?.id === currentProviderId}
-        modeView={formModeView}
-      />
-
-      {effectiveUsageProvider && (
-        <UsageScriptModal
-          key={effectiveUsageProvider.id}
-          provider={effectiveUsageProvider}
+        <AddProviderDialog
+          open={isAddOpen}
+          onOpenChange={setIsAddOpen}
           appId={activeApp}
-          isOpen={Boolean(usageProvider)}
-          onClose={() => setUsageProvider(null)}
-          onSave={(script) => {
-            if (usageProvider) {
-              void saveUsageScript(usageProvider, script);
+          onSubmit={addProvider}
+          modeView={formModeView}
+        />
+
+        <EditProviderDialog
+          open={Boolean(editingProvider)}
+          provider={effectiveEditingProvider}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingProvider(null);
             }
           }}
+          onSubmit={handleEditProvider}
+          appId={activeApp}
+          isProxyTakeover={isCurrentAppTakeoverActive}
+          isCurrent={effectiveEditingProvider?.id === currentProviderId}
+          modeView={formModeView}
         />
-      )}
 
-      <OpenTerminalDialog
-        provider={terminalProvider}
-        appId={activeApp}
-        onClose={() => setTerminalProvider(null)}
-      />
+        {effectiveUsageProvider && (
+          <UsageScriptModal
+            key={effectiveUsageProvider.id}
+            provider={effectiveUsageProvider}
+            appId={activeApp}
+            isOpen={Boolean(usageProvider)}
+            onClose={() => setUsageProvider(null)}
+            onSave={(script) => {
+              if (usageProvider) {
+                void saveUsageScript(usageProvider, script);
+              }
+            }}
+          />
+        )}
 
-      <ConfirmDialog
-        isOpen={Boolean(confirmAction)}
-        title={
-          confirmAction?.action === "remove"
-            ? t("confirm.removeProvider")
-            : t("confirm.deleteProvider")
-        }
-        message={confirmActionMessage}
-        // 「移除」只是从应用配置里拿掉、CC Switch 里还留着，可以再加回去，不用红色
-        variant={confirmAction?.action === "remove" ? "info" : "destructive"}
-        onConfirm={() => void handleConfirmAction()}
-        onCancel={() => setConfirmAction(null)}
-      />
+        <OpenTerminalDialog
+          provider={terminalProvider}
+          appId={activeApp}
+          onClose={() => setTerminalProvider(null)}
+        />
 
-      <ConfirmDialog
-        isOpen={pendingLeave !== null}
-        title={t("common.unsavedLeaveTitle")}
-        message={t("common.unsavedLeaveMessage")}
-        confirmText={t("common.unsavedLeaveConfirm")}
-        cancelText={t("common.unsavedLeaveCancel")}
-        zIndex="top"
-        onConfirm={() => {
-          const proceed = pendingLeave;
-          setPendingLeave(null);
-          discardUnsavedChanges();
-          proceed?.();
-        }}
-        onCancel={() => setPendingLeave(null)}
-      />
+        <ConfirmDialog
+          isOpen={Boolean(confirmAction)}
+          title={
+            confirmAction?.action === "remove"
+              ? t("confirm.removeProvider")
+              : t("confirm.deleteProvider")
+          }
+          message={confirmActionMessage}
+          // 「移除」只是从应用配置里拿掉、CC Switch 里还留着，可以再加回去，不用红色
+          variant={confirmAction?.action === "remove" ? "info" : "destructive"}
+          onConfirm={() => void handleConfirmAction()}
+          onCancel={() => setConfirmAction(null)}
+        />
 
-      <ConfirmDialog
-        isOpen={launchDashboardOpen}
-        title={t("hermes.webui.launchConfirmTitle")}
-        message={t("hermes.webui.launchConfirmMessage")}
-        confirmText={t("hermes.webui.launchConfirmAction")}
-        variant="info"
-        onConfirm={() => {
-          setLaunchDashboardOpen(false);
-          void (async () => {
-            try {
-              await hermesApi.launchDashboard();
-              toast.success(t("hermes.webui.launching"));
-            } catch (error) {
-              toast.error(t("hermes.webui.launchFailed"), {
-                description: extractErrorMessage(error) || undefined,
-              });
-            }
-          })();
-        }}
-        onCancel={() => setLaunchDashboardOpen(false)}
-      />
+        <ConfirmDialog
+          isOpen={pendingLeave !== null}
+          title={t("common.unsavedLeaveTitle")}
+          message={t("common.unsavedLeaveMessage")}
+          confirmText={t("common.unsavedLeaveConfirm")}
+          cancelText={t("common.unsavedLeaveCancel")}
+          zIndex="top"
+          onConfirm={() => {
+            const proceed = pendingLeave;
+            setPendingLeave(null);
+            discardUnsavedChanges();
+            proceed?.();
+          }}
+          onCancel={() => setPendingLeave(null)}
+        />
 
-      <FirstRunNoticeDialog />
-      <NewLayoutDialog />
-      <WhatsNewNotice />
+        <ConfirmDialog
+          isOpen={launchDashboardOpen}
+          title={t("hermes.webui.launchConfirmTitle")}
+          message={t("hermes.webui.launchConfirmMessage")}
+          confirmText={t("hermes.webui.launchConfirmAction")}
+          variant="info"
+          onConfirm={() => {
+            setLaunchDashboardOpen(false);
+            void (async () => {
+              try {
+                await hermesApi.launchDashboard();
+                toast.success(t("hermes.webui.launching"));
+              } catch (error) {
+                toast.error(t("hermes.webui.launchFailed"), {
+                  description: extractErrorMessage(error) || undefined,
+                });
+              }
+            })();
+          }}
+          onCancel={() => setLaunchDashboardOpen(false)}
+        />
+
+        <FirstRunNoticeDialog />
+        <NewLayoutDialog />
+        <WhatsNewNotice />
+      </AicliBindGate>
     </WindowControlsContext.Provider>
   );
 }

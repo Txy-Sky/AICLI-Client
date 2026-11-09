@@ -1,11 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import i18n from "i18next";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import en from "@/i18n/locales/en.json";
-import ja from "@/i18n/locales/ja.json";
-import tr from "@/i18n/locales/tr.json";
-import zh from "@/i18n/locales/zh.json";
-import zhTW from "@/i18n/locales/zh-TW.json";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AicliHome } from "@/components/aicli/AicliHome";
 import type {
   AicliAccountView,
@@ -159,129 +153,6 @@ beforeEach(() => {
   invokeMock.mockReset();
 });
 
-describe("AicliHome — not bound", () => {
-  beforeEach(async () => {
-    i18n.addResourceBundle(
-      "zh",
-      "translation",
-      { aicli: zh.aicli },
-      true,
-      true,
-    );
-    await i18n.changeLanguage("zh");
-  });
-
-  afterEach(() => {
-    i18n.removeResourceBundle("zh", "translation");
-    i18n.addResourceBundle("zh", "translation", {});
-  });
-
-  it("shows the bind card with the section 0.4 copy, word for word", async () => {
-    respond({ aicli_get_account: unbound, aicli_get_privacy: privacyOff });
-    renderWithQueryClient(<AicliHome />);
-
-    expect(
-      await screen.findByRole("heading", { name: "系统访问令牌" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText(
-        "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
-      ),
-    ).toHaveAttribute("type", "password");
-    expect(
-      screen.getByText(
-        "在网页「个人设置」中生成。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "重新生成后旧令牌立即失效，所有已绑定的设备都要粘贴新令牌。",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("usage-page")).toHaveTextContent(
-      "来源：本机记录",
-    );
-    // 未绑定时不查账户快照与线路
-    expect(invokeMock).not.toHaveBeenCalledWith("aicli_refresh", {
-      kind: "account",
-    });
-  });
-
-  it("rejects an sk- key without binding and clears the field", async () => {
-    respond({ aicli_get_account: unbound, aicli_get_privacy: privacyOff });
-    renderWithQueryClient(<AicliHome />);
-    const input = await screen.findByPlaceholderText(
-      "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
-    );
-    fireEvent.change(input, { target: { value: ["sk-", "abc123"].join("") } });
-    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
-
-    expect(
-      await screen.findByText(
-        "这是 API 密钥，请粘贴网页「个人设置」中的系统访问令牌。",
-      ),
-    ).toBeInTheDocument();
-    expect(input).toHaveValue("");
-    expect(
-      invokeMock.mock.calls.some(([command]) => command === "aicli_bind"),
-    ).toBe(false);
-  });
-
-  it("binds with the pasted token and clears the field at once", async () => {
-    respond({
-      aicli_get_account: unbound,
-      aicli_get_privacy: privacyOff,
-      aicli_bind: never,
-    });
-    renderWithQueryClient(<AicliHome />);
-    const input = await screen.findByPlaceholderText(
-      "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
-    );
-    fireEvent.change(input, { target: { value: "access-value" } });
-    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
-    expect(input).toHaveValue("");
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("aicli_bind", {
-        accessToken: "access-value",
-        line: "main",
-      }),
-    );
-  });
-
-  it("opens the profile page in the system browser", async () => {
-    respond({ aicli_get_account: unbound, aicli_get_privacy: privacyOff });
-    renderWithQueryClient(<AicliHome />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "打开网页获取令牌" }),
-    );
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("open_external", {
-        url: "https://aicliapi.com/profile",
-      }),
-    );
-  });
-});
-
-describe("bind copy translations", () => {
-  const bundles = { en, ja, tr, "zh-TW": zhTW } as const;
-  const keys = Object.keys(zh.aicli.bind) as Array<keyof typeof zh.aicli.bind>;
-
-  it.each(Object.keys(bundles))("%s translates every bind string", (lng) => {
-    const bind = bundles[lng as keyof typeof bundles].aicli.bind as Record<
-      string,
-      string
-    >;
-    for (const key of keys) {
-      expect(bind[key], `${lng} aicli.bind.${key}`).toBeTruthy();
-      if (!["failed", "binding"].includes(key)) {
-        expect(bind[key], `${lng} aicli.bind.${key}`).not.toBe(
-          zh.aicli.bind[key],
-        );
-      }
-    }
-  });
-});
-
 describe("AicliHome — bound", () => {
   it("shows account, line and profile with server-side quota", async () => {
     respond(boundResponses());
@@ -303,6 +174,10 @@ describe("AicliHome — bound", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("推荐")).toBeInTheDocument();
     expect(screen.queryByText("aicli.account.cached")).not.toBeInTheDocument();
+    // 本地统计标注来源（原未绑定用例里的断言，F-07 起首页只在已绑定时出现）
+    expect(screen.getByTestId("usage-page")).toHaveTextContent(
+      "aicli.local.source",
+    );
   });
 
   it("renders the cached snapshot without waiting for other requests", async () => {
@@ -365,8 +240,9 @@ describe("AicliHome — bound", () => {
     expect(
       await screen.findByText("aicli.account.tokenInvalid"),
     ).toBeInTheDocument();
+    // F-07：绑定对话框由 AicliBindGate 承载，首页给「重新绑定」入口
     expect(
-      screen.getByRole("heading", { name: "aicli.bind.title" }),
+      screen.getByRole("button", { name: "aicli.bind.rebindAction" }),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("aicli-quota-remaining")).toHaveTextContent(
@@ -433,15 +309,5 @@ describe("AicliHome — bound", () => {
       }),
     );
     expect(screen.getByText("aicli.lines.switchNote")).toBeInTheDocument();
-  });
-
-  it("opens a rebind dialog when the bind deep link arrives while bound", async () => {
-    respond(boundResponses());
-    const { rerender } = renderWithQueryClient(<AicliHome bindRequest={0} />);
-    await screen.findByText("alice");
-    rerender(<AicliHome bindRequest={1} />);
-    expect(
-      await screen.findByRole("dialog", { name: "aicli.bind.rebindTitle" }),
-    ).toBeInTheDocument();
   });
 });

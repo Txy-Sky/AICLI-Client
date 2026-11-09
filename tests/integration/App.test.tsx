@@ -9,6 +9,8 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { server } from "../msw/server";
 import { resetProviderState, setSettings } from "../msw/state";
 import { emitTauriEvent } from "../msw/tauriMocks";
 
@@ -228,8 +230,35 @@ const renderApp = (AppComponent: ComponentType) => {
   );
 };
 
+// F-07：AicliBindGate 读完绑定状态才渲染主界面；先等侧栏出现再操作
+const renderAppReady = async (AppComponent: ComponentType) => {
+  const view = renderApp(AppComponent);
+  await screen.findByRole("navigation", { hidden: true }, { timeout: 5000 });
+  return view;
+};
+
+const boundAccount = {
+  state: "bound",
+  user_id: 7,
+  username: "alice",
+  user_group: "default",
+  selected_line_id: "main",
+  active_profile_id: null,
+  managed_tokens: [],
+  quota_display: null,
+};
+
+// F-07：未绑定时 AicliBindGate 不让进入应用；集成用例默认在已绑定状态下跑
+const useBoundAccount = () =>
+  server.use(
+    http.post("http://tauri.local/aicli_get_account", () =>
+      HttpResponse.json(boundAccount),
+    ),
+  );
+
 describe("App integration with MSW", () => {
   beforeEach(() => {
+    useBoundAccount();
     resetProviderState();
     toastSuccessMock.mockReset();
     toastErrorMock.mockReset();
@@ -256,7 +285,7 @@ describe("App integration with MSW", () => {
     "asks before leaving an editor page with unsaved changes",
     async () => {
       const { default: App } = await import("@/App");
-      renderApp(App);
+      await renderAppReady(App);
 
       // 没改过：照常离开，不问
       fireEvent.click(sidebarApp("MCP"));
@@ -295,7 +324,7 @@ describe("App integration with MSW", () => {
     "keeps the unsaved guard when re-clicking the current page",
     async () => {
       const { default: App } = await import("@/App");
-      renderApp(App);
+      await renderAppReady(App);
 
       fireEvent.click(sidebarApp("MCP"));
       fireEvent.input(await screen.findByLabelText("mcp-field"), {
@@ -320,7 +349,7 @@ describe("App integration with MSW", () => {
 
   it("shows toast when auto sync fails in background", async () => {
     const { default: App } = await import("@/App");
-    renderApp(App);
+    await renderAppReady(App);
 
     // 等首页渲染完（监听在挂载后异步注册）
     await waitFor(() =>
@@ -364,7 +393,7 @@ describe("App integration with MSW", () => {
 
   it("renders the Skills page with its own header", async () => {
     const { default: App } = await import("@/App");
-    renderApp(App);
+    await renderAppReady(App);
     fireEvent.click(sidebarApp("Skills"));
 
     expect(await screen.findByTestId("unified-skills-panel")).toHaveTextContent(
@@ -374,7 +403,7 @@ describe("App integration with MSW", () => {
 
   it("navigates OpenClaw and Hermes pages with underline tabs", async () => {
     const { default: App } = await import("@/App");
-    renderApp(App);
+    await renderAppReady(App);
 
     fireEvent.click(sidebarApp("OpenClaw"));
     // 首次启动提示是模态对话框，页面其余部分是 aria-hidden，所以带上 hidden
@@ -464,7 +493,7 @@ describe("App integration with MSW", () => {
     async (stored) => {
       localStorage.setItem("aicli-client-last-view", stored);
       const { default: App } = await import("@/App");
-      renderApp(App);
+      await renderAppReady(App);
 
       await waitFor(() =>
         expect(sidebarApp("nav.usage")).toHaveAttribute("aria-current", "page"),
@@ -477,9 +506,25 @@ describe("App integration with MSW", () => {
     },
   );
 
-  it("does not persist the view while switching pages", async () => {
+  // F-07：未绑定时只出现绑定对话框，主界面（侧栏、页面）不渲染
+  it("shows only the bind dialog while the account is not bound", async () => {
+    server.use(
+      http.post("http://tauri.local/aicli_get_account", () =>
+        HttpResponse.json({ ...boundAccount, state: "not_bound" }),
+      ),
+    );
     const { default: App } = await import("@/App");
     renderApp(App);
+    expect(
+      await screen.findByRole("dialog", { name: "aicli.bind.gateTitle" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("aicli-home")).not.toBeInTheDocument();
+  });
+
+  it("does not persist the view while switching pages", async () => {
+    const { default: App } = await import("@/App");
+    await renderAppReady(App);
     fireEvent.click(sidebarApp("Skills"));
     expect(
       await screen.findByTestId("unified-skills-panel"),
@@ -494,7 +539,7 @@ describe("App integration with MSW", () => {
     "has no provider search or add button on the %s client page",
     async (app) => {
       const { default: App } = await import("@/App");
-      renderApp(App);
+      await renderAppReady(App);
       enterClientPage(app);
       expect(
         await screen.findByTestId("aicli-client-page"),
@@ -519,7 +564,7 @@ describe("App integration with MSW", () => {
     windowMocks.isLinux.mockReturnValue(true);
     setSettings({ useAppWindowControls: true });
     const { default: App } = await import("@/App");
-    const { unmount } = renderApp(App);
+    const { unmount } = await renderAppReady(App);
     const header = document.querySelector("header")!;
     header.style.setProperty("cursor", "help", "important");
     const x = window.innerWidth;
@@ -575,7 +620,7 @@ describe("App integration with MSW", () => {
     windowMocks.isLinux.mockReturnValue(true);
     setSettings({ useAppWindowControls: true });
     const { default: App } = await import("@/App");
-    renderApp(App);
+    await renderAppReady(App);
     const header = document.querySelector("header")!;
     await waitFor(() => {
       fireEvent.mouseMove(header, { clientX: 500, clientY: 1 });
@@ -636,7 +681,7 @@ describe("App integration with MSW", () => {
     windowMocks.isLinux.mockReturnValue(true);
     setSettings({ useAppWindowControls: true });
     const { default: App } = await import("@/App");
-    renderApp(App);
+    await renderAppReady(App);
     const header = document.querySelector("header")!;
     const moveToEdge = () =>
       fireEvent.mouseMove(header, { clientX: 500, clientY: 1 });

@@ -5074,7 +5074,12 @@
       "submit": "Bağla",
       "binding": "Bağlanıyor…",
       "failed": "Bağlama başarısız: {{message}}",
-      "rebindTitle": "Yeniden bağla"
+      "rebindTitle": "Yeniden bağla",
+      "gateTitle": "AICLI Client'a hoş geldiniz",
+      "gateSubtitle": "Başlamak için web sitesi hesabınızı bağlayın.",
+      "later": "Daha sonra",
+      "rebindAction": "Yeniden bağla",
+      "loadFailed": "Bağlantı durumu okunamadı: {{message}}"
     },
     "account": {
       "title": "Hesap",
