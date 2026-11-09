@@ -262,7 +262,9 @@ jobs:
           def compare(old, new):
               assert type(old) is type(new)
               if isinstance(old, dict):
-                  assert old.keys() == new.keys(), "translation keys changed"
+                  # Every rebrand-baseline key must survive with its interpolations;
+                  # later stages may add keys (F: all new copy goes into five locales).
+                  assert old.keys() <= new.keys(), "translation keys removed"
                   for key in old:
                       compare(old[key], new[key])
               elif isinstance(old, str):
