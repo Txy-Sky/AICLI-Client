@@ -1,0 +1,41 @@
+F-04 客户端页验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：1a136132 feat(aicli): F-04 client page replaces the provider list
+      c1fedfb4 fix(aicli): F-04 drop the provider map App no longer reads
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42553829235（c1fedfb4，五 job 全 success；
+    前端 269 文件 / 3429 测试）
+
+实现
+- src/components/aicli/AicliClientPage.tsx 取代 App.tsx 的 renderProviderList（所有应用的「客户端」
+  分段；OpenClaw、Hermes 的专属页保留）：
+  · 接管状态：已接管 / 未接管 / 处理中（taking_over、releasing）/ 冲突（aicli_take_over 返回
+    cc_switch_conflict 时）；只有 Tier 1（claude / codex / gemini / grokbuild / claude-desktop，
+    后端 PROXY_APPS）显示接管操作，其余显示「暂不支持」。
+  · 接管、停止接管都经确认对话框，正文说明停止接管会还原为接管前的配置；冲突时第二次确认
+    「覆盖并接管」才以 confirmed=true 重试。
+  · 当前配置集：客户端专用绑定 > 账户默认 > 推荐预设。
+  · 本客户端可用模型表：模型名、配置集、线路、兼容级别（按客户端线协议：Claude 系 anthropic、
+    Gemini gemini、其余 openai-response）、能力标签（定价行 tags）；「刷新模型目录」（aicli_refresh
+    all 后刷新目录与路由）。Claude Code 有 partial 模型时显示提示。
+- App.tsx：删除 renderProviderList 及只被它使用的处理函数、mutation、import（handleAddKimiProvider、
+  handleDisableOmo / Slim、handleDuplicateProvider、handleEnablePiProvider、handleOpenWebsite、
+  handleProviderModeViewChange、generateUniqueProviderCopyKey、disableOmo* mutation、providers 等），
+  页头的供应商操作留到 G 阶段随供应商一起移除。用脚本逐轮扫描失去引用的声明（先在改动前的文件上
+  验证无误报）；首个提交仍漏一个 providers（可选链 data?.providers 被误计为引用），c1fedfb4 修正。
+- aicli.client 文案写入 5 种语言（冲突文案不含旧品牌名，满足 B-07）。
+
+验收
+- tests/components/aicli/AicliClientPage.test.tsx 13 项：未绑定、未接管 → 确认 → 接管、冲突 → 二次确认
+  覆盖、已接管 → 确认（还原说明）→ 停止接管、处理中禁用、不支持的客户端无操作、模型表各列与标签、
+  Claude Code partial 提示、其他客户端无该提示、客户端专用配置集优先、刷新模型目录；状态与协议映射。
+- 按负责人 2026-11-09 决定（按清单来，删掉供应商测试）：App 集成测试删除 15 个只测已移除供应商
+  列表的用例——basic provider flows、route pointer on failover（get_app_mode 只由已移除的
+  SwitchModePanel / ProviderForm 请求）、provider view scroll reset、closes provider panels、
+  openclaw / OpenCode（含两组 it.each）/ native OpenCode / MiniMax 复制、MiniMax 成员刷新、
+  Kimi 默认重读、Pi 默认移除警告、duplicate 读取 live ids 失败。改写保留：未保存保护改用 MCP 编辑页
+  （切应用先问、取消留在原页、⌘, 也问、放弃后进设置）、再点当前页保留保护、自动同步失败提示、
+  切页不持久化——不再等待供应商列表。App 集成测试现为 15 项全过。
+
+失败历史
+- 1a136132 的 CI 42552795554：src/App.tsx 的 providers 声明未再读取（TS6133），c1fedfb4 删除。

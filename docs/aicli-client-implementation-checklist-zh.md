@@ -860,10 +860,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-09 完成。AicliHome（绑定卡片 0.4 节文案逐字、账户 / 线路 / 配置集、本地统计标「来源：本机记录」），缓存优先、失败显示缓存与时间、无数据不显示 0、令牌失效、需要修复、隐私降级红色提示；额度按网页端规则换算（后端新增 quota_display 与隐私 engine，第 12 节）。组件测试 18 项 + 换算 9 项 + Rust 3 项。实现 1d576016、85abd404。详见 docs/aicli-evidence/F-03.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42551495587
 
 ### F-04 客户端页
-- [ ] 完成
+- [x] 完成
 - 修改：`src/components/aicli/AicliClientPage.tsx`，替换 `renderProviderList`（`App.tsx:1502`）。显示接管状态（已接管/未接管/冲突）、接管和停止接管按钮（确认对话框说明会还原配置）、当前配置集、本客户端可用模型表（模型名、配置集、线路、兼容级别、能力标签）、"刷新模型目录"按钮。OpenClaw、Hermes 的专属页保留。
 - 验收：组件测试覆盖各状态；Claude Code 的兼容级别 `partial` 时有提示。
-- 证据：
+- 证据：2026-11-09 完成。AicliClientPage 取代 renderProviderList：接管状态（已接管 / 未接管 / 处理中 / 冲突）、确认对话框说明还原配置、冲突二次确认覆盖、当前配置集、模型表（配置集 / 线路 / 兼容级别 / 能力标签）、刷新模型目录，Claude Code partial 提示；组件测试 13 项。按负责人决定删除 15 个只测已移除供应商列表的 App 集成用例，未保存保护改用 MCP 编辑页。实现 1a136132、c1fedfb4。详见 docs/aicli-evidence/F-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42553829235
 
 ### F-05 配置集编辑
 - [ ] 完成
@@ -1057,6 +1057,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | E-07（我方新增规则） | 清单要求逐条移植 Magpie（E-03）。 | E-07 对照发现 3 类漏遮后新增 3 条我方规则（非 Magpie 移植，redact.rs 文件头注明）：连接串口令含 @/#（锚定最后一个 @ 后的 host，端口可选、用户名可空）、阿里云 LTAI AccessKey、AccessKeySecret 赋值（名字前须非字母数字）；各有误报对照。E-03 golden 因此 3/522 条差异（L183/L187/L191 口令含 @/#，由不遮变遮），方向为多遮不漏，豁免原因已写明、断言未放宽。 | Maskit 黑盒对照发现的真实格式密钥类漏遮，验收要求必须修复；见 E-07.md。 |
 | E-08（模型路径未移植） | 清单要求移植 zhname.go。 | zhTrim（模型姓名的截断）未移植；Magpie 中靠模型遮的用例（感谢李老师、田中太郎等）按规则保留。 | 我方无模型（E-03 决定）；无模型语义为「开关打开即遮」，模型用例的行为以 model_only_cases_are_left 固定。 |
 | E-08（精确率不达标，开关不开放） | 清单要求精确率 ≥ 95%，不达标时保留代码、隐藏开关。 | 467 条语料（模板 338 + 模板外 129）：全量 P=0.9797 R=0.7108；模板外 P=0.7273 R=0.1194（误报 周报群/华东区/全体员）。取较低值，开关不开放：zhname::AVAILABLE=false，get_privacy 返回 privacy_detect_cjk_names_available=false，set_privacy 拒绝 Some(true)；代理接线与测试保留。 | 模板语料与检测器同源，全量数字偏乐观；模板外句式更接近真实输入。检测器改进到三种口径都 ≥ 95% 时由 zhname_corpus_precision 提示改为 true。 |
+| F-05（配置集「排除」模型） | F-05 要求冲突模型可「选来源、排除或起别名」；C 阶段的配置集结构只有来源绑定、别名和 `resolved_conflicts`，没有排除。 | `ProfileBody` 新增 `excluded_models`（`#[serde(default)]`，旧数据为空、无需迁移）：编译路由时跳过、校验时不算冲突；同一模型既排除又绑定判 `invalid_profile`；目录中已不存在的排除项忽略。 | 不改数据库结构（存于 `body_json`）。前端保存前去掉已不在所选分组中的绑定 / 确认 / 排除记录。 |
 | F-03（首页需要的后端数据） | C3-11 命令不提供额度显示设置与隐私引擎状态；清单要求额度按 `/api/status` 的 `quota_per_unit`、`quota_display_type` 换算，并在隐私开启时显示引擎状态。 | 线路探测成功时把公开 `/api/status` 的 5 个额度显示字段存入 `aicli_cache`（kind=status，只存这 5 项），`aicli_get_account` 带出 `quota_display`；`aicli_get_privacy` 带出 `engine`（本次运行的遮盖/降级/阻断/媒体放行计数，代理未运行为空）。`UsagePage`/`UsageDashboard` 只加可选的 `sourceNote` 标题标注（不传时不变）。 | 不新增命令；换算按网页端 rc.34 的行为自行实现（AGPL，未复制代码）。从未探测成功时按网页端默认值（USD、500000）。 |
 | F-02（B-07 文案检查允许新增键） | B-07 验收只要求优惠宣传原文与旧品牌条目数不变、其余不含旧品牌；工作流断言另要求五个语言文件的键与改名基线逐一相等。 | 工作流 B-07 改为基线的键必须全部保留（插值占位不变），允许新增键。 | F 阶段要求所有新文案写入 5 种语言，键必然增加；原断言在 F-02 加 `appPage.client` 时失败（CI 42545854393）。G-01 删除优惠宣传与供应商文案时需再按清单调整此检查。 |
 | E-GATE（Windows 生命周期脚本 cmd /D） | 清单未涉及上游生命周期脚本的执行方式。 | 03f90a48：commands/misc.rs 的 windows_lifecycle_command 改为 `cmd /D /C <bat>`，跳过注册表 AutoRun（doskey/clink 宏等）；交互终端 windows_start_command 不变。 | 生命周期脚本在收窄的 PATH 下运行，AutoRun 引用的工具常不在其中，报错写进 stderr 后被 finish_lifecycle_output 当成脚本错误。影响：依赖 AutoRun 设置环境的安装/卸载脚本不再拿到那些设置（脚本本身不应依赖用户交互配置）；无 AutoRun 的机器行为不变。 |
