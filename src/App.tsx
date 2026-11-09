@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, MoreHorizontal, Plus, Search } from "lucide-react";
+import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import { KNOWN_APP_TYPES, type AppTypeFilter } from "@/types/usage";
@@ -150,18 +150,7 @@ function App() {
     PROMPT_APP_IDS.includes(sharedFeatureApp) ? sharedFeatureApp : "claude",
   );
   const [isAddOpen, setIsAddOpen] = useState(false);
-  // 供应商搜索面板：页头按钮和 ⌘F 都能打开；换应用或离开供应商页就收起
-  const [providerSearchOpen, setProviderSearchOpen] = useState(false);
   const [, setConnectionStatusSlot] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    setProviderSearchOpen(false);
-  }, [activeApp, currentView]);
-  // 原供应商页顶部正在看的那格（直连 / 路由 / 聚合）。F-04 起客户端页取代供应商列表，
-  // 不再有组件上报，恒为 null；页头的新增 / 编辑表单仍按它选布局（G 阶段随供应商一起移除）。
-  const [providerModeView] = useState<{
-    app: AppId;
-    view: AppMode;
-  } | null>(null);
   const [formModeView, setFormModeView] = useState<AppMode>();
   // 托盘里点了直连下需要路由的那家：打开应用页后弹「需要路由」对话框
   const [, setTrayNeedsRoute] = useState<{
@@ -287,9 +276,6 @@ function App() {
 
   const { isRunning: isProxyRunning, takeoverStatus } = useProxyStatus();
   const modeAppId = isModeAppId(activeApp) ? activeApp : null;
-  // 换了应用、新面板还没报上来时为 undefined：表单按应用实际生效的模式
-  const currentModeView =
-    providerModeView?.app === activeApp ? providerModeView.view : undefined;
   const openAddProvider = (modeView: AppMode | undefined) => {
     setFormModeView(modeView);
     setIsAddOpen(true);
@@ -1093,35 +1079,7 @@ function App() {
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           )}
-          {currentView === "client" &&
-            (settingsData?.showProviderSearch ?? true) && (
-              <HoverTip
-                content={t("provider.searchButtonTip", {
-                  shortcut: isMac() ? "⌘F" : "Ctrl+F",
-                })}
-              >
-                <Button
-                  variant="quiet"
-                  size="icon-compact"
-                  className="h-8 w-8"
-                  aria-label={t("provider.searchAriaLabel")}
-                  aria-pressed={providerSearchOpen}
-                  onClick={() => setProviderSearchOpen((open) => !open)}
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </HoverTip>
-            )}
-          {currentView === "client" && (
-            <Button
-              variant="solid"
-              size="regular"
-              onClick={() => openAddProvider(currentModeView)}
-            >
-              <Plus className="h-4 w-4" />
-              {t("provider.addProvider")}
-            </Button>
-          )}
+          {/* F-04：客户端页没有供应商列表，页头不再放搜索和「添加供应商」 */}
           {currentView === "hermesMemory" && <HermesMemorySaveButton />}
           {appMenu}
         </>

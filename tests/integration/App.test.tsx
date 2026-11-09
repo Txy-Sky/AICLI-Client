@@ -489,6 +489,32 @@ describe("App integration with MSW", () => {
     expect(localStorage.getItem("aicli-client-last-view")).toBeNull();
   });
 
+  // F-04：客户端页取代了供应商列表，页头不能再有供应商搜索和「添加供应商」
+  it.each(["Claude Code", "Codex"])(
+    "has no provider search or add button on the %s client page",
+    async (app) => {
+      const { default: App } = await import("@/App");
+      renderApp(App);
+      enterClientPage(app);
+      expect(
+        await screen.findByTestId("aicli-client-page"),
+      ).toBeInTheDocument();
+      const header = document.querySelector("header") as HTMLElement;
+      expect(
+        within(header).queryByRole("button", {
+          name: /provider\.addProvider/,
+          hidden: true,
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(header).queryByRole("button", {
+          name: /provider\.searchAriaLabel/,
+          hidden: true,
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("shows all eight native resize cursors and restores existing inline styles", async () => {
     windowMocks.isLinux.mockReturnValue(true);
     setSettings({ useAppWindowControls: true });
