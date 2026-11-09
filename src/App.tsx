@@ -41,7 +41,7 @@ import {
   translatePiProviderMutationError,
 } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
-import { isLinux, isMac, isWindows } from "@/lib/platform";
+import { isLinux, isWindows } from "@/lib/platform";
 import {
   APP_STORAGE_KEY,
   appPageBelongsTo,
