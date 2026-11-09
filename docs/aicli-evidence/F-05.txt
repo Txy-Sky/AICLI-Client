@@ -1,0 +1,34 @@
+F-05 配置集编辑验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：a6b98825 feat(aicli): F-05 profile list and editor
+      （第 12 节「F-05（配置集排除模型）」一行随 641eeaa1 的 F-04 文档提交一并写入）
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42554944850（a6b98825，五 job 全 success；
+    前端 271 文件 / 3453 测试；Rust 4716 passed / 12 skipped）
+
+实现（src/components/aicli/profiles/）
+- AicliProfilesPanel（首页配置集卡片「管理配置集」打开的全屏面板）：
+  · 系统预设只读（徽标「只读」，无编辑 / 删除），「从预设新建」（复制为 system_copy、revision 0、
+    新 id）与「查看差异」（预设模型表与当前默认配置集按公开名比较）。
+  · 用户配置集：编辑、删除（确认对话框后带 revision 调用）、设为默认（global）、用于某客户端
+    （app 作用域，Tier 1 客户端）；已绑定的作用域以徽标显示。
+  · needs_repair：列出缺失分组与受影响模型。常驻说明「配置集只保存在本机，不会跨设备同步」。
+  · 普通用户不进入此页也能用：首页与客户端页默认使用推荐预设。
+- AicliProfileEditor：勾选分组、拖动排序（仓库已有的 @dnd-kit，另有上移 / 下移按钮便于键盘），
+  倍率提示（未知倍率单独标注）、回退开关；合并后的模型表预览（来源分组 + 倍率、协议、能力标签）；
+  多来源模型列为冲突，逐项「按分组顺序 / 只用某分组 / 排除」与别名，或「按分组顺序全部确认」；
+  有未解决冲突时保存不可用；后端每个校验错误码（unresolved_conflicts、duplicate_alias、
+  missing_groups、too_many_groups、revision_conflict、invalid_profile、read_only、needs_repair）
+  都有对应文案。
+- profileModel.ts：冲突判定与后端 validate 一致（已选分组中出现多于一次、未绑定、未确认、未排除）；
+  保存前去掉已不在所选分组中的绑定 / 确认 / 排除与空绑定。
+- 后端（第 12 节）：ProfileBody.excluded_models（serde default，旧数据为空，存于 body_json 不改表）：
+  编译时跳过、校验时不算冲突；同一模型既排除又绑定判 invalid_profile；目录中已不存在的排除项忽略。
+- aicli.profiles 文案写入 5 种语言。
+
+验收
+- tests/components/aicli/AicliProfilesPanel.test.tsx 16 项：未解决冲突时保存不可用、一键确认后可保存
+  且提交 resolved_conflicts；排除 / 指定来源；上移排序；从预设新建的字段；查看差异；设为默认与客户端
+  作用域；删除需确认；需要修复的提示；8 个校验错误码各自显示对应文案；本机存储说明与预设只读。
+- tests/components/aicli/profileModel.test.ts 8 项；Rust profiles 测试 2 项（排除不路由不算冲突、
+  排除与绑定冲突为非法、目录外排除项忽略；旧 body 无该字段可解析）。
