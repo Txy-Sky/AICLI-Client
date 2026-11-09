@@ -609,4 +609,28 @@ export const handlers = [
     deleteCustomIcon(id);
     return success(null);
   }),
+  // F-03 首页：默认未绑定（各测试按需 server.use 覆盖）
+  http.post(`${TAURI_ENDPOINT}/aicli_get_account`, () =>
+    success({
+      state: "not_bound",
+      user_id: null,
+      username: null,
+      user_group: null,
+      selected_line_id: "main",
+      active_profile_id: null,
+      managed_tokens: [],
+      quota_display: null,
+    }),
+  ),
+  http.post(`${TAURI_ENDPOINT}/aicli_get_privacy`, () =>
+    success({
+      bound: false,
+      privacy_enabled: false,
+      privacy_failure_mode: "block",
+      allow_unscanned_media: false,
+      privacy_detect_cjk_names: false,
+      privacy_detect_cjk_names_available: false,
+      engine: null,
+    }),
+  ),
 ];

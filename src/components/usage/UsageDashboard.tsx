@@ -242,6 +242,8 @@ interface UsageDashboardProps {
   onUsageDisplayChange?: (
     next: UsageDisplaySettings,
   ) => Promise<boolean> | boolean | void;
+  /** 标题旁的数据来源标注（F-03 首页：「来源：本机记录」）；不传不显示。 */
+  sourceNote?: string;
 }
 
 /**
@@ -257,6 +259,7 @@ export function UsageDashboard({
   onOpenRoutingSettings,
   usageDisplay,
   onUsageDisplayChange,
+  sourceNote,
 }: UsageDashboardProps = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -966,7 +969,14 @@ export function UsageDashboard({
         icon={<ChartColumn className="h-5 w-5" strokeWidth={1.5} />}
         title={t("nav.usage")}
         titleExtra={
-          <HelpTip title={t("nav.usage")}>{t("usage.subtitle")}</HelpTip>
+          <>
+            <HelpTip title={t("nav.usage")}>{t("usage.subtitle")}</HelpTip>
+            {sourceNote && (
+              <span className="ms-2 text-caption font-normal text-fg-3">
+                {sourceNote}
+              </span>
+            )}
+          </>
         }
         actions={headerActions}
       />

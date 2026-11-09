@@ -5120,5 +5120,67 @@
       "signInFailed": "DeepSeek 账号登录失败"
     },
     "deleteSessionHint": "请在 DeepSeek Harness 中删除此会话，以保持原生历史记录一致。"
+  },
+  "aicli": {
+    "bind": {
+      "title": "系统访问令牌",
+      "placeholder": "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
+      "description": "在网页「个人设置」中生成。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
+      "warning": "重新生成后旧令牌立即失效，所有已绑定的设备都要粘贴新令牌。",
+      "skKeyError": "这是 API 密钥，请粘贴网页「个人设置」中的系统访问令牌。",
+      "openWeb": "打开网页获取令牌",
+      "submit": "绑定",
+      "binding": "正在绑定…",
+      "failed": "绑定失败：{{message}}",
+      "rebindTitle": "重新绑定"
+    },
+    "account": {
+      "title": "账户",
+      "group": "用户组",
+      "remaining": "剩余额度",
+      "used": "已用额度",
+      "source": "来源：服务端",
+      "lastSync": "最后同步：{{time}}",
+      "neverSynced": "尚未同步",
+      "cached": "缓存数据",
+      "noData": "暂无数据",
+      "tokenInvalid": "令牌已失效，可能已在其他地方重新生成，请粘贴新令牌"
+    },
+    "lines": {
+      "title": "线路",
+      "main": "主线路",
+      "global": "全球备用",
+      "apac": "亚太加速",
+      "current": "当前",
+      "switch": "切换",
+      "switchNote": "切换只影响之后的请求，进行中的请求不受影响。",
+      "probe": "测速",
+      "latency": "{{ms}} ms",
+      "untested": "未测速",
+      "unreachable": "不可用",
+      "transport": {
+        "cloudflare": "Cloudflare",
+        "cdn": "CDN"
+      }
+    },
+    "profile": {
+      "title": "配置集",
+      "models": "可用模型 {{count}} 个",
+      "noModels": "暂无可用模型",
+      "manage": "管理配置集",
+      "needsRepair": "配置集需要修复：缺少分组 {{groups}}，受影响的模型 {{count}} 个。",
+      "recommended": "推荐（默认）"
+    },
+    "privacy": {
+      "enabled": "隐私保护已开启",
+      "modeBlock": "隐私优先",
+      "modePass": "可用性优先",
+      "engineStopped": "本地代理未运行，隐私引擎在代理启动后生效。",
+      "engineRunning": "隐私引擎运行中，已遮盖 {{count}} 个值。",
+      "degraded": "隐私引擎有 {{count}} 次失败，请求已按「可用性优先」放行原文。"
+    },
+    "local": {
+      "source": "来源：本机记录"
+    }
   }
 }

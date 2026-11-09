@@ -5120,5 +5120,67 @@
       "signInFailed": "Couldn't sign in to the DeepSeek account"
     },
     "deleteSessionHint": "Delete this session in DeepSeek Harness to keep its history consistent."
+  },
+  "aicli": {
+    "bind": {
+      "title": "System access token",
+      "placeholder": "Paste your system access token (not an API key starting with sk-)",
+      "description": "Generate it under Profile settings on the website. The token is shown only once, so keep it safe; paste the same token when binding other devices.",
+      "warning": "Regenerating the token revokes the old one immediately; every bound device then needs the new token.",
+      "skKeyError": "This is an API key. Paste the system access token from Profile settings on the website.",
+      "openWeb": "Open the website to get a token",
+      "submit": "Bind",
+      "binding": "Binding…",
+      "failed": "Binding failed: {{message}}",
+      "rebindTitle": "Bind again"
+    },
+    "account": {
+      "title": "Account",
+      "group": "Group",
+      "remaining": "Remaining quota",
+      "used": "Used quota",
+      "source": "Source: server",
+      "lastSync": "Last synced: {{time}}",
+      "neverSynced": "Not synced yet",
+      "cached": "Cached data",
+      "noData": "No data yet",
+      "tokenInvalid": "The token is no longer valid; it may have been regenerated elsewhere. Paste the new token."
+    },
+    "lines": {
+      "title": "Line",
+      "main": "Main",
+      "global": "Global backup",
+      "apac": "Asia-Pacific",
+      "current": "Current",
+      "switch": "Switch",
+      "switchNote": "Switching only affects later requests; requests in progress are not affected.",
+      "probe": "Test speed",
+      "latency": "{{ms}} ms",
+      "untested": "Not tested",
+      "unreachable": "Unavailable",
+      "transport": {
+        "cloudflare": "Cloudflare",
+        "cdn": "CDN"
+      }
+    },
+    "profile": {
+      "title": "Profile",
+      "models": "{{count}} models available",
+      "noModels": "No models available",
+      "manage": "Manage profiles",
+      "needsRepair": "The profile needs repair: missing groups {{groups}}; {{count}} models affected.",
+      "recommended": "Recommended (default)"
+    },
+    "privacy": {
+      "enabled": "Privacy protection is on",
+      "modeBlock": "Privacy first",
+      "modePass": "Availability first",
+      "engineStopped": "The local proxy is not running; the privacy engine takes effect once it starts.",
+      "engineRunning": "Privacy engine running; {{count}} values masked.",
+      "degraded": "The privacy engine failed {{count}} times; those requests were sent unmasked under “Availability first”."
+    },
+    "local": {
+      "source": "Source: this device"
+    }
   }
 }

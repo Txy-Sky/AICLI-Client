@@ -225,6 +225,27 @@ impl Fixture {
     }
 
     fn with_post_bind(events: Arc<dyn CacheEvents>, proxy_control: Arc<ProxyControlFake>) -> Self {
+        let probe: ProbeFn = Arc::new(|_| {
+            let result: Result<(u16, Value), NewApiError> = Err(NewApiError::Network);
+            Box::pin(async move { result })
+        });
+        Self::with_parts(events, proxy_control, probe)
+    }
+
+    /// F-03：探测返回给定的 `/api/status` 响应。
+    fn with_status(body: Value) -> Self {
+        let probe: ProbeFn = Arc::new(move |_| {
+            let result: Result<(u16, Value), NewApiError> = Ok((200, body.clone()));
+            Box::pin(async move { result })
+        });
+        Self::with_parts(Arc::new(NoEvents), ProxyControlFake::ok(), probe)
+    }
+
+    fn with_parts(
+        events: Arc<dyn CacheEvents>,
+        proxy_control: Arc<ProxyControlFake>,
+        probe: ProbeFn,
+    ) -> Self {
         let temp = tempfile::tempdir().unwrap();
         let conn = Connection::open(temp.path().join("aicli-commands.db")).unwrap();
         Database::create_tables_on_conn(&conn).unwrap();
@@ -256,10 +277,6 @@ impl Fixture {
                 Ok(cache)
             })
         };
-        let probe: ProbeFn = Arc::new(|_| {
-            let result: Result<(u16, Value), NewApiError> = Err(NewApiError::Network);
-            Box::pin(async move { result })
-        });
         let runtime_refresh = Arc::new(RuntimeRefreshFake {
             calls: AtomicUsize::new(0),
             on_call: Mutex::new(None),
@@ -1351,4 +1368,76 @@ async fn account_view_failure_keeps_takeover_results() {
     let payloads = events.takeover_payloads.lock().unwrap().clone();
     assert_eq!(payloads.len(), 1);
     assert!(payloads[0].contains("\"app\":\"codex\""));
+}
+
+// ---- F-03：额度显示设置与隐私引擎计数 ----
+
+#[test]
+fn quota_display_follows_the_web_defaults() {
+    let full = json!({"data":{"quota_per_unit":250000,"quota_display_type":"CNY",
+        "usd_exchange_rate":7.2,"custom_currency_symbol":" ₿ ","custom_currency_exchange_rate":3}});
+    let view = AicliQuotaDisplayView::from_status(&full, 9).unwrap();
+    assert_eq!(view.quota_per_unit, 250000.0);
+    assert_eq!(view.quota_display_type, "CNY");
+    assert_eq!(view.usd_exchange_rate, 7.2);
+    assert_eq!(view.custom_currency_symbol, "₿");
+    assert_eq!(view.custom_currency_exchange_rate, 3.0);
+    assert_eq!(view.fetched_at, 9);
+
+    // 缺失、非正数、未知类型、空符号：按网页端默认值
+    let odd = json!({"data":{"quota_per_unit":0,"quota_display_type":"EUR",
+        "usd_exchange_rate":-1,"custom_currency_symbol":"  "}});
+    let view = AicliQuotaDisplayView::from_status(&odd, 1).unwrap();
+    assert_eq!(view.quota_per_unit, 500000.0);
+    assert_eq!(view.quota_display_type, "USD");
+    assert_eq!(view.usd_exchange_rate, 1.0);
+    assert_eq!(view.custom_currency_symbol, "¤");
+    assert_eq!(view.custom_currency_exchange_rate, 1.0);
+
+    assert!(AicliQuotaDisplayView::from_status(&json!({"success":true}), 1).is_none());
+}
+
+#[tokio::test]
+async fn successful_probe_stores_the_quota_display_for_the_account_view() {
+    let fixture = Fixture::with_status(json!({"success":true,"data":{
+        "quota_per_unit":500000,"quota_display_type":"TOKENS","system_name":"AICLI"}}));
+    fixture.seed_bound(7, ACCESS);
+    assert!(fixture
+        .services
+        .get_account()
+        .unwrap()
+        .quota_display
+        .is_none());
+
+    let results = fixture.services.probe_lines().await.unwrap();
+    assert!(results.iter().all(|result| result.status == "ok"));
+    let display = fixture
+        .services
+        .get_account()
+        .unwrap()
+        .quota_display
+        .unwrap();
+    assert_eq!(display.quota_display_type, "TOKENS");
+    assert_eq!(display.quota_per_unit, 500000.0);
+    assert!(display.fetched_at > 0);
+    // 只存显示设置，不存其余状态字段
+    let body: String = fixture
+        .db
+        .conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT body_json FROM aicli_cache WHERE kind='status'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!body.contains("system_name"), "{body}");
+}
+
+#[test]
+fn privacy_view_has_no_engine_counts_while_the_proxy_is_stopped() {
+    let fixture = Fixture::new();
+    fixture.seed_bound(7, ACCESS);
+    assert!(fixture.services.get_privacy().unwrap().engine.is_none());
 }

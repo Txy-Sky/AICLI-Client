@@ -87,7 +87,9 @@ import {
   checkToolUpdatesInBackground,
   useToolUpdatesAvailable,
 } from "@/components/apps/useToolManagement";
-import { UsagePage } from "@/components/usage/UsagePage";
+import { AicliHome } from "@/components/aicli/AicliHome";
+import { useAicliEventBridge } from "@/hooks/useAicliAccount";
+import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { EnvWarningBanner } from "@/components/env/EnvWarningBanner";
 import { SwitchModePanel } from "@/components/providers/mode/SwitchModePanel";
 import { proxyApi } from "@/lib/api/proxy";
@@ -281,6 +283,19 @@ function App() {
   const providerScrollContainerRef = useRef<HTMLDivElement>(null);
 
   useUsageCacheBridge();
+  // F-01：后端缓存刷新完成 → 对应的 AICLI 查询原地更新
+  useAicliEventBridge();
+  // F-03：深链 aicliapi://bind 打开首页的绑定界面
+  const [aicliBindRequest, setAicliBindRequest] = useState(0);
+  useTauriEvent(AICLI_EVENTS.openBind, () => {
+    const navigate = () => {
+      closeProviderPanels();
+      setCurrentView("usage");
+      setAicliBindRequest((count) => count + 1);
+    };
+    // 与托盘导航一致：编辑页有未保存修改时先确认
+    if (managementBusyRef.current || !confirmLeave(navigate)) navigate();
+  });
 
   useLayoutEffect(() => {
     if (currentView !== "client") return;
@@ -1640,9 +1655,10 @@ function App() {
     switch (currentView) {
       case "usage":
         return (
-          <UsagePage
+          <AicliHome
             initialAppType={usageAppFilter}
             onOpenRoutingSettings={() => openSettings("routing")}
+            bindRequest={aicliBindRequest}
           />
         );
       case "mcp":

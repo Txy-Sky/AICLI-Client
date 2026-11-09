@@ -5121,5 +5121,67 @@
       "signInFailed": "DeepSeek 帳號登入失敗"
     },
     "deleteSessionHint": "請在 DeepSeek Harness 中刪除此工作階段，以保持原生歷史記錄一致。"
+  },
+  "aicli": {
+    "bind": {
+      "title": "系統存取權杖",
+      "placeholder": "貼上系統存取權杖（不是 sk- 開頭的 API 金鑰）",
+      "description": "在網頁「個人設定」中產生。權杖只顯示一次，請妥善保存；綁定其他裝置時需要貼上同一個權杖。",
+      "warning": "重新產生後舊權杖立即失效，所有已綁定的裝置都要貼上新權杖。",
+      "skKeyError": "這是 API 金鑰，請貼上網頁「個人設定」中的系統存取權杖。",
+      "openWeb": "開啟網頁取得權杖",
+      "submit": "綁定",
+      "binding": "正在綁定…",
+      "failed": "綁定失敗：{{message}}",
+      "rebindTitle": "重新綁定"
+    },
+    "account": {
+      "title": "帳戶",
+      "group": "使用者群組",
+      "remaining": "剩餘額度",
+      "used": "已用額度",
+      "source": "來源：伺服器",
+      "lastSync": "最後同步：{{time}}",
+      "neverSynced": "尚未同步",
+      "cached": "快取資料",
+      "noData": "暫無資料",
+      "tokenInvalid": "權杖已失效，可能已在其他地方重新產生，請貼上新權杖"
+    },
+    "lines": {
+      "title": "線路",
+      "main": "主線路",
+      "global": "全球備用",
+      "apac": "亞太加速",
+      "current": "目前",
+      "switch": "切換",
+      "switchNote": "切換只影響之後的請求，進行中的請求不受影響。",
+      "probe": "測速",
+      "latency": "{{ms}} ms",
+      "untested": "未測速",
+      "unreachable": "無法使用",
+      "transport": {
+        "cloudflare": "Cloudflare",
+        "cdn": "CDN"
+      }
+    },
+    "profile": {
+      "title": "設定集",
+      "models": "可用模型 {{count}} 個",
+      "noModels": "暫無可用模型",
+      "manage": "管理設定集",
+      "needsRepair": "設定集需要修復：缺少群組 {{groups}}，受影響的模型 {{count}} 個。",
+      "recommended": "推薦（預設）"
+    },
+    "privacy": {
+      "enabled": "隱私保護已開啟",
+      "modeBlock": "隱私優先",
+      "modePass": "可用性優先",
+      "engineStopped": "本機代理未執行，隱私引擎在代理啟動後生效。",
+      "engineRunning": "隱私引擎執行中，已遮蓋 {{count}} 個值。",
+      "degraded": "隱私引擎有 {{count}} 次失敗，請求已按「可用性優先」放行原文。"
+    },
+    "local": {
+      "source": "來源：本機紀錄"
+    }
   }
 }

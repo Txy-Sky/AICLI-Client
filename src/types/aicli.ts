@@ -29,6 +29,19 @@ export interface AicliAccountView {
   selected_line_id: string | null;
   active_profile_id: string | null;
   managed_tokens: AicliManagedToken[];
+  /** 额度显示设置（最近一次成功探测的 /api/status）；从未探测成功时为 null。 */
+  quota_display: AicliQuotaDisplay | null;
+}
+
+export type AicliQuotaDisplayType = "USD" | "CNY" | "TOKENS" | "CUSTOM";
+
+export interface AicliQuotaDisplay {
+  quota_per_unit: number;
+  quota_display_type: AicliQuotaDisplayType;
+  usd_exchange_rate: number;
+  custom_currency_symbol: string;
+  custom_currency_exchange_rate: number;
+  fetched_at: number;
 }
 
 export interface AicliTakeoverOutcome {
@@ -239,6 +252,17 @@ export interface AicliPrivacyView {
   allow_unscanned_media: boolean;
   privacy_detect_cjk_names: boolean;
   privacy_detect_cjk_names_available: boolean;
+  /** 隐私引擎本次运行以来的计数；代理未运行时为 null。 */
+  engine: AicliPrivacyEngine | null;
+}
+
+export interface AicliPrivacyEngine {
+  masked_values: number;
+  /** 可用性优先模式下引擎失败、原文放行的次数。 */
+  degraded: number;
+  /** 隐私优先模式下引擎失败、请求被阻断的次数。 */
+  engine_blocked: number;
+  media_passed: number;
 }
 
 export interface AicliPrivacySettings {

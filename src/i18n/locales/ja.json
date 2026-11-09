@@ -5120,5 +5120,67 @@
       "signInFailed": "DeepSeek アカウントにログインできませんでした"
     },
     "deleteSessionHint": "履歴の整合性を保つため、DeepSeek Harness でこのセッションを削除してください。"
+  },
+  "aicli": {
+    "bind": {
+      "title": "システムアクセストークン",
+      "placeholder": "システムアクセストークンを貼り付け（sk- で始まる API キーではありません）",
+      "description": "Web サイトの「個人設定」で生成します。トークンは一度しか表示されないため大切に保管してください。他のデバイスを連携するときも同じトークンを貼り付けます。",
+      "warning": "再生成すると古いトークンはすぐに無効になり、連携済みのすべてのデバイスで新しいトークンの貼り付けが必要です。",
+      "skKeyError": "これは API キーです。Web サイトの「個人設定」にあるシステムアクセストークンを貼り付けてください。",
+      "openWeb": "Web サイトでトークンを取得",
+      "submit": "連携",
+      "binding": "連携中…",
+      "failed": "連携に失敗しました：{{message}}",
+      "rebindTitle": "再連携"
+    },
+    "account": {
+      "title": "アカウント",
+      "group": "ユーザーグループ",
+      "remaining": "残りクォータ",
+      "used": "使用済みクォータ",
+      "source": "出典：サーバー",
+      "lastSync": "最終同期：{{time}}",
+      "neverSynced": "未同期",
+      "cached": "キャッシュデータ",
+      "noData": "データなし",
+      "tokenInvalid": "トークンが無効になりました。別の場所で再生成された可能性があります。新しいトークンを貼り付けてください"
+    },
+    "lines": {
+      "title": "回線",
+      "main": "メイン回線",
+      "global": "グローバル予備",
+      "apac": "アジア太平洋",
+      "current": "現在",
+      "switch": "切り替え",
+      "switchNote": "切り替えはこの後のリクエストにのみ適用され、処理中のリクエストには影響しません。",
+      "probe": "速度テスト",
+      "latency": "{{ms}} ms",
+      "untested": "未テスト",
+      "unreachable": "利用不可",
+      "transport": {
+        "cloudflare": "Cloudflare",
+        "cdn": "CDN"
+      }
+    },
+    "profile": {
+      "title": "構成セット",
+      "models": "利用可能なモデル {{count}} 件",
+      "noModels": "利用可能なモデルはありません",
+      "manage": "構成セットを管理",
+      "needsRepair": "構成セットの修復が必要です：グループ {{groups}} がありません。影響を受けるモデル {{count}} 件。",
+      "recommended": "おすすめ（既定）"
+    },
+    "privacy": {
+      "enabled": "プライバシー保護がオンです",
+      "modeBlock": "プライバシー優先",
+      "modePass": "可用性優先",
+      "engineStopped": "ローカルプロキシが動作していません。プライバシーエンジンはプロキシ起動後に有効になります。",
+      "engineRunning": "プライバシーエンジン動作中、{{count}} 件の値をマスクしました。",
+      "degraded": "プライバシーエンジンが {{count}} 回失敗し、「可用性優先」によりリクエストは原文のまま送信されました。"
+    },
+    "local": {
+      "source": "出典：このデバイスの記録"
+    }
   }
 }

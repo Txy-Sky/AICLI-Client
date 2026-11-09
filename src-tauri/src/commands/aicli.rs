@@ -184,6 +184,53 @@ pub struct AicliAccountView {
     pub selected_line_id: Option<String>,
     pub active_profile_id: Option<String>,
     pub managed_tokens: Vec<AicliManagedTokenView>,
+    /// F-03：额度显示设置（最近一次成功探测的公开 `/api/status`）；从未探测成功时为空。
+    pub quota_display: Option<AicliQuotaDisplayView>,
+}
+
+/// F-03：服务端 `/api/status` 里的额度显示设置。前端按它换算额度，与网页端一致；
+/// 缺失或非法的值按网页端默认值处理（每单位 500000、USD、汇率 1、符号 ¤）。
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
+pub struct AicliQuotaDisplayView {
+    pub quota_per_unit: f64,
+    pub quota_display_type: String,
+    pub usd_exchange_rate: f64,
+    pub custom_currency_symbol: String,
+    pub custom_currency_exchange_rate: f64,
+    #[serde(default)]
+    pub fetched_at: i64,
+}
+
+impl AicliQuotaDisplayView {
+    /// 从 `/api/status` 响应取显示设置；没有 `data` 对象时为 None。
+    fn from_status(body: &Value, fetched_at: i64) -> Option<Self> {
+        let data = body.get("data")?.as_object()?;
+        let positive = |key: &str, default: f64| {
+            data.get(key)
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite() && *value > 0.0)
+                .unwrap_or(default)
+        };
+        let display_type = data
+            .get("quota_display_type")
+            .and_then(Value::as_str)
+            .filter(|value| matches!(*value, "USD" | "CNY" | "TOKENS" | "CUSTOM"))
+            .unwrap_or("USD");
+        let symbol = data
+            .get("custom_currency_symbol")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("¤");
+        Some(Self {
+            quota_per_unit: positive("quota_per_unit", 500_000.0),
+            quota_display_type: display_type.to_owned(),
+            usd_exchange_rate: positive("usd_exchange_rate", 1.0),
+            custom_currency_symbol: symbol.to_owned(),
+            custom_currency_exchange_rate: positive("custom_currency_exchange_rate", 1.0),
+            fetched_at,
+        })
+    }
 }
 
 /// C4-02：绑定后自动接管单个 Tier 1 客户端的结果；错误只有机器码和短文案，不含令牌材质。
@@ -328,6 +375,18 @@ pub struct AicliPrivacyView {
     pub privacy_detect_cjk_names: bool,
     /// E-08 开关是否开放；false 时界面不显示，设置为开会被拒绝。
     pub privacy_detect_cjk_names_available: bool,
+    /// F-03：隐私引擎本次运行以来的计数（只有数量，不含任何值）；代理未运行时为空。
+    pub engine: Option<AicliPrivacyEngineView>,
+}
+
+#[derive(Serialize)]
+pub struct AicliPrivacyEngineView {
+    pub masked_values: u64,
+    /// 可用性优先（pass）模式下引擎失败、原文放行的次数。
+    pub degraded: u64,
+    /// 隐私优先（block）模式下引擎失败、请求被阻断的次数。
+    pub engine_blocked: u64,
+    pub media_passed: u64,
 }
 
 // ---------------------------------------------------------------------------
@@ -821,6 +880,15 @@ impl AicliServices {
                 },
             )
             .unwrap_or((None, String::new(), String::new(), None, None));
+        let quota_display = conn
+            .query_row(
+                "SELECT body_json FROM aicli_cache WHERE kind='status'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|_| AicliCommandError::database())?
+            .and_then(|body| serde_json::from_str::<AicliQuotaDisplayView>(&body).ok());
         Ok(AicliAccountView {
             state,
             user_id,
@@ -829,6 +897,7 @@ impl AicliServices {
             selected_line_id,
             active_profile_id,
             managed_tokens: tokens,
+            quota_display,
         })
     }
 
@@ -1145,6 +1214,10 @@ impl AicliServices {
         let outcome = (self.probe)(line_id).await;
         let latency_ms = started.elapsed().as_millis().min(i64::MAX as u128) as i64;
         let checked_at = Utc::now().timestamp();
+        let quota_display = outcome
+            .as_ref()
+            .ok()
+            .and_then(|(_, body)| AicliQuotaDisplayView::from_status(body, checked_at));
         let (status, http_status, error_code) = match outcome {
             Ok((code, _)) => ("ok".to_owned(), Some(code as i64), None),
             Err(error) => {
@@ -1160,11 +1233,22 @@ impl AicliServices {
             }
         };
         let next_check_at = (status == "fail").then(|| checked_at + backoff_seconds(failures + 1));
-        self.db
+        let conn = self
+            .db
             .conn
             .lock()
-            .map_err(|_| AicliCommandError::database())?
-            .execute(
+            .map_err(|_| AicliCommandError::database())?;
+        // F-03：公开的额度显示设置（各线路是同一服务端，最近一次成功的覆盖）
+        if let Some(display) = &quota_display {
+            let body = serde_json::to_string(display).map_err(|_| AicliCommandError::database())?;
+            conn.execute(
+                "INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json) VALUES('status',NULL,?1,?2)
+                 ON CONFLICT(kind) DO UPDATE SET fetched_at=excluded.fetched_at,body_json=excluded.body_json",
+                rusqlite::params![checked_at, body],
+            )
+            .map_err(|_| AicliCommandError::database())?;
+        }
+        conn.execute(
                 "INSERT INTO aicli_line_health(line_id,checked_at,status,latency_ms,http_status,error_code)
                  VALUES(?1,?2,?3,?4,?5,?6)
                  ON CONFLICT(line_id,checked_at) DO UPDATE SET status=excluded.status,
@@ -1180,6 +1264,7 @@ impl AicliServices {
                 ],
             )
             .map_err(|_| AicliCommandError::database())?;
+        drop(conn);
         Ok(AicliProbeView {
             line_id: line_id.to_owned(),
             status,
@@ -1433,6 +1518,17 @@ impl AicliServices {
 
     // -- Privacy ---------------------------------------------------------------------
 
+    fn privacy_engine(&self) -> Option<AicliPrivacyEngineView> {
+        let runtime = self.app_state.proxy_service.aicli_runtime_now()?;
+        let stats = runtime.privacy().stats();
+        Some(AicliPrivacyEngineView {
+            masked_values: stats.masked_values,
+            degraded: stats.degraded,
+            engine_blocked: stats.engine_blocked,
+            media_passed: stats.media_passed,
+        })
+    }
+
     pub fn get_privacy(&self) -> Result<AicliPrivacyView, AicliCommandError> {
         let row = self
             .db
@@ -1468,6 +1564,7 @@ impl AicliServices {
                 allow_unscanned_media,
                 privacy_detect_cjk_names: detect_cjk_names && CJK_NAMES_AVAILABLE,
                 privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
+                engine: self.privacy_engine(),
             },
             None => AicliPrivacyView {
                 bound: false,
@@ -1476,6 +1573,7 @@ impl AicliServices {
                 allow_unscanned_media: false,
                 privacy_detect_cjk_names: false,
                 privacy_detect_cjk_names_available: CJK_NAMES_AVAILABLE,
+                engine: self.privacy_engine(),
             },
         })
     }

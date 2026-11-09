@@ -5062,5 +5062,67 @@
       "signInFailed": "DeepSeek hesabında oturum açılamadı"
     },
     "deleteSessionHint": "Geçmişin tutarlı kalması için bu oturumu DeepSeek Harness içinde silin."
+  },
+  "aicli": {
+    "bind": {
+      "title": "Sistem erişim belirteci",
+      "placeholder": "Sistem erişim belirtecini yapıştırın (sk- ile başlayan API anahtarı değil)",
+      "description": "Web sitesindeki «Profil ayarları» bölümünde oluşturulur. Belirteç yalnızca bir kez gösterilir, güvenli bir yerde saklayın; başka cihazları bağlarken aynı belirteci yapıştırın.",
+      "warning": "Yeniden oluşturulduğunda eski belirteç hemen geçersiz olur; bağlı tüm cihazlara yeni belirtecin yapıştırılması gerekir.",
+      "skKeyError": "Bu bir API anahtarı. Web sitesindeki «Profil ayarları» bölümünden sistem erişim belirtecini yapıştırın.",
+      "openWeb": "Belirteç almak için web sitesini aç",
+      "submit": "Bağla",
+      "binding": "Bağlanıyor…",
+      "failed": "Bağlama başarısız: {{message}}",
+      "rebindTitle": "Yeniden bağla"
+    },
+    "account": {
+      "title": "Hesap",
+      "group": "Kullanıcı grubu",
+      "remaining": "Kalan kota",
+      "used": "Kullanılan kota",
+      "source": "Kaynak: sunucu",
+      "lastSync": "Son eşitleme: {{time}}",
+      "neverSynced": "Henüz eşitlenmedi",
+      "cached": "Önbellek verisi",
+      "noData": "Henüz veri yok",
+      "tokenInvalid": "Belirteç artık geçerli değil; başka bir yerde yeniden oluşturulmuş olabilir. Yeni belirteci yapıştırın"
+    },
+    "lines": {
+      "title": "Hat",
+      "main": "Ana hat",
+      "global": "Küresel yedek",
+      "apac": "Asya-Pasifik",
+      "current": "Geçerli",
+      "switch": "Değiştir",
+      "switchNote": "Değişiklik yalnızca sonraki istekleri etkiler; devam eden istekler etkilenmez.",
+      "probe": "Hız testi",
+      "latency": "{{ms}} ms",
+      "untested": "Test edilmedi",
+      "unreachable": "Kullanılamıyor",
+      "transport": {
+        "cloudflare": "Cloudflare",
+        "cdn": "CDN"
+      }
+    },
+    "profile": {
+      "title": "Yapılandırma seti",
+      "models": "{{count}} model kullanılabilir",
+      "noModels": "Kullanılabilir model yok",
+      "manage": "Yapılandırma setlerini yönet",
+      "needsRepair": "Yapılandırma setinin onarılması gerekiyor: eksik gruplar {{groups}}; etkilenen model sayısı {{count}}.",
+      "recommended": "Önerilen (varsayılan)"
+    },
+    "privacy": {
+      "enabled": "Gizlilik koruması açık",
+      "modeBlock": "Önce gizlilik",
+      "modePass": "Önce erişilebilirlik",
+      "engineStopped": "Yerel proxy çalışmıyor; gizlilik motoru proxy başladığında devreye girer.",
+      "engineRunning": "Gizlilik motoru çalışıyor; {{count}} değer maskelendi.",
+      "degraded": "Gizlilik motoru {{count}} kez başarısız oldu; bu istekler «Önce erişilebilirlik» nedeniyle maskelenmeden gönderildi."
+    },
+    "local": {
+      "source": "Kaynak: bu cihaz"
+    }
   }
 }

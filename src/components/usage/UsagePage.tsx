@@ -8,12 +8,15 @@ interface UsagePageProps {
   initialAppType?: AppTypeFilter;
   /** 打开设置 → 本地路由（「记录请求用量」开关在那里） */
   onOpenRoutingSettings?: () => void;
+  /** 标题旁的数据来源标注（F-03 首页用）。 */
+  sourceNote?: string;
 }
 
 /** 侧栏「用量统计」全局页（v7 S6）：不开路由也有数据（读会话日志）。 */
 export function UsagePage({
   initialAppType,
   onOpenRoutingSettings,
+  sourceNote,
 }: UsagePageProps = {}) {
   const { settings, autoSaveSettings } = useSettings();
 
@@ -41,6 +44,7 @@ export function UsagePage({
       onOpenRoutingSettings={onOpenRoutingSettings}
       usageDisplay={settings?.usageDisplay}
       onUsageDisplayChange={(usageDisplay) => save({ usageDisplay })}
+      sourceNote={sourceNote}
     />
   );
 }
