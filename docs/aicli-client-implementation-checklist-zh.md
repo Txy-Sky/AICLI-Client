@@ -909,10 +909,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：
 
 ### F-11 配置集名称与配置集页
-- [ ] 完成
+- [x] 完成
 - 修改（负责人 2026-11-09 新增）：系统预设 `recommended`、`low_cost` 按语言显示名称与一句说明（中文「推荐」「低成本」），所有显示配置集名称的位置统一使用；配置集页改为卡片网格，每张卡片一个主操作，其余操作放入更多菜单，原生下拉和复选框换成界面组件。
 - 验收：组件测试用后端真实返回的预设名（id）断言中文显示；原冲突、保存、校验断言不变。
-- 证据：
+- 证据：2026-11-09 完成。后端预设 name 即 id，前端 profileName.ts 按语言显示「推荐」「低成本」及一句说明，首页、客户端页、配置集页、请求账单统一使用；配置集页改为卡片网格（图标、说明、模型数与分组数、分组胶囊、徽标、一个主操作 + 更多菜单），编辑器换用 Checkbox 与 usageTable 样式。测试夹具改用真实预设名，配置集页 17、客户端页 13、首页 9、请求详情 13 passed。实现 4d42b520。详见 docs/aicli-evidence/F-11.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42619719523
 
 ### F-GATE 阶段 F 门禁
 - [ ] 完成
@@ -1081,6 +1081,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| G-01（保留与提前删除） | G-01 要求删除 `src/lib/api/providers.ts`（保留类型的先移动）、`src/components/ProviderIcon*`（若无其他引用）、`DeepLinkImportDialog.tsx` 与 `deeplink/`。 | `lib/api/providers.ts` 保留：`useProvidersQuery`（OpenClaw 模型选项、设置的 Claude 插件判断）、托盘菜单刷新、应用页的 Claude Desktop 状态仍调用其只读函数；`ProviderIcon.tsx` 与 `icons/extracted` 保留（AppGlyph、appConfig、托盘面板使用），`ProviderIconBox`、`IconPicker`、`CustomIconNameDialog` 删除；`DeepLinkImportDialog` 与 `deeplink/` 已在 C4-01 删除。另外 `settings/AuthCenterPanel.tsx`、`settings/auth/`、`KimiAccountQuotaFooter.tsx`、`CodexOauthAccountQuota.tsx` 属 G-02 清单，但它们直接引用已删除的供应商表单、无法编译，随 G-01 删除；`lib/api/kimiOAuth.ts` 与 `utils/providerConfigUtils.ts` 引用的预设类型改为本地定义。 | TypeScript 检查包含 src 下全部文件，被删除依赖的死文件必须同批处理；其余 G-02 文件仍按 G-02 删除。 |
+| G-01（B-07 工作流） | B-07 断言基线的翻译键一个都不能删，并单独弹出比对 `providerForm.partnerPromotion`；清单要求 G-01 删除 partnerPromotion 并恢复全量扫描。 | B-07 改为：只允许删除 29 个只属于已删供应商界面的命名空间（含 `providerForm`，即 partnerPromotion），断言它们确实已删除，其余键与插值照旧逐项比对；去掉 partnerPromotion 的精确计数，改为整份 JSON 不得出现 `cc switch`/`cc-switch`。 | 负责人 2026-11-03 决定 partnerPromotion 在 G-01 随供应商界面删除并恢复全量扫描；工作流必须同步，否则 G-01 无法通过。 |
 | F-03 → F-07（绑定界面位置） | F-03 规定首页自上而下第一块是未绑定时的 `AicliBindCard`，深链打开同一界面。 | 绑定界面改由应用级 `AicliBindGate` 的对话框承载：未绑定时不进入应用、对话框不可关闭；令牌失效时可关闭，首页提示上给「重新绑定」按钮；读取绑定状态出错不拦截。卡片组件与第 0.4 节文案不变，F-03 的未绑定用例原样迁到 Gate 测试。 | 负责人 2026-11-09 要求未绑定时不直接进入应用，改为 Modal 提示填入后再进入。 |
 | C4-02 审查修正（目标读取失败与账户视图） | 清单只规定「首次绑定默认全部已安装、非首次仅已启用」与逐项结果下发。 | 读 `aicli_takeover` 失败时一个都不接管并返回 `takeoverTargetsError`；`AicliBindResult.account` 改为可空，读取失败记 `accountError`，逐项结果照常返回与下发。 | 统一验收审查（2026-11-07）：原实现读表失败会被当成首次绑定而接管全部已安装客户端；末尾读账户视图失败会丢掉已完成的接管结果。前端尚未调用该命令，无破坏面。 |
 | E-02 审查修正（密钥解析） | 清单只规定 32 字节随机密钥存 Keychain `privacy-hmac-key`。 | 存储值必须恰好 64 个十六进制字符；格式不对时重新生成并写回，不再把非十六进制字符当 0 字节。 | 统一验收审查（2026-11-07）发现坏值会退化成可预测密钥，占位符后缀发往上游后低熵值可被离线穷举。 |
