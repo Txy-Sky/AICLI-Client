@@ -823,7 +823,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ### E-GATE 阶段 E 门禁
 - [x] 完成
 - 验收：E-01～E-06 全部 `[x]`；`scripts/aicli-check.sh` 通过；用真实 Claude Code（H-02）在隐私开启状态下跑一轮工具调用 + thinking 的多轮对话，能正常完成，mock 或测试账号日志中查不到植入的假密钥。
-- 证据：2026-11-08 完成。① aicli-check.sh 8 步全绿（前端 3360、Rust nextest 4658 过）；Windows 本机特有的前端超时抖动（43–99 个不稳定失败）用「win32 限 worker 8 + 提高超时」修复，8 个 Rust 失败（symlink 权限 1314 跳过、BindHome 夹具 Windows 路径、机器 PATH 含 bun、cmd AutoRun 污染 stderr→cmd /D、路径分隔符归一）逐个修复，无页面文件机器限 CARGO_BUILD_JOBS=8（win32 条件，CI 不受影响）。② 真实 Claude Code 2.1.293 隐私轮：tests/aicli_egate_gate.rs 常驻门禁（真实 ProxyServer + 捕获上游）+ scripts/aicli-egate-privacy.sh 驱动，四轮 16/16 断言全过：工具调用+thinking 多轮正常完成（Bash 真实执行）、上游只见 {{EMAIL/API_KEY_…}} 占位符、客户端见原值、同值裸出现仍遮且占位符一致（已知值记忆）、流式中途中断后无残留无报错、capture/proxy 日志查不到植入假密钥。详见 docs/aicli-evidence/E-GATE.txt
+- 证据：2026-11-08 完成。① aicli-check.sh 8 步全绿（前端 3360、Rust nextest 4658 过）；Windows 本机特有的前端超时抖动（43–99 个不稳定失败）用「win32 限 worker 8 + 提高超时」修复，8 个 Rust 失败（symlink 权限 1314 跳过、BindHome 夹具 Windows 路径、机器 PATH 含 bun、cmd AutoRun 污染 stderr→cmd /D、路径分隔符归一）逐个修复，无页面文件机器限 CARGO_BUILD_JOBS=8（win32 条件，CI 不受影响）。② 真实 Claude Code 2.1.293 隐私轮：tests/aicli_egate_gate.rs 常驻门禁（真实 ProxyServer + 捕获上游）+ scripts/aicli-egate-privacy.sh 驱动，四轮 16/16 断言全过：工具调用+thinking 多轮正常完成（Bash 真实执行）、上游只见 {{EMAIL/API_KEY_…}} 占位符、客户端见原值、同值裸出现仍遮且占位符一致（已知值记忆）、流式中途中断后无残留无报错、capture/proxy 日志查不到植入假密钥。详见 docs/aicli-evidence/E-GATE.txt；统一验收复核补修 9907b1db（已知值记忆用仅提示词可识别的口令证明、占位符经 thinking 与跨片段工具参数还原、门禁轮进 CI），CI 42498172099 全绿，20/20 断言
 
 ---
 

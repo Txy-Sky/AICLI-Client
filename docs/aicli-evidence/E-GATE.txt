@@ -112,3 +112,9 @@ CI：run 42495819866（提交 789d4a4c，AICLI Acceptance）success，
 - CI：Rust item tests 作业新增「E-GATE real Claude Code privacy round」：
   npm 安装 @anthropic-ai/claude-code@2.1.293，对本地代理 + 捕获上游跑全部轮次
   （不连 Anthropic 端点）。门禁从此每次推送都跑，不再只靠 H-02 手动一次。
+复核 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42498172099（9907b1db，五 job 全
+success）。Rust item tests 作业「E-GATE real Claude Code privacy round」：Claude Code
+2.1.293（Linux 真实 CLI），20/20 断言通过——对照轮裸口令规则不遮；Round 1 客户端侧
+thinking / 工具参数 / 工具结果均为原值、上游第二跳 tool_result 遮回占位符；Round 2
+裸口令遮成 Round 1 的同一占位符（{{PASSWORD_…}}）；中断与中断后轮次、全局日志断言
+同前。捕获 7 条。
