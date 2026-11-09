@@ -322,6 +322,10 @@ impl Fixture {
     ///（Claude→Responses 协议转换链路）。
     async fn build(mode: UpstreamMode, replacement: String, conversion: bool) -> Self {
         support::ensure_test_home();
+        // 与生产 app setup 相同：安装 rustls CryptoProvider。代理内建 HTTPS 客户端的
+        // 路径会用到它；测试进程没人装时，哪条路径先建客户端就在哪里 panic
+        //（CI 42545854393 的偶发失败）。
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let _ = captured_logs();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let mock_origin = format!("http://{}", listener.local_addr().unwrap());
