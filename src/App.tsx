@@ -35,7 +35,6 @@ import {
 } from "@/lib/navigation";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { useUpdate } from "@/contexts/UpdateContext";
-import { NewLayoutDialog } from "@/components/shell/NewLayoutDialog";
 import {
   AppPageHeader,
   WindowControlsContext,
@@ -1127,7 +1126,6 @@ function App() {
         />
 
         <FirstRunNoticeDialog />
-        <NewLayoutDialog />
         <WhatsNewNotice />
       </AicliBindGate>
     </WindowControlsContext.Provider>

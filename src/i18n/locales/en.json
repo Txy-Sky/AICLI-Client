@@ -54,8 +54,8 @@
   },
   "firstRunNotice": {
     "title": "Welcome to AICLI Client",
-    "bodyDefault": "AICLI Client lets you switch between multiple Claude Code / Codex / Gemini CLI providers with a single click. If you already had these tools configured, AICLI Client has saved your existing setup as a provider named “default” so none of your previous configuration is lost.",
-    "bodyOfficial": "An “Official” preset is also included in the list — click it any time you want to switch back to the official default. AICLI Client automatically backs up your current config to “default” before switching, so you can move back and forth freely. That's how AICLI Client works 😊",
+    "bodyDefault": "AICLI Client takes over Claude Code, Codex, Gemini CLI and other clients with one click: their requests go through the local proxy to AICLI with your profile and line, and with privacy masking on, keys and other sensitive values never leave this computer.",
+    "bodyOfficial": "The configuration from before the takeover is fully backed up. Stop the takeover on the Clients page at any time to restore it exactly, for example back to the official sign-in or your own settings.",
     "confirm": "Got it"
   },
   "jsonEditor": {
@@ -363,7 +363,7 @@
       "trayStyleMenu": "Menu",
       "trayStyleHelp": "What opens when you click the tray icon (on Windows, left-click always opens the main window and right-click opens the selected style). Panel: each app's in-use provider, quota and usage, with search and switching. Menu: the system's native menu. Takes effect right away.",
       "minimizeToTrayHelp": "When on, the close button only hides the window and AICLI Client keeps running in the system tray (lightweight mode is in the tray menu). When off, the close button quits.",
-      "terminalHelp": "The terminal used by “Open terminal” on provider cards. If it isn't available, the system default terminal is used."
+      "terminalHelp": "The terminal used to resume a session from the Sessions page. If it isn't available, the system default terminal is used."
     },
     "tabGeneral": "General",
     "tabAuth": "Auth",
@@ -2332,7 +2332,7 @@
       "fallbackModels": "Fallback Models",
       "fallbackModelsHint": "When the primary model is unavailable, fallbacks are tried in order",
       "addFallback": "Add fallback model",
-      "noModels": "No configured provider models. Please add an OpenClaw provider first.",
+      "noModels": "No models available. Add a model in the OpenClaw configuration first.",
       "notInList": "{{value}} (not configured)",
       "runtimeSection": "Runtime Parameters",
       "workspace": "Workspace Path",
@@ -2913,11 +2913,11 @@
     "privacyToday": "{{count}} values masked today"
   },
   "appsPage": {
-    "showInSidebar": "Show {{name}} in the sidebar",
+    "showInSidebar": "Show {{name}} on the Clients page",
     "lastChecked": "Last checked {{time}}",
     "neverChecked": "Not checked for updates yet",
     "helpTitle": "Apps",
-    "helpBody": "Install and upgrade command-line apps here, and choose which ones show in the sidebar.",
+    "helpBody": "Install and upgrade command-line apps here, and choose which ones show on the Clients page.",
     "checking": "Checking…",
     "checkUpdates": "Check for updates",
     "moreActions": "More actions",
@@ -2928,7 +2928,7 @@
     "dragHandle": "Drag to reorder {{name}}",
     "columnVersion": "Version",
     "columnVisible": "Show",
-    "visibleHelp": "When off, the app no longer appears in the sidebar, the tray menu, the MCP / Skills app columns, or the app pickers on Prompts and Sessions. It is only hidden: its providers, MCP servers and other settings stay, and its own config files are left untouched.",
+    "visibleHelp": "When off, the app no longer appears on the Clients page, in the tray menu, in the MCP / Skills app columns, or in the app pickers on Prompts and Sessions. It is only hidden: its own config files are left untouched.",
     "desktopHelp": "Claude Desktop is a desktop app and can't be installed or upgraded here; AICLI Client connects to it through its config file.",
     "desktopUnsupported": "Not supported on this system",
     "desktopConnected": "Connected",
@@ -2970,7 +2970,7 @@
   "routingSettings": {
     "service": "Service",
     "serviceName": "Routing service",
-    "serviceHelp": "In routing and Aggregation modes, requests go through the routing service on this machine before reaching the provider. It starts automatically when an app enters either mode.",
+    "serviceHelp": "Taken-over clients send their requests through the routing service on this machine to AICLI. It starts automatically when a client is taken over.",
     "runningFor": "Running · up {{uptime}}",
     "uptimeHours": "{{hours}} h {{minutes}} min",
     "uptimeMinutes": "{{minutes}} min",
@@ -3039,7 +3039,7 @@
     "noun": "MCP servers",
     "listSeparator": ", ",
     "helpTitle": "How MCP syncs",
-    "help": "This list is the source of truth: it is written into the config files of the apps you tick, and rewritten from here when you switch providers. Claude Desktop and OpenClaw are not supported, so they have no column; Pi needs 1.0 or later and does not support SSE.",
+    "help": "This list is the source of truth: it is written into the config files of the apps you tick, and rewritten from here on takeover or configuration changes. Claude Desktop and OpenClaw are not supported, so they have no column; Pi needs 1.0 or later and does not support SSE.",
     "importFromApps": "Import from apps",
     "add": "Add MCP",
     "moreActions": "More MCP actions",

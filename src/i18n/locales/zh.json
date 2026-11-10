@@ -54,8 +54,8 @@
   },
   "firstRunNotice": {
     "title": "欢迎使用 AICLI Client",
-    "bodyDefault": "AICLI Client 可以帮你在 Claude Code / Codex / Gemini CLI 的多个供应商之间一键切换。如果你之前已经配置过这些工具，AICLI Client 会自动把现有设置保存为名为 “default” 的供应商，保证你的配置不会丢失。",
-    "bodyOfficial": "列表里还预置了 “官方（Official）” 供应商，随时点一下即可切回官方默认配置。切换前 AICLI Client 会自动把当前配置备份回 default，可以放心来回切。AICLI Client 就是这样工作的 😊",
+    "bodyDefault": "AICLI Client 帮你一键接管 Claude Code、Codex、Gemini CLI 等客户端：请求经本机代理发往 AICLI，使用你的配置集和线路；开启隐私脱敏后，密钥等敏感值不会离开这台电脑。",
+    "bodyOfficial": "接管前的配置会完整备份。随时可以在「客户端」页停止接管，配置原样还原，例如回到官方登录或你自己的设置。",
     "confirm": "我知道了"
   },
   "jsonEditor": {
@@ -363,7 +363,7 @@
       "trayStyleMenu": "菜单",
       "trayStyleHelp": "点托盘图标时弹出什么（Windows 上左键始终打开主界面，右键弹出所选样式）。面板：各应用在用的供应商、额度和用量，可以搜索、切换。菜单：系统原生菜单。切换后立即生效。",
       "minimizeToTrayHelp": "打开时，点关闭按钮只隐藏窗口，AICLI Client 留在系统托盘里继续运行（轻量模式在托盘菜单里）；关闭时点关闭按钮直接退出。",
-      "terminalHelp": "点供应商卡片上的「打开终端」时用哪个终端。选的终端不可用时，改用系统默认终端。"
+      "terminalHelp": "在会话页恢复会话时用哪个终端。选的终端不可用时，改用系统默认终端。"
     },
     "tabGeneral": "通用",
     "tabAuth": "认证",
@@ -2332,7 +2332,7 @@
       "fallbackModels": "回退模型",
       "fallbackModelsHint": "当主模型不可用时，按优先级依次尝试以下回退模型",
       "addFallback": "添加回退模型",
-      "noModels": "暂无已配置的供应商模型。请先添加 OpenClaw 供应商。",
+      "noModels": "暂无可用模型。请先在 OpenClaw 的配置里添加模型。",
       "notInList": "{{value}} (供应商未配置)",
       "runtimeSection": "运行参数",
       "workspace": "工作区路径",
@@ -2913,11 +2913,11 @@
     "privacyToday": "今天脱敏 {{count}} 处"
   },
   "appsPage": {
-    "showInSidebar": "在侧栏显示 {{name}}",
+    "showInSidebar": "在客户端页显示 {{name}}",
     "lastChecked": "上次检查 {{time}}",
     "neverChecked": "还没检查过更新",
     "helpTitle": "应用",
-    "helpBody": "在这里安装、升级命令行应用，并选择在侧栏显示哪些。",
+    "helpBody": "在这里安装、升级命令行应用，并选择在「客户端」页显示哪些。",
     "checking": "检查中…",
     "checkUpdates": "检查更新",
     "moreActions": "更多操作",
@@ -2928,7 +2928,7 @@
     "dragHandle": "拖动调整 {{name}} 的顺序",
     "columnVersion": "版本",
     "columnVisible": "显示",
-    "visibleHelp": "关掉后，这个应用不再出现在侧栏、托盘菜单、MCP / Skills 的应用列，以及提示词和会话的应用下拉里。只是不显示：它的供应商、MCP 等配置都还在，它自己的配置文件也不会被改动。",
+    "visibleHelp": "关掉后，这个应用不再出现在「客户端」页、托盘菜单、MCP / Skills 的应用列，以及提示词和会话的应用下拉里。只是不显示：它自己的配置文件不会被改动。",
     "desktopHelp": "Claude Desktop 是桌面应用，不能在这里安装或升级；AICLI Client 通过它的配置文件接入。",
     "desktopUnsupported": "当前系统不支持",
     "desktopConnected": "已接入",
@@ -2970,7 +2970,7 @@
   "routingSettings": {
     "service": "服务",
     "serviceName": "路由服务",
-    "serviceHelp": "路由模式和聚合模式下，请求先经过本机的路由服务再转给供应商。进入这两种模式时会自动启动。",
+    "serviceHelp": "接管中的客户端经本机路由服务把请求发往 AICLI；接管客户端时会自动启动。",
     "runningFor": "运行中 · 已运行 {{uptime}}",
     "uptimeHours": "{{hours}} 小时 {{minutes}} 分",
     "uptimeMinutes": "{{minutes}} 分钟",
@@ -3039,7 +3039,7 @@
     "noun": "MCP",
     "listSeparator": "、",
     "helpTitle": "MCP 怎么同步",
-    "help": "以这里为准：写进你勾选的应用的配置文件，切换供应商时按这里重写。Claude Desktop、OpenClaw 不支持，所以表格里没有这两列；Pi 需要 1.0 及以上，且不支持 SSE。",
+    "help": "以这里为准：写进你勾选的应用的配置文件，接管或配置变化时按这里重写。Claude Desktop、OpenClaw 不支持，所以表格里没有这两列；Pi 需要 1.0 及以上，且不支持 SSE。",
     "importFromApps": "从应用导入",
     "add": "添加 MCP",
     "moreActions": "MCP 的更多操作",

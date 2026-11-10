@@ -101,33 +101,7 @@ export function GeneralSection({
               />
             }
           />
-          <SettingsRow
-            label={t("settings.general.quotaDisplay")}
-            help={{
-              title: t("settings.general.quotaDisplay"),
-              body: t("settings.general.quotaDisplayHelp"),
-            }}
-            control={
-              <SegmentedControl
-                size="sm"
-                aria-label={t("settings.general.quotaDisplay")}
-                value={settings.quotaDisplay ?? "left"}
-                onValueChange={(value) =>
-                  void onAutoSave({ quotaDisplay: value })
-                }
-                items={[
-                  {
-                    value: "left",
-                    label: t("settings.general.quotaDisplayLeft"),
-                  },
-                  {
-                    value: "used",
-                    label: t("settings.general.quotaDisplayUsed"),
-                  },
-                ]}
-              />
-            }
-          />
+          {/* F-12：「额度显示」只影响已删除的供应商卡片与授权中心（G-01/G-02），随之去掉 */}
         </SettingsCard>
       </SettingsBlock>
 

@@ -54,8 +54,8 @@
   },
   "firstRunNotice": {
     "title": "AICLI Client’e hoş geldiniz",
-    "bodyDefault": "AICLI Client, tek bir tıklamayla birden fazla Claude Code / Codex / Gemini CLI sağlayıcısı arasında geçiş yapmanızı sağlar. Bu araçları zaten yapılandırdıysanız, AICLI Client mevcut kurulumunuzu \"varsayılan\" adlı bir sağlayıcı olarak kaydetmiştir, böylece önceki yapılandırmalarınızın hiçbiri kaybolmaz.",
-    "bodyOfficial": "Listede “Resmî” ön ayarı da bulunur; resmî varsayılan ayarlara dönmek istediğinizde buna tıklayın. AICLI Client, geçiş yapmadan önce mevcut yapılandırmanızı “default” olarak yedekler; böylece iki yapılandırma arasında rahatça geçiş yapabilirsiniz. AICLI Client böyle çalışır 😊",
+    "bodyDefault": "AICLI Client; Claude Code, Codex, Gemini CLI ve diğer istemcileri tek tıkla devralır: istekleri profiliniz ve hattınızla yerel proxy üzerinden AICLI'ye gider; gizlilik maskeleme açıkken anahtarlar ve diğer hassas değerler bu bilgisayardan çıkmaz.",
+    "bodyOfficial": "Devralmadan önceki yapılandırma tamamen yedeklenir. İstemciler sayfasında devralmayı istediğiniz zaman durdurup yapılandırmayı olduğu gibi geri getirebilirsiniz; örneğin resmî oturum açmaya ya da kendi ayarlarınıza.",
     "confirm": "Anladım"
   },
   "jsonEditor": {
@@ -336,7 +336,7 @@
       "trayStyleMenu": "Menü",
       "trayStyleHelp": "Tepsi simgesine tıkladığınızda ne açılacağını belirler (Windows'ta sol tıklama her zaman ana pencereyi, sağ tıklama ise seçilen görünümü açar). Panel: her uygulamanın etkin sağlayıcısını, kotasını ve kullanımını arama ve geçiş seçenekleriyle gösterir. Menü: sistemin yerel menüsünü açar. Değişiklik hemen uygulanır.",
       "minimizeToTrayHelp": "Açık olduğunda, kapat düğmesi yalnızca pencereyi gizler ve AICLI Client sistem tepsisinde çalışmaya devam eder (hafif mod tepsi menüsündedir). Kapatıldığında kapatma düğmesi kapanır.",
-      "terminalHelp": "Sağlayıcı kartlarındaki “Açık terminal”in kullandığı terminal. Mevcut değilse sistemin varsayılan terminali kullanılır."
+      "terminalHelp": "Oturumlar sayfasından bir oturumu sürdürürken kullanılan terminal. Kullanılamıyorsa sistemin varsayılan terminali kullanılır."
     },
     "tabGeneral": "Genel",
     "tabAuth": "Kimlik doğrulama",
@@ -2296,7 +2296,7 @@
       "fallbackModels": "Geri Dönüş Modelleri",
       "fallbackModelsHint": "Birincil model kullanılamadığında geri dönüşler sırayla denenir",
       "addFallback": "Yedek model ekle",
-      "noModels": "Yapılandırılmış sağlayıcı modeli yok. Lütfen önce bir OpenClaw sağlayıcısı ekleyin.",
+      "noModels": "Kullanılabilir model yok. Önce OpenClaw yapılandırmasına bir model ekleyin.",
       "notInList": "{{value}} (yapılandırılmamış)",
       "runtimeSection": "Çalışma Zamanı Parametreleri",
       "workspace": "Çalışma Alanı Yolu",
@@ -2877,11 +2877,11 @@
     "privacyToday": "Bugün {{count}} değer maskelendi"
   },
   "appsPage": {
-    "showInSidebar": "Kenar çubuğunda {{name}}'yi göster",
+    "showInSidebar": "{{name}} uygulamasını İstemciler sayfasında göster",
     "lastChecked": "Son kontrol: {{time}}",
     "neverChecked": "Güncellemeler henüz kontrol edilmedi",
     "helpTitle": "Uygulamalar",
-    "helpBody": "Komut satırı uygulamalarını buradan yükleyip yükseltin ve kenar çubuğunda hangilerinin gösterileceğini seçin.",
+    "helpBody": "Komut satırı uygulamalarını burada kurun ve güncelleyin; İstemciler sayfasında hangilerinin görüneceğini seçin.",
     "checking": "Kontrol ediliyor…",
     "checkUpdates": "Güncellemeleri kontrol edin",
     "moreActions": "Daha fazla işlem",
@@ -2889,7 +2889,7 @@
     "columnApp": "Uygulama",
     "columnVersion": "Sürüm",
     "columnVisible": "Göster",
-    "visibleHelp": "Kapalıyken uygulama artık kenar çubuğunda, tepsi menüsünde, MCP / Skills uygulama sütunlarında veya İstemler ve Oturumlar'daki uygulama seçicilerde görünmez. Yalnızca gizlenir: sağlayıcıları, MCP sunucuları ve diğer ayarları yerinde kalır, kendi yapılandırma dosyalarına da dokunulmaz.",
+    "visibleHelp": "Kapalıyken uygulama İstemciler sayfasında, tepsi menüsünde, MCP / Skills uygulama sütunlarında ve İstemler ile Oturumlar'daki uygulama seçicilerinde görünmez. Yalnızca gizlenir: kendi yapılandırma dosyalarına dokunulmaz.",
     "desktopHelp": "Claude Desktop bir masaüstü uygulamasıdır ve buraya yüklenemez veya yükseltilemez; AICLI Client, yapılandırma dosyası aracılığıyla ona bağlanır.",
     "desktopUnsupported": "Bu sistemde desteklenmiyor",
     "desktopConnected": "Bağlı",
@@ -2934,7 +2934,7 @@
   "routingSettings": {
     "service": "Hizmet",
     "serviceName": "Yönlendirme hizmeti",
-    "serviceHelp": "Yönlendirme ve Birleştirme modlarında istekler, sağlayıcıya ulaşmadan önce bu makinedeki yönlendirme hizmetinden geçer. Bir uygulama bu modlardan birine girdiğinde veya Claude Desktop model eşlemeyi kullandığında otomatik olarak başlar.",
+    "serviceHelp": "Devralınan istemciler isteklerini bu makinedeki yönlendirme hizmeti üzerinden AICLI'ye gönderir. Bir istemci devralındığında otomatik başlar.",
     "runningFor": "Çalışıyor · çalışma süresi {{uptime}}",
     "uptimeHours": "{{hours}} sa {{minutes}} dk",
     "uptimeMinutes": "{{minutes}} dk",
@@ -3003,7 +3003,7 @@
     "noun": "MCP sunucuları",
     "listSeparator": ",",
     "helpTitle": "MCP nasıl eşitle edilir?",
-    "help": "Bu liste gerçeğin kaynağıdır: işaretlediğiniz uygulamaların yapılandırma dosyalarına yazılır ve sağlayıcıları değiştirdiğinizde buradan yeniden yazılır. Claude Desktop ve OpenClaw desteklenmediğinden sütunları yoktur; Pi, 1.0 veya üzeri bir sürüme ihtiyaç duyar ve SSE'yi desteklemez.",
+    "help": "Doğruluk kaynağı bu listedir: işaretlediğiniz uygulamaların yapılandırma dosyalarına yazılır ve devralma ya da yapılandırma değiştiğinde buradan yeniden yazılır. Claude Desktop ve OpenClaw desteklenmez, bu yüzden sütunları yoktur; Pi 1.0 veya üstü gerektirir ve SSE desteklemez.",
     "importFromApps": "Uygulamalardan içe aktar",
     "add": "MCP'yi ekleyin",
     "moreActions": "Daha fazla MCP eylemi",

@@ -159,24 +159,12 @@ describe("WhatsNewNotice", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("waits while the new layout dialog is showing", async () => {
+  // F-12：「界面改版了」提示已删除，有供应商记录的老安装也不再等它
+  it("does not wait for the removed new layout notice", async () => {
     mocks.settings = {
       firstRunNoticeConfirmed: true,
       whatsNewSeenVersion: "4.0.1",
     };
-    renderNotice();
-    await waitFor(() => expect(mocks.getAll).toHaveBeenCalled());
-    await settle();
-    expect(title()).not.toBeInTheDocument();
-    expect(mocks.save).not.toHaveBeenCalled();
-  });
-
-  it("shows when the new layout dialog does not apply", async () => {
-    mocks.settings = {
-      firstRunNoticeConfirmed: true,
-      whatsNewSeenVersion: "4.0.1",
-    };
-    mocks.getAll.mockResolvedValue({});
     renderNotice();
     expect(await screen.findByText("whatsNew.updatedTo")).toBeInTheDocument();
   });

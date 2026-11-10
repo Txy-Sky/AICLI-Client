@@ -54,8 +54,8 @@
   },
   "firstRunNotice": {
     "title": "歡迎使用 AICLI Client",
-    "bodyDefault": "AICLI Client 可以協助您在 Claude Code / Codex / Gemini CLI 的多個供應商之間一鍵切換。如果您之前已經設定過這些工具，AICLI Client 會自動將現有設定儲存為名為 default 的供應商，確保您的設定不會遺失。",
-    "bodyOfficial": "清單中還預設了「官方 (Official)」供應商，隨時點擊即可切換回官方預設設定。切換前 AICLI Client 會自動將目前設定備份回 default，可以放心來回切換。這就是 AICLI Client 的運作方式。",
+    "bodyDefault": "AICLI Client 幫你一鍵接管 Claude Code、Codex、Gemini CLI 等客戶端：請求經本機代理送往 AICLI，使用你的設定集和線路；開啟隱私遮蔽後，金鑰等敏感值不會離開這台電腦。",
+    "bodyOfficial": "接管前的設定會完整備份。隨時可以在「客戶端」頁停止接管，設定原樣還原，例如回到官方登入或你自己的設定。",
     "confirm": "我了解了"
   },
   "jsonEditor": {
@@ -363,7 +363,7 @@
       "trayStyleMenu": "選單",
       "trayStyleHelp": "點系統匣圖示時彈出什麼（Windows 上左鍵一律開啟主視窗，右鍵彈出所選樣式）。面板：各應用使用中的供應商、額度與用量，可以搜尋、切換。選單：系統原生選單。切換後立即生效。",
       "minimizeToTrayHelp": "開啟時，點關閉按鈕只隱藏視窗，AICLI Client 留在系統匣裡繼續執行（輕量模式在系統匣選單裡）；關閉時點關閉按鈕直接結束。",
-      "terminalHelp": "點供應商卡片上的「開啟終端機」時用哪個終端機。選的終端機無法使用時，改用系統預設終端機。"
+      "terminalHelp": "在工作階段頁恢復工作階段時用哪個終端機。選的終端機不可用時，改用系統預設終端機。"
     },
     "tabGeneral": "通用",
     "tabAuth": "驗證",
@@ -2333,7 +2333,7 @@
       "fallbackModels": "備用模型",
       "fallbackModelsHint": "當主模型不可用時，依優先順序依次嘗試以下備用模型",
       "addFallback": "新增備用模型",
-      "noModels": "暫無已設定的供應商模型。請先新增 OpenClaw 供應商。",
+      "noModels": "暫無可用模型。請先在 OpenClaw 的設定裡新增模型。",
       "notInList": "{{value}} (供應商未設定)",
       "runtimeSection": "執行參數",
       "workspace": "工作區路徑",
@@ -2914,11 +2914,11 @@
     "privacyToday": "今天遮蔽 {{count}} 處"
   },
   "appsPage": {
-    "showInSidebar": "在側欄顯示 {{name}}",
+    "showInSidebar": "在客戶端頁顯示 {{name}}",
     "lastChecked": "上次檢查 {{time}}",
     "neverChecked": "還沒檢查過更新",
     "helpTitle": "應用",
-    "helpBody": "在這裡安裝、升級命令列應用，並選擇在側欄顯示哪些。",
+    "helpBody": "在這裡安裝、升級命令列應用，並選擇在「客戶端」頁顯示哪些。",
     "checking": "檢查中…",
     "checkUpdates": "檢查更新",
     "moreActions": "更多操作",
@@ -2929,7 +2929,7 @@
     "dragHandle": "拖曳調整 {{name}} 的順序",
     "columnVersion": "版本",
     "columnVisible": "顯示",
-    "visibleHelp": "關掉後，這個應用不再出現在側欄、系統匣選單、MCP / Skills 的應用欄，以及提示詞和工作階段的應用下拉選單裡。只是不顯示：它的供應商、MCP 等設定都還在，它自己的設定檔也不會被改動。",
+    "visibleHelp": "關掉後，這個應用不再出現在「客戶端」頁、系統匣選單、MCP / Skills 的應用欄，以及提示詞和工作階段的應用下拉選單裡。只是不顯示：它自己的設定檔不會被改動。",
     "desktopHelp": "Claude Desktop 是桌面應用，不能在這裡安裝或升級；AICLI Client 透過它的設定檔接入。",
     "desktopUnsupported": "目前系統不支援",
     "desktopConnected": "已接入",
@@ -2971,7 +2971,7 @@
   "routingSettings": {
     "service": "服務",
     "serviceName": "路由服務",
-    "serviceHelp": "路由模式和聚合模式下，請求先經過本機的路由服務再轉給供應商。進入這兩種模式時會自動啟動。",
+    "serviceHelp": "接管中的客戶端經本機路由服務把請求送往 AICLI；接管客戶端時會自動啟動。",
     "runningFor": "執行中 · 已執行 {{uptime}}",
     "uptimeHours": "{{hours}} 小時 {{minutes}} 分",
     "uptimeMinutes": "{{minutes}} 分鐘",
@@ -3040,7 +3040,7 @@
     "noun": "MCP",
     "listSeparator": "、",
     "helpTitle": "MCP 怎麼同步",
-    "help": "以這裡為準：寫進你勾選的應用的設定檔，切換供應商時按這裡重寫。Claude Desktop、OpenClaw 不支援，所以表格裡沒有這兩欄；Pi 需要 1.0 以上，且不支援 SSE。",
+    "help": "以這裡為準：寫進你勾選的應用的設定檔，接管或設定變化時依這裡重寫。Claude Desktop、OpenClaw 不支援，所以表格裡沒有這兩欄；Pi 需要 1.0 以上，且不支援 SSE。",
     "importFromApps": "從應用匯入",
     "add": "新增 MCP",
     "moreActions": "MCP 的更多操作",
