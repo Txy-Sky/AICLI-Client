@@ -77,10 +77,16 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
         <Dialog open>
           <DialogContent
             zIndex="top"
-            className="gap-4 p-6"
+            className="max-w-md gap-6 p-7"
             onEscapeKeyDown={(event) => event.preventDefault()}
           >
-            <DialogHeader className="gap-1">
+            <DialogHeader className="items-center gap-1 p-0 text-center">
+              <img
+                src={appLogo}
+                alt=""
+                draggable={false}
+                className="mb-2 h-12 w-12"
+              />
               <DialogTitle>{t("aicli.bind.gateTitle")}</DialogTitle>
               <DialogDescription>
                 {t("aicli.bind.gateSubtitle")}
@@ -119,12 +125,12 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent
             zIndex="top"
-            className="gap-4 p-6"
+            className="max-w-md gap-5 p-7"
             {...(state === "needs_rebind"
               ? {}
               : { "aria-describedby": undefined })}
           >
-            <DialogHeader className="gap-1">
+            <DialogHeader className="gap-1 p-0">
               <DialogTitle>{t("aicli.bind.rebindTitle")}</DialogTitle>
               {state === "needs_rebind" && (
                 <DialogDescription>
@@ -138,7 +144,7 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
               onBound={() => setOpen(false)}
               className="flex flex-col gap-3"
             />
-            <DialogFooter>
+            <DialogFooter className="p-0">
               <Button
                 type="button"
                 variant="quiet"

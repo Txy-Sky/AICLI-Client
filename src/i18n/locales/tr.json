@@ -3488,7 +3488,7 @@
       "failed": "Bağlama başarısız: {{message}}",
       "rebindTitle": "Yeniden bağla",
       "gateTitle": "AICLI Client'a hoş geldiniz",
-      "gateSubtitle": "Başlamak için web sitesi hesabınızı bağlayın.",
+      "gateSubtitle": "Başlamak için AICLI hesabınızı bağlayın",
       "later": "Daha sonra",
       "rebindAction": "Yeniden bağla",
       "loadFailed": "Bağlantı durumu okunamadı: {{message}}"

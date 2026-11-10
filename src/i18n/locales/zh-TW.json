@@ -3529,7 +3529,7 @@
       "failed": "綁定失敗：{{message}}",
       "rebindTitle": "重新綁定",
       "gateTitle": "歡迎使用 AICLI Client",
-      "gateSubtitle": "綁定網站帳戶後即可進入。",
+      "gateSubtitle": "綁定 AICLI 帳戶後開始使用",
       "later": "稍後",
       "rebindAction": "重新綁定",
       "loadFailed": "讀取綁定狀態失敗：{{message}}"

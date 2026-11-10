@@ -3528,7 +3528,7 @@
       "failed": "绑定失败：{{message}}",
       "rebindTitle": "重新绑定",
       "gateTitle": "欢迎使用 AICLI Client",
-      "gateSubtitle": "绑定网站账户后即可进入。",
+      "gateSubtitle": "绑定 AICLI 账户后开始使用",
       "later": "稍后",
       "rebindAction": "重新绑定",
       "loadFailed": "读取绑定状态失败：{{message}}"

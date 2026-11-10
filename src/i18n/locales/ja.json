@@ -3528,7 +3528,7 @@
       "failed": "連携に失敗しました：{{message}}",
       "rebindTitle": "再連携",
       "gateTitle": "AICLI Client へようこそ",
-      "gateSubtitle": "Web サイトのアカウントを連携すると使い始められます。",
+      "gateSubtitle": "AICLI アカウントを連携して使い始めましょう",
       "later": "後で",
       "rebindAction": "再連携",
       "loadFailed": "連携状態を読み込めませんでした：{{message}}"

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Notice } from "@/components/ui/notice";
 import { settingsApi } from "@/lib/api/settings";
 import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
 import { useAicliBind } from "@/hooks/useAicliAccount";
@@ -24,6 +23,9 @@ interface AicliBindCardProps {
 /**
  * 绑定界面（F-03）：标题、占位、说明、警告按 0.4 节文案常驻显示；密码型输入框，
  * 提交后立刻清空（令牌不留在界面状态里）。粘贴 sk- 开头的值时直接提示，不发起绑定。
+ *
+ * 单列排布：标题行（右侧是去网页拿令牌的链接）→ 整行输入框 → 说明 → 整行绑定按钮 →
+ * 一行小字警告。主操作只有「绑定」一个，拿令牌是次要操作，所以做成链接样式。
  */
 export function AicliBindCard({
   line = "main",
@@ -77,26 +79,37 @@ export function AicliBindCard({
         "flex flex-col gap-3 rounded-panel border border-border bg-surface p-4"
       }
     >
-      <div className="flex items-center gap-2">
-        <KeyRound
-          aria-hidden="true"
-          className="h-4 w-4 text-fg-2"
-          strokeWidth={1.5}
-        />
-        <h2 id="aicli-bind-title" className="m-0 text-section text-fg-1">
-          {t("aicli.bind.title")}
-        </h2>
-      </div>
-      <p className="m-0 text-body text-fg-2">{t("aicli.bind.description")}</p>
-      <Notice tone="warning" title={t("aicli.bind.warning")} />
-      <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
+      <form className="flex flex-col gap-2" onSubmit={submit}>
+        <div className="flex items-center justify-between gap-3">
+          <h2
+            id="aicli-bind-title"
+            className="m-0 text-body font-medium text-fg-1"
+          >
+            {t("aicli.bind.title")}
+          </h2>
+          <Button
+            type="button"
+            variant="link"
+            size="compact"
+            className="h-auto gap-1 px-0"
+            onClick={() => void settingsApi.openExternal(AICLI_PROFILE_URL)}
+          >
+            {t("aicli.bind.openWeb")}
+            <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+          </Button>
+        </div>
         <Input
           ref={inputRef}
           type="password"
           name="aicli-access-token"
+          autoComplete="off"
           aria-label={t("aicli.bind.title")}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "aicli-bind-error" : undefined}
+          aria-describedby={
+            error
+              ? "aicli-bind-error aicli-bind-description"
+              : "aicli-bind-description"
+          }
           placeholder={t("aicli.bind.placeholder")}
           value={value}
           onChange={(event) => {
@@ -104,12 +117,25 @@ export function AicliBindCard({
             if (error) setError(null);
           }}
           disabled={bind.isPending}
-          className="min-w-[240px] flex-1"
+          className="h-9 w-full"
         />
+        {error && (
+          <p
+            id="aicli-bind-error"
+            role="alert"
+            className="m-0 text-caption text-danger-text"
+          >
+            {error}
+          </p>
+        )}
+        <p id="aicli-bind-description" className="m-0 text-caption text-fg-2">
+          {t("aicli.bind.description")}
+        </p>
         <Button
           type="submit"
           variant="solid"
           size="regular"
+          className="mt-2 h-9 w-full"
           disabled={bind.isPending || value.trim() === ""}
         >
           {bind.isPending && (
@@ -117,25 +143,15 @@ export function AicliBindCard({
           )}
           {bind.isPending ? t("aicli.bind.binding") : t("aicli.bind.submit")}
         </Button>
-        <Button
-          type="button"
-          variant="neutral"
-          size="regular"
-          onClick={() => void settingsApi.openExternal(AICLI_PROFILE_URL)}
-        >
-          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
-          {t("aicli.bind.openWeb")}
-        </Button>
       </form>
-      {error && (
-        <p
-          id="aicli-bind-error"
-          role="alert"
-          className="m-0 text-caption text-danger-text"
-        >
-          {error}
-        </p>
-      )}
+      <p className="m-0 flex items-start gap-1.5 text-caption text-fg-2">
+        <AlertTriangle
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className="mt-[2px] h-3.5 w-3.5 shrink-0 text-warning-text"
+        />
+        <span>{t("aicli.bind.warning")}</span>
+      </p>
     </section>
   );
 }

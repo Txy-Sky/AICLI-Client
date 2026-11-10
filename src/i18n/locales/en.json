@@ -3528,7 +3528,7 @@
       "failed": "Binding failed: {{message}}",
       "rebindTitle": "Bind again",
       "gateTitle": "Welcome to AICLI Client",
-      "gateSubtitle": "Bind your website account to get started.",
+      "gateSubtitle": "Bind your AICLI account to get started",
       "later": "Later",
       "rebindAction": "Bind again",
       "loadFailed": "Could not read the binding state: {{message}}"
