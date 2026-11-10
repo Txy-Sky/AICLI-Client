@@ -936,10 +936,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-09 完成（负责人决定在 F-GATE 前执行）。App 删除供应商对话框、用量脚本、终端、删除确认及相关监听；删除 285 个文件（测试 131 个），约 11.8 万行；保留 ProviderIcon 与 providers.ts 只读函数；依赖已删表单的 G-02 死文件提前删除；五种语言删除 29 个界面专属命名空间（含 partnerPromotion），B-07 改为白名单删除并恢复全量 cc switch 扫描。三条验收 grep 均无结果，前端 144 文件 / 1417 测试、Rust 4722 passed / 12 skipped。实现 7070fb2f。详见 docs/aicli-evidence/G-01.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42622217128
 
 ### G-02 移除官方账号前端
-- [ ] 完成
+- [x] 完成
 - 修改：删除 `Claude/Codex/Copilot/Kimi/Xai/Agy/Subscription AccountQuota*`、`CodexOauth*`、`UsageFooter`、`src/components/quota/` 及授权中心页、Sidebar 中 `page:"auth"` 项（`Sidebar.tsx:281`）。
 - 验收：`grep -rln 'Copilot\|CodexOauth\|XaiOauth\|KimiAccount\|AgyAccount' src` 无结果；检查通过。
-- 证据：
+- 证据：2026-11-09 完成（负责人决定在 F-GATE 前执行）。删除官方账号额度页脚、UsageFooter、quota/、授权与订阅相关前端 API 与查询、Copilot 图标；侧栏不再轮询授权状态；五种语言删除 7 个命名空间与 3 个嵌套键，B-07 白名单扩充并断言已删。验收 grep 无结果；前端 137 文件 / 1346 测试、Rust 4722 passed / 12 skipped。实现 aabaa3a2（AuthCenterPanel 等依赖已删表单的文件随 G-01 先删，第 13 节）。详见 docs/aicli-evidence/G-02.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42729640404
 
 ### G-03 移除 Rust 命令和服务
 - [ ] 完成

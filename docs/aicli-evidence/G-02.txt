@@ -1,0 +1,74 @@
+G-02 移除官方账号前端验收记录（2026-11-09）
+
+状态：[x] 完成（负责人 2026-11-09 决定在 F-GATE 前执行，见第 12 节）
+提交：aabaa3a2 feat(aicli): G-02 remove the official-account frontend
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42729640404（d8c49d99，含 aabaa3a2；四 job 及汇总
+    `Checklist acceptance (Linux)` 全 success；前端 137 文件 / 1346 测试；Rust 4722 passed / 12 skipped；
+    工作流改动触发完整 A6，通过）
+
+验收命令
+- grep -rln 'Copilot\|CodexOauth\|XaiOauth\|KimiAccount\|AgyAccount' src → 无结果（本机与 CI 同一提交）
+- B-07（CI B stage）：五种语言 removed namespaces=36 keys=3; legacy brand hits=0；B-07: PASS
+
+实现
+1. 删除 Agy / Claude / CodexOauth / Copilot / Xai / Subscription 额度页脚、UsageFooter、components/quota/、
+   lib/api 的 auth / copilot / subscription / kimiOAuth / dsh、lib/query 的 subscription / copilot、
+   lib/claudePlan、lib/managedAccountUsage、types/subscription、Copilot 图标（svg 与 index、metadata 条目）。
+   AuthCenterPanel、settings/auth、KimiAccountQuotaFooter、CodexOauthAccountQuota 已随 G-01 删除（第 13 节）。
+2. useSidebarStatus 不再轮询托管账号授权状态；useUsageCacheBridge 忽略 subscription 事件；
+   lib/api、lib/query 的 index 去掉对应导出；types.ts 删除只给 Copilot 用的 codexCopilotApiFormat、
+   CodexCopilotApiFormat，注释去掉 Copilot 字样；providers.ts 注释改写。Rust 命令留到 G-03。
+3. i18n：五种语言删除 copilot、codexOauth、xaiOauth、managedAuth、authCenter、subscription、quota
+   命名空间与 settings.authCenter、notifications.proxyReasonCopilot、notifications.copilotProxyHint；
+   B-07 白名单相应扩充（命名空间 36 个、嵌套键 3 个），并断言已删除。
+4. 删除的测试文件（7 个）：tests/components/QuotaLines.test.tsx、SubscriptionQuotaFooter.test.tsx、
+   UsageFooter.tokenPlanBalance.test.tsx、quotaRules.test.ts、tests/hooks/useClaudeAccountQuota.test.tsx、
+   tests/lib/claudePlan.test.ts、tests/lib/managedAccountUsage.test.ts；SidebarToday 测试的替身去掉
+   authNeedsAttention 字段。
+
+删除 / 修改的文件
+  M	.github/workflows/aicli-acceptance.yml
+  D	src/components/AgyAccountQuotaFooter.tsx
+  D	src/components/ClaudeAccountQuotaFooter.tsx
+  D	src/components/CodexOauthQuotaFooter.tsx
+  D	src/components/CopilotQuotaFooter.tsx
+  D	src/components/SubscriptionQuotaFooter.tsx
+  D	src/components/UsageFooter.tsx
+  D	src/components/XaiOauthQuotaFooter.tsx
+  D	src/components/quota/QuotaBreakdown.tsx
+  D	src/components/quota/QuotaLines.tsx
+  D	src/components/quota/quotaRules.ts
+  D	src/components/quota/useQuotaDisplay.ts
+  M	src/hooks/useSidebarStatus.ts
+  M	src/hooks/useUsageCacheBridge.ts
+  M	src/i18n/locales/en.json
+  M	src/i18n/locales/ja.json
+  M	src/i18n/locales/tr.json
+  M	src/i18n/locales/zh-TW.json
+  M	src/i18n/locales/zh.json
+  D	src/icons/extracted/copilot.svg
+  D	src/icons/extracted/githubcopilot.svg
+  M	src/icons/extracted/index.ts
+  M	src/icons/extracted/metadata.ts
+  D	src/lib/api/auth.ts
+  D	src/lib/api/copilot.ts
+  D	src/lib/api/dsh.ts
+  M	src/lib/api/index.ts
+  D	src/lib/api/kimiOAuth.ts
+  M	src/lib/api/providers.ts
+  D	src/lib/api/subscription.ts
+  D	src/lib/claudePlan.ts
+  D	src/lib/managedAccountUsage.ts
+  D	src/lib/query/copilot.ts
+  M	src/lib/query/index.ts
+  D	src/lib/query/subscription.ts
+  M	src/types.ts
+  D	src/types/subscription.ts
+  D	tests/components/QuotaLines.test.tsx
+  D	tests/components/SubscriptionQuotaFooter.test.tsx
+  D	tests/components/UsageFooter.tokenPlanBalance.test.tsx
+  D	tests/components/quotaRules.test.ts
+  M	tests/components/shell/SidebarToday.test.tsx
+  D	tests/hooks/useClaudeAccountQuota.test.tsx
+  D	tests/lib/claudePlan.test.ts
+  D	tests/lib/managedAccountUsage.test.ts
