@@ -926,14 +926,14 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 每一项删除后都要跑 `scripts/aicli-check.sh`。证据中列出删除的文件数和测试数。
 
 ### G-01 移除 Provider UI
-- [ ] 完成
+- [x] 完成
 - 修改：
   - `src/App.tsx`：删除 `AddProviderDialog`、`EditProviderDialog` 相关状态和对话框（`:82,87,1821,1829`），删除复制逻辑（`:1067-1192`）、`useProviderActions` 及 provider 事件监听（`:444`）。
   - 删除 `src/components/providers/`（**先把** `mode/` 中仍被 F-04 引用的组件移到 `src/components/aicli/mode/`）、`src/components/universal/`、`src/hooks/useProviderActions.ts`、`src/lib/api/providers.ts`（保留类型的先移动）、`src/components/DeepLinkImportDialog.tsx`、`src/components/deeplink/`、`src/config/*ProviderPresets.ts`、`src/components/UsageScriptModal.tsx`、`src/components/ProviderIcon*`（若无其他引用）。
 - 修改补充（负责人 2026-11-03）：先用 `grep -rn 'partnerPromotion' src tests` 核查引用，排除五个定义文件后，除 `src/components/providers/` 和预设文件外出现任何其他引用则标 `[!]`。移除 Provider UI 时同时删除五种语言的 `providerForm.partnerPromotion`。
 - 验收补充：`grep -ril 'cc switch\|cc-switch' src/i18n` 必须无结果，恢复原 B-07 最终全量扫描。
 - 验收：`grep -rln 'AddProviderDialog\|EditProviderDialog\|useProviderActions\|ProviderPresets' src tests` 无结果；检查通过。
-- 证据：
+- 证据：2026-11-09 完成（负责人决定在 F-GATE 前执行）。App 删除供应商对话框、用量脚本、终端、删除确认及相关监听；删除 285 个文件（测试 131 个），约 11.8 万行；保留 ProviderIcon 与 providers.ts 只读函数；依赖已删表单的 G-02 死文件提前删除；五种语言删除 29 个界面专属命名空间（含 partnerPromotion），B-07 改为白名单删除并恢复全量 cc switch 扫描。三条验收 grep 均无结果，前端 144 文件 / 1417 测试、Rust 4722 passed / 12 skipped。实现 7070fb2f。详见 docs/aicli-evidence/G-01.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42622217128
 
 ### G-02 移除官方账号前端
 - [ ] 完成

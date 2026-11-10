@@ -1,0 +1,322 @@
+G-01 移除 Provider UI 验收记录（2026-11-09）
+
+状态：[x] 完成（负责人 2026-11-09 决定在 F-GATE 前执行，见第 12 节）
+提交：7070fb2f feat(aicli): G-01 remove the provider UI
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42622217128（7070fb2f，四 job 及汇总
+    `Checklist acceptance (Linux)` 全 success；前端 144 文件 / 1417 测试（删除前 275 / 3485，差额为
+    随功能删除的测试）；Rust 4722 passed / 12 skipped；工作流改动触发完整 A6，通过）
+
+验收命令（本机与 CI 同一提交）
+- grep -rln 'AddProviderDialog\|EditProviderDialog\|useProviderActions\|ProviderPresets' src tests → 无结果
+- grep -rl partnerPromotion src tests → 无结果
+- grep -ril 'cc switch\|cc-switch' src/i18n → 无结果
+- B-07（CI B stage）：五种语言 removed provider-UI namespaces=29; legacy brand hits=0；B-07: PASS
+
+实现
+1. App.tsx：删除添加 / 编辑供应商对话框、用量脚本、打开终端、删除 / 移除供应商确认框及其状态与
+   处理函数，删除供应商切换、universal-provider-synced、proxy-official-warning 事件监听与供应商列表
+   预取；托盘 add / needsRoute 意图改为只打开该应用页。
+2. 删除文件 285 个（其中测试文件 131 个），约 11.8 万行，清单见文末。
+3. 保留（第 13 节）：ProviderIcon.tsx 与 icons/extracted（AppGlyph、appConfig、托盘面板使用）；
+   lib/api/providers.ts 的只读函数与托盘刷新（OpenClaw 模型选项、设置、托盘仍在用）。
+   DeepLinkImportDialog 与 deeplink/ 已在 C4-01 删除。
+4. 提前删除（属 G-02 清单，第 13 节）：settings/AuthCenterPanel.tsx、settings/auth/、
+   KimiAccountQuotaFooter.tsx、CodexOauthAccountQuota.tsx，它们直接引用已删除的供应商表单，无法编译。
+   lib/api/kimiOAuth.ts、utils/providerConfigUtils.ts 引用的预设类型改为本地定义。
+5. i18n：五种语言删除 29 个只属于已删界面的命名空间（providerForm 含 partnerPromotion、
+   providerPreset、presetSelector、providerCard、providerIcon、iconPicker、universalProvider、
+   usageScript、endpointTest、apiKeyInput、claudeConfig、codexConfig、geminiConfig、opencode、omo、
+   grokBuild、claudeCode、codex、claudeDesktop、mcode、mode、failover、streamCheck、proxyConfig、
+   health、openclawConfig、deeplink、console、appSwitcher）；src/types.ts 删除 isPartner、
+   partnerPromotionKey 字段；src/index.html 标题改为 AICLI Client。
+6. 工作流 B-07：只允许删除上述命名空间并断言已删除；去掉 partnerPromotion 精确计数，恢复整份
+   JSON 的 cc switch 全量扫描（负责人 2026-11-03 决定）。
+7. 测试调整：tests/config/localeCoverage.test.ts 去掉已删命名空间的字面量断言；
+   tests/integration/App.test.tsx 去掉已删模块的替身。
+
+删除的文件
+  src/components/CodexOauthAccountQuota.tsx
+  src/components/CustomIconNameDialog.tsx
+  src/components/IconPicker.tsx
+  src/components/KimiAccountQuotaFooter.tsx
+  src/components/ProviderIconBox.tsx
+  src/components/UsageScriptModal.tsx
+  src/components/providers/AddProviderDialog.tsx
+  src/components/providers/AuthSettingsPanel.tsx
+  src/components/providers/CodexStaleClientsNotice.tsx
+  src/components/providers/DshAccount.tsx
+  src/components/providers/EditProviderDialog.tsx
+  src/components/providers/KimiAccountLogin.tsx
+  src/components/providers/LiveEditConflictDialog.tsx
+  src/components/providers/OpenTerminalDialog.tsx
+  src/components/providers/ProviderCard.tsx
+  src/components/providers/ProviderCardActions.tsx
+  src/components/providers/ProviderEmptyState.tsx
+  src/components/providers/ProviderList.tsx
+  src/components/providers/forms/AgyOAuthSection.tsx
+  src/components/providers/forms/ApiKeyInput.tsx
+  src/components/providers/forms/BasicFormFields.tsx
+  src/components/providers/forms/ClaudeDesktopProviderForm.tsx
+  src/components/providers/forms/ClaudeFormFields.tsx
+  src/components/providers/forms/ClaudeOfficialSection.tsx
+  src/components/providers/forms/ClaudeStackModelsField.tsx
+  src/components/providers/forms/CodexConfigEditor.tsx
+  src/components/providers/forms/CodexConfigSections.tsx
+  src/components/providers/forms/CodexFormFields.tsx
+  src/components/providers/forms/CodexOAuthSection.tsx
+  src/components/providers/forms/CommonConfigEditor.tsx
+  src/components/providers/forms/CopilotAuthSection.tsx
+  src/components/providers/forms/CustomUserAgentField.tsx
+  src/components/providers/forms/EndpointSpeedTest.tsx
+  src/components/providers/forms/FetchedModelPicker.tsx
+  src/components/providers/forms/GeminiConfigEditor.tsx
+  src/components/providers/forms/GeminiConfigSections.tsx
+  src/components/providers/forms/GeminiFormFields.tsx
+  src/components/providers/forms/GrokBuildProviderForm.tsx
+  src/components/providers/forms/HermesFormFields.tsx
+  src/components/providers/forms/InactiveFieldsPanel.tsx
+  src/components/providers/forms/KimiProviderForm.tsx
+  src/components/providers/forms/LocalProxyRequestOverridesField.tsx
+  src/components/providers/forms/ManagedAccountRemoveDialog.tsx
+  src/components/providers/forms/McodeProviderForm.tsx
+  src/components/providers/forms/OmoFormFields.tsx
+  src/components/providers/forms/OpenClawFormFields.tsx
+  src/components/providers/forms/OpenCodeFormFields.tsx
+  src/components/providers/forms/PiProviderForm.tsx
+  src/components/providers/forms/ProviderForm.tsx
+  src/components/providers/forms/ProviderPresetSelector.tsx
+  src/components/providers/forms/RequestHeadersEditor.tsx
+  src/components/providers/forms/StructuredOptionsEditor.tsx
+  src/components/providers/forms/XaiOAuthSection.tsx
+  src/components/providers/forms/helpers/opencodeFormUtils.ts
+  src/components/providers/forms/helpers/requestHeaders.ts
+  src/components/providers/forms/hooks/index.ts
+  src/components/providers/forms/hooks/useApiKeyLink.ts
+  src/components/providers/forms/hooks/useApiKeyState.ts
+  src/components/providers/forms/hooks/useBaseUrlState.ts
+  src/components/providers/forms/hooks/useCodexConfigState.ts
+  src/components/providers/forms/hooks/useCodexOauth.ts
+  src/components/providers/forms/hooks/useCodexTomlValidation.ts
+  src/components/providers/forms/hooks/useCopilotAuth.ts
+  src/components/providers/forms/hooks/useDraftEditorProjection.ts
+  src/components/providers/forms/hooks/useGeminiConfigState.ts
+  src/components/providers/forms/hooks/useHermesFormState.ts
+  src/components/providers/forms/hooks/useKimiOAuth.ts
+  src/components/providers/forms/hooks/useManagedAccountUsers.ts
+  src/components/providers/forms/hooks/useManagedAuth.ts
+  src/components/providers/forms/hooks/useModelState.ts
+  src/components/providers/forms/hooks/useOmoDraftState.ts
+  src/components/providers/forms/hooks/useOmoModelSource.ts
+  src/components/providers/forms/hooks/useOpenclawFormState.ts
+  src/components/providers/forms/hooks/useOpencodeFormState.ts
+  src/components/providers/forms/hooks/useProviderCategory.ts
+  src/components/providers/forms/hooks/useSpeedTestEndpoints.ts
+  src/components/providers/forms/hooks/useTemplateValues.ts
+  src/components/providers/forms/hooks/useXaiOauth.ts
+  src/components/providers/forms/modelMetadataFill.ts
+  src/components/providers/forms/presetGroups.ts
+  src/components/providers/forms/presetStep.tsx
+  src/components/providers/forms/shared/ApiKeySection.tsx
+  src/components/providers/forms/shared/DirectModeFormatWarning.tsx
+  src/components/providers/forms/shared/EndpointField.tsx
+  src/components/providers/forms/shared/FullUrlToggle.tsx
+  src/components/providers/forms/shared/GptContextWindowHint.tsx
+  src/components/providers/forms/shared/ModelDropdown.tsx
+  src/components/providers/forms/shared/ModelInputWithFetch.tsx
+  src/components/providers/forms/shared/index.ts
+  src/components/providers/mode/ModeDialog.tsx
+  src/components/providers/mode/ModeTabs.tsx
+  src/components/providers/mode/RouteSettingsSheet.tsx
+  src/components/providers/mode/StackSettingsSheet.tsx
+  src/components/providers/mode/StackSubagentFields.tsx
+  src/components/providers/mode/SwitchModePanel.tsx
+  src/components/providers/mode/useDesktopConfigMessages.ts
+  src/components/providers/presentation.ts
+  src/components/proxy/AutoFailoverConfigPanel.tsx
+  src/components/settings/AuthCenterPanel.tsx
+  src/components/settings/auth/AccountQuota.tsx
+  src/components/settings/auth/ManagedAccountsGroup.tsx
+  src/components/settings/auth/accountDetails.tsx
+  src/components/universal/UniversalProviderCard.tsx
+  src/components/universal/UniversalProviderFormModal.tsx
+  src/components/universal/UniversalProviderPanel.tsx
+  src/components/universal/index.ts
+  src/config/claudeDesktopProviderPresets.ts
+  src/config/claudeProviderPresets.ts
+  src/config/codexProviderPresets.test.ts
+  src/config/codexProviderPresets.tokenPlanTextOnly.test.ts
+  src/config/codexProviderPresets.ts
+  src/config/codexProviderPresets.zhipuFlashVision.test.ts
+  src/config/codexTemplates.ts
+  src/config/codingPlanProviders.test.ts
+  src/config/codingPlanProviders.ts
+  src/config/dshProviderPresets.test.ts
+  src/config/dshProviderPresets.ts
+  src/config/geminiProviderPresets.ts
+  src/config/grokBuildProviderPresets.test.ts
+  src/config/grokBuildProviderPresets.ts
+  src/config/hermesBuiltinProviderIds.ts
+  src/config/hermesProviderPresets.ts
+  src/config/jiekouProviderPresets.test.ts
+  src/config/kimiProviderPresets.test.ts
+  src/config/kimiProviderPresets.ts
+  src/config/mcodeProviderPresets.test.ts
+  src/config/mcodeProviderPresets.ts
+  src/config/ompProviderPresets.ts
+  src/config/openclawProviderPresets.ts
+  src/config/opencodeProviderPresets.ts
+  src/config/piModelCatalog.ts
+  src/config/piProviderPresets.ts
+  src/config/piThinkingProfiles.ts
+  src/config/ppioProviderPresets.test.ts
+  src/config/presetFamilies.ts
+  src/config/presetModelMetadata.ts
+  src/config/presetSearchAliases.ts
+  src/config/universalProviderPresets.ts
+  src/config/userAgentPresets.ts
+  src/hooks/useDragSort.ts
+  src/hooks/useModeActions.ts
+  src/hooks/useModelMetadataFill.ts
+  src/hooks/useProviderActions.ts
+  src/hooks/useStreamCheck.ts
+  src/lib/api/connectivity-check.ts
+  src/lib/api/customIcons.ts
+  src/lib/api/failover.ts
+  src/lib/api/model-fetch.test.ts
+  src/lib/api/model-fetch.ts
+  src/lib/api/omo.ts
+  src/lib/modelMetadata.ts
+  src/lib/query/customIcons.ts
+  src/lib/query/failover.ts
+  src/lib/query/omo.ts
+  src/lib/requestOverrides.ts
+  src/lib/schemas/provider.ts
+  src/lib/userAgent.ts
+  src/types/omo.ts
+  src/utils/claudeEditorOverlay.ts
+  src/utils/grokBuildConfig.test.ts
+  src/utils/grokBuildConfig.ts
+  src/utils/providerIcon.test.ts
+  src/utils/providerIcon.ts
+  src/utils/providerMetaUtils.ts
+  src/utils/routeSwitchNotification.ts
+  src/utils/routingReason.ts
+  src/utils/usageDisplay.ts
+  tests/components/AddProviderDialog.test.tsx
+  tests/components/AgyOAuthSection.test.tsx
+  tests/components/ApiKeySection.test.tsx
+  tests/components/AuthCenterGroups.test.tsx
+  tests/components/AuthCenterPanel.test.tsx
+  tests/components/BasicFormFields.test.tsx
+  tests/components/ClaudeDesktopProviderForm.test.tsx
+  tests/components/ClaudeFormFields.test.tsx
+  tests/components/ClaudeOfficialSection.test.tsx
+  tests/components/ClaudeStackModelsField.test.tsx
+  tests/components/CodexFormFields.catalogReorder.test.tsx
+  tests/components/CodexFormFields.copilotCapabilities.test.ts
+  tests/components/CodexFormFields.modelFetch.test.tsx
+  tests/components/CodexFormFields.subagent.test.tsx
+  tests/components/CodexFormFields.test.tsx
+  tests/components/CodexOAuthSection.test.tsx
+  tests/components/CodexStaleClientsNotice.test.tsx
+  tests/components/CommonConfigEditor.test.tsx
+  tests/components/CommonConfigModalBehavior.test.tsx
+  tests/components/CustomIconNameDialog.test.tsx
+  tests/components/EditProviderDialog.test.tsx
+  tests/components/GeminiFormFields.test.tsx
+  tests/components/GptContextWindowHint.test.tsx
+  tests/components/GrokBuildProviderForm.test.tsx
+  tests/components/HermesFormFields.test.tsx
+  tests/components/IconPicker.test.tsx
+  tests/components/KimiAccountLogin.test.tsx
+  tests/components/KimiAccountQuotaFooter.test.tsx
+  tests/components/KimiAddProviderDialog.test.tsx
+  tests/components/KimiProviderForm.test.tsx
+  tests/components/ManagedAuthStatusError.test.tsx
+  tests/components/McodeProviderForm.test.tsx
+  tests/components/ModeDialog.test.tsx
+  tests/components/ModelDropdown.test.tsx
+  tests/components/OmoFormFields.mergeCustomModelsIntoStore.test.ts
+  tests/components/OpenClawFormFields.test.tsx
+  tests/components/OpenCodeFormFields.test.tsx
+  tests/components/OpenTerminalDialog.test.tsx
+  tests/components/PiProviderForm.test.tsx
+  tests/components/ProviderCard.agyModel.test.tsx
+  tests/components/ProviderCard.claudeAccount.test.tsx
+  tests/components/ProviderCard.codexAccount.test.tsx
+  tests/components/ProviderCard.usageExpansion.test.tsx
+  tests/components/ProviderCardActions.test.tsx
+  tests/components/ProviderCardLayout.test.ts
+  tests/components/ProviderForm.addDraftProjection.test.tsx
+  tests/components/ProviderForm.agyLogin.test.tsx
+  tests/components/ProviderForm.codexCatalog.test.ts
+  tests/components/ProviderForm.codexCopilot.test.tsx
+  tests/components/ProviderForm.codexManagedAccount.test.tsx
+  tests/components/ProviderForm.hermesBuiltinKey.test.tsx
+  tests/components/ProviderForm.modeHints.test.tsx
+  tests/components/ProviderForm.openclawHeaders.test.tsx
+  tests/components/ProviderForm.opencodeBuiltin.test.tsx
+  tests/components/ProviderForm.opencodeNative.test.tsx
+  tests/components/ProviderForm.presetRows.golden.test.tsx
+  tests/components/ProviderForm.stackModels.test.tsx
+  tests/components/ProviderIconBox.test.tsx
+  tests/components/ProviderList.test.tsx
+  tests/components/ProviderPresetSelector.test.tsx
+  tests/components/StackSettingsSheet.test.tsx
+  tests/components/SwitchModePanel.test.tsx
+  tests/components/UsagePanelMotion.test.tsx
+  tests/components/UsagePolling.test.tsx
+  tests/components/UsageScriptModal.test.tsx
+  tests/components/XaiOAuthSection.test.tsx
+  tests/components/codexReasoningLevelsLabel.test.ts
+  tests/components/modelMetadataFill.test.ts
+  tests/components/providerPresentation.test.ts
+  tests/config/claudeDesktopProviderPresets.test.ts
+  tests/config/claudePresetKeyFields.test.ts
+  tests/config/claudeProviderPresets.test.ts
+  tests/config/codexChatProviderPresets.test.ts
+  tests/config/codexReasoningLevelPresets.test.ts
+  tests/config/codexTemplates.test.ts
+  tests/config/commandCodeProviderPresets.test.ts
+  tests/config/commandCodeUsage.test.ts
+  tests/config/doubaoSeedPresets.test.ts
+  tests/config/hermesBuiltinProviderIds.test.ts
+  tests/config/hermesMinimaxProviderKey.test.ts
+  tests/config/longcatProviderPresets.test.ts
+  tests/config/mimoTokenPlanPresets.test.ts
+  tests/config/moarkProviderPresets.test.ts
+  tests/config/ompProviderPresets.test.ts
+  tests/config/opencodeProviderPresets.test.ts
+  tests/config/piProviderPresets.test.ts
+  tests/config/piThinkingProfiles.test.ts
+  tests/config/presetModelMetadata.test.ts
+  tests/config/presetPreferenceKeys.test.ts
+  tests/config/qianfanTokenPlanPresets.test.ts
+  tests/config/subrouterProviderPresets.test.ts
+  tests/config/teamorouterClaudePresets.test.ts
+  tests/config/therouterOpenCodeOpenClawPresets.test.ts
+  tests/config/therouterProviderPresets.test.ts
+  tests/config/tokenPlanProviderPresets.test.ts
+  tests/config/xaiOauthLocales.test.ts
+  tests/config/xaiOauthProviderPresets.test.ts
+  tests/hooks/useApiKeyLink.test.tsx
+  tests/hooks/useApiKeyState.test.tsx
+  tests/hooks/useCodexConfigState.bearer.test.ts
+  tests/hooks/useCodexConfigState.catalog.test.ts
+  tests/hooks/useDraftEditorProjection.test.tsx
+  tests/hooks/useDragSort.test.tsx
+  tests/hooks/useGeminiConfigState.test.tsx
+  tests/hooks/useManagedAuth.test.tsx
+  tests/hooks/useModelMetadataFill.test.tsx
+  tests/hooks/useModelState.test.tsx
+  tests/hooks/useOpenclawFormState.test.tsx
+  tests/hooks/useOpencodeFormState.test.tsx
+  tests/hooks/useProviderActions.test.tsx
+  tests/lib/modelMetadata.test.ts
+  tests/lib/requestOverrides.test.ts
+  tests/lib/userAgent.test.ts
+  tests/utils/claudeEditorOverlay.test.ts
+  tests/utils/omoConfig.test.ts
+  tests/utils/providerMetaUtils.test.ts
+  tests/utils/routeSwitchNotification.test.ts
+  tests/utils/usageDisplay.test.ts
