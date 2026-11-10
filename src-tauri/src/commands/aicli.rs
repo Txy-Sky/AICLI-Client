@@ -1604,7 +1604,6 @@ impl AicliServices {
         })
     }
 
-    /// F-06：保存自定义遮盖词与规则（整理后整体替换；校验失败返回 invalid_input）。
     // -- F-09 privacy records ---------------------------------------------------------
 
     pub fn privacy_summary(&self, days: u32) -> Result<PrivacySummary, AicliCommandError> {
@@ -1705,6 +1704,7 @@ impl AicliServices {
         })
     }
 
+    /// F-06：保存自定义遮盖词与规则（整理后整体替换；校验失败返回 invalid_input）。
     pub fn set_privacy_custom(
         &self,
         words: Vec<String>,
