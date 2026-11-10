@@ -1503,7 +1503,7 @@
     "providerStats": "Provider 統計",
     "modelStats": "模型統計",
     "time": "時間",
-    "provider": "供應商",
+    "provider": "來源",
     "billingModel": "計費模型",
     "inputTokens": "輸入",
     "outputTokens": "輸出",
@@ -1515,7 +1515,7 @@
     "requestModel": "請求模型",
     "responseModel": "回傳模型",
     "noData": "暫無資料",
-    "unknownProvider": "未知供應商",
+    "unknownProvider": "未知來源",
     "sessionProvider": {
       "short": "工作階段日誌",
       "label": "{{app}} · 工作階段日誌",
@@ -1733,13 +1733,13 @@
       }
     },
     "providerFilter": {
-      "label": "供應商",
-      "all": "全部供應商",
-      "title": "依供應商篩選"
+      "label": "來源",
+      "all": "全部來源",
+      "title": "依來源篩選"
     },
     "modelFilter": {
       "label": "模型",
-      "title": "依模型篩選（隨供應商連動）"
+      "title": "依模型篩選（隨來源連動）"
     },
     "metrics": {
       "label": "指標",
@@ -1771,7 +1771,7 @@
     },
     "tabs": {
       "label": "明細",
-      "providers": "供應商",
+      "providers": "來源",
       "models": "模型",
       "pricing": "定價"
     },
@@ -1820,7 +1820,7 @@
       "speedEstimateTooFew": "輸出不到 200 token，不估速度",
       "noTimingSession": "工作階段日誌沒有計時資料",
       "noFirstToken": "沒有首字計時，不算速度",
-      "providerId": "供應商 ID"
+      "providerId": "來源 ID"
     },
     "sources": {
       "scanTitle": "自動掃描工作階段日誌",
@@ -3559,7 +3559,8 @@
       "transport": {
         "cloudflare": "Cloudflare",
         "cdn": "CDN"
-      }
+      },
+      "aicliSource": "AICLI · {{line}}"
     },
     "profile": {
       "title": "設定集",
@@ -3578,7 +3579,8 @@
       "degraded": "隱私引擎有 {{count}} 次失敗，請求已按「可用性優先」放行原文。"
     },
     "local": {
-      "source": "來源：本機紀錄"
+      "source": "來源：本機紀錄",
+      "title": "本機統計"
     },
     "client": {
       "takeoverTitle": "接管",
@@ -3783,6 +3785,23 @@
         "openclaw": "工作區、設定",
         "hermes": "記憶"
       }
+    },
+    "overview": {
+      "quotaHelp": "額度依網頁端的顯示設定換算（美元、人民幣或 Token），與網站個人中心一致。",
+      "usedShare": "已用額度占比",
+      "usedPct": "已用 {{pct}}%",
+      "spend": "近 {{days}} 天伺服端消耗",
+      "requests": "近 {{days}} 天請求",
+      "requestsValue": "{{count}} 次請求",
+      "dayNotSynced": "這一天還沒有同步",
+      "dailyTitle": "伺服端每日消耗",
+      "rangeLabel": "統計天數",
+      "range7": "7 天",
+      "range30": "30 天",
+      "today": "今天",
+      "checkedAt": "{{time}} 測速",
+      "usedBy": "正在使用：{{apps}}",
+      "privacyOpen": "查看"
     }
   }
 }

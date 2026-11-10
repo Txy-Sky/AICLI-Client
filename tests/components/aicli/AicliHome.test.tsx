@@ -16,10 +16,19 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),
 }));
 
-// 本地统计就是原来的用量页（F-03 不改它）：这里只看它拿到的来源标注
+// 本地统计就是原来的用量页：这里只看它拿到的来源标注，以及 F-10 放进它滚动区的账户面板
 vi.mock("@/components/usage/UsagePage", () => ({
-  UsagePage: ({ sourceNote }: { sourceNote?: string }) => (
-    <div data-testid="usage-page">{sourceNote}</div>
+  UsagePage: ({
+    sourceNote,
+    leading,
+  }: {
+    sourceNote?: string;
+    leading?: React.ReactNode;
+  }) => (
+    <div data-testid="usage-page">
+      <span data-testid="usage-source-note">{sourceNote}</span>
+      {leading}
+    </div>
   ),
 }));
 
@@ -160,7 +169,10 @@ describe("AicliHome — bound", () => {
     renderWithQueryClient(<AicliHome />);
 
     expect(await screen.findByText("alice")).toBeInTheDocument();
-    expect(screen.getByText("vip")).toBeInTheDocument();
+    // F-10：分组名也出现在配置集的分组胶囊里，这里看账户头部的用户组
+    expect(
+      within(screen.getByTestId("aicli-account-header")).getByText("vip"),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("aicli-quota-remaining")).toHaveTextContent(
         "$2",
@@ -178,7 +190,7 @@ describe("AicliHome — bound", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("aicli.account.cached")).not.toBeInTheDocument();
     // 本地统计标注来源（原未绑定用例里的断言，F-07 起首页只在已绑定时出现）
-    expect(screen.getByTestId("usage-page")).toHaveTextContent(
+    expect(screen.getByTestId("usage-source-note")).toHaveTextContent(
       "aicli.local.source",
     );
   });
@@ -312,5 +324,66 @@ describe("AicliHome — bound", () => {
       }),
     );
     expect(screen.getByText("aicli.lines.switchNote")).toBeInTheDocument();
+  });
+
+  // F-10：服务端每日用量（近 7 天）与额度使用条
+  it("shows the last 7 days of server spend and requests with a quota meter", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    respond(
+      boundResponses({
+        aicli_get_usage_summary: {
+          days: [
+            {
+              day: today,
+              quota: 250_000,
+              requests: 12,
+              is_final: false,
+              fetched_at: 1,
+              stale: false,
+            },
+            {
+              day: "2001-01-01",
+              quota: 9_999_999,
+              requests: 999,
+              is_final: true,
+              fetched_at: 1,
+              stale: false,
+            },
+          ],
+          total_quota: 10_249_999,
+          total_requests: 1011,
+        },
+      }),
+    );
+    renderWithQueryClient(<AicliHome />);
+    await waitFor(() =>
+      expect(screen.getByTestId("aicli-server-spend")).toHaveTextContent(
+        "$0.5",
+      ),
+    );
+    // 只算最近 7 天，不把 2001 年那一天算进去
+    expect(screen.getByTestId("aicli-server-requests")).toHaveTextContent("12");
+    expect(invokeMock).toHaveBeenCalledWith("aicli_get_usage_summary", {
+      days: 30,
+    });
+    // 已用 500000 / (1000000 + 500000) ≈ 33%
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "33");
+    expect(screen.getByTestId(`mini-bar-${today}`)).not.toHaveAttribute(
+      "data-empty",
+    );
+  });
+
+  it("marks days without server data as gaps instead of zero", async () => {
+    respond(boundResponses({ aicli_get_usage_summary: undefined }));
+    renderWithQueryClient(<AicliHome />);
+    await screen.findByText("alice");
+    expect(screen.getByTestId("aicli-server-spend")).toHaveTextContent(
+      "aicli.account.noData",
+    );
+    const today = new Date().toISOString().slice(0, 10);
+    expect(screen.getByTestId(`mini-bar-${today}`)).toHaveAttribute(
+      "data-empty",
+      "true",
+    );
   });
 });

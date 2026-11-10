@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { usageKeys } from "@/lib/query/usage";
@@ -12,6 +13,9 @@ interface UsagePageProps {
   onOpenRoutingSettings?: () => void;
   /** 标题旁的数据来源标注（F-03 首页用）。 */
   sourceNote?: string;
+  /** F-10：本机统计上方、同一滚动区里的面板（首页的 AICLI 账户面板）。 */
+  leading?: ReactNode;
+  localTitle?: string;
 }
 
 /** 侧栏「用量统计」全局页（v7 S6）：不开路由也有数据（读会话日志）。 */
@@ -19,6 +23,8 @@ export function UsagePage({
   initialAppType,
   onOpenRoutingSettings,
   sourceNote,
+  leading,
+  localTitle,
 }: UsagePageProps = {}) {
   const { settings, autoSaveSettings } = useSettings();
   const queryClient = useQueryClient();
@@ -48,6 +54,8 @@ export function UsagePage({
       usageDisplay={settings?.usageDisplay}
       onUsageDisplayChange={(usageDisplay) => save({ usageDisplay })}
       sourceNote={sourceNote}
+      leading={leading}
+      localTitle={localTitle}
       includeSessionLogs={settings?.usageIncludeSessionLogs ?? false}
       onIncludeSessionLogsChange={async (usageIncludeSessionLogs) => {
         // 后端按此设置过滤所有用量查询：保存后整页重新取数

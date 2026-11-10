@@ -1502,7 +1502,7 @@
     "providerStats": "Provider 统计",
     "modelStats": "模型统计",
     "time": "时间",
-    "provider": "供应商",
+    "provider": "来源",
     "billingModel": "计费模型",
     "inputTokens": "输入",
     "outputTokens": "输出",
@@ -1514,7 +1514,7 @@
     "requestModel": "请求模型",
     "responseModel": "返回模型",
     "noData": "暂无数据",
-    "unknownProvider": "未知供应商",
+    "unknownProvider": "未知来源",
     "sessionProvider": {
       "short": "会话日志",
       "label": "{{app}} · 会话日志",
@@ -1732,13 +1732,13 @@
       }
     },
     "providerFilter": {
-      "label": "供应商",
-      "all": "全部供应商",
-      "title": "按供应商筛选"
+      "label": "来源",
+      "all": "全部来源",
+      "title": "按来源筛选"
     },
     "modelFilter": {
       "label": "模型",
-      "title": "按模型筛选（随供应商级联）"
+      "title": "按模型筛选（随来源级联）"
     },
     "metrics": {
       "label": "指标",
@@ -1770,7 +1770,7 @@
     },
     "tabs": {
       "label": "明细",
-      "providers": "供应商",
+      "providers": "来源",
       "models": "模型",
       "pricing": "定价"
     },
@@ -1819,7 +1819,7 @@
       "speedEstimateTooFew": "输出不到 200 token，不估速度",
       "noTimingSession": "会话日志没有计时数据",
       "noFirstToken": "没有首字计时，不算速度",
-      "providerId": "供应商 ID"
+      "providerId": "来源 ID"
     },
     "sources": {
       "scanTitle": "自动扫描会话日志",
@@ -3558,7 +3558,8 @@
       "transport": {
         "cloudflare": "Cloudflare",
         "cdn": "CDN"
-      }
+      },
+      "aicliSource": "AICLI · {{line}}"
     },
     "profile": {
       "title": "配置集",
@@ -3577,7 +3578,8 @@
       "degraded": "隐私引擎有 {{count}} 次失败，请求已按「可用性优先」放行原文。"
     },
     "local": {
-      "source": "来源：本机记录"
+      "source": "来源：本机记录",
+      "title": "本机统计"
     },
     "client": {
       "takeoverTitle": "接管",
@@ -3782,6 +3784,23 @@
         "openclaw": "工作区、配置",
         "hermes": "记忆"
       }
+    },
+    "overview": {
+      "quotaHelp": "额度按网页端的显示设置换算（美元、人民币或 Token），与网站个人中心一致。",
+      "usedShare": "已用额度占比",
+      "usedPct": "已用 {{pct}}%",
+      "spend": "近 {{days}} 天服务端消耗",
+      "requests": "近 {{days}} 天请求",
+      "requestsValue": "{{count}} 次请求",
+      "dayNotSynced": "这一天还没有同步",
+      "dailyTitle": "服务端每日消耗",
+      "rangeLabel": "统计天数",
+      "range7": "7 天",
+      "range30": "30 天",
+      "today": "今天",
+      "checkedAt": "{{time}} 测速",
+      "usedBy": "正在使用：{{apps}}",
+      "privacyOpen": "查看"
     }
   }
 }

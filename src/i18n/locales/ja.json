@@ -1502,7 +1502,7 @@
     "providerStats": "プロバイダー統計",
     "modelStats": "モデル統計",
     "time": "時間",
-    "provider": "プロバイダー",
+    "provider": "ソース",
     "billingModel": "課金モデル",
     "inputTokens": "入力",
     "outputTokens": "出力",
@@ -1514,7 +1514,7 @@
     "requestModel": "リクエストモデル",
     "responseModel": "レスポンスモデル",
     "noData": "データなし",
-    "unknownProvider": "不明なプロバイダー",
+    "unknownProvider": "不明なソース",
     "sessionProvider": {
       "short": "セッションログ",
       "label": "{{app}} · セッションログ",
@@ -1732,13 +1732,13 @@
       }
     },
     "providerFilter": {
-      "label": "プロバイダー",
-      "all": "すべてのプロバイダー",
-      "title": "プロバイダーで絞り込み"
+      "label": "ソース",
+      "all": "すべてのソース",
+      "title": "ソースで絞り込み"
     },
     "modelFilter": {
       "label": "モデル",
-      "title": "モデルで絞り込み（プロバイダーに連動）"
+      "title": "モデルで絞り込み（ソースに連動）"
     },
     "metrics": {
       "label": "指標",
@@ -1770,7 +1770,7 @@
     },
     "tabs": {
       "label": "明細",
-      "providers": "プロバイダー",
+      "providers": "ソース",
       "models": "モデル",
       "pricing": "料金"
     },
@@ -1819,7 +1819,7 @@
       "speedEstimateTooFew": "出力が 200 トークン未満のため速度は推定しません",
       "noTimingSession": "セッションログには計測データがありません",
       "noFirstToken": "最初のトークンの計測がないため速度は出しません",
-      "providerId": "プロバイダー ID"
+      "providerId": "ソース ID"
     },
     "sources": {
       "scanTitle": "セッションログを自動スキャン",
@@ -3558,7 +3558,8 @@
       "transport": {
         "cloudflare": "Cloudflare",
         "cdn": "CDN"
-      }
+      },
+      "aicliSource": "AICLI · {{line}}"
     },
     "profile": {
       "title": "構成セット",
@@ -3577,7 +3578,8 @@
       "degraded": "プライバシーエンジンが {{count}} 回失敗し、「可用性優先」によりリクエストは原文のまま送信されました。"
     },
     "local": {
-      "source": "出典：このデバイスの記録"
+      "source": "出典：このデバイスの記録",
+      "title": "ローカル統計"
     },
     "client": {
       "takeoverTitle": "引き継ぎ",
@@ -3782,6 +3784,23 @@
         "openclaw": "ワークスペース、設定",
         "hermes": "メモリ"
       }
+    },
+    "overview": {
+      "quotaHelp": "クォータは Web サイトの表示設定（米ドル、人民元、トークン）で換算され、プロフィールページと同じです。",
+      "usedShare": "使用済みクォータの割合",
+      "usedPct": "{{pct}}% 使用済み",
+      "spend": "直近 {{days}} 日のサーバー消費",
+      "requests": "直近 {{days}} 日のリクエスト",
+      "requestsValue": "{{count}} 件のリクエスト",
+      "dayNotSynced": "この日はまだ同期されていません",
+      "dailyTitle": "サーバーの日別消費",
+      "rangeLabel": "集計期間",
+      "range7": "7 日",
+      "range30": "30 日",
+      "today": "今日",
+      "checkedAt": "{{time}} に測定",
+      "usedBy": "使用中：{{apps}}",
+      "privacyOpen": "表示"
     }
   }
 }

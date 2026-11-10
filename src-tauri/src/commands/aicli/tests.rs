@@ -550,7 +550,7 @@ async fn serialized_outputs_carry_no_token_material() {
         serde_json::to_string(&fixture.services.get_routes().await.unwrap()).unwrap(),
         serde_json::to_string(&fixture.services.list_lines().unwrap()).unwrap(),
         serde_json::to_string(&fixture.services.get_profiles().unwrap()).unwrap(),
-        serde_json::to_string(&fixture.services.get_usage_summary().unwrap()).unwrap(),
+        serde_json::to_string(&fixture.services.get_usage_summary(None).unwrap()).unwrap(),
         serde_json::to_string(
             &fixture
                 .services
@@ -1493,5 +1493,22 @@ fn privacy_custom_terms_round_trip_and_validate() {
     assert_eq!(
         fixture.services.get_privacy().unwrap().custom_words,
         ["Nightjar"]
+    );
+}
+
+#[test]
+fn usage_backfill_covers_the_requested_days_newest_first() {
+    let today = chrono::NaiveDate::from_ymd_opt(2026, 3, 2).unwrap();
+    // Default stays today only (C1-06 behaviour before F-10).
+    assert_eq!(super::usage_backfill_days(today, None), vec!["2026-03-02"]);
+    assert_eq!(
+        super::usage_backfill_days(today, Some(3)),
+        vec!["2026-03-02", "2026-03-01", "2026-02-28"]
+    );
+    // Zero is treated as one day and the span is capped.
+    assert_eq!(super::usage_backfill_days(today, Some(0)).len(), 1);
+    assert_eq!(
+        super::usage_backfill_days(today, Some(400)).len(),
+        super::USAGE_BACKFILL_MAX_DAYS as usize
     );
 }

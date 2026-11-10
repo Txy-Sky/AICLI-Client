@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -218,6 +218,35 @@ describe("UsageDashboard", () => {
       deferredFiles: 0,
       errors: [],
     });
+  });
+
+  // F-10：首页把账户面板放进来时只有一个滚动区，「本机统计」标题与筛选行吸顶；
+  // 不传 leading 时结构不变（其余用例覆盖）
+  it("puts a leading panel and the local stats in one scroll area", async () => {
+    renderDashboard({
+      leading: <div data-testid="leading-panel">panel</div>,
+      sourceNote: "source-note",
+      localTitle: "local-title",
+    });
+    const scroll = await screen.findByTestId("usage-single-scroll");
+    expect(scroll).toHaveAttribute("id", "main-content");
+    expect(within(scroll).getByTestId("leading-panel")).toBeInTheDocument();
+    const sticky = within(scroll).getByTestId("usage-sticky-filters");
+    expect(sticky).toHaveClass("sticky");
+    expect(within(sticky).getByText("local-title")).toBeInTheDocument();
+    expect(within(sticky).getByText("source-note")).toBeInTheDocument();
+    expect(
+      await within(scroll).findByTestId("usage-trend"),
+    ).toBeInTheDocument();
+    // 只有一个 main-content
+    expect(document.querySelectorAll("#main-content")).toHaveLength(1);
+  });
+
+  it("keeps the original layout without a leading panel", async () => {
+    renderDashboard({ sourceNote: "source-note" });
+    expect(await screen.findByTestId("usage-trend")).toBeInTheDocument();
+    expect(screen.queryByTestId("usage-single-scroll")).not.toBeInTheDocument();
+    expect(screen.getByText("source-note")).toBeInTheDocument();
   });
 
   it("swaps the trend chart for the heatmap on the all-time range", async () => {

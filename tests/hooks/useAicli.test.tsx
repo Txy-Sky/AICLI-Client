@@ -151,6 +151,12 @@ describe("aicliApi", () => {
       undefined,
     ],
     [
+      "getUsageSummary with a backfill span",
+      () => aicliApi.getUsageSummary(7),
+      "aicli_get_usage_summary",
+      { days: 7 },
+    ],
+    [
       "getRequestBill",
       () => aicliApi.getRequestBill("req-1"),
       "aicli_get_request_bill",

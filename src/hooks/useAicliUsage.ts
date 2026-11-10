@@ -3,10 +3,10 @@ import { aicliApi } from "@/lib/api/aicli";
 import { aicliKeys } from "./aicliKeys";
 
 /** 服务端按天的用量汇总（近 30 天缓存；刷新完成由事件桥接失效）。 */
-export function useAicliUsageSummary(enabled = true) {
+export function useAicliUsageSummary(enabled = true, days?: number) {
   return useQuery({
-    queryKey: aicliKeys.usageSummary,
-    queryFn: () => aicliApi.getUsageSummary(),
+    queryKey: [...aicliKeys.usageSummary, days ?? 1],
+    queryFn: () => aicliApi.getUsageSummary(days),
     enabled,
     placeholderData: (previous) => previous,
   });

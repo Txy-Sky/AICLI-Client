@@ -1442,7 +1442,10 @@ impl AicliServices {
 
     // -- Usage and bills ---------------------------------------------------------------
 
-    pub fn get_usage_summary(&self) -> Result<AicliUsageSummaryView, AicliCommandError> {
+    pub fn get_usage_summary(
+        &self,
+        days: Option<u32>,
+    ) -> Result<AicliUsageSummaryView, AicliCommandError> {
         self.rebuild()?;
         if let Some(cache) = self
             .inner
@@ -1452,8 +1455,11 @@ impl AicliServices {
             .clone()
         {
             // C1-06 freshness: today's row refreshes on read, past days are final.
-            let today = Utc::now().format("%Y-%m-%d").to_string();
-            let _ = cache.get_usage(&today)?;
+            // F-10: the home trend asks for the last `days` days; get_usage skips
+            // past days that are already final, so only missing ones are fetched.
+            for day in usage_backfill_days(Utc::now().date_naive(), days) {
+                let _ = cache.get_usage(&day)?;
+            }
         }
         let now = Utc::now().timestamp();
         let conn = self
@@ -1841,11 +1847,28 @@ pub async fn aicli_release(
     state.0.release_takeover(app).await
 }
 
+/// Longest server-usage trend the home page asks for (F-10).
+pub const USAGE_BACKFILL_MAX_DAYS: u32 = 31;
+
+/// Days (newest first, `YYYY-MM-DD`) whose server usage `get_usage_summary` touches:
+/// today only by default, at most [`USAGE_BACKFILL_MAX_DAYS`].
+pub fn usage_backfill_days(today: chrono::NaiveDate, days: Option<u32>) -> Vec<String> {
+    let span = days.unwrap_or(1).clamp(1, USAGE_BACKFILL_MAX_DAYS);
+    (0..span)
+        .map(|offset| {
+            (today - chrono::Duration::days(i64::from(offset)))
+                .format("%Y-%m-%d")
+                .to_string()
+        })
+        .collect()
+}
+
 #[tauri::command]
 pub async fn aicli_get_usage_summary(
     state: State<'_, AicliState>,
+    days: Option<u32>,
 ) -> Result<AicliUsageSummaryView, AicliCommandError> {
-    state.0.get_usage_summary()
+    state.0.get_usage_summary(days)
 }
 
 #[tauri::command]

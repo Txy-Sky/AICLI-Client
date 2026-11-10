@@ -1502,7 +1502,7 @@
     "providerStats": "Provider Stats",
     "modelStats": "Model Stats",
     "time": "Time",
-    "provider": "Provider",
+    "provider": "Source",
     "billingModel": "Billing Model",
     "inputTokens": "Input",
     "outputTokens": "Output",
@@ -1514,7 +1514,7 @@
     "requestModel": "Request Model",
     "responseModel": "Response Model",
     "noData": "No data",
-    "unknownProvider": "Unknown Provider",
+    "unknownProvider": "Unknown source",
     "sessionProvider": {
       "short": "Session logs",
       "label": "{{app}} · Session logs",
@@ -1732,13 +1732,13 @@
       }
     },
     "providerFilter": {
-      "label": "Provider",
-      "all": "All providers",
-      "title": "Filter by provider"
+      "label": "Source",
+      "all": "All sources",
+      "title": "Filter by source"
     },
     "modelFilter": {
       "label": "Model",
-      "title": "Filter by model (follows the provider filter)"
+      "title": "Filter by model (follows the source filter)"
     },
     "metrics": {
       "label": "Metrics",
@@ -1770,7 +1770,7 @@
     },
     "tabs": {
       "label": "Details",
-      "providers": "Providers",
+      "providers": "Sources",
       "models": "Models",
       "pricing": "Pricing"
     },
@@ -1819,7 +1819,7 @@
       "speedEstimateTooFew": "Under 200 output tokens, so no estimate",
       "noTimingSession": "Session logs have no timing data",
       "noFirstToken": "No first-token timing, so no speed",
-      "providerId": "Provider ID"
+      "providerId": "Source ID"
     },
     "sources": {
       "scanTitle": "Scan session logs automatically",
@@ -3558,7 +3558,8 @@
       "transport": {
         "cloudflare": "Cloudflare",
         "cdn": "CDN"
-      }
+      },
+      "aicliSource": "AICLI · {{line}}"
     },
     "profile": {
       "title": "Profile",
@@ -3577,7 +3578,8 @@
       "degraded": "The privacy engine failed {{count}} times; those requests were sent unmasked under “Availability first”."
     },
     "local": {
-      "source": "Source: this device"
+      "source": "Source: this device",
+      "title": "Local statistics"
     },
     "client": {
       "takeoverTitle": "Takeover",
@@ -3782,6 +3784,23 @@
         "openclaw": "Workspace, configuration",
         "hermes": "Memory"
       }
+    },
+    "overview": {
+      "quotaHelp": "Quota is converted with the website's display setting (USD, CNY or tokens), the same as your profile page.",
+      "usedShare": "Share of quota used",
+      "usedPct": "{{pct}}% used",
+      "spend": "Server spend, last {{days}} days",
+      "requests": "Requests, last {{days}} days",
+      "requestsValue": "{{count}} requests",
+      "dayNotSynced": "Not synced for this day yet",
+      "dailyTitle": "Daily server spend",
+      "rangeLabel": "Range",
+      "range7": "7 days",
+      "range30": "30 days",
+      "today": "Today",
+      "checkedAt": "Tested {{time}}",
+      "usedBy": "In use by {{apps}}",
+      "privacyOpen": "View"
     }
   }
 }

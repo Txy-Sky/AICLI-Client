@@ -1466,7 +1466,7 @@
     "providerStats": "Sağlayıcı İstatistikleri",
     "modelStats": "Model İstatistikleri",
     "time": "Zaman",
-    "provider": "Sağlayıcı",
+    "provider": "Kaynak",
     "billingModel": "Faturalandırma Modeli",
     "inputTokens": "Girdi",
     "outputTokens": "Çıktı",
@@ -1478,7 +1478,7 @@
     "requestModel": "Talep Modeli",
     "responseModel": "Tepki Modeli",
     "noData": "Veri yok",
-    "unknownProvider": "Bilinmeyen Sağlayıcı",
+    "unknownProvider": "Bilinmeyen kaynak",
     "sessionProvider": {
       "short": "Oturum günlükleri",
       "label": "{{app}} · Oturum günlükleri",
@@ -1694,13 +1694,13 @@
       }
     },
     "providerFilter": {
-      "label": "Sağlayıcı",
-      "all": "Tüm sağlayıcılar",
-      "title": "Sağlayıcıya göre filtrele"
+      "label": "Kaynak",
+      "all": "Tüm kaynaklar",
+      "title": "Kaynağa göre filtrele"
     },
     "modelFilter": {
       "label": "Model",
-      "title": "Modele göre filtrele (sağlayıcı filtresini takip eder)"
+      "title": "Modele göre filtrele (kaynak filtresini izler)"
     },
     "metrics": {
       "label": "Metrikler",
@@ -1732,7 +1732,7 @@
     },
     "tabs": {
       "label": "Ayrıntılar",
-      "providers": "Sağlayıcılar",
+      "providers": "Kaynaklar",
       "models": "Modeller",
       "pricing": "Fiyatlandırma"
     },
@@ -1781,7 +1781,7 @@
       "speedEstimateTooFew": "Çıkış tokenu 200'ün altında olduğundan tahmin yok",
       "noTimingSession": "Oturum günlüklerinde zamanlama verisi yok",
       "noFirstToken": "İlk token zamanlaması yok, dolayısıyla hız yok",
-      "providerId": "Sağlayıcı kimliği"
+      "providerId": "Kaynak ID"
     },
     "sources": {
       "scanTitle": "Oturum günlüklerini otomatik olarak tara",
@@ -3518,7 +3518,8 @@
       "transport": {
         "cloudflare": "Cloudflare",
         "cdn": "CDN"
-      }
+      },
+      "aicliSource": "AICLI · {{line}}"
     },
     "profile": {
       "title": "Yapılandırma seti",
@@ -3537,7 +3538,8 @@
       "degraded": "Gizlilik motoru {{count}} kez başarısız oldu; bu istekler «Önce erişilebilirlik» nedeniyle maskelenmeden gönderildi."
     },
     "local": {
-      "source": "Kaynak: bu cihaz"
+      "source": "Kaynak: bu cihaz",
+      "title": "Yerel istatistikler"
     },
     "client": {
       "takeoverTitle": "Devralma",
@@ -3742,6 +3744,23 @@
         "openclaw": "Çalışma alanı, yapılandırma",
         "hermes": "Bellek"
       }
+    },
+    "overview": {
+      "quotaHelp": "Kota, web sitesinin görüntüleme ayarına (USD, CNY veya token) göre çevrilir; profil sayfanızla aynıdır.",
+      "usedShare": "Kullanılan kota oranı",
+      "usedPct": "%{{pct}} kullanıldı",
+      "spend": "Son {{days}} günde sunucu harcaması",
+      "requests": "Son {{days}} günde istek",
+      "requestsValue": "{{count}} istek",
+      "dayNotSynced": "Bu gün henüz eşitlenmedi",
+      "dailyTitle": "Günlük sunucu harcaması",
+      "rangeLabel": "Aralık",
+      "range7": "7 gün",
+      "range30": "30 gün",
+      "today": "Bugün",
+      "checkedAt": "{{time}} ölçüldü",
+      "usedBy": "Kullanan: {{apps}}",
+      "privacyOpen": "Görüntüle"
     }
   }
 }

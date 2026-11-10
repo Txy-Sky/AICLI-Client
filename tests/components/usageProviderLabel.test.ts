@@ -22,6 +22,22 @@ describe("getUsageProviderLabel", () => {
     );
   });
 
+  it("shows AICLI seed providers as their line (F-10)", () => {
+    const withLine = ((key: string, options?: Record<string, unknown>) =>
+      options?.line ? `${key}:${options.line}` : key) as unknown as TFunction;
+    expect(getUsageProviderLabel("AICLI Client (main)", withLine)).toEqual({
+      label: "aicli.lines.aicliSource:aicli.lines.main",
+      shortLabel: "aicli.lines.aicliSource:aicli.lines.main",
+    });
+    expect(getUsageProviderLabel("AICLI Client (apac)", withLine).label).toBe(
+      "aicli.lines.aicliSource:aicli.lines.apac",
+    );
+    // 其它名字原样显示
+    expect(getUsageProviderLabel("AICLI Client (other)", withLine).label).toBe(
+      "AICLI Client (other)",
+    );
+  });
+
   it("translates every placeholder name the backend can return", () => {
     // 后端 provider_name_coalesce 里的占位名，新增应用时漏了前端对照表就会原样显示英文全名
     const rust = readFileSync(

@@ -36,7 +36,7 @@ export interface UsageProviderLabel {
   hint?: string;
 }
 
-/** 用量面板里供应商名的显示文案；空名显示「未知供应商」。 */
+/** 用量面板里「来源」（供应商名）的显示文案；空名显示「未知来源」。 */
 export function getUsageProviderLabel(
   name: string | undefined,
   t: TFunction,
@@ -54,6 +54,14 @@ export function getUsageProviderLabel(
       shortLabel: t("usage.sessionAccountProvider.short"),
       hint: t("usage.sessionAccountProvider.hint"),
     };
+  }
+  // F-10：AICLI 的隐藏种子（seed.rs 命名为 AICLI Client (<line>)）按线路显示
+  const seedLine = /^AICLI Client \((main|global|apac)\)$/.exec(name)?.[1];
+  if (seedLine) {
+    const label = t("aicli.lines.aicliSource", {
+      line: t(`aicli.lines.${seedLine}`),
+    });
+    return { label, shortLabel: label };
   }
   const app = SESSION_PROVIDER_APPS[name];
   if (!app) return { label: name, shortLabel: name };

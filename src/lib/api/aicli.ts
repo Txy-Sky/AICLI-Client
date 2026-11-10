@@ -107,8 +107,11 @@ export const aicliApi = {
   release: (app: string): Promise<void> => invoke("aicli_release", { app }),
 
   // ---- 用量与账单 ----
-  getUsageSummary: (): Promise<AicliUsageSummary> =>
-    invoke("aicli_get_usage_summary"),
+  /** days：同时补拉最近几天的服务端用量（F-10 首页趋势，默认只刷新今天）。 */
+  getUsageSummary: (days?: number): Promise<AicliUsageSummary> =>
+    days === undefined
+      ? invoke("aicli_get_usage_summary")
+      : invoke("aicli_get_usage_summary", { days }),
 
   getRequestBill: (requestId: string): Promise<AicliRequestBill | null> =>
     invoke("aicli_get_request_bill", { requestId }),
