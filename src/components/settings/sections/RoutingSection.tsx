@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 interface RoutingSectionProps {
   /** 「前往」打开这个应用的客户端页 */
   onOpenApp: (app: AppId) => void;
+  onOpenPrivacy?: () => void;
 }
 
 const isValidListenAddress = (address: string): boolean => {
@@ -79,7 +80,10 @@ function formatUptime(seconds: number, t: TFunction) {
  * 凭据存储、接管中的客户端，F-06）→ 整流与优化。与供应商相关的分组（路由中的应用、全部回到
  * 直连、故障转移队列）随供应商一起移除。
  */
-export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
+export function RoutingSection({
+  onOpenApp,
+  onOpenPrivacy,
+}: RoutingSectionProps) {
   const { t } = useTranslation();
   const { data: status } = useProxyStatusQuery();
   const running = status?.running ?? false;
@@ -351,7 +355,10 @@ export function RoutingSection({ onOpenApp }: RoutingSectionProps) {
         </SettingsCard>
       </SettingsBlock>
 
-      <AicliRoutingSettings onOpenApp={onOpenApp} />
+      <AicliRoutingSettings
+        onOpenApp={onOpenApp}
+        onOpenPrivacy={onOpenPrivacy}
+      />
 
       <SettingsBlock
         title={t("settings.advanced.rectifier.title")}

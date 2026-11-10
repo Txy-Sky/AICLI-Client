@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   MonitorSmartphone,
   Route,
+  ShieldCheck,
   Server,
   Settings,
   SlidersHorizontal,
@@ -41,6 +42,8 @@ import {
 } from "@/components/usage/format";
 import { useSidebarStatus } from "@/hooks/useSidebarStatus";
 import { useAicliTakeoverStatus } from "@/hooks/useAicliProfiles";
+import { useAicliPrivacy } from "@/hooks/useAicliAccount";
+import { useAicliPrivacySummary } from "@/hooks/useAicliPrivacyRecords";
 import { useProxyStatusQuery } from "@/lib/query/proxy";
 import {
   AICLI_TAKEOVER_APPS,
@@ -228,6 +231,9 @@ function MainDirectory({
     useSidebarStatus();
   const takeover = useAicliTakeoverStatus();
   const { data: proxyStatus } = useProxyStatusQuery();
+  const privacyOn = useAicliPrivacy().data?.privacy_enabled ?? false;
+  const privacySummary = useAicliPrivacySummary(1, privacyOn).data;
+  const privacyToday = privacySummary?.total_values ?? 0;
 
   // 选了的项里是 0 的不写（没配定价时金额总是 0）；命中率在今天还没有请求时不写；
   // 全都没有就整个不显示。两项都有时只写数、上下两行（「今日」放进悬停和读屏）：
@@ -299,6 +305,20 @@ function MainDirectory({
       icon: ChartColumn,
       trailing: todayTrailing,
       trailingLabel: todayText,
+    },
+    {
+      // F-09：隐私脱敏独立页；开启时行尾写今天遮盖的个数
+      page: "privacy",
+      label: t("nav.privacy"),
+      icon: ShieldCheck,
+      trailing:
+        privacyOn && privacyToday > 0
+          ? formatTokensCompact(privacyToday, locale)
+          : undefined,
+      trailingLabel:
+        privacyOn && privacyToday > 0
+          ? t("nav.privacyToday", { count: privacyToday })
+          : undefined,
     },
   ];
   const secondary: GlobalItem[] = [

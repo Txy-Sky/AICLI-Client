@@ -10,6 +10,10 @@ import type {
   AicliPrivacyRule,
   AicliPrivacySettings,
   AicliPrivacyView,
+  AicliPrivacyCategory,
+  AicliPrivacyEventPage,
+  AicliPrivacyPreview,
+  AicliPrivacySummary,
   AicliProbe,
   AicliProfile,
   AicliProfileScope,
@@ -118,6 +122,28 @@ export const aicliApi = {
 
   // ---- 隐私 ----
   getPrivacy: (): Promise<AicliPrivacyView> => invoke("aicli_get_privacy"),
+
+  // ---- F-09 隐私脱敏页 ----
+  privacySummary: (days: number): Promise<AicliPrivacySummary> =>
+    invoke("aicli_privacy_summary", { days }),
+
+  privacyEvents: (params: {
+    days: number;
+    category?: AicliPrivacyCategory | null;
+    beforeId?: number | null;
+    limit?: number;
+  }): Promise<AicliPrivacyEventPage> =>
+    invoke("aicli_privacy_events", {
+      days: params.days,
+      category: params.category ?? null,
+      beforeId: params.beforeId ?? null,
+      limit: params.limit ?? null,
+    }),
+
+  privacyPreview: (text: string): Promise<AicliPrivacyPreview> =>
+    invoke("aicli_privacy_preview", { text }),
+
+  privacyClearEvents: (): Promise<void> => invoke("aicli_privacy_clear_events"),
 
   /** 整体替换自定义遮盖词与规则（后端整理并校验，失败返回 invalid_input）。 */
   setPrivacyCustom: (

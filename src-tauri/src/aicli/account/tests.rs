@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 const ACCESS: &str = "synthetic-system-access-canary";
 const MODEL_KEY: &str = concat!("sk-", "c105-model-canary");
-const TABLES: [&str; 10] = [
+const TABLES: [&str; 11] = [
     "aicli_account",
+    "aicli_privacy_event",
     "aicli_cache",
     "aicli_profile",
     "aicli_scope_binding",
@@ -137,6 +138,7 @@ impl Fixture {
             INSERT INTO aicli_managed_token VALUES (7,'hash-seven','[\"g-cheap\"]','aicli:seven','masked',1);
             INSERT INTO aicli_managed_token VALUES (8,'hash-eight','[\"g-mid\"]','user-owned','masked',0);
             INSERT INTO aicli_usage_daily VALUES ('2026-01-01',123,1,1,123);
+            INSERT INTO aicli_privacy_event(ts,day,app_type,outcome,value_count) VALUES (123,'2026-01-01','claude','masked',2);
             INSERT INTO aicli_local_token VALUES ('claude','aicli-local-synthetic',123);
             INSERT INTO aicli_line_health VALUES ('main',123,'healthy',1,200,NULL);
             INSERT INTO aicli_takeover VALUES ('claude','active','takeover-backup:claude',123);
@@ -294,6 +296,7 @@ async fn switching_user_clears_user_data_and_old_model_keys_but_preserves_device
         "aicli_scope_binding",
         "aicli_managed_token",
         "aicli_usage_daily",
+        "aicli_privacy_event",
     ] {
         assert!(fixture.rows(table).is_empty());
     }

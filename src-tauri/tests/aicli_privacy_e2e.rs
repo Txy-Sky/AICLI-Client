@@ -1652,3 +1652,59 @@ async fn masked_value_is_remembered_across_requests() {
     );
     f.stop().await;
 }
+
+// ---- F-09：隐私脱敏记录 ----
+
+#[tokio::test]
+async fn masked_requests_leave_a_value_free_record_with_client_and_line() {
+    let email = email_value();
+    let key = sk_key();
+    let f = Fixture::new(UpstreamMode::JsonEcho, "ignored").await;
+    let out = f
+        .client()
+        .post(format!("{}/v1/chat/completions", f.origin))
+        .json(&json!({"model": PUBLIC, "messages":[{"role":"user",
+            "content": format!("mail {email} key {key}")}]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(out.status(), 200);
+
+    // 记录在阻塞线程池里写：等到行出现（按状态等，不按固定时长）
+    let mut row = None;
+    for _ in 0..200 {
+        row = routing_support::connection(&f.db)
+            .query_row(
+                "SELECT app_type, line_id, outcome, value_count, kinds_json, value_ids_json
+                 FROM aicli_privacy_event ORDER BY id DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .ok();
+        if row.is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    let (app, line, outcome, values, kinds, ids) = row.expect("privacy record written");
+    // 本地鉴权按令牌认出客户端（夹具用 codex 的本地令牌）
+    assert_eq!(app.as_deref(), Some("codex"));
+    assert!(line.is_some());
+    assert_eq!(outcome, "masked");
+    assert!(values >= 2, "{values}");
+    assert!(kinds.contains("EMAIL"), "{kinds}");
+    let stored = format!("{kinds}{ids}");
+    assert!(!stored.contains(&email), "{stored}");
+    assert!(!stored.contains(&key), "{stored}");
+    assert!(!stored.contains("{{"), "{stored}");
+    f.stop().await;
+}

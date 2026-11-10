@@ -282,7 +282,7 @@ impl AccountService {
         conn.execute_batch(
             "DELETE FROM aicli_cache; DELETE FROM aicli_profile;
             DELETE FROM aicli_scope_binding; DELETE FROM aicli_managed_token;
-            DELETE FROM aicli_usage_daily;",
+            DELETE FROM aicli_usage_daily; DELETE FROM aicli_privacy_event;",
         )
         .map_err(|_| AccountError::Database)
     }

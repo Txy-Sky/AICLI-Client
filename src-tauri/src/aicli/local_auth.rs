@@ -48,6 +48,31 @@ pub fn matches(db: &Database, candidates: &[String]) -> Result<bool, AppError> {
     Ok(matched == 1)
 }
 
+/// Like [`matches`], but also tells which client the matching local token was
+/// issued to (F-09 privacy records). Every token is still compared in constant time.
+pub fn matched_app(db: &Database, candidates: &[String]) -> Result<Option<String>, AppError> {
+    let conn = db
+        .conn
+        .lock()
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    let mut statement = conn.prepare("SELECT app_type, token FROM aicli_local_token")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut found = None;
+    for row in rows {
+        let (app, token) = row?;
+        let mut matched = 0u8;
+        for candidate in candidates {
+            matched |= candidate.as_bytes().ct_eq(token.as_bytes()).unwrap_u8();
+        }
+        if matched == 1 && found.is_none() {
+            found = Some(app);
+        }
+    }
+    Ok(found)
+}
+
 pub async fn authenticate(
     State(state): State<crate::proxy::server::ProxyState>,
     mut request: axum::extract::Request,
@@ -92,9 +117,15 @@ pub async fn authenticate(
                 .map(|(_, value)| value.into_owned()),
         );
     }
-    if !matches(&state.db, &candidates).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+    let Some(app) =
+        matched_app(&state.db, &candidates).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    else {
         return Err(StatusCode::UNAUTHORIZED);
-    }
+    };
+    // F-09: the privacy layer records which client a masked request came from.
+    request
+        .extensions_mut()
+        .insert(crate::aicli::privacy::events::ClientApp(app));
     for name in ["authorization", "x-api-key", "x-goog-api-key"] {
         request.headers_mut().remove(name);
     }

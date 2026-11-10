@@ -93,6 +93,8 @@ const SYNC_SKIP_TABLES: &[&str] = &[
     "usage_daily_rollups",
     "session_log_sync",
     "session_usage_dedup",
+    // F-09: privacy masking records stay on this device only.
+    "aicli_privacy_event",
 ];
 
 /// Tables whose local data is preserved from the live database during WebDAV import.
@@ -104,6 +106,7 @@ const SYNC_PRESERVE_TABLES: &[&str] = &[
     "usage_daily_rollups",
     "session_log_sync",
     "session_usage_dedup",
+    "aicli_privacy_event",
 ];
 
 /// A database backup entry for the UI

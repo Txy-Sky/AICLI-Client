@@ -279,6 +279,66 @@ export interface AicliPrivacyEngine {
   media_passed: number;
 }
 
+/** F-09 隐私页：四组类别。 */
+export type AicliPrivacyCategory = "secret" | "personal" | "network" | "custom";
+
+export interface AicliPrivacyCount {
+  key: string;
+  count: number;
+}
+
+export interface AicliPrivacyDay {
+  day: string;
+  values: number;
+  requests: number;
+}
+
+/** 最近 N 天（本地日期）的脱敏汇总；只有数量与类别，不含原值。 */
+export interface AicliPrivacySummary {
+  days: AicliPrivacyDay[];
+  total_values: number;
+  distinct_values: number;
+  requests: number;
+  blocked: number;
+  degraded: number;
+  media_passed: number;
+  categories: AicliPrivacyCount[];
+  kinds: AicliPrivacyCount[];
+  apps: AicliPrivacyCount[];
+  range_days: number;
+  retention_days: number;
+}
+
+export type AicliPrivacyOutcome =
+  | "masked"
+  | "degraded"
+  | "blocked"
+  | "media_passed";
+
+export interface AicliPrivacyEvent {
+  id: number;
+  /** 毫秒时间戳。 */
+  ts: number;
+  app_type: string | null;
+  line_id: string | null;
+  outcome: AicliPrivacyOutcome;
+  reason: string | null;
+  value_count: number;
+  distinct_count: number;
+  kinds: AicliPrivacyCount[];
+}
+
+export interface AicliPrivacyEventPage {
+  items: AicliPrivacyEvent[];
+  next_before_id: number | null;
+}
+
+export interface AicliPrivacyPreview {
+  masked: string;
+  count: number;
+  kinds: AicliPrivacyCount[];
+}
+
 export interface AicliPrivacySettings {
   privacyEnabled: boolean;
   privacyFailureMode: AicliPrivacyFailureMode;

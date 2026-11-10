@@ -25,6 +25,9 @@ use crate::aicli::cache::{
 use crate::aicli::catalog::Catalog;
 use crate::aicli::lines::{line, LINES};
 use crate::aicli::newapi::{self, NewApiError};
+use crate::aicli::privacy::events::{
+    self as privacy_events, PrivacyCount, PrivacyEventPage, PrivacySummary,
+};
 use crate::aicli::privacy::rules::zhname::AVAILABLE as CJK_NAMES_AVAILABLE;
 use crate::aicli::profiles::{self, ModelRoute, Profile, ProfileError, ProfileStore, RepairStatus};
 use crate::aicli::runtime::{AicliRuntime, RoutesSnapshot, RuntimeError};
@@ -1602,6 +1605,106 @@ impl AicliServices {
     }
 
     /// F-06：保存自定义遮盖词与规则（整理后整体替换；校验失败返回 invalid_input）。
+    // -- F-09 privacy records ---------------------------------------------------------
+
+    pub fn privacy_summary(&self, days: u32) -> Result<PrivacySummary, AicliCommandError> {
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| AicliCommandError::database())?;
+        privacy_events::summary(&conn, days, privacy_events::today())
+            .map_err(|_| AicliCommandError::database())
+    }
+
+    pub fn privacy_events(
+        &self,
+        days: u32,
+        category: Option<String>,
+        before_id: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<PrivacyEventPage, AicliCommandError> {
+        if let Some(category) = category.as_deref() {
+            if !matches!(category, "secret" | "personal" | "network" | "custom") {
+                return Err(AicliCommandError::invalid_input("unknown privacy category"));
+            }
+        }
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| AicliCommandError::database())?;
+        privacy_events::list(
+            &conn,
+            days,
+            privacy_events::today(),
+            category.as_deref(),
+            before_id,
+            limit.unwrap_or(50),
+        )
+        .map_err(|_| AicliCommandError::database())
+    }
+
+    pub fn privacy_clear_events(&self) -> Result<(), AicliCommandError> {
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| AicliCommandError::database())?;
+        privacy_events::clear(&conn).map_err(|_| AicliCommandError::database())?;
+        Ok(())
+    }
+
+    /// 隐私页「试一试」：用当前的自定义词、规则与姓名开关遮盖一段文字。临时引擎
+    /// 不登记共享已知值索引，也不写记录，不影响真实请求。
+    pub fn privacy_preview(&self, text: String) -> Result<AicliPrivacyPreview, AicliCommandError> {
+        if text.len() > PRIVACY_PREVIEW_MAX_BYTES {
+            return Err(AicliCommandError::invalid_input("preview text is too long"));
+        }
+        let row = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| AicliCommandError::database())?
+            .query_row(
+                "SELECT privacy_detect_cjk_names, privacy_custom_json FROM aicli_account WHERE id=1",
+                [],
+                |row| Ok((row.get::<_, bool>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(|_| AicliCommandError::database())?;
+        let (detect_cjk_names, custom) = row.unwrap_or((false, "{}".into()));
+        let custom = crate::aicli::privacy::layer::PrivacyCustom::parse(&custom);
+        let options = crate::aicli::privacy::rules::redact::MaskOptions {
+            secrets: true,
+            personal: true,
+            detect_cjk_names: detect_cjk_names && CJK_NAMES_AVAILABLE,
+            words: custom.words,
+            custom_rules: custom.rules,
+            ..Default::default()
+        };
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut engine = crate::aicli::privacy::placeholder::PlaceholderEngine::ephemeral();
+            crate::aicli::privacy::rules::redact::mask(&text, &options, &mut engine)
+        }));
+        let Ok((masked, count)) = result else {
+            return Err(AicliCommandError {
+                code: "privacy_engine_failed".into(),
+                message: "The privacy engine could not preview this text".into(),
+            });
+        };
+        let scan = privacy_events::scan_kinds(&masked);
+        Ok(AicliPrivacyPreview {
+            masked,
+            count: count as u64,
+            kinds: scan
+                .kinds
+                .into_iter()
+                .map(|(key, count)| PrivacyCount { key, count })
+                .collect(),
+        })
+    }
+
     pub fn set_privacy_custom(
         &self,
         words: Vec<String>,
@@ -1847,6 +1950,16 @@ pub async fn aicli_release(
     state.0.release_takeover(app).await
 }
 
+/// Longest text the privacy page's "try it" preview accepts (F-09).
+pub const PRIVACY_PREVIEW_MAX_BYTES: usize = 64 * 1024;
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct AicliPrivacyPreview {
+    pub masked: String,
+    pub count: u64,
+    pub kinds: Vec<PrivacyCount>,
+}
+
 /// Longest server-usage trend the home page asks for (F-10).
 pub const USAGE_BACKFILL_MAX_DAYS: u32 = 31;
 
@@ -1877,6 +1990,40 @@ pub async fn aicli_get_request_bill(
     request_id: String,
 ) -> Result<Option<AicliRequestBillView>, AicliCommandError> {
     state.0.get_request_bill(request_id)
+}
+
+#[tauri::command]
+pub async fn aicli_privacy_summary(
+    state: State<'_, AicliState>,
+    days: u32,
+) -> Result<PrivacySummary, AicliCommandError> {
+    state.0.privacy_summary(days)
+}
+
+#[tauri::command]
+pub async fn aicli_privacy_events(
+    state: State<'_, AicliState>,
+    days: u32,
+    category: Option<String>,
+    before_id: Option<i64>,
+    limit: Option<u32>,
+) -> Result<PrivacyEventPage, AicliCommandError> {
+    state.0.privacy_events(days, category, before_id, limit)
+}
+
+#[tauri::command]
+pub async fn aicli_privacy_preview(
+    state: State<'_, AicliState>,
+    text: String,
+) -> Result<AicliPrivacyPreview, AicliCommandError> {
+    state.0.privacy_preview(text)
+}
+
+#[tauri::command]
+pub async fn aicli_privacy_clear_events(
+    state: State<'_, AicliState>,
+) -> Result<(), AicliCommandError> {
+    state.0.privacy_clear_events()
 }
 
 #[tauri::command]

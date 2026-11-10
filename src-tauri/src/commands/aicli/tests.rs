@@ -1512,3 +1512,72 @@ fn usage_backfill_covers_the_requested_days_newest_first() {
         super::USAGE_BACKFILL_MAX_DAYS as usize
     );
 }
+
+// F-09: the privacy page's commands.
+#[tokio::test]
+async fn privacy_preview_masks_without_touching_the_shared_index_or_records() {
+    let fixture = Fixture::new();
+    let secret = "sk-ant-api03-PREVIEWcanary0123456789abcdefABCDEF";
+    let preview = fixture
+        .services
+        .privacy_preview(format!("deploy with {secret} now"))
+        .unwrap();
+    assert!(preview.count >= 1);
+    assert!(!preview.masked.contains(secret));
+    assert!(!preview.kinds.is_empty());
+    assert!(crate::aicli::privacy::rules::known::shared_index()
+        .lock()
+        .unwrap()
+        .is_empty());
+    let summary = fixture.services.privacy_summary(7).unwrap();
+    assert_eq!(summary.total_values, 0);
+    assert_eq!(summary.days.len(), 7);
+
+    let too_long = "x".repeat(super::PRIVACY_PREVIEW_MAX_BYTES + 1);
+    assert_eq!(
+        fixture.services.privacy_preview(too_long).unwrap_err().code,
+        "invalid_input"
+    );
+}
+
+#[tokio::test]
+async fn privacy_events_validate_the_category_and_clear_everything() {
+    let fixture = Fixture::new();
+    crate::aicli::privacy::events::record_blocking(
+        &fixture.db,
+        &crate::aicli::privacy::events::PendingEvent {
+            ts_ms: crate::aicli::privacy::events::now_ms(),
+            app_type: Some("claude".into()),
+            line_id: Some("main".into()),
+            outcome: crate::aicli::privacy::events::Outcome::Blocked,
+            reason: Some("privacy_media_blocked"),
+            masked: None,
+        },
+    )
+    .unwrap();
+    let page = fixture
+        .services
+        .privacy_events(7, None, None, None)
+        .unwrap();
+    assert_eq!(page.items.len(), 1);
+    assert_eq!(
+        page.items[0].reason.as_deref(),
+        Some("privacy_media_blocked")
+    );
+    assert_eq!(fixture.services.privacy_summary(7).unwrap().blocked, 1);
+    assert_eq!(
+        fixture
+            .services
+            .privacy_events(7, Some("bogus".into()), None, None)
+            .unwrap_err()
+            .code,
+        "invalid_input"
+    );
+    fixture.services.privacy_clear_events().unwrap();
+    assert!(fixture
+        .services
+        .privacy_events(7, None, None, None)
+        .unwrap()
+        .items
+        .is_empty());
+}

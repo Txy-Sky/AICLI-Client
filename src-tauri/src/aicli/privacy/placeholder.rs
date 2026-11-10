@@ -79,6 +79,9 @@ pub struct PlaceholderEngine {
     max_values: usize,
     /// 已生成过占位符的 kind 集合（Magpie `kinds`，流式 wordTail 用）。
     kinds: HashSet<String>,
+    /// 是否把新值登记进进程共享的已知值索引（`rules::known`）。只有隐私页
+    /// 「试一试」用的临时引擎为 false：预览不能改变真实请求的遮盖结果（F-09）。
+    register_known: bool,
 }
 
 impl PlaceholderEngine {
@@ -90,7 +93,19 @@ impl PlaceholderEngine {
             order: VecDeque::new(),
             kinds: HashSet::new(),
             max_values: MAX_VALUES,
+            register_known: true,
         }
+    }
+
+    /// 隐私页「试一试」用的临时引擎（F-09）：随机密钥、独立值表，**不**登记
+    /// 共享已知值索引，用完即丢；占位符后缀与真实请求不同，只用于预览。
+    pub fn ephemeral() -> Self {
+        let mut key = [0u8; KEY_LEN];
+        // 没有随机源时保留全零密钥：预览结果不出本机，也不进入任何索引
+        let _ = getrandom::getrandom(&mut key);
+        let mut engine = Self::with_key(key);
+        engine.register_known = false;
+        engine
     }
 
     /// 生产构造：从 Keychain 读 `privacy-hmac-key`，没有则生成 32 字节随机并写回。
@@ -116,6 +131,7 @@ impl PlaceholderEngine {
             order: VecDeque::new(),
             kinds: HashSet::new(),
             max_values: MAX_VALUES,
+            register_known: true,
         })
     }
 
@@ -139,10 +155,12 @@ impl PlaceholderEngine {
             self.values.insert(placeholder.clone(), value.to_owned());
             self.order.push_back(placeholder.clone());
             self.kinds.insert(kind.to_owned());
-            super::rules::known::shared_index()
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .add(&placeholder, value);
+            if self.register_known {
+                super::rules::known::shared_index()
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .add(&placeholder, value);
+            }
         }
         placeholder
     }
@@ -178,10 +196,12 @@ impl PlaceholderEngine {
             }
         }
         // Magpie makeRoom 之后 reindexKnown：被淘汰的值不再作为已知值匹配
-        super::rules::known::shared_index()
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .reindex(&self.values);
+        if self.register_known {
+            super::rules::known::shared_index()
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .reindex(&self.values);
+        }
     }
 
     /// 仅测试：注入小值表上限，验证「满时淘汰最旧一半」与淘汰后恢复。

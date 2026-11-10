@@ -56,7 +56,16 @@ pub(crate) fn create_tables(conn: &Connection) -> Result<(), AppError> {
         CREATE TABLE IF NOT EXISTS aicli_takeover (
             app_type TEXT PRIMARY KEY, state TEXT NOT NULL, backup_ref TEXT,
             taken_over_at INTEGER
-        );",
+        );
+        -- F-09 隐私脱敏记录：只存数量、类别与占位符的二次哈希，不存原值；保留 30 天，
+        -- 不参与同步（database/backup.rs）。
+        CREATE TABLE IF NOT EXISTS aicli_privacy_event (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, day TEXT NOT NULL,
+            app_type TEXT, line_id TEXT, outcome TEXT NOT NULL, reason TEXT,
+            value_count INTEGER NOT NULL DEFAULT 0, distinct_count INTEGER NOT NULL DEFAULT 0,
+            kinds_json TEXT NOT NULL DEFAULT '{}', value_ids_json TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_aicli_privacy_event_ts ON aicli_privacy_event(ts);",
     )
     .map_err(|error| AppError::Database(error.to_string()))?;
     // E-08：privacy_detect_cjk_names 随 v25 之后的功能加入；CREATE TABLE
@@ -95,7 +104,8 @@ mod tests {
     use crate::database::{Database, SCHEMA_VERSION};
     use rusqlite::types::Value;
 
-    const TABLES: [&str; 10] = [
+    const TABLES: [&str; 11] = [
+        "aicli_privacy_event",
         "aicli_account",
         "aicli_cache",
         "aicli_profile",

@@ -73,6 +73,8 @@ interface SettingsPageProps {
   onOpenApps: () => void;
   /** 本地路由 →「正在使用路由的应用」的「前往」 */
   onOpenApp: (app: AppId) => void;
+  /** F-09：本地路由里的「隐私脱敏」入口。 */
+  onOpenPrivacy?: () => void;
 }
 
 /**
@@ -85,6 +87,7 @@ export function SettingsPage({
   onImportSuccess,
   onOpenApps,
   onOpenApp,
+  onOpenPrivacy,
 }: SettingsPageProps) {
   const { t } = useTranslation();
   const {
@@ -390,7 +393,9 @@ export function SettingsPage({
           />
         );
       case "routing":
-        return <RoutingSection onOpenApp={onOpenApp} />;
+        return (
+          <RoutingSection onOpenApp={onOpenApp} onOpenPrivacy={onOpenPrivacy} />
+        );
       case "network":
         return (
           <SettingsBlock

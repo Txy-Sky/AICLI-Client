@@ -68,97 +68,26 @@ describe("AicliRoutingSettings", () => {
     expect(screen.getByText("aicli.lines.current")).toBeInTheDocument();
   });
 
-  it("toggles privacy, failure mode and unscanned media through set_privacy", async () => {
-    respond({ aicli_set_privacy: undefined });
-    renderWithQueryClient(<AicliRoutingSettings onOpenApp={vi.fn()} />);
-    fireEvent.click(
-      await screen.findByRole("switch", {
-        name: "aicli.settings.privacyEnabled",
-      }),
-    );
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("aicli_set_privacy", {
-        privacyEnabled: false,
-        privacyFailureMode: "block",
-        allowUnscannedMedia: false,
-        privacyDetectCjkNames: null,
-      }),
-    );
-    fireEvent.change(
-      screen.getByRole("combobox", { name: "aicli.settings.failureMode" }),
-      { target: { value: "pass" } },
-    );
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("aicli_set_privacy", {
-        privacyEnabled: true,
-        privacyFailureMode: "pass",
-        allowUnscannedMedia: false,
-        privacyDetectCjkNames: null,
-      }),
-    );
-    fireEvent.click(
-      screen.getByRole("switch", { name: "aicli.settings.allowMedia" }),
-    );
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("aicli_set_privacy", {
-        privacyEnabled: true,
-        privacyFailureMode: "block",
-        allowUnscannedMedia: true,
-        privacyDetectCjkNames: null,
-      }),
-    );
-  });
-
-  it("saves custom words and rules together", async () => {
-    respond({ aicli_set_privacy_custom: undefined });
-    renderWithQueryClient(<AicliRoutingSettings onOpenApp={vi.fn()} />);
-    const words = await screen.findByRole("textbox", {
-      name: "aicli.settings.customWords",
-    });
-    expect(words).toHaveValue("Nightjar");
-    fireEvent.change(words, { target: { value: "Nightjar\n  代号 \n\n" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "aicli.settings.addRule" }),
-    );
-    const row = screen.getByTestId("aicli-rule-1");
-    fireEvent.change(
-      within(row).getByRole("textbox", { name: "aicli.settings.ruleKind" }),
-      { target: { value: "acme key" } },
-    );
-    fireEvent.change(
-      within(row).getByRole("textbox", { name: "aicli.settings.ruleValue" }),
-      { target: { value: "ACME-" } },
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "aicli.settings.saveCustom" }),
-    );
-    await waitFor(() =>
-      expect(invokeMock).toHaveBeenCalledWith("aicli_set_privacy_custom", {
-        words: ["Nightjar", "代号"],
-        rules: [
-          { kind: "TICKET", regex: "TCK-\\d{6}" },
-          { kind: "acme key", prefix: "ACME-" },
-        ],
-      }),
+  // F-09：隐私设置移到「隐私脱敏」页（用例原样迁到 AicliPrivacySettings.test.tsx）
+  it("points to the privacy page instead of holding the privacy settings", async () => {
+    const onOpenPrivacy = vi.fn();
+    respond();
+    renderWithQueryClient(
+      <AicliRoutingSettings
+        onOpenApp={vi.fn()}
+        onOpenPrivacy={onOpenPrivacy}
+      />,
     );
     expect(
-      await screen.findByText("aicli.settings.customSaved"),
+      await screen.findByText("aicli.privacyPage.movedTitle"),
     ).toBeInTheDocument();
-  });
-
-  it("shows why custom items were rejected", async () => {
-    respond({
-      aicli_set_privacy_custom: () => {
-        throw { code: "invalid_input", message: "bad regex" };
-      },
-    });
-    renderWithQueryClient(<AicliRoutingSettings onOpenApp={vi.fn()} />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "aicli.settings.saveCustom" }),
-    );
     expect(
-      await screen.findByText("aicli.settings.customInvalid"),
-    ).toBeInTheDocument();
+      screen.queryByRole("switch", { name: "aicli.settings.privacyEnabled" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.privacyPage.open" }),
+    );
+    expect(onOpenPrivacy).toHaveBeenCalled();
   });
 
   it("warns when credentials fell back to a local file", async () => {
@@ -174,9 +103,7 @@ describe("AicliRoutingSettings", () => {
   it("does not warn while the keychain is in use", async () => {
     respond();
     renderWithQueryClient(<AicliRoutingSettings onOpenApp={vi.fn()} />);
-    await screen.findByRole("switch", {
-      name: "aicli.settings.privacyEnabled",
-    });
+    await screen.findByText("aicli.privacyPage.movedTitle");
     expect(
       screen.queryByText("aicli.settings.secretFallback"),
     ).not.toBeInTheDocument();

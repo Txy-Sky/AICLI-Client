@@ -54,6 +54,7 @@ import {
 import { AicliHome } from "@/components/aicli/AicliHome";
 import { AicliClientPage } from "@/components/aicli/AicliClientPage";
 import { AicliClientsPage } from "@/components/aicli/clients/AicliClientsPage";
+import { AicliPrivacyPage } from "@/components/aicli/privacy/AicliPrivacyPage";
 import { useAicliEventBridge } from "@/hooks/useAicliAccount";
 import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { AicliBindGate } from "@/components/aicli/AicliBindGate";
@@ -948,11 +949,14 @@ function App() {
             onOpenApps={() => openPage("apps")}
           />
         );
+      case "privacy":
+        return <AicliPrivacyPage />;
       case "usage":
         return (
           <AicliHome
             initialAppType={usageAppFilter}
             onOpenRoutingSettings={() => openSettings("routing")}
+            onOpenPrivacy={() => openPage("privacy")}
           />
         );
       case "mcp":
@@ -1012,6 +1016,7 @@ function App() {
           onImportSuccess={handleImportSuccess}
           onOpenApps={() => setCurrentView("apps")}
           onOpenApp={selectApp}
+          onOpenPrivacy={() => openPage("privacy")}
         />
       );
     }

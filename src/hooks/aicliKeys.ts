@@ -4,6 +4,11 @@ export const aicliKeys = {
   account: ["aicli", "account"] as const,
   cache: (kind: string) => ["aicli", "cache", kind] as const,
   privacy: ["aicli", "privacy"] as const,
+  /** F-09 隐私页的记录（与设置同前缀：改设置后一起刷新）。 */
+  privacySummary: (days: number) =>
+    ["aicli", "privacy", "summary", days] as const,
+  privacyEvents: (days: number, category: string | null) =>
+    ["aicli", "privacy", "events", days, category] as const,
   lines: ["aicli", "lines"] as const,
   catalog: ["aicli", "catalog"] as const,
   routes: ["aicli", "routes"] as const,

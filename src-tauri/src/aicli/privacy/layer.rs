@@ -25,6 +25,7 @@ use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use serde_json::json;
 
+use super::events;
 use super::placeholder::PlaceholderEngine;
 use super::rules::redact::MaskOptions;
 use super::stream::StreamRestorer;
@@ -34,6 +35,13 @@ use crate::aicli::secrets::SecretStore;
 use crate::proxy::content_encoding;
 use crate::proxy::server::ProxyState;
 use crate::Database;
+
+/// F-09：一个请求的记录上下文（哪个客户端、当时选中的线路）。
+#[derive(Debug, Clone, Default)]
+pub struct EventMeta {
+    pub app: Option<String>,
+    pub line: Option<String>,
+}
 
 /// 与 router 的 DefaultBodyLimit 一致。
 const BODY_LIMIT: usize = 200 * 1024 * 1024;
@@ -350,6 +358,27 @@ impl PrivacyGate {
         }
     }
 
+    /// F-09：写一条隐私脱敏记录（后台线程；只存数量与类别）。
+    pub fn record_event(
+        &self,
+        meta: &EventMeta,
+        outcome: events::Outcome,
+        reason: Option<&'static str>,
+        masked: Option<Bytes>,
+    ) {
+        events::record(
+            self.db.clone(),
+            events::PendingEvent {
+                ts_ms: events::now_ms(),
+                app_type: meta.app.clone(),
+                line_id: meta.line.clone(),
+                outcome,
+                reason,
+                masked,
+            },
+        );
+    }
+
     fn note_media_passed(&self) {
         self.media_passed.fetch_add(1, Ordering::Relaxed);
     }
@@ -503,10 +532,24 @@ pub async fn privacy_middleware(
         return next.run(request).await;
     }
     let path = request.uri().path().to_owned();
+    let line = state.aicli.snapshot().selected_line_id.clone();
+    let meta = EventMeta {
+        app: request
+            .extensions()
+            .get::<events::ClientApp>()
+            .map(|client| client.0.clone()),
+        line: (!line.is_empty()).then_some(line),
+    };
     if is_media_path(&path) {
         // 图片生成/编辑接口：内容是 base64 媒体，规则无法遮盖。隐私优先
         // 下直接说明不支持；可用性优先放行。
         if settings.block {
+            gate.record_event(
+                &meta,
+                events::Outcome::Blocked,
+                Some("privacy_media_unsupported"),
+                None,
+            );
             return privacy_error(
                 StatusCode::BAD_REQUEST,
                 "privacy_media_unsupported",
@@ -514,6 +557,7 @@ pub async fn privacy_middleware(
             );
         }
         gate.note_media_passed();
+        gate.record_event(&meta, events::Outcome::MediaPassed, None, None);
         return next.run(request).await;
     }
     if !is_ai_path(&path) {
@@ -543,12 +587,19 @@ pub async fn privacy_middleware(
             }
             _ => {
                 if settings.block {
+                    gate.record_event(
+                        &meta,
+                        events::Outcome::Blocked,
+                        Some("privacy_engine_failed"),
+                        None,
+                    );
                     return privacy_error(
                         StatusCode::BAD_REQUEST,
                         "privacy_engine_failed",
                         "请求体使用了不支持的 Content-Encoding，隐私层无法遮盖。",
                     );
                 }
+                gate.record_event(&meta, events::Outcome::Degraded, None, None);
                 // pass：content-encoding 头已要删，不能发回压缩字节——放行解压结果；
                 // 解不开的编码例外（保留原头原字节透传）
                 gate.note_engine_failure(false);
@@ -559,6 +610,12 @@ pub async fn privacy_middleware(
     };
     let Ok(text) = String::from_utf8(plain.clone()) else {
         if settings.block {
+            gate.record_event(
+                &meta,
+                events::Outcome::Blocked,
+                Some("privacy_engine_failed"),
+                None,
+            );
             return privacy_error(
                 StatusCode::BAD_REQUEST,
                 "privacy_engine_failed",
@@ -567,12 +624,19 @@ pub async fn privacy_middleware(
         }
         // pass：发解压后的明文字节（与已删除的 content-encoding 头一致）
         gate.note_engine_failure(false);
+        gate.record_event(&meta, events::Outcome::Degraded, None, None);
         return finish_request(next, parts, Bytes::from(plain), &gate, settings).await;
     };
     // 含 base64 图片/文件：隐私优先且未放行 → 阻断；否则继续遮盖
     //（mask_json 对 data: 值原样保留，只遮文本）并计数
     let has_media = contains_unscannable_media(&text);
     if has_media && !settings.allow_unscanned_media && settings.block {
+        gate.record_event(
+            &meta,
+            events::Outcome::Blocked,
+            Some("privacy_media_blocked"),
+            None,
+        );
         return privacy_error(
             StatusCode::UNPROCESSABLE_ENTITY,
             "privacy_media_blocked",
@@ -584,10 +648,25 @@ pub async fn privacy_middleware(
     }
     let masked = gate.mask_request(&text, &settings);
     let payload: Bytes = match masked {
-        Ok((masked, _count)) => Bytes::from(masked),
+        Ok((masked, count)) => {
+            let payload = Bytes::from(masked);
+            if count > 0 {
+                // 只记真正改过的请求；扫描占位符在后台线程里做
+                gate.record_event(&meta, events::Outcome::Masked, None, Some(payload.clone()));
+            } else if has_media {
+                gate.record_event(&meta, events::Outcome::MediaPassed, None, None);
+            }
+            payload
+        }
         Err(EngineFailure) => {
             if settings.block {
                 gate.note_engine_failure(true);
+                gate.record_event(
+                    &meta,
+                    events::Outcome::Blocked,
+                    Some("privacy_engine_failed"),
+                    None,
+                );
                 return privacy_error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "privacy_engine_failed",
@@ -596,6 +675,7 @@ pub async fn privacy_middleware(
             }
             // pass：放行**解压后的明文**（content-encoding 已删，不能发压缩字节）
             gate.note_engine_failure(false);
+            gate.record_event(&meta, events::Outcome::Degraded, None, None);
             Bytes::from(text)
         }
     };
