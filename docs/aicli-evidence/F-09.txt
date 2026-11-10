@@ -1,0 +1,52 @@
+F-09 隐私脱敏页验收记录（2026-11-09 / 11-10）
+
+状态：[x] 完成
+提交：1e21b4ab feat(aicli): F-09 privacy masking page with local records
+      7944fd06 fix(aicli): F-09 unused test imports and a key shape the rules mask
+      aa825ee7 fix(aicli): F-09 keep set_privacy_custom's doc comment attached
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42746413907（aa825ee7，四 job 及汇总 `Checklist acceptance (Linux)` 全 success；
+    前端 139 文件 / 1364 测试；Rust 4733 passed / 12 skipped；clippy -D warnings 通过；
+    item 测试 F-09-unit、F-09-e2e、F-10-unit 两个特性集均 PASS）
+失败历史（保留）：
+- run 42742538263（9220f1fd）：typecheck 失败——AicliRoutingSettings.test.tsx 迁出隐私用例后遗留未用的
+  waitFor、within；item 测试 privacy_preview 计数为 0——夹具用的 sk-ant-api03-… 以连字符分段，移植规则
+  不认作 API 密钥。修复 7944fd06：删未用导入；预览与记录测试改用 redact / e2e 测试已证明会被遮的
+  sk- 形态与邮箱形态（断言未放宽）。
+- run（7944fd06）：item 测试两个特性集均 PASS（events 8、commands 4、e2e 记录 1）；A3-01 的 clippy 报
+  empty_line_after_doc_comments（新方法插在 set_privacy_custom 与其文档注释之间）。修复 aa825ee7。
+
+来由：负责人 2026-11-09 第一条——脱敏模块没有入口；选定侧栏独立页面，参考 Magpie「观测 › 脱敏」。
+
+实现
+后端（只写本机 SQLite，不碰 new-api）
+1. 表 aicli_privacy_event（CREATE TABLE IF NOT EXISTS，SCHEMA_VERSION 不变）：时间、本地日期、客户端、线路、
+   结果（masked / degraded / blocked / media_passed）、原因、个数、不同值个数、类别计数 JSON、占位符
+   SHA-256 前 16 位十六进制（只用于跨请求去重计数，每行最多 200 个）。不存原值，也不存占位符本身。
+   保留 30 天（写入时最多每 6 小时清理一次）；加入 SYNC_SKIP_TABLES / SYNC_PRESERVE_TABLES，不参与同步；
+   解绑或换账户时随用户数据清空。
+2. privacy/events.rs：scan_kinds、category_of（机密 / 个人信息 / 网络与设备 / 自定义）、insert、prune、
+   record（spawn_blocking，扫描不占请求路径）、summary、list（按 id 翻页、按类别过滤）、clear。
+3. local_auth::matched_app：常量时间逐个比较后返回令牌所属客户端，authenticate 放进请求扩展
+   （matches 保留）。privacy_middleware 在遮盖成功、降级、阻断、媒体放行处记录，带客户端与当前线路。
+4. PlaceholderEngine：register_known（生产 true，行为不变）与 ephemeral()；预览不登记共享已知值索引。
+5. 命令 aicli_privacy_summary / aicli_privacy_events / aicli_privacy_preview（≤64 KiB，catch_unwind）/
+   aicli_privacy_clear_events，lib.rs 注册。
+前端
+6. 侧栏「隐私脱敏」（开启时行尾今天遮盖个数）；AicliPrivacyPage：页头开关；未开启提示与「开启」；
+   降级红色提示；英雄卡（总数、不同值、请求数、7/30 天柱状图、按客户端条形、拦截 / 降级 / 媒体放行）；
+   类别胶囊筛选；按天分组的记录（时间、客户端 → 线路、类别胶囊、结果、个数、加载更多）；试一试
+   （占位符高亮）；隐私设置；页脚保留说明与「清空记录」（须确认）。
+7. 隐私设置（开关、失败模式、未扫描媒体、自定义词与规则）从「设置 → 本地路由」原样移到本页
+   （AicliPrivacySettings），本地路由保留入口与凭据后端降级提示；首页隐私行「查看」进入本页。
+8. i18n：nav.privacy、nav.privacyToday、aicli.privacyPage.*（含 29 个类别名），五种语言。
+
+测试（CI 同一 run）
+- Rust：aicli::privacy::events::tests 8（扫描、分类、只存数量与哈希不存原值与占位符、未遮盖不记、
+  汇总、翻页与类别过滤、清理、临时引擎不登记索引）；commands 2（预览不污染索引与记录、过长拒绝；
+  记录列表类别校验与清空）；aicli_privacy_e2e masked_requests_leave_a_value_free_record_with_client_and_line
+  （真实代理：记录客户端为令牌所属 codex、线路非空、结果 masked、含 EMAIL，记录中无邮箱、密钥与占位符）；
+  account 与 schema 表清单加入新表。
+- 前端：AicliPrivacyPage 9、AicliPrivacySettings 3（原 AicliRoutingSettings 隐私用例原样迁入，断言不变）、
+  AicliRoutingSettings 5（新增入口用例）。
+
+偏差：见第 13 节「F-06 → F-09」「E-02/E-06/C3-08 → F-09」。
