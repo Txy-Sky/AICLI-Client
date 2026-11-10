@@ -2906,7 +2906,9 @@
       "stack": "集約"
     },
     "needsAttention": "対応が必要",
-    "back": "戻る"
+    "back": "戻る",
+    "clients": "クライアント",
+    "clientsActive": "{{count}} 個のクライアントを引き継ぎ中"
   },
   "appsPage": {
     "showInSidebar": "{{name}} をサイドバーに表示",
@@ -2954,7 +2956,7 @@
     "viewSessions": "セッションを見る",
     "configDirectory": "設定ディレクトリ",
     "installAndUpgrade": "インストールとアップグレード",
-    "hideFromSidebar": "サイドバーから隠す",
+    "hideFromSidebar": "クライアント一覧から隠す",
     "providers": "プロバイダー",
     "client": "クライアント",
     "workspace": "ワークスペース",
@@ -3590,9 +3592,9 @@
         "conflict": "競合"
       },
       "confirmTakeOverTitle": "{{app}} を引き継ぐ",
-      "confirmTakeOverBody": "引き継ぐと {{app}} の設定を書き換え、リクエストをローカルプロキシ経由にします。引き継ぎを停止すると元の設定に戻ります。",
+      "confirmTakeOverBody": "引き継ぐと {{app}} の設定を書き換え、リクエストをローカルプロキシ経由で AICLI に送ります。いつでも停止でき、設定はそのまま元に戻ります。",
       "confirmReleaseTitle": "{{app}} の引き継ぎを停止",
-      "confirmReleaseBody": "引き継ぎを停止すると {{app}} の設定を引き継ぎ前の状態に戻します。",
+      "confirmReleaseBody": "引き継ぎを停止すると {{app}} の設定を引き継ぎ前（公式ログインやご自身の設定など）に戻し、リクエストは AICLI を経由しなくなります。いつでも再度引き継げます。",
       "conflictTitle": "古いプロキシ設定が見つかりました",
       "conflictBody": "{{app}} の設定に旧バージョンのローカルプロキシが残した設定があります。引き継ぐと上書きされ、引き継ぎを停止すると引き継ぎ前の状態に戻ります。",
       "conflictNotice": "{{app}} の設定が旧バージョンのローカルプロキシの設定と競合しています。上書きを確認すると引き継げます。",
@@ -3755,6 +3757,31 @@
       "includeSessionLogsHelp": "オフのときは、AICLI のローカルプロキシを経由したリクエストだけを集計します。オンにすると各 CLI が保存しているセッションログも集計します。そこには AICLI を経由しない利用（他のツールや直接接続）が含まれる場合があり、同じログを読む他のツールと同じ数字になります。",
       "includeSessionLogsOn": "各 CLI のセッションログを含めています。",
       "includeSessionLogsOff": "AICLI のローカルプロキシ経由のリクエストだけを集計しています。"
+    },
+    "clients": {
+      "title": "クライアント",
+      "help": "引き継いだクライアントのリクエストはローカルプロキシ経由で AICLI に送られ、構成セットと回線を使います。停止すると引き継ぎ前の設定にそのまま戻ります。",
+      "summary": "個のクライアントを引き継ぎ中",
+      "restoreHint": "引き継ぎを停止すると元の使い方（公式ログインやご自身の設定）に戻ります。",
+      "proxyDown": "ローカルプロキシが動作していないため、引き継いだクライアントは今リクエストを送れません。",
+      "supportedTitle": "引き継ぎ可能",
+      "otherTitle": "その他のクライアント",
+      "comingSoonTitle": "近日対応",
+      "comingSoonHint": "これらのクライアントはまだ AICLI の引き継ぎに対応していません。今後のバージョンで順次追加します。",
+      "installApps": "インストールと更新",
+      "open": "{{app}} を開く",
+      "back": "クライアントに戻る",
+      "profileLine": "構成セット {{name}} · モデル {{count}} 個",
+      "status": {
+        "active": "引き継ぎ中 · AICLI 経由",
+        "inactive": "未引き継ぎ · 元の設定",
+        "pending": "処理中",
+        "conflict": "上書きの確認が必要"
+      },
+      "dedicated": {
+        "openclaw": "ワークスペース、設定",
+        "hermes": "メモリ"
+      }
     }
   }
 }

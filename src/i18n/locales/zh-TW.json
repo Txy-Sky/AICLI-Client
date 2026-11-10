@@ -2907,7 +2907,9 @@
       "stack": "聚合"
     },
     "needsAttention": "需要處理",
-    "back": "返回"
+    "back": "返回",
+    "clients": "客戶端",
+    "clientsActive": "已接管 {{count}} 個客戶端"
   },
   "appsPage": {
     "showInSidebar": "在側欄顯示 {{name}}",
@@ -2955,7 +2957,7 @@
     "viewSessions": "查看工作階段",
     "configDirectory": "設定目錄",
     "installAndUpgrade": "安裝與升級",
-    "hideFromSidebar": "在側欄隱藏",
+    "hideFromSidebar": "從客戶端列表隱藏",
     "providers": "供應商",
     "client": "用戶端",
     "workspace": "工作區",
@@ -3591,9 +3593,9 @@
         "conflict": "衝突"
       },
       "confirmTakeOverTitle": "接管 {{app}}",
-      "confirmTakeOverBody": "接管後會改寫 {{app}} 的設定，讓請求經過本機代理；停止接管時還原為接管前的設定。",
+      "confirmTakeOverBody": "接管後會改寫 {{app}} 的設定，讓請求經過本機代理送往 AICLI；隨時可以停止接管，設定會原樣還原。",
       "confirmReleaseTitle": "停止接管 {{app}}",
-      "confirmReleaseBody": "停止接管會把 {{app}} 的設定還原為接管前的樣子。",
+      "confirmReleaseBody": "停止接管會把 {{app}} 的設定還原為接管前的樣子（例如官方登入或你自己的設定），之後請求不再經過 AICLI，隨時可以再次接管。",
       "conflictTitle": "偵測到舊的代理設定",
       "conflictBody": "{{app}} 的設定裡有舊版本機代理留下的設定。繼續接管會覆寫它們，停止接管時還原為接管前的樣子。",
       "conflictNotice": "{{app}} 的設定與舊版本機代理的設定衝突，確認覆寫後才能接管。",
@@ -3756,6 +3758,31 @@
       "includeSessionLogsHelp": "關閉時，本機統計只包含經過 AICLI 本機代理的請求。開啟後也統計各 CLI 自己保存的工作階段日誌——其中可能有不經過 AICLI 的用量（例如其他工具或直連），數字會與其他讀取同一日誌的工具一致。",
       "includeSessionLogsOn": "已包含各 CLI 的工作階段日誌。",
       "includeSessionLogsOff": "只統計經過 AICLI 本機代理的請求。"
+    },
+    "clients": {
+      "title": "客戶端",
+      "help": "接管後，客戶端的請求經本機代理送往 AICLI，使用你的設定集和線路；停止接管會原樣還原接管前的設定。",
+      "summary": "個客戶端已接管",
+      "restoreHint": "停止接管即回到原來的用法（官方登入或你自己的設定）。",
+      "proxyDown": "本機代理沒有執行，已接管的客戶端暫時無法送出請求。",
+      "supportedTitle": "支援接管",
+      "otherTitle": "其他客戶端",
+      "comingSoonTitle": "即將支援",
+      "comingSoonHint": "這些客戶端暫不支援 AICLI 接管，後續版本會陸續加入。",
+      "installApps": "安裝與升級",
+      "open": "開啟 {{app}}",
+      "back": "返回客戶端",
+      "profileLine": "設定集 {{name}} · {{count}} 個模型",
+      "status": {
+        "active": "已接管 · 經 AICLI",
+        "inactive": "未接管 · 使用原設定",
+        "pending": "處理中",
+        "conflict": "需確認覆蓋"
+      },
+      "dedicated": {
+        "openclaw": "工作區、設定",
+        "hermes": "記憶"
+      }
     }
   }
 }

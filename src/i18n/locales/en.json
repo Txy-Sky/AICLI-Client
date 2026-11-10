@@ -2906,7 +2906,9 @@
       "stack": "Aggregation"
     },
     "needsAttention": "Needs attention",
-    "back": "Back"
+    "back": "Back",
+    "clients": "Clients",
+    "clientsActive": "{{count}} clients taken over"
   },
   "appsPage": {
     "showInSidebar": "Show {{name}} in the sidebar",
@@ -2954,7 +2956,7 @@
     "viewSessions": "View sessions",
     "configDirectory": "Config directory",
     "installAndUpgrade": "Install and upgrade",
-    "hideFromSidebar": "Hide from sidebar",
+    "hideFromSidebar": "Hide from the client list",
     "providers": "Providers",
     "client": "Client",
     "workspace": "Workspace",
@@ -3590,9 +3592,9 @@
         "conflict": "Conflict"
       },
       "confirmTakeOverTitle": "Take over {{app}}",
-      "confirmTakeOverBody": "Taking over rewrites the {{app}} configuration so requests go through the local proxy; stopping the takeover restores the configuration from before.",
+      "confirmTakeOverBody": "Taking over rewrites the {{app}} configuration so requests go through the local proxy to AICLI; you can stop at any time and the configuration is restored as it was.",
       "confirmReleaseTitle": "Stop taking over {{app}}",
-      "confirmReleaseBody": "Stopping the takeover restores the {{app}} configuration to how it was before.",
+      "confirmReleaseBody": "Stopping the takeover restores the {{app}} configuration to how it was before (for example the official sign-in or your own settings). Requests no longer go through AICLI, and you can take it over again at any time.",
       "conflictTitle": "Old proxy settings detected",
       "conflictBody": "The {{app}} configuration contains settings left by an older local proxy. Taking over overwrites them; stopping the takeover restores how it was before.",
       "conflictNotice": "The {{app}} configuration conflicts with settings from an older local proxy; confirm overwriting them to take over.",
@@ -3755,6 +3757,31 @@
       "includeSessionLogsHelp": "When off, local statistics only include requests that went through the AICLI local proxy. When on, they also count each CLI's own session logs, which may include usage that did not go through AICLI (other tools or direct connections); the numbers then match other tools that read the same logs.",
       "includeSessionLogsOn": "CLI session logs are included.",
       "includeSessionLogsOff": "Only requests through the AICLI local proxy are counted."
+    },
+    "clients": {
+      "title": "Clients",
+      "help": "A taken-over client sends its requests through the local proxy to AICLI, using your profile and line. Stopping the takeover restores the configuration exactly as it was.",
+      "summary": "clients taken over",
+      "restoreHint": "Stop the takeover to go back to how you used it before (official sign-in or your own settings).",
+      "proxyDown": "The local proxy is not running, so taken-over clients cannot send requests right now.",
+      "supportedTitle": "Can be taken over",
+      "otherTitle": "Other clients",
+      "comingSoonTitle": "Coming soon",
+      "comingSoonHint": "These clients cannot be taken over by AICLI yet; support will arrive in later versions.",
+      "installApps": "Install and update",
+      "open": "Open {{app}}",
+      "back": "Back to clients",
+      "profileLine": "Profile {{name}} · {{count}} models",
+      "status": {
+        "active": "Taken over · via AICLI",
+        "inactive": "Not taken over · original config",
+        "pending": "Working",
+        "conflict": "Confirm override"
+      },
+      "dedicated": {
+        "openclaw": "Workspace, configuration",
+        "hermes": "Memory"
+      }
     }
   }
 }

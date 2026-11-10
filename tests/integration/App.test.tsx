@@ -117,7 +117,29 @@ const sidebarApp = (name: string) =>
  * F-02：冷启动恒停在用量页。要看某个应用的客户端页，先点侧栏里它的应用行
  * （应用本身仍按 aicli-client-last-app 恢复）。
  */
-const enterClientPage = (name: string) => fireEvent.click(sidebarApp(name));
+// F-08：侧栏只有一个「客户端」入口；先进客户端总览，再点对应卡片进入应用页
+const CLIENT_IDS: Record<string, string> = {
+  "Claude Code": "claude",
+  Codex: "codex",
+  OpenClaw: "openclaw",
+  Hermes: "hermes",
+};
+const enterClientPage = async (name: string) => {
+  fireEvent.click(sidebarApp("nav.clients"));
+  const id = CLIENT_IDS[name];
+  const other = screen.queryByTestId(`aicli-client-other-${id}`);
+  if (other) {
+    fireEvent.click(other);
+    return;
+  }
+  const card = await screen.findByTestId(`aicli-client-card-${id}`);
+  fireEvent.click(
+    within(card).getByRole("button", {
+      name: "aicli.clients.open",
+      hidden: true,
+    }),
+  );
+};
 
 const renderApp = (AppComponent: ComponentType) => {
   const client = new QueryClient();
@@ -201,7 +223,7 @@ describe("App integration with MSW", () => {
       fireEvent.input(await screen.findByLabelText("mcp-field"), {
         target: { value: "draft" },
       });
-      fireEvent.click(sidebarApp("Codex"));
+      fireEvent.click(sidebarApp("nav.clients"));
       expect(await screen.findByTestId("confirm-message")).toHaveTextContent(
         "common.unsavedLeaveMessage",
       );
@@ -305,7 +327,9 @@ describe("App integration with MSW", () => {
     const { default: App } = await import("@/App");
     await renderAppReady(App);
 
-    fireEvent.click(sidebarApp("OpenClaw"));
+    await screen.findByTestId("aicli-home");
+    fireEvent.click(sidebarApp("nav.clients"));
+    fireEvent.click(await screen.findByTestId("aicli-client-other-openclaw"));
     // 首次启动提示是模态对话框，页面其余部分是 aria-hidden，所以带上 hidden
     const openclawTabs = await screen.findByRole("tablist", {
       name: "OpenClaw",
@@ -335,7 +359,8 @@ describe("App integration with MSW", () => {
       "openclaw-config-env",
     );
 
-    fireEvent.click(sidebarApp("Hermes"));
+    fireEvent.click(sidebarApp("nav.clients"));
+    fireEvent.click(await screen.findByTestId("aicli-client-other-hermes"));
     const hermesTabs = await screen.findByRole("tablist", {
       name: "Hermes",
       hidden: true,
@@ -422,6 +447,28 @@ describe("App integration with MSW", () => {
     expect(screen.queryByTestId("aicli-home")).not.toBeInTheDocument();
   });
 
+  // F-08：侧栏不再逐个列应用；应用页属于「客户端」，页头返回按钮回到总览
+  it("lists clients behind a single sidebar entry with a way back", async () => {
+    const { default: App } = await import("@/App");
+    await renderAppReady(App);
+    const nav = document.querySelector("nav") as HTMLElement;
+    expect(
+      within(nav).queryByRole("button", { name: "Claude Code", hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("button", { name: "Codex", hidden: true }),
+    ).not.toBeInTheDocument();
+
+    await enterClientPage("Codex");
+    expect(await screen.findByTestId("aicli-client-page")).toBeInTheDocument();
+    expect(sidebarApp("nav.clients")).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.clients.back", hidden: true }),
+    );
+    expect(await screen.findByTestId("aicli-clients-page")).toBeInTheDocument();
+  });
+
   it("does not persist the view while switching pages", async () => {
     const { default: App } = await import("@/App");
     await renderAppReady(App);
@@ -429,7 +476,7 @@ describe("App integration with MSW", () => {
     expect(
       await screen.findByTestId("unified-skills-panel"),
     ).toBeInTheDocument();
-    enterClientPage("Claude Code");
+    await enterClientPage("Claude Code");
     expect(await screen.findByTestId("aicli-client-page")).toBeInTheDocument();
     expect(localStorage.getItem("aicli-client-last-view")).toBeNull();
   });
@@ -440,7 +487,7 @@ describe("App integration with MSW", () => {
     async (app) => {
       const { default: App } = await import("@/App");
       await renderAppReady(App);
-      enterClientPage(app);
+      await enterClientPage(app);
       expect(
         await screen.findByTestId("aicli-client-page"),
       ).toBeInTheDocument();

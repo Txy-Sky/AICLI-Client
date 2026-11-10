@@ -13,8 +13,8 @@ import {
   Globe,
   History,
   Info,
-  Layers,
   LayoutGrid,
+  MonitorSmartphone,
   Route,
   Server,
   Settings,
@@ -39,7 +39,13 @@ import {
   resolveSidebarToday,
   type SidebarTodayItem,
 } from "@/components/usage/format";
-import { useSidebarStatus, type AppNavStatus } from "@/hooks/useSidebarStatus";
+import { useSidebarStatus } from "@/hooks/useSidebarStatus";
+import { useAicliTakeoverStatus } from "@/hooks/useAicliProfiles";
+import { useProxyStatusQuery } from "@/lib/query/proxy";
+import {
+  AICLI_TAKEOVER_APPS,
+  takeoverDisplay,
+} from "@/components/aicli/takeover/useAicliTakeoverFlow";
 import { HoverTip } from "@/components/ui/hover-tip";
 import { DRAG_REGION_ATTR, DRAG_REGION_STYLE, isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -47,7 +53,6 @@ import { cn } from "@/lib/utils";
 import appLogo from "@/assets/icons/aicli-logo.png";
 
 const PRODUCT_NAME = "AICLI Client";
-import { APP_DISPLAY_NAME, APP_SIDEBAR_NAME, AppGlyph } from "./AppGlyph";
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -58,7 +63,6 @@ interface SidebarProps {
   view: View;
   visibleApps: VisibleApps;
   settingsSection: SettingsSection;
-  onSelectApp: (app: AppId) => void;
   onSelectPage: (page: GlobalPage | "settings") => void;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onExitSettings: () => void;
@@ -211,10 +215,8 @@ function SidebarTopBar({
 
 function MainDirectory({
   collapsed,
-  activeApp,
   view,
   visibleApps,
-  onSelectApp,
   onSelectPage,
   appsUpdateAvailable = false,
 }: DirectoryProps) {
@@ -224,11 +226,8 @@ function MainDirectory({
   const { hasUpdate } = useUpdate();
   const { appStatus, todayCost, todayTokens, todayRequests, todayHitRate } =
     useSidebarStatus();
-  // 顺序跟应用页拖出来的一致
-  const apps = orderAppIds(settings?.appOrder).filter(
-    (app) => visibleApps[app],
-  );
-  const onAppPage = isAppPage(view);
+  const takeover = useAicliTakeoverStatus();
+  const { data: proxyStatus } = useProxyStatusQuery();
 
   // 选了的项里是 0 的不写（没配定价时金额总是 0）；命中率在今天还没有请求时不写；
   // 全都没有就整个不显示。两项都有时只写数、上下两行（「今日」放进悬停和读屏）：
@@ -261,18 +260,39 @@ function MainDirectory({
       : undefined;
   const todayTrailing = todayValues.length > 1 ? todayValues : todayText;
 
-  const globals: {
+  // F-08：客户端只占一行；行尾写已接管数量，有客户端需要处理时打红点
+  const activeTakeovers = (takeover.data ?? []).filter(
+    (entry) =>
+      AICLI_TAKEOVER_APPS.includes(entry.app as AppId) &&
+      visibleApps[entry.app as AppId] !== false &&
+      takeoverDisplay(entry.state) === "active",
+  ).length;
+  const clientsNeedAttention =
+    orderAppIds(settings?.appOrder)
+      .filter((app) => visibleApps[app])
+      .some((app) => appStatus(app).alert) ||
+    (activeTakeovers > 0 && proxyStatus !== undefined && !proxyStatus.running);
+
+  type GlobalItem = {
     page: GlobalPage;
     label: string;
     icon: IconComponent;
     trailing?: string | string[];
     trailingLabel?: string;
     alert?: string;
-  }[] = [
-    { page: "mcp", label: "MCP", icon: Server },
-    { page: "skills", label: "Skills", icon: SkillsIcon },
-    { page: "prompts", label: t("nav.prompts"), icon: BookOpen },
-    { page: "sessions", label: t("nav.sessions"), icon: History },
+  };
+  const primary: GlobalItem[] = [
+    {
+      page: "clients",
+      label: t("nav.clients"),
+      icon: MonitorSmartphone,
+      trailing: activeTakeovers > 0 ? String(activeTakeovers) : undefined,
+      trailingLabel:
+        activeTakeovers > 0
+          ? t("nav.clientsActive", { count: activeTakeovers })
+          : undefined,
+      alert: clientsNeedAttention ? t("nav.needsAttention") : undefined,
+    },
     {
       page: "usage",
       label: t("nav.usage"),
@@ -281,9 +301,31 @@ function MainDirectory({
       trailingLabel: todayText,
     },
   ];
+  const secondary: GlobalItem[] = [
+    { page: "mcp", label: "MCP", icon: Server },
+    { page: "skills", label: "Skills", icon: SkillsIcon },
+    { page: "prompts", label: t("nav.prompts"), icon: BookOpen },
+    { page: "sessions", label: t("nav.sessions"), icon: History },
+  ];
 
   const isGlobalSelected = (page: GlobalPage) =>
-    view === page || (page === "skills" && view === "skillsDiscovery");
+    view === page ||
+    (page === "skills" && view === "skillsDiscovery") ||
+    (page === "clients" && isAppPage(view));
+
+  const renderItem = (item: GlobalItem) => (
+    <NavItem
+      key={item.page}
+      collapsed={collapsed}
+      selected={isGlobalSelected(item.page)}
+      icon={item.icon}
+      label={item.label}
+      trailing={item.trailing}
+      trailingLabel={item.trailingLabel}
+      alert={item.alert}
+      onClick={() => onSelectPage(item.page)}
+    />
+  );
 
   return (
     <>
@@ -294,45 +336,16 @@ function MainDirectory({
           collapsed && "no-scrollbar",
         )}
       >
+        <div className="flex shrink-0 flex-col">{primary.map(renderItem)}</div>
         <div
-          role="group"
-          aria-label={t("nav.appsGroup")}
-          className="flex shrink-0 flex-col"
-        >
-          {apps.map((app) => (
-            <AppNavItem
-              key={app}
-              app={app}
-              collapsed={collapsed}
-              selected={onAppPage && activeApp === app}
-              status={appStatus(app)}
-              onSelect={() => onSelectApp(app)}
-            />
-          ))}
+          className={cn(
+            "h-px shrink-0 bg-border",
+            collapsed ? "mx-[18px] my-1.5" : "mx-4 my-1.5",
+          )}
+        />
+        <div className="flex shrink-0 flex-col">
+          {secondary.map(renderItem)}
         </div>
-      </div>
-
-      <div
-        className={cn(
-          "h-px shrink-0 bg-border",
-          collapsed ? "mx-[18px] my-1.5" : "mx-4 mb-1.5 mt-0.5",
-        )}
-      />
-
-      <div className="flex shrink-0 flex-col">
-        {globals.map((item) => (
-          <NavItem
-            key={item.page}
-            collapsed={collapsed}
-            selected={isGlobalSelected(item.page)}
-            icon={item.icon}
-            label={item.label}
-            trailing={item.trailing}
-            trailingLabel={item.trailingLabel}
-            alert={item.alert}
-            onClick={() => onSelectPage(item.page)}
-          />
-        ))}
       </div>
 
       {/* 和上面那条分隔线同样缩进、上下各留 6px，选中的最后一项不会贴着线 */}
@@ -375,132 +388,6 @@ function MainDirectory({
         />
       </div>
     </>
-  );
-}
-
-function modeTag(
-  status: AppNavStatus,
-  t: (key: string) => string,
-): { label: string; className: string } | null {
-  if (status.mode === "route") {
-    return {
-      label: t("nav.mode.route"),
-      className: "bg-route-soft text-route-text",
-    };
-  }
-  if (status.mode === "stack") {
-    return {
-      label: t("nav.mode.stack"),
-      className: "bg-stack-soft text-stack-text",
-    };
-  }
-  return null;
-}
-
-function AppNavItem({
-  app,
-  collapsed,
-  selected,
-  status,
-  onSelect,
-}: {
-  app: AppId;
-  collapsed: boolean;
-  selected: boolean;
-  status: AppNavStatus;
-  onSelect: () => void;
-}) {
-  const { t } = useTranslation();
-  // 侧栏显示短名，悬停提示和无障碍名用全名
-  const name = APP_DISPLAY_NAME[app];
-  const shortName = APP_SIDEBAR_NAME[app] ?? name;
-  const tag = modeTag(status, t);
-  const modeName =
-    status.mode === "route"
-      ? t("nav.mode.route")
-      : status.mode === "stack"
-        ? t("nav.mode.stack")
-        : null;
-  const tip = status.alert
-    ? `${name} · ${t("nav.needsAttention")}`
-    : modeName
-      ? `${name} · ${modeName}`
-      : name;
-  const badgeBg = selected ? "bg-selected" : "bg-sidebar";
-
-  if (collapsed) {
-    const marker = status.alert
-      ? { className: "bg-danger text-action-fg", icon: AlertGlyph }
-      : status.mode === "stack"
-        ? { className: "bg-stack-solid text-stack-on", icon: Layers }
-        : status.mode === "route"
-          ? { className: "bg-route-solid text-route-on", icon: Route }
-          : null;
-    return (
-      <HoverTip content={tip} side="right" disableHoverableContent>
-        <button
-          type="button"
-          onClick={onSelect}
-          aria-label={tip}
-          aria-current={selected ? "page" : undefined}
-          className={cn(
-            "mx-auto flex h-8 w-12 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-subtle",
-            selected && "bg-selected hover:bg-selected",
-          )}
-        >
-          <span className="relative flex">
-            <AppGlyph app={app} size={20} badgeClassName={badgeBg} />
-            {marker && (
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2",
-                  selected ? "border-selected" : "border-sidebar",
-                  marker.className,
-                )}
-              >
-                <marker.icon className="h-2 w-2" strokeWidth={3} />
-              </span>
-            )}
-          </span>
-        </button>
-      </HoverTip>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? "page" : undefined}
-      className={cn(
-        "mx-2 flex h-7 w-[184px] shrink-0 items-center gap-2 rounded-control px-2 text-start transition-colors hover:bg-subtle",
-        selected && "bg-selected font-medium hover:bg-selected",
-      )}
-    >
-      <AppGlyph app={app} size={16} badgeClassName={badgeBg} />
-      <span className="min-w-0 flex-1 truncate">{shortName}</span>
-      {status.alert ? (
-        <span
-          role="img"
-          aria-label={t("nav.needsAttention")}
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
-        />
-      ) : (
-        // 选中的应用不再显示模式标签：页头下面的模式行已经写明
-        tag &&
-        !selected && (
-          <span
-            className={cn(
-              "h-[18px] whitespace-nowrap rounded-full px-1.5 text-badge leading-[18px]",
-              tag.className,
-            )}
-          >
-            {tag.label}
-          </span>
-        )
-      )}
-    </button>
   );
 }
 

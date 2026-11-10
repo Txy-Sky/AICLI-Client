@@ -47,7 +47,6 @@ const renderSidebar = (settings: Partial<Settings>) => {
         view="usage"
         visibleApps={{} as VisibleApps}
         settingsSection="general"
-        onSelectApp={vi.fn()}
         onSelectPage={vi.fn()}
         onSelectSettingsSection={vi.fn()}
         onExitSettings={vi.fn()}

@@ -3,8 +3,9 @@ import type { AppId } from "@/lib/api";
 /**
  * 主窗口的导航模型（v7）：侧栏选一个应用或一个全局页；设置单独占一屏。
  *
- * - 应用页：点侧栏应用行进入客户端页；OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
- * - 全局页：用量统计（首页）、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
+ * - 客户端（F-08）：侧栏只有一个「客户端」入口，进入客户端总览；点卡片进入单个应用的
+ *   客户端页，OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
+ * - 全局页：客户端总览、用量统计（首页）、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
  * - 设置：侧栏换成设置目录，6 个分组。
  * - 冷启动恒进用量页（F-02）：不再记住上次停留的页面。
  */
@@ -16,6 +17,7 @@ export type AppPage =
   | "hermesMemory";
 
 export type GlobalPage =
+  | "clients"
   | "usage"
   | "mcp"
   | "skills"
@@ -51,6 +53,7 @@ const APP_PAGES: AppPage[] = [
 ];
 
 const GLOBAL_PAGES: GlobalPage[] = [
+  "clients",
   "usage",
   "mcp",
   "skills",

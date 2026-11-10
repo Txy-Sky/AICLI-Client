@@ -2906,7 +2906,9 @@
       "stack": "聚合"
     },
     "needsAttention": "需要处理",
-    "back": "返回"
+    "back": "返回",
+    "clients": "客户端",
+    "clientsActive": "已接管 {{count}} 个客户端"
   },
   "appsPage": {
     "showInSidebar": "在侧栏显示 {{name}}",
@@ -2954,7 +2956,7 @@
     "viewSessions": "查看会话",
     "configDirectory": "配置目录",
     "installAndUpgrade": "安装与升级",
-    "hideFromSidebar": "在侧栏隐藏",
+    "hideFromSidebar": "从客户端列表隐藏",
     "providers": "供应商",
     "client": "客户端",
     "workspace": "工作区",
@@ -3590,9 +3592,9 @@
         "conflict": "冲突"
       },
       "confirmTakeOverTitle": "接管 {{app}}",
-      "confirmTakeOverBody": "接管后会改写 {{app}} 的配置，让请求经过本机代理；停止接管时还原为接管前的配置。",
+      "confirmTakeOverBody": "接管后会改写 {{app}} 的配置，让请求经过本机代理发往 AICLI；随时可以停止接管，配置会原样还原。",
       "confirmReleaseTitle": "停止接管 {{app}}",
-      "confirmReleaseBody": "停止接管会把 {{app}} 的配置还原为接管前的样子。",
+      "confirmReleaseBody": "停止接管会把 {{app}} 的配置还原为接管前的样子（例如官方登录或你自己的设置），之后请求不再经过 AICLI，随时可以再次接管。",
       "conflictTitle": "检测到旧的代理配置",
       "conflictBody": "{{app}} 的配置里有旧版本地代理留下的设置。继续接管会覆盖它们，停止接管时还原为接管前的样子。",
       "conflictNotice": "{{app}} 的配置与旧版本地代理的设置冲突，确认覆盖后才能接管。",
@@ -3755,6 +3757,31 @@
       "includeSessionLogsHelp": "关闭时，本地统计只包含经过 AICLI 本地代理的请求。打开后也统计各 CLI 自己保存的会话日志——其中可能有不经过 AICLI 的用量（例如其他工具或直连），数字会与其他读取同一日志的工具一致。",
       "includeSessionLogsOn": "已包含各 CLI 的会话日志。",
       "includeSessionLogsOff": "只统计经过 AICLI 本地代理的请求。"
+    },
+    "clients": {
+      "title": "客户端",
+      "help": "接管后，客户端的请求经本机代理发往 AICLI，使用你的配置集和线路；停止接管会原样还原接管前的配置。",
+      "summary": "个客户端已接管",
+      "restoreHint": "停止接管即回到原来的用法（官方登录或你自己的设置）。",
+      "proxyDown": "本地代理没有运行，已接管的客户端暂时无法发出请求。",
+      "supportedTitle": "支持接管",
+      "otherTitle": "其他客户端",
+      "comingSoonTitle": "即将支持",
+      "comingSoonHint": "这些客户端暂不支持 AICLI 接管，后续版本会陆续加入。",
+      "installApps": "安装与升级",
+      "open": "打开 {{app}}",
+      "back": "返回客户端",
+      "profileLine": "配置集 {{name}} · {{count}} 个模型",
+      "status": {
+        "active": "已接管 · 经 AICLI",
+        "inactive": "未接管 · 使用原配置",
+        "pending": "处理中",
+        "conflict": "需确认覆盖"
+      },
+      "dedicated": {
+        "openclaw": "工作区、配置",
+        "hermes": "记忆"
+      }
     }
   }
 }

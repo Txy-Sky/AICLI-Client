@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { invoke } from "@tauri-apps/api/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, ExternalLink, MoreHorizontal } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { VisibleApps } from "@/types";
 import { KNOWN_APP_TYPES, type AppTypeFilter } from "@/types/usage";
@@ -53,6 +53,7 @@ import {
 } from "@/components/apps/useToolManagement";
 import { AicliHome } from "@/components/aicli/AicliHome";
 import { AicliClientPage } from "@/components/aicli/AicliClientPage";
+import { AicliClientsPage } from "@/components/aicli/clients/AicliClientsPage";
 import { useAicliEventBridge } from "@/hooks/useAicliAccount";
 import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { AicliBindGate } from "@/components/aicli/AicliBindGate";
@@ -765,8 +766,26 @@ function App() {
   const renderAppPageHeader = () => (
     <AppPageHeader
       variant="app"
-      icon={<AppGlyph app={activeApp} size={20} badgeClassName="bg-app" />}
-      title={APP_DISPLAY_NAME[activeApp]}
+      // F-08：应用详情页从客户端总览进入，页头左侧给返回按钮
+      leading={
+        <HoverTip content={t("aicli.clients.back")}>
+          <Button
+            variant="quiet"
+            size="icon-compact"
+            className="h-8 w-8"
+            aria-label={t("aicli.clients.back")}
+            onClick={() => openPage("clients")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </HoverTip>
+      }
+      title={
+        <span className="flex items-center gap-2">
+          <AppGlyph app={activeApp} size={20} badgeClassName="bg-app" />
+          {APP_DISPLAY_NAME[activeApp]}
+        </span>
+      }
       truncateTitle={currentView === "client" && Boolean(modeAppId)}
       titleExtra={
         currentView === "client" && modeAppId ? (
@@ -920,6 +939,15 @@ function App() {
 
   const renderGlobalPage = () => {
     switch (currentView) {
+      case "clients":
+        return (
+          <AicliClientsPage
+            visibleApps={visibleApps}
+            appOrder={settingsData?.appOrder}
+            onOpenApp={selectApp}
+            onOpenApps={() => openPage("apps")}
+          />
+        );
       case "usage":
         return (
           <AicliHome
@@ -1001,7 +1029,6 @@ function App() {
             view={currentView}
             visibleApps={visibleApps}
             settingsSection={settingsSection}
-            onSelectApp={selectApp}
             onSelectPage={openPageFromNav}
             onSelectSettingsSection={(section) => {
               setAppConfigScrollTarget(undefined);

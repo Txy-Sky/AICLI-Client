@@ -2870,7 +2870,9 @@
       "stack": "Birleştirme"
     },
     "needsAttention": "Dikkat edilmesi gerekiyor",
-    "back": "Geri"
+    "back": "Geri",
+    "clients": "İstemciler",
+    "clientsActive": "{{count}} istemci devralındı"
   },
   "appsPage": {
     "showInSidebar": "Kenar çubuğunda {{name}}'yi göster",
@@ -2918,7 +2920,7 @@
     "viewSessions": "Oturumları görüntüle",
     "configDirectory": "Yapılandırma dizini",
     "installAndUpgrade": "Yükleme ve yükseltme",
-    "hideFromSidebar": "Kenar çubuğundan gizle",
+    "hideFromSidebar": "İstemci listesinden gizle",
     "providers": "Sağlayıcılar",
     "client": "İstemci",
     "workspace": "Çalışma alanı",
@@ -3550,9 +3552,9 @@
         "conflict": "Çakışma"
       },
       "confirmTakeOverTitle": "{{app}} devralınsın mı",
-      "confirmTakeOverBody": "Devralma, istekler yerel proxy üzerinden gitsin diye {{app}} yapılandırmasını yeniden yazar; devralma durdurulunca önceki yapılandırma geri yüklenir.",
+      "confirmTakeOverBody": "Devralma, istekler yerel proxy üzerinden AICLI'ye gitsin diye {{app}} yapılandırmasını yeniden yazar; istediğiniz zaman durdurabilirsiniz, yapılandırma olduğu gibi geri yüklenir.",
       "confirmReleaseTitle": "{{app}} devralması durdurulsun mu",
-      "confirmReleaseBody": "Devralmayı durdurmak {{app}} yapılandırmasını devralmadan önceki hâline geri getirir.",
+      "confirmReleaseBody": "Devralmayı durdurmak {{app}} yapılandırmasını devralmadan önceki hâline (örneğin resmî oturum açma ya da kendi ayarlarınız) geri getirir; istekler artık AICLI üzerinden gitmez ve istediğiniz zaman yeniden devralabilirsiniz.",
       "conflictTitle": "Eski proxy ayarları bulundu",
       "conflictBody": "{{app}} yapılandırmasında eski bir yerel proxy'den kalan ayarlar var. Devralma bunların üzerine yazar; devralma durdurulunca önceki hâline geri döner.",
       "conflictNotice": "{{app}} yapılandırması eski bir yerel proxy'nin ayarlarıyla çakışıyor; devralmak için üzerine yazmayı onaylayın.",
@@ -3715,6 +3717,31 @@
       "includeSessionLogsHelp": "Kapalıyken yerel istatistikler yalnızca AICLI yerel proxy'sinden geçen istekleri içerir. Açıkken her CLI'nin kendi oturum günlükleri de sayılır; bunlar AICLI'den geçmeyen kullanımı (diğer araçlar veya doğrudan bağlantılar) içerebilir ve sayılar aynı günlükleri okuyan diğer araçlarla aynı olur.",
       "includeSessionLogsOn": "CLI oturum günlükleri dahil.",
       "includeSessionLogsOff": "Yalnızca AICLI yerel proxy'sinden geçen istekler sayılıyor."
+    },
+    "clients": {
+      "title": "İstemciler",
+      "help": "Devralınan istemci, isteklerini yerel proxy üzerinden AICLI'ye profiliniz ve hattınızla gönderir. Devralmayı durdurmak önceki yapılandırmayı olduğu gibi geri yükler.",
+      "summary": "istemci devralındı",
+      "restoreHint": "Önceki kullanımınıza (resmî oturum açma ya da kendi ayarlarınız) dönmek için devralmayı durdurun.",
+      "proxyDown": "Yerel proxy çalışmıyor; devralınan istemciler şu an istek gönderemez.",
+      "supportedTitle": "Devralınabilir",
+      "otherTitle": "Diğer istemciler",
+      "comingSoonTitle": "Yakında",
+      "comingSoonHint": "Bu istemciler henüz AICLI tarafından devralınamıyor; destek sonraki sürümlerde gelecek.",
+      "installApps": "Kur ve güncelle",
+      "open": "{{app}} uygulamasını aç",
+      "back": "İstemcilere dön",
+      "profileLine": "Profil {{name}} · {{count}} model",
+      "status": {
+        "active": "Devralındı · AICLI üzerinden",
+        "inactive": "Devralınmadı · özgün yapılandırma",
+        "pending": "İşleniyor",
+        "conflict": "Üzerine yazmayı onaylayın"
+      },
+      "dedicated": {
+        "openclaw": "Çalışma alanı, yapılandırma",
+        "hermes": "Bellek"
+      }
     }
   }
 }
