@@ -923,7 +923,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ### F-GATE 阶段 F 门禁
 - [x] 完成
 - 验收：`pnpm typecheck`、`pnpm test:unit` 通过；`[HUMAN]` 或 `xvfb` 下走通：冷启动出现绑定对话框 → 绑定后进入用量页 → 切线路 → 编辑配置集 → 客户端总览接管与停止接管 → 隐私脱敏页（2026-11-09 随 F-07～F-11 扩充）。截图存 `docs/aicli-evidence/F-GATE/`，图中不含 Token。
-- 证据：2026-11-10 完成。隔离实例（HOME/LOCALAPPDATA/APPDATA 重定向）走通冷启动绑定门（Escape 不可关）→ `sk-` 误填拒绝并清空 → 绑定后账户面板（账户名 / 用户组 / 额度 / 来源：服务端）→ 测速 784/1204/1881 ms 并切换「全球备用」→ 推荐预设新建「F-GATE 走查」（22 项冲突、未确认不可保存、一键确认后保存、设为默认）→ Claude Code 接管 / 停止接管（确认弹窗、代理 127.0.0.1:15821 重启、日志 enter/exit）→ 本地路由三块与隐私脱敏页。typecheck 通过、139 文件 / 1364 单测通过；CI run 42746413907 success。附带负责人反馈的绑定弹窗单列布局修订（五种语言）。截图 16 张存 `docs/aicli-evidence/F-GATE/`，无 Token。详见 docs/aicli-evidence/F-GATE.txt。
+- 证据：2026-11-10 完成。隔离实例（HOME/LOCALAPPDATA/APPDATA 重定向）走通冷启动绑定门（Escape 不可关）→ `sk-` 误填拒绝并清空 → 绑定后账户面板（账户名 / 用户组 / 额度 / 来源：服务端）→ 测速 784/1204/1881 ms 并切换「全球备用」→ 推荐预设新建「F-GATE 走查」（22 项冲突、未确认不可保存、一键确认后保存、设为默认）→ Claude Code 接管 / 停止接管（确认弹窗、代理 127.0.0.1:15821 重启、日志 enter/exit）→ 本地路由三块与隐私脱敏页。typecheck 通过、139 文件 / 1364 单测通过；CI run 42840478441 success。附带负责人反馈的绑定弹窗单列布局修订（五种语言）。截图 16 张存 `docs/aicli-evidence/F-GATE/`，无 Token。详见 docs/aicli-evidence/F-GATE.txt。
 
 ---
 
