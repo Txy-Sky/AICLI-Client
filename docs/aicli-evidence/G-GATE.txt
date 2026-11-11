@@ -1,0 +1,92 @@
+G-GATE 阶段 G 门禁（2026-11-11，未通过：第 1 项待走查，第 3 项待负责人决定）
+
+基准提交：51902c11（其上 21639e55 为最后一个改代码的提交，之后只有文档提交）。
+
+## 第 2 项：主链路测试 —— 通过
+
+- CI run 42998746287（AICLI Acceptance，headSha 21639e55，五个 job 全部 success）
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
+- 核对命令：gh run view 42998746287 -R Txy-Sky/AICLI-Client --log，去掉颜色码后
+  grep -cE "PASS .*aicli_routing" => 13，FAIL => 0
+  grep -cE "PASS .*aicli_privacy_e2e" => 21，FAIL => 0
+- 同一 run 的 A3-01 基线：4537 tests run: 4537 passed, 9 skipped。
+- 本机（2 GB 内存）未重跑。
+
+## 第 3 项：赞助与第三方中转名称扫描 —— 前半通过，后半按字面不通过
+
+- grep -rn 'sponsor\|赞助' src src-tauri/src => 无结果（通过）。
+- 名单：G-01 删除前一个提交（7070fb2f^）的 src/config/*ProviderPresets.ts 中全部
+  name: "..." 去重，共 373 个，存 G-GATE-names.txt。
+- 逐个 grep -rnF -- "<name>" src src-tauri/src：266 个名称仍有命中，计数存
+  G-GATE-name-hits.txt。
+- 名单本身混有三类不可能清零的名称：模型名（Claude Opus 5、DeepSeek、GLM-5 …）、
+  客户端名（Codex、Kimi …）、通用词（Auto、meta、together、cloudflare）。
+- 真正的第三方中转名称（PackyCode、AiHubMix、RightCode、SSSAiCode、88API、Cubence、
+  DMXAPI、AIGoCode、SiliconFlow、OpenRouter 等）仍在 39 个文件里出现。用 11 个代表性
+  名称（不分大小写）统计的文件分布：
+
+  79 src-tauri/src/codex_history_migration.rs
+  45 src-tauri/src/proxy/providers/claude.rs
+  37 src-tauri/src/services/balance.rs
+  32 src/icons/extracted/metadata.ts
+  23 src-tauri/src/proxy/providers/mod.rs
+  23 src-tauri/src/proxy/providers/codex.rs
+  21 src-tauri/src/services/provider/gemini_auth.rs
+  20 src-tauri/src/hermes_config.rs
+  16 src-tauri/src/proxy/providers/transform_codex_chat.rs
+  13 src/icons/extracted/index.ts
+  12 src-tauri/src/proxy/handlers.rs
+  11 src-tauri/src/proxy/providers/streaming.rs
+  10 src-tauri/src/provider.rs
+   9 src-tauri/src/services/model_fetch.rs
+   6 src/utils/providerConfigUtils.test.ts
+   6 src-tauri/src/codex_config.rs
+   5 src-tauri/src/services/provider/mod.rs
+   5 src-tauri/src/omp_config.rs
+   4 src-tauri/src/services/usage_stats.rs
+   4 src-tauri/src/proxy/usage/parser.rs
+   4 src-tauri/src/gemini_config.rs
+   3 src/types.ts
+   3 src-tauri/src/proxy/providers/transform_responses.rs
+   3 src-tauri/src/proxy/forwarder.rs
+   2 src/icons/extracted/sssaicode.svg
+   2 src-tauri/src/services/provider/claude_editor.rs
+   2 src-tauri/src/database/schema.rs
+   2 src-tauri/src/commands/model_fetch.rs
+   1 src/icons/extracted/packycode.svg
+   1 src/icons/extracted/openrouter.svg
+   1 src/icons/extracted/aihubmix-color.svg
+   1 src-tauri/src/services/proxy.rs
+   1 src-tauri/src/proxy/usage/logger.rs
+   1 src-tauri/src/proxy/providers/transform.rs
+   1 src-tauri/src/proxy/opaque_state_rectifier.rs
+   1 src-tauri/src/mode/stack.rs
+   1 src-tauri/src/commands/settings.rs
+   1 src-tauri/src/codex_startup_tests.rs
+   1 src-tauri/src/claude_desktop_config.rs
+
+- 归类：
+  a. 负责人决定保留的模块：codex_history_migration.rs（B-06 决定完整保留 48 项旧
+     provider 列表）、services/balance.rs 与 services/provider/gemini_auth.rs（G-03
+     2026-11-10 决定保留官方账号与余额后端）。
+  b. G-03 条款写明不得删除的代理兼容代码及其测试：proxy/providers/{claude,codex,mod,
+     streaming,transform*}.rs、proxy/handlers.rs、forwarder.rs、usage/parser.rs。
+  c. 各客户端配置写入器和通用后端里的注释、环境变量名（OPENROUTER_API_KEY）、测试样例：
+     hermes_config.rs、omp_config.rs、codex_config.rs、gemini_config.rs、provider.rs、
+     services/provider/mod.rs、model_fetch.rs、usage_stats.rs、schema.rs 等。
+  d. 前端：src/icons/extracted/（图标库 metadata.ts、index.ts 和 4 个 svg，G-01 保留
+     ProviderIcon 的连带）、src/types.ts（reasoning 枚举 "openrouter"）、
+     src/utils/providerConfigUtils.test.ts。
+- 界面文案（src/i18n）里没有任何第三方中转名称；命中的只有模型名、客户端名，以及
+  AWS Bedrock Converse、Ollama、LM Studio 三处协议和本机运行时名称。
+- 附带发现（未处理）：五种语言的翻译文件里仍有大量供应商增删改的键（如 zh.json 的
+  provider.addProvider「添加供应商」、editProvider、deleteProvider、oauthTitle）。
+  B-07 白名单只放行了已列出的命名空间，这些键没有被删；是否仍被界面引用未逐条核对。
+
+## 第 1 项：界面无供应商增删改入口、无官方登录入口 —— 未做
+
+- 需要 [HUMAN] 或 UI 自动化截图。本机是无图形界面的 2 GB Linux，没有 xvfb，
+  F-GATE 的走查是在 Windows 执行机上做的。
+- 静态核对（仅供参考，不替代截图）：
+  grep -rnoE 'invoke\("(copilot|codex_oauth|xai|kimi_oauth|claude_account|agy_account|auth_|subscription|coding_plan|balance|add_provider|update_provider|delete_provider)[a-z_]*"' src
+  => 无结果，前端不再调用任何官方账号或供应商增删改命令。

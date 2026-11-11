@@ -1,0 +1,373 @@
+88API
+88api
+9527CODE
+9527code
+A6API
+AICodeMirror
+AICodeWith
+AICoding
+AIComing
+AIGoCode
+APIKEY.FUN
+APINebula
+AWS Bedrock
+AWS Bedrock (AKSK)
+AWS Bedrock (API Key)
+AiHubMix
+AllTokens
+AllTokens SI
+Amazon Nova Pro
+Amux
+Antigravity - Claude Opus 4.5
+Antigravity - Claude Sonnet 4.5
+Ark Code Latest
+Astron Coding Plan
+AtlasCloud
+Auto
+Azure OpenAI
+BaiLing
+Baidu Qianfan
+Baidu Qianfan Coding Plan
+Baidu Qianfan Token Plan
+Baseten
+BotCF
+BuyToken
+BytePlus
+CCSub
+CherryIN
+Claude Desktop Official
+Claude Fable 5.1
+Claude Haiku 4.5
+Claude Haiku 5.5
+Claude Official
+Claude Opus 4.5
+Claude Opus 5
+Claude Opus 5.5
+Claude Sonnet 5
+Claude Sonnet 5.5
+ClaudeAPI
+ClaudeCN
+ClinePass
+Cloudflare AI Gateway
+Code0
+Codex
+Command Code
+Compshare
+Compshare Coding Plan
+CrazyRouter
+Cubence
+DIT.ai
+DMXAPI
+DeepInfra
+DeepSeek
+DeepSeek R1
+DeepSeek V3.2
+DeepSeek V4 Flash
+DeepSeek V4 Flash 0731
+DeepSeek V4 Flash 0731 GA
+DeepSeek V4 Flash Official
+DeepSeek V4 Pro
+DeepSeek V4.1 Flash
+DeepSeek V4.1 Flash 1017
+DeepSeek V4.1 Flash 1017 (Baseten)
+DigitalOcean
+DouBao Seed 2.1 Pro
+Doubao Seed 2.1 Pro
+E-FlowCode
+FennoAI
+Fireworks AI
+FluxA Token Plan
+GLM 5.1
+GLM 5.3
+GLM 5.3 Flash
+GLM-5
+GLM-5 Turbo
+GLM-5.1
+GLM-5.2
+GLM-5.3
+GLM-5.3 (Baseten)
+GLM-5.3 Fast
+GLM-5.3 Flash
+GLM-5.3 Flash (Baseten)
+GLM-5.3-Flash
+GPT-5.6 Sol
+GPT-6 Astra
+GPT-6 Luna
+GPT-6 Sol
+GPT-6.1 Sol
+GPT-OSS 120B
+GPT-OSS 20B
+Gemini 2.5 Flash Lite
+Gemini 3.6 Flash
+Gemini 3.8 Flash
+Gemini 4 Argon
+Gemini Native
+GitHub Copilot
+Google Official
+Grok Official
+GrooRoute Pro
+Groq
+Hermes 4 405B
+Hermes 4 70B
+Hugging Face
+Hy3
+Hy3 Preview
+IKunCode
+JieKou AI
+KAT-Coder Pro V2.5
+Kimi
+Kimi For Coding
+Kimi For Coding Global
+Kimi Global
+Kimi K2.6
+Kimi K2.7 Code
+Kimi K2.7 Code HighSpeed
+Kimi K3
+Kimi K3 (Baseten)
+Kimi K3.1 Pro
+LM Studio
+Ling 2.6 1T
+LongCat 2.0
+Longcat
+Meta Llama 4 Maverick
+Meta Model API
+MiMo V2.6 Flash
+MiMo V2.6 Pro
+MiMo V2.6 Pro UltraSpeed
+Microsoft Foundry
+Micu
+MiniMax
+MiniMax M2.7
+MiniMax M3
+MiniMax M3.1 Flash
+MiniMax en
+MiniMax-M3
+Mistral AI
+Mistral Medium 3.5
+Mistral Small 4
+ModelScope
+Modelflare
+Moonshot Kimi K2.6
+Muse Spark 1.3
+Muse Wonder 1.0
+Nebius Token Factory
+NekoCode
+NewAPI
+Nous Research
+Novita AI
+Nvidia
+Oh My OpenCode
+Oh My OpenCode Slim
+Ollama
+Ollama Cloud
+OpenAI Official
+OpenCode Go
+OpenCode Zen
+OpenModel
+OpenRouter
+PIPELLM
+PPIO
+PackyCode
+PatewayAI
+Qiniu
+Qwen3 Coder Plus
+Qwen3-Coder 30B A3B
+Qwen3.5
+Qwen3.6 27B
+Qwen3.6 Plus
+Qwen3.7 Max
+Qwen3.7 Plus
+Qwen3.8 Flash
+Qwen3.8 Max
+QwenCloud
+QwenCloud For Coding
+QwenCloud Token Plan
+RelaxyCode
+RightCode
+RunAPI
+RunToken
+SSSAiCode
+SambaNova
+Shengsuanyun
+SiliconFlow
+SiliconFlow en
+SoleAPI
+SoruxGPT
+SoruxGPT Coding Plan
+Soshow
+Step 3.5 Flash
+Step 3.5 Flash 2603
+Step 3.7 Flash
+Step 5 Preview
+StepFun
+StepFun API
+StepFun API en
+StepFun Step Plan
+StepFun en
+StreamLake
+StreamLake en
+SubRouter
+SudoCode.chat
+SudoCode.us
+TeamoRouter
+TeamoRouter Claude
+Tencent Hunyuan
+Tencent Token Plan
+Tencent Token Plan (Intl)
+Tencent Token Plan Enterprise Lite
+Tencent Token Plan Enterprise Lite (Intl)
+Tencent Token Plan Enterprise Pro
+Tencent Token Plan Enterprise Pro (Intl)
+Tencent TokenHub
+Tencent TokenHub (Intl)
+TheRouter
+Together AI
+TokenFactory
+TokenFlux
+Tu-zi
+V-API
+Vercel AI Gateway
+Volcengine Doubao
+Xiaomi MiMo
+Xiaomi MiMo Token Plan (China)
+XycAi
+YYLX
+Zhipu GLM
+Zhipu GLM en
+a6api
+aicodemirror
+aicodewith
+aicoding
+aicoming
+aigocode
+aihubmix
+alltokens
+alltokens_si
+amux
+apikeyfun
+apinebula
+ark_agentplan
+ark_codingplan
+atlascloud
+bailing
+baseten
+botcf
+buytoken
+byteplus
+cc-switch-minimax
+cc-switch-minimax-en
+ccsub
+cherryin
+claude-haiku-4-5-20251001
+claude-opus-5
+claude-sonnet-5
+claudecn
+clinepass
+cloudflare
+code0
+compshare
+compshare_coding
+crazyrouter
+cubence
+deepinfra
+deepseek
+deepseek-v4-flash
+digitalocean
+dit_ai
+dmxapi
+doubao_seed
+eflowcode
+fenno
+fireworks-inference
+fluxa_tokenplan
+gpt-5.2-codex
+gpt-5.3-codex
+gpt-5.6-sol
+gpt-oss-120b
+grooroute_pro
+groq
+hao.ai
+hao_ai
+huggingface-router
+ikuncode
+jiekou
+kimi
+kimi_coding
+llama.cpp
+llamacpp-local
+lmstudio-local
+longcat
+meta
+micu
+mistral
+modelflare
+modelscope
+nebius
+nekocode
+nous
+novita
+nvidia
+ollama-local
+ollama_cloud
+openmodel
+openrouter
+packycode
+pipellm
+ppio
+qianfan_tokenplan
+qianwenai
+qianwenai_coding_plan
+qianwenai_token_plan
+qiniu
+qwencloud
+qwencloud_coding
+qwencloud_token_plan
+rightcode
+runapi
+runtoken
+sambanova
+shengsuanyun
+siliconflow
+siliconflow_en
+soleapi
+soruxgpt
+soshow
+sssaicode
+stepfun
+streamlake
+streamlake_en
+subrouter
+sudocode
+sudocode_us
+teamorouter
+teamorouter_claude
+tencent_token_plan
+tencent_token_plan_enterprise_lite
+tencent_token_plan_enterprise_lite_intl
+tencent_token_plan_enterprise_pro
+tencent_token_plan_enterprise_pro_intl
+tencent_token_plan_intl
+therouter
+together
+tokenfactory
+tokenflux
+tuzi
+vLLM
+vapi
+vercel-ai-gateway
+vllm-local
+xAI (Grok)
+xAI (Grok) OAuth
+xiaomi_mimo
+xiaomi_mimo_token_plan
+xycai
+yylx
+zhipu_glm
+zhipu_glm_en
+千问AI平台
+千问AI平台 Coding Plan
+千问AI平台 Token Plan
+模力方舟
+火山 Agent Plan
+火山 Coding Plan
+自定义网关

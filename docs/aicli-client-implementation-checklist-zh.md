@@ -975,12 +975,12 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-10 完成（方案 A + 官网入口，第 13 节）。tray.rs 重写（4955→462 行）：打开主窗口 / 线路子菜单（三线单选、未绑定禁用，切线路广播 aicli-line-changed）/ 轻量模式 / 打开官方网站（WEBSITE_URL）/ 退出；托盘面板（tray_panel.rs + src/tray-panel/）、供应商菜单、问题圆点、用量刷新、TrayNavigation 全删；「托盘样式」设置与 native_tray_menu 字段删除。WebDAV/S3 整体移除：commands/services/settings 字段/前端 UI 与监听/i18n 六组键（B-07 白名单扩充，本地基线比对通过）；sync_protocol 缩为 sync_mutex。验收 grep providers tray.rs 无结果；aicli-check.sh 全过（前端 1283、Rust 4482 passed / 10 skipped）。详见 docs/aicli-evidence/G-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ### G-GATE 阶段 G 门禁
-- [ ] 完成
+- [!] 阻塞：第 2 项已通过；第 3 项名称扫描按字面无法清零，待负责人决定范围；第 1 项待界面走查截图。见第 12 节。
 - 验收：
   1. 应用内找不到任何增加、编辑、删除供应商的入口，也没有官方登录入口（`[HUMAN]` 或 UI 自动化截图）。
   2. 主链路 `tests/aicli_routing.rs`、`aicli_privacy_e2e.rs` 依然通过。
   3. `grep -rn 'sponsor\|赞助' src src-tauri/src` 及预设的第三方中转名称无结果（名单来自删除前的 `src/config/*ProviderPresets.ts`，存入证据）。
-- 证据：
+- 证据：未完成。51902c11 | `gh run view 42998746287 --log` 核对 aicli_routing 13 PASS、aicli_privacy_e2e 21 PASS、0 FAIL；`grep -rn 'sponsor\|赞助' src src-tauri/src` 无结果；373 个预设名称中 266 个仍有命中 | 第 2 项通过，第 3 项后半不通过，第 1 项未做 | `docs/aicli-evidence/G-GATE.txt`、`G-GATE-names.txt`、`G-GATE-name-hits.txt`；https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ---
 
@@ -1064,6 +1064,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
+| G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 负责人决定：① 第 3 项名称扫描的范围（建议只查用户可见面：`src/i18n` 与前端界面字符串；或另行指定要删的部分，如前端图标库）；② 第 1 项由谁在有图形界面的机器上走查截图；③ 翻译文件里残留的供应商增删改键是否在本阶段清理。 |
 | F-07～F-11、G-01/G-02（2026-11-09 界面修订） | 负责人试用后提出：脱敏无入口、侧栏客户端列表占空间、用量页新卡片风格不统一、未绑定直接进入应用、配置集名不显示中文、仍有供应商残留。 | 新增 F-07～F-11（插在 F-GATE 前），G-01/G-02 在 F-GATE 前执行；方案见各项条款。 | 负责人于 2026-11-09 决定：侧栏合并为一个「客户端」入口；隐私脱敏做侧栏独立页（参考 Magpie）；G-01/G-02 本次完成、G-03/G-04 仍按原顺序；违反第 0.2 节第 1 条阶段顺序由负责人批准。已关闭。 |
 | C1-09（CI 夹具） | 初轮推荐预设无自动分组；共用安全测试环境取钥限流；独立环境的种子渠道未同步到内存缓存；桌面链接曾耗尽磁盘。 | 失败和安全诊断记录见 C1-09.txt、第 13 节。修正夹具预设、独立 Compose 预算、HTTP 临时渠道创建/删除初始化缓存，并限制 CI 调试元数据体积。最终 0b0953b2 的 run 41766760053 四 job 及汇总全部 success。 | 已关闭并验收；未放宽任何断言，未改 new-api 或限流设置，未加入等待/重启/请求重试。 |
 | C1-08 | 原清单未明确 fallback 范围、预设冲突确认及撤销影响模型判定。 | 负责人于 2026-11-04 已决定：fallback 限所选组；复制/重置确认当时冲突，后续新冲突只拦保存；基线写 aicli_cache，缺组不覆盖，无基线整体停用，有基线拦截含缺失组（含后备）的模型。执行者确认采用后备组也拦截的保守规则。最终实现 05c80736 的 run 41747863675 完整成功，专项 20 passed，Rust 4531 passed/原有 10 skipped，前端 3416 passed。 | 负责人已决定；范围阻塞已关闭并验收通过。C3-01/F-05 后续接线仍按各自项目执行，不提前宣称完成。 |
