@@ -468,6 +468,25 @@ impl ProxyServer {
             .route("/gemini/v1beta/*path", any(handlers::handle_gemini))
             // Gemini 的 GA 版本也叫 /v1，给原 SDK 留一条出口
             .route("/gemini/v1/*path", any(handlers::handle_gemini))
+            // J-01 Tier 2 通用入口：路径决定协议，`:client` 只决定身份和统计；
+            // 未知 client 返回 404。
+            .route(
+                "/app/:client/v1/messages",
+                post(handlers::handle_app_messages),
+            )
+            .route(
+                "/app/:client/v1/chat/completions",
+                post(handlers::handle_app_chat_completions),
+            )
+            .route(
+                "/app/:client/v1/responses",
+                post(handlers::handle_app_responses),
+            )
+            .route("/app/:client/v1/models", get(handlers::handle_app_models))
+            .route(
+                "/app/:client/v1beta/*path",
+                any(handlers::handle_app_gemini),
+            )
             // 提高默认请求体大小限制（避免 413 Payload Too Large）
             .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
             // E-06 隐私中间件：axum 后加的 layer 在外层，本行写在 local_auth

@@ -67,6 +67,7 @@ case "$set_name" in
     item C3-03-routing --features test-hooks --test aicli_routing
     item C3-09-wire --features test-hooks --test aicli_routing aicli_credentials_follow_wire
     item C4-03-routing --features test-hooks --test aicli_routing bill_backfill
+    item J-01-app-entry --features test-hooks --test aicli_routing app_client
     item E-06-e2e --features test-hooks --test aicli_privacy_e2e
     item E-06-stream-faults --features test-hooks --lib aicli::privacy::stream::tests::fa
     item F-09-e2e --features test-hooks --test aicli_privacy_e2e masked_requests_leave_a_value_free_record

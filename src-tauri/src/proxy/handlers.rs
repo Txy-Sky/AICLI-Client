@@ -88,12 +88,15 @@ pub async fn handle_models(
     } else {
         AppType::Codex
     };
-    aicli_model_list(&state, &app, &headers)
+    aicli_model_list(&state, &app, &app, &headers)
 }
 
+/// `app` owns the profile, session pin and alias; `envelope` picks the
+/// response shape (Anthropic for Claude clients, OpenAI otherwise).
 fn aicli_model_list(
     state: &ProxyState,
     app: &AppType,
+    envelope: &AppType,
     headers: &axum::http::HeaderMap,
 ) -> Result<axum::response::Response, ProxyError> {
     let Some(models) = crate::aicli::resolver::list_models(&state.aicli, app, headers)
@@ -101,10 +104,10 @@ fn aicli_model_list(
     else {
         return Ok(route_miss_response(
             crate::aicli::resolver::RouteMiss::NotBound,
-            app,
+            envelope,
         ));
     };
-    let anthropic = matches!(app, AppType::Claude | AppType::ClaudeDesktop);
+    let anthropic = matches!(envelope, AppType::Claude | AppType::ClaudeDesktop);
     let data = models
         .into_iter()
         .map(|model| {
@@ -134,27 +137,168 @@ fn route_miss_response(
     (status, Json(body)).into_response()
 }
 
+/// `app` is the app whose adapter and seed Provider carry the request. A
+/// `/app/:client/...` request also brings `client`, which owns the profile,
+/// session pin and alias, and never falls back to a legacy Provider.
 fn resolve_route(
     state: &ProxyState,
     app: &AppType,
+    client: Option<&AppClient>,
     protocol: &str,
     headers: &axum::http::HeaderMap,
     uri: &axum::http::Uri,
     body: &mut Value,
 ) -> Result<RouteInput, Box<axum::response::Response>> {
     use crate::aicli::resolver::{self, Resolved, RouteMiss};
-    match resolver::resolve(&state.aicli, app, protocol, headers, &uri.to_string(), body).map_err(
-        |_| {
-            Box::new(
-                ProxyError::Internal("AICLI route resolution unavailable".into()).into_response(),
-            )
-        },
-    )? {
+    let identity = client.map_or(app, |client| &client.app);
+    match resolver::resolve_for(
+        &state.aicli,
+        identity,
+        app,
+        protocol,
+        headers,
+        &uri.to_string(),
+        body,
+    )
+    .map_err(|_| {
+        Box::new(ProxyError::Internal("AICLI route resolution unavailable".into()).into_response())
+    })? {
         Resolved::Hit(decision) => Ok(RouteInput::Aicli(decision)),
+        Resolved::Plain if client.is_some() => Err(Box::new(route_miss_response(
+            RouteMiss::ModelNotInProfile,
+            app,
+        ))),
         Resolved::Plain => Ok(RouteInput::None),
         Resolved::NotBound => Err(Box::new(route_miss_response(RouteMiss::NotBound, app))),
         Resolved::Miss(miss) => Err(Box::new(route_miss_response(miss, app))),
     }
+}
+
+// ============================================================================
+// J-01 Tier 2 通用入口：/app/:client/...
+// ============================================================================
+
+/// The Tier 2 client named in `/app/:client/...`. The path after the client
+/// decides the protocol, and with it the adapter and seed Provider; the client
+/// itself only owns the profile binding, session pin and usage `app_type`.
+#[derive(Clone, Debug)]
+pub(crate) struct AppClient {
+    pub app: AppType,
+    pub name: &'static str,
+}
+
+fn app_client(name: &str) -> Option<AppClient> {
+    let (app, name) = match name {
+        "opencode" => (AppType::OpenCode, "opencode"),
+        "openclaw" => (AppType::OpenClaw, "openclaw"),
+        "hermes" => (AppType::Hermes, "hermes"),
+        "pi" => (AppType::Pi, "pi"),
+        "mcode" => (AppType::Mcode, "mcode"),
+        "kimi" => (AppType::Kimi, "kimi"),
+        "dsh" => (AppType::Dsh, "dsh"),
+        "omp" => (AppType::Omp, "omp"),
+        "agy" => (AppType::Agy, "agy"),
+        _ => return None,
+    };
+    Some(AppClient { app, name })
+}
+
+fn unknown_app_client() -> Box<axum::response::Response> {
+    Box::new(
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {
+                "message": "Unknown client",
+                "type": "invalid_request_error",
+                "code": "unknown_client",
+            }})),
+        )
+            .into_response(),
+    )
+}
+
+/// Reject unknown clients with 404, tag the request with the client, and drop
+/// the `/app/<client>` prefix so the protocol handler sees its canonical path.
+fn enter_app_client(
+    client: &str,
+    request: &mut axum::extract::Request,
+) -> Result<AppClient, Box<axum::response::Response>> {
+    let found = app_client(client).ok_or_else(unknown_app_client)?;
+    let uri = request
+        .uri()
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or_else(|| request.uri().path())
+        .strip_prefix("/app/")
+        .and_then(|rest| rest.strip_prefix(found.name))
+        .and_then(|rest| rest.parse::<axum::http::Uri>().ok())
+        .ok_or_else(unknown_app_client)?;
+    *request.uri_mut() = uri;
+    request.extensions_mut().insert(found.clone());
+    Ok(found)
+}
+
+pub async fn handle_app_messages(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_messages_for_app(state, request, AppType::Claude, "Claude", "claude", None).await
+}
+
+pub async fn handle_app_chat_completions(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_chat_completions(State(state), request).await
+}
+
+pub async fn handle_app_responses(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_responses_for_app(state, request, AppType::Codex, "Codex", "codex").await
+}
+
+pub async fn handle_app_gemini(
+    State(state): State<ProxyState>,
+    axum::extract::Path((client, _path)): axum::extract::Path<(String, String)>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    let uri = request.uri().clone();
+    handle_gemini(State(state), uri, request).await
+}
+
+/// The client's own profile, in the envelope its SDK asks for.
+pub async fn handle_app_models(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    let client = match enter_app_client(&client, &mut request) {
+        Ok(client) => client,
+        Err(rejected) => return Ok(*rejected),
+    };
+    let envelope = if is_claude_model_discovery(request.uri(), request.headers()) {
+        AppType::Claude
+    } else {
+        AppType::Codex
+    };
+    aicli_model_list(&state, &client.app, &envelope, request.headers())
 }
 
 // ============================================================================
@@ -322,7 +466,12 @@ pub async fn handle_claude_desktop_models(
             &AppType::ClaudeDesktop,
         ));
     }
-    aicli_model_list(&state, &AppType::ClaudeDesktop, &headers)
+    aicli_model_list(
+        &state,
+        &AppType::ClaudeDesktop,
+        &AppType::ClaudeDesktop,
+        &headers,
+    )
 }
 
 async fn handle_messages_for_app(
@@ -345,7 +494,17 @@ async fn handle_messages_for_app(
         .to_bytes();
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
-    let route = match resolve_route(&state, &app_type, "anthropic", &headers, &uri, &mut body) {
+    let client = extensions.get::<AppClient>().cloned();
+    let app_type_str = client.as_ref().map_or(app_type_str, |client| client.name);
+    let route = match resolve_route(
+        &state,
+        &app_type,
+        client.as_ref(),
+        "anthropic",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
         Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
@@ -1017,7 +1176,16 @@ pub async fn handle_chat_completions(
     let body_bytes = decode_codex_request_body(&mut headers, body_bytes)?;
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
-    let route = match resolve_route(&state, &AppType::Codex, "openai", &headers, &uri, &mut body) {
+    let client = extensions.get::<AppClient>().cloned();
+    let route = match resolve_route(
+        &state,
+        &AppType::Codex,
+        client.as_ref(),
+        "openai",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
         Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
@@ -1028,7 +1196,7 @@ pub async fn handle_chat_completions(
         &headers,
         AppType::Codex,
         "Codex",
-        "codex",
+        client.as_ref().map_or("codex", |client| client.name),
         route,
     )
     .await?;
@@ -1137,9 +1305,12 @@ async fn handle_responses_for_app(
     let body_bytes = decode_codex_request_body(&mut headers, body_bytes)?;
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
+    let client = extensions.get::<AppClient>().cloned();
+    let app_type_str = client.as_ref().map_or(app_type_str, |client| client.name);
     let route = match resolve_route(
         &state,
         &app_type,
+        client.as_ref(),
         "openai-response",
         &headers,
         &uri,
@@ -1393,7 +1564,15 @@ async fn handle_codex_standalone_passthrough(
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::InvalidRequest(format!("Failed to parse request body: {e}")))?;
 
-    let route = match resolve_route(&state, &AppType::Codex, "openai", &headers, &uri, &mut body) {
+    let route = match resolve_route(
+        &state,
+        &AppType::Codex,
+        None,
+        "openai",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
         Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
@@ -1487,6 +1666,7 @@ async fn handle_responses_compact_for_app(
     let route = match resolve_route(
         &state,
         &app_type,
+        None,
         "openai-response",
         &headers,
         &uri,
@@ -2652,9 +2832,11 @@ pub async fn handle_gemini(
             .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?
     };
 
+    let client = extensions.get::<AppClient>().cloned();
     let route = match resolve_route(
         &state,
         &AppType::Gemini,
+        client.as_ref(),
         "gemini",
         &headers,
         &uri,
@@ -2671,7 +2853,7 @@ pub async fn handle_gemini(
         &headers,
         AppType::Gemini,
         "Gemini",
-        "gemini",
+        client.as_ref().map_or("gemini", |client| client.name),
         route,
     )
     .await?

@@ -786,3 +786,215 @@ async fn bill_backfill_tags_the_row_and_fills_server_side_billing() {
     assert!(calls.load(std::sync::atomic::Ordering::SeqCst) >= 2);
     f.stop().await;
 }
+
+// ---- J-01：Tier 2 通用入口 /app/:client/... ----
+
+const APP_CLIENTS: [&str; 9] = [
+    "opencode", "openclaw", "hermes", "pi", "mcode", "kimi", "dsh", "omp", "agy",
+];
+
+fn logged_rows(db: &Arc<Database>, app: &str) -> i64 {
+    routing_support::connection(db)
+        .query_row(
+            "SELECT COUNT(*) FROM proxy_request_logs
+             WHERE app_type=?1 AND provider_id='aicli-main'",
+            [app],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+#[tokio::test]
+async fn app_client_entries_route_every_client_and_protocol_and_log_the_client() {
+    let f = Fixture::with_logging(true, true).await;
+    let gateway = routing_support::get_or_create_gateway_token(&f.db).unwrap();
+    let gemini_path = format!("v1beta/models/{PUBLIC}:generateContent");
+    let gemini_upstream = format!("/models/{UPSTREAM}:generateContent");
+    let cases = [
+        (
+            "v1/messages",
+            "/v1/messages",
+            json!({"model":PUBLIC,"stream":false,"max_tokens":20,"messages":[{"role":"user","content":"hi"}]}),
+        ),
+        (
+            "v1/chat/completions",
+            "/v1/chat/completions",
+            json!({"model":PUBLIC,"stream":false,"messages":[{"role":"user","content":"hi"}]}),
+        ),
+        (
+            "v1/responses",
+            "/v1/responses",
+            json!({"model":PUBLIC,"stream":false,"input":"hi"}),
+        ),
+        (
+            gemini_path.as_str(),
+            gemini_upstream.as_str(),
+            json!({"contents":[{"role":"user","parts":[{"text":"hi"}]}]}),
+        ),
+    ];
+    for client in APP_CLIENTS {
+        for (path, expected, body) in &cases {
+            f.capture.lock().unwrap().clear();
+            let response = f
+                .client()
+                .post(format!("{}/app/{client}/{path}", f.origin))
+                .header("x-api-key", &gateway)
+                .json(body)
+                .send()
+                .await
+                .unwrap();
+            let status = response.status();
+            let text = response.text().await.unwrap();
+            assert!(status.is_success(), "{client} {path}: {status} {text}");
+            let captured = f.capture.lock().unwrap().clone();
+            assert_eq!(captured.len(), 1, "{client} {path}");
+            assert!(
+                captured[0].path.ends_with(*expected),
+                "{client} {path}: {}",
+                captured[0].path
+            );
+            assert!(
+                !captured[0].path.contains("/app/"),
+                "{client} {path}: {}",
+                captured[0].path
+            );
+            if !path.starts_with("v1beta/") {
+                assert_eq!(captured[0].body["model"], UPSTREAM, "{client} {path}");
+            }
+        }
+        // 统计：四种协议各一行，app_type 是客户端自己，线路是种子 Provider。
+        for _ in 0..2000 {
+            if logged_rows(&f.db, client) >= 4 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+        assert_eq!(logged_rows(&f.db, client), 4, "{client}");
+    }
+    // 承载协议的 Tier 1 应用不记这些请求。
+    for carrier in ["claude", "codex", "gemini"] {
+        assert_eq!(logged_rows(&f.db, carrier), 0, "{carrier}");
+    }
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn app_client_models_use_the_requested_envelope_without_tier_one_aliases() {
+    let f = Fixture::new(true).await;
+    let gateway = routing_support::get_or_create_gateway_token(&f.db).unwrap();
+    for client in APP_CLIENTS {
+        for (query, anthropic) in [("", false), ("?limit=1000", true)] {
+            let response = f
+                .client()
+                .get(format!("{}/app/{client}/v1/models{query}", f.origin))
+                .header("x-api-key", &gateway)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200, "{client}{query}");
+            let body: Value = response.json().await.unwrap();
+            let data = body["data"].as_array().unwrap();
+            assert_eq!(data.len(), 1, "{client}{query}: {body}");
+            assert_eq!(data[0]["id"], PUBLIC, "{client}{query}");
+            if anthropic {
+                assert_eq!(data[0]["type"], "model");
+                assert_eq!(body["has_more"], false);
+            } else {
+                assert_eq!(body["object"], "list");
+                assert_eq!(data[0]["object"], "model");
+            }
+        }
+    }
+    assert!(f.capture.lock().unwrap().is_empty());
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn app_client_entries_reject_unknown_clients_and_never_use_a_legacy_provider() {
+    let f = Fixture::with_logging(true, true).await;
+    let body = json!({"model":PUBLIC,"stream":false,"max_tokens":20,"messages":[{"role":"user","content":"hi"}],"input":"hi","contents":[]});
+    // 未知 client（含 Tier 1 的名字）：404。
+    for client in [
+        "unknown",
+        "claude",
+        "codex",
+        "gemini",
+        "OpenCode",
+        "opencode2",
+    ] {
+        for path in [
+            "v1/messages".to_owned(),
+            "v1/chat/completions".to_owned(),
+            "v1/responses".to_owned(),
+            format!("v1beta/models/{PUBLIC}:generateContent"),
+        ] {
+            let response = f
+                .client()
+                .post(format!("{}/app/{client}/{path}", f.origin))
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 404, "{client} {path}");
+            assert_eq!(
+                response.json::<Value>().await.unwrap()["error"]["code"],
+                "unknown_client",
+                "{client} {path}"
+            );
+        }
+        let response = f
+            .client()
+            .get(format!("{}/app/{client}/v1/models", f.origin))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 404, "{client} models");
+    }
+    // 已知 client：配置集里没有的模型、以及不带模型的请求，都不回落到旧 Provider。
+    let missing = f
+        .client()
+        .post(format!("{}/app/opencode/v1/chat/completions", f.origin))
+        .json(&json!({"model":"missing","messages":[]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), 400);
+    assert_eq!(
+        missing.json::<Value>().await.unwrap()["error"]["code"],
+        "model_not_in_profile"
+    );
+    let no_model = f
+        .client()
+        .get(format!("{}/app/opencode/v1beta/models", f.origin))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(no_model.status(), 400);
+    assert_eq!(
+        no_model.json::<Value>().await.unwrap()["error"]["code"],
+        "model_not_in_profile"
+    );
+    assert!(f.capture.lock().unwrap().is_empty());
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn app_client_entries_follow_the_clients_own_profile_binding() {
+    let f = Fixture::new(true).await;
+    // Codex 绑到一个不存在的配置集；opencode 没有自己的绑定，仍用账户默认配置集。
+    routing_support::connection(&f.db)
+        .execute(
+            "INSERT INTO aicli_scope_binding(scope,scope_key,profile_id) VALUES('app','codex','absent')",
+            [],
+        )
+        .unwrap();
+    let send = |path: &'static str| {
+        let request = f.client().post(format!("{}{path}", f.origin)).json(
+            &json!({"model":PUBLIC,"stream":false,"messages":[{"role":"user","content":"hi"}]}),
+        );
+        async move { request.send().await.unwrap().status() }
+    };
+    assert_eq!(send("/v1/chat/completions").await, 400);
+    assert_eq!(send("/app/opencode/v1/chat/completions").await, 200);
+    f.stop().await;
+}

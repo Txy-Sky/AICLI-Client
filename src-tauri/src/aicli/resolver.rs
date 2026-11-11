@@ -252,6 +252,21 @@ pub fn resolve(
     uri: &str,
     body: &mut Value,
 ) -> Result<Resolved, ResolveError> {
+    resolve_for(runtime, app, app, client_protocol, headers, uri, body)
+}
+
+/// J-01: `/app/:client/...` requests keep the client's own identity (`app`:
+/// alias, session pin, scope binding) but borrow the seed Provider of the app
+/// whose adapter speaks the endpoint's protocol (`carrier`).
+pub fn resolve_for(
+    runtime: &AicliRuntime,
+    app: &AppType,
+    carrier: &AppType,
+    client_protocol: &str,
+    headers: &HeaderMap,
+    uri: &str,
+    body: &mut Value,
+) -> Result<Resolved, ResolveError> {
     if !runtime.bound_for_routing()? {
         return Ok(Resolved::NotBound);
     }
@@ -295,7 +310,7 @@ pub fn resolve(
     };
     resolve_profile(
         runtime,
-        app,
+        carrier,
         client_protocol,
         body,
         &public_model,
