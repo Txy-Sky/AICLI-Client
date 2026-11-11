@@ -1,0 +1,40 @@
+J-01 通用入口 /app/:client/...（2026-11-11，实现提交 c066e84c）
+
+## 实现
+
+- proxy/server.rs 新增 5 条路由：/app/:client/v1/messages、/v1/chat/completions、
+  /v1/responses（均 POST）、/v1/models（GET）、/v1beta/*path（任意方法）。
+- proxy/handlers.rs：入口先校验 client（opencode|openclaw|hermes|pi|mcode|kimi|dsh|omp|agy，
+  其余 404，错误码 unknown_client），把客户端身份放进请求扩展，去掉 /app/<client> 前缀后
+  交给原有的协议处理函数。
+- 路径决定协议，并按协议借用 Tier 1 应用的适配器和种子 Provider：anthropic → Claude，
+  openai / openai-response → Codex，gemini → Gemini。
+- aicli/resolver.rs 新增 resolve_for(identity, carrier, ...)：别名、会话固定、作用域绑定
+  （配置集）按客户端身份；种子 Provider 按承载应用。原 resolve 等价于两者相同。
+- 统计：proxy_request_logs.app_type 记客户端自己的名字，provider_id 仍是 aicli-<线路>。
+- 已知 client 的请求如果解析不出可路由的模型（Resolved::Plain），返回 400
+  model_not_in_profile，不回落到旧 Provider。
+- scripts/aicli-item-tests.sh 登记 J-01-app-entry。
+
+## 测试（src-tauri/tests/aicli_routing.rs，feature test-hooks）
+
+- app_client_entries_route_every_client_and_protocol_and_log_the_client
+  9 个 client × 4 种协议各一条请求：上游收到 1 次、路径不含 /app/、模型改写为上游名；
+  每个 client 的统计行数为 4（app_type=client，provider_id=aicli-main）；
+  claude / codex / gemini 名下为 0 行。
+- app_client_models_use_the_requested_envelope_without_tier_one_aliases
+  9 个 client 的模型列表，OpenAI 与 Anthropic 两种信封，模型 id 不带 Tier 1 别名前缀。
+- app_client_entries_reject_unknown_clients_and_never_use_a_legacy_provider
+  unknown / claude / codex / gemini / OpenCode / opencode2 在 5 条路由上都是 404；
+  已知 client 的未知模型、不带模型的 GET /v1beta/models 都是 400，且没有任何请求到达上游。
+- app_client_entries_follow_the_clients_own_profile_binding
+  Codex 绑到不存在的配置集时 /v1/chat/completions 为 400，/app/opencode/... 仍为 200。
+
+## CI
+
+run 43010550058（headSha c066e84c，五个 job 全部 success）
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43010550058
+- J-01-app-entry：4 个测试 PASS（4/4）。
+- C3-03-routing（aicli_routing 整个文件）：15 个测试全部 PASS。
+- A3-01 基线：4537 tests run: 4537 passed, 9 skipped。
+- 本机（2 GB 内存）未编译、未运行，结论全部来自 CI。

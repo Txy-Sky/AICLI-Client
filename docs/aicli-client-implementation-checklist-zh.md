@@ -989,10 +989,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## J. 阶段 J：Tier 2 客户端
 
 ### J-01 通用入口
-- [ ] 完成
+- [x] 完成
 - 修改：`proxy/server.rs` 增加 `/app/:client/v1/messages`、`/app/:client/v1/chat/completions`、`/app/:client/v1/responses`、`/app/:client/v1/models`、`/app/:client/v1beta/*path`。路径决定协议；`client` 必须是 `opencode|openclaw|hermes|pi|mcode|kimi|dsh|omp|agy`，否则 404，只用于统计 `app_type`。对 `get_adapter` 返回 None 的 app（`providers/mod.rs:279-284`），AICLI 路径按**协议**选适配器：anthropic → `ClaudeAdapter`，openai/responses → `CodexAdapter`，gemini → `GeminiAdapter`。
 - 验收：对每个 client 和每种协议各一条测试，使用种子 Provider，确认命中和统计；未知 client 返回 404。
-- 证据：
+- 证据：c066e84c | `scripts/aicli-item-tests.sh` 的 `J-01-app-entry`（`cargo nextest run --features test-hooks --test aicli_routing app_client`） | 4 passed；aicli_routing 全文件 15 passed；9 个 client × 4 种协议命中并按 client 记统计，未知 client 404 | `docs/aicli-evidence/J-01.txt`；CI run 43010550058 success https://github.com/Txy-Sky/AICLI-Client/actions/runs/43010550058
 
 ### J-02～J-10 逐个客户端
 每个客户端都按同样步骤做。先读其配置写入器，用种子 Provider 通过 `services/provider/live.rs::write_live_snapshot`（或其专用入口）写入，`base_url` 指向 `http://127.0.0.1:15821/app/<client>/...`，key 使用本地令牌，**绝不写入真实 Token**。接管和还原走 C3-10 的同一套（逐字节一致）。
@@ -1066,6 +1066,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
+| J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
 | G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 第 3 项与翻译键已关闭：负责人于 2026-11-11 决定名称扫描只查用户可见部分、残留供应商键清掉、OAuth 认证模式文案保留；已按此执行（09fa60cc）并重跑通过。第 1 项：负责人于 2026-11-11 决定界面走查截图先跳过，门禁放行；该项未做，留到 K-04 交付摘要列出。已关闭。 |
 | F-07～F-11、G-01/G-02（2026-11-09 界面修订） | 负责人试用后提出：脱敏无入口、侧栏客户端列表占空间、用量页新卡片风格不统一、未绑定直接进入应用、配置集名不显示中文、仍有供应商残留。 | 新增 F-07～F-11（插在 F-GATE 前），G-01/G-02 在 F-GATE 前执行；方案见各项条款。 | 负责人于 2026-11-09 决定：侧栏合并为一个「客户端」入口；隐私脱敏做侧栏独立页（参考 Magpie）；G-01/G-02 本次完成、G-03/G-04 仍按原顺序；违反第 0.2 节第 1 条阶段顺序由负责人批准。已关闭。 |
 | C1-09（CI 夹具） | 初轮推荐预设无自动分组；共用安全测试环境取钥限流；独立环境的种子渠道未同步到内存缓存；桌面链接曾耗尽磁盘。 | 失败和安全诊断记录见 C1-09.txt、第 13 节。修正夹具预设、独立 Compose 预算、HTTP 临时渠道创建/删除初始化缓存，并限制 CI 调试元数据体积。最终 0b0953b2 的 run 41766760053 四 job 及汇总全部 success。 | 已关闭并验收；未放宽任何断言，未改 new-api 或限流设置，未加入等待/重启/请求重试。 |
@@ -1094,6 +1095,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| J-01（适配器选择方式） | 对 `get_adapter` 返回 None 的 app，AICLI 路径按协议选适配器。 | 没有改 `get_adapter`。`/app/:client` 请求整条转发链路使用承载协议的 Tier 1 应用（anthropic → Claude，openai/responses → Codex，gemini → Gemini）及其种子 Provider，client 只作为身份（配置集绑定、会话固定、别名）和统计的 `app_type`。OpenCode、OpenClaw、Hermes 在该入口下同样按协议选适配器，不固定用 Codex 适配器。 | 转发器、凭证注入、整流等大量逻辑按 `AppType` 分支，只换适配器不够；按协议承载与清单「路径决定协议」一致。 |
+| J-01（不带模型的请求） | 清单未规定。 | `/app/:client` 下解析不出可路由模型的请求（如 Gemini 的 `GET /v1beta/models`）返回 400 `model_not_in_profile`，不回落到旧 Provider；Tier 1 入口行为不变。 | Tier 2 客户端没有可回落的 AICLI 旧 Provider，回落会用到用户自己的旧供应商配置。是否需要为 Gemini 协议提供模型列表，留待 J-02～J-10 真实客户端测试确认。 |
 | G-GATE（名称扫描范围与翻译键清理） | 第 3 项要求预设中的第三方中转名称在 `src`、`src-tauri/src` 全量 grep 无结果；B-07 白名单内联在工作流里，只放行 G-01/G-02/G-04 列出的命名空间和键。 | 名称扫描收窄为 `src/i18n` 与前端界面字符串。五种语言删除 214 个未被代码引用的供应商键（tr 191 个）及因此变空的对象；路径含 oauth 的 5 个键保留。B-07 白名单新增一个来源：`scripts/aicli-b07-removed-keys.txt`（172 条路径）。仍被引用的含「供应商」文案（37 行）未改写。 | 负责人 2026-11-11 决定。全量扫描与保留统一会话迁移、官方账号后端、代理兼容代码的既有决定冲突，且名单混有模型名和客户端名。 |
 | F-02/F-04 → F-08（侧栏与客户端页） | F-02 侧栏逐个列应用；F-04 应用页从侧栏应用行进入。 | 侧栏只保留一个「客户端」入口（行尾已接管数量、需要处理时红点），新增全局页 `clients`（客户端总览：支持接管的卡片、其他客户端、即将支持）；应用详情页页头加返回按钮；⋯ 菜单「从侧栏隐藏」改为「从客户端列表隐藏」。总览卡片不显示本机是否已安装（需逐个调用版本命令，较慢），改由页头「安装与升级」进入原「应用」页。接管流程抽成 `useAicliTakeoverFlow` 供详情页与总览共用。 | 负责人 2026-11-09：侧栏客户端列表占空间且各页内容相近，选定合并为一个入口加卡片网格。 |
 | F-06 → F-09（隐私设置位置与记录口径） | F-06 规定隐私设置在「设置 → 本地路由」。 | 隐私开关、失败模式、未扫描媒体、自定义词与规则移到侧栏「隐私脱敏」页（组件原样搬出，失败模式仍为原生下拉、改用输入框外观），本地路由只留入口与凭据后端降级提示。记录中的线路取请求时运行时选中的线路（故障转移后实际线路可能不同）；响应方向的压缩流阻断仍只计数、不记录。 | 负责人 2026-11-09 要求脱敏有独立入口并参考 Magpie；按请求记录线路需在处理器里回填，首版取选中线路。 |
