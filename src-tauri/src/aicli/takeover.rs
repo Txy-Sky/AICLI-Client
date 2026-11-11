@@ -894,24 +894,6 @@ mod tests {
             assert!(status(&state).unwrap().is_empty());
         }
     }
-    /// J-02: the shared fixture's models only list the Tier 1 protocols.
-    fn allow_openai(state: &AppState) {
-        let conn = state.db.conn.lock().unwrap();
-        let body: String = conn
-            .query_row(
-                "SELECT body_json FROM aicli_cache WHERE kind='pricing'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        let body = body.replace("\"openai-response\"", "\"openai\",\"openai-response\"");
-        assert!(body.contains("\"openai\","));
-        conn.execute(
-            "UPDATE aicli_cache SET body_json=?1 WHERE kind='pricing'",
-            [body],
-        )
-        .unwrap();
-    }
     #[tokio::test]
     #[serial_test::serial]
     async fn tier2_opencode_writes_only_the_local_provider_and_restores_exact_bytes() {
@@ -929,7 +911,6 @@ mod tests {
         ] {
             let _home = Home::new();
             let state = fixture().await;
-            allow_openai(&state);
             let store = MemoryStore::default();
             let dir = crate::opencode_config::get_opencode_dir();
             if let Some((name, text)) = original {
@@ -988,7 +969,17 @@ mod tests {
         let _home = Home::new();
         let state = fixture().await;
         let store = MemoryStore::default();
-        // 夹具的模型没有 openai 协议：没有可投影的模型，客户端文件不动。
+        // 客户端绑到一个不存在的配置集：没有可投影的模型，客户端文件不动。
+        state
+            .db
+            .conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO aicli_scope_binding VALUES('app','opencode','absent')",
+                [],
+            )
+            .unwrap();
         assert_eq!(
             take_over(&state, &store, &AppType::OpenCode, false).await,
             Err(TakeoverError::NoModels)
@@ -998,7 +989,6 @@ mod tests {
             .files
             .iter()
             .all(Option::is_none));
-        allow_openai(&state);
         // 还没通过 J 阶段验收的 Tier 2 客户端不提供接管。
         for app in [AppType::Hermes, AppType::Pi, AppType::Agy] {
             assert_eq!(
