@@ -15,6 +15,7 @@ pub(crate) mod schema;
 pub mod secrets;
 pub mod seed;
 pub mod takeover;
+pub mod tier;
 pub mod tokens;
 pub mod usage;
 

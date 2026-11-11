@@ -5,6 +5,7 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
 use super::secrets::SecretStore;
+use super::tier;
 use crate::{
     app_config::AppType,
     live::{
@@ -63,11 +64,13 @@ struct Snapshot {
 fn index(app: &AppType) -> Result<usize, TakeoverError> {
     controller::PROXY_APPS
         .iter()
+        .chain(&tier::TIER2_SUPPORTED)
         .position(|a| a == app)
         .ok_or(TakeoverError::Unsupported)
 }
 fn lock(app: &AppType) -> Result<&'static tokio::sync::Mutex<()>, TakeoverError> {
-    static LOCKS: OnceLock<[tokio::sync::Mutex<()>; 5]> = OnceLock::new();
+    // One lock per app that can ever be taken over (5 Tier 1 + up to 9 Tier 2).
+    static LOCKS: OnceLock<[tokio::sync::Mutex<()>; 14]> = OnceLock::new();
     Ok(&LOCKS.get_or_init(|| std::array::from_fn(|_| tokio::sync::Mutex::new(())))[index(app)?])
 }
 fn account(app: &AppType) -> String {
@@ -91,6 +94,11 @@ fn files(app: &AppType) -> Result<Vec<PathBuf>, TakeoverError> {
         AppType::GrokBuild => vec![crate::grok_config::get_grok_config_path()],
         AppType::ClaudeDesktop => crate::claude_desktop_config::takeover_file_paths()
             .map_err(|_| TakeoverError::Client)?,
+        // Both names OpenCode may read: the writer edits whichever exists.
+        AppType::OpenCode => {
+            let dir = crate::opencode_config::get_opencode_dir();
+            vec![dir.join("opencode.jsonc"), dir.join("opencode.json")]
+        }
         _ => return Err(TakeoverError::Unsupported),
     })
 }
@@ -183,15 +191,26 @@ pub async fn take_over(
         .aicli_runtime()
         .await
         .unwrap_or_else(|| super::runtime::AicliRuntime::new(state.db.clone()));
-    let seed = state
-        .db
-        .get_provider_by_id("aicli-main", app.as_str())
-        .map_err(|_| TakeoverError::State)?
-        .ok_or(TakeoverError::State)?;
     let projection = runtime
         .cached_projection()
         .map_err(|_| TakeoverError::State)?;
-    prepare_projection(&state.db, app, &projection, seed)?;
+    // Tier 2 has no seed row or route mode: only the model list is needed.
+    let tier2_models = if tier::is_tier2(app) {
+        Some(routable_models(
+            &state.db,
+            app,
+            &projection,
+            tier::tier2_protocol(app),
+        )?)
+    } else {
+        let seed = state
+            .db
+            .get_provider_by_id("aicli-main", app.as_str())
+            .map_err(|_| TakeoverError::State)?
+            .ok_or(TakeoverError::State)?;
+        prepare_projection(&state.db, app, &projection, seed)?;
+        None
+    };
     let previous = current(state, app)?;
     if matches!(previous.as_deref(), Some("releasing")) {
         return Err(TakeoverError::State);
@@ -215,6 +234,10 @@ pub async fn take_over(
         .is_none()
     {
         return Err(TakeoverError::Backup);
+    }
+    if let Some(models) = tier2_models {
+        project_tier2(state, app, &models).await?;
+        return set_state(state, app, "active");
     }
     controller::enter_with_route(state, app, false, Some("aicli-main"))
         .await
@@ -256,6 +279,28 @@ pub async fn release(
         return Err(TakeoverError::Backup);
     }
     set_state(state, app, "releasing")?;
+    if tier::is_tier2(app) {
+        // No route mode to leave: put every file back exactly, then let the
+        // proxy stop if this was its last user.
+        for (path, expected) in paths.iter().zip(&snap.files) {
+            match expected {
+                Some(bytes) => {
+                    crate::config::atomic_write(path, bytes).map_err(|_| TakeoverError::Client)?
+                }
+                None => match std::fs::remove_file(path) {
+                    Ok(()) => (),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                    Err(_) => return Err(TakeoverError::Client),
+                },
+            }
+            if read_current(path).map_err(|_| TakeoverError::Client)? != *expected {
+                return Err(TakeoverError::Verification);
+            }
+        }
+        finish_release(state, store, app)?;
+        controller::stop_server_if_unused(state).await;
+        return Ok(());
+    }
     controller::exit(state, app)
         .await
         .map_err(|_| TakeoverError::Client)?;
@@ -306,6 +351,13 @@ pub async fn startup(state: &AppState, store: &dyn SecretStore) -> Result<(), Ta
         match row.state.as_str() {
             "taking_over" => take_over(state, store, &app, true).await?,
             "releasing" | "released" => release(state, store, &app).await?,
+            // Tier 2 has no mode state to resume from: bring the proxy back and
+            // refresh the client file (the port or the model list may have changed).
+            "active" if tier::is_tier2(&app) => {
+                if resync_tier2(state, &app).await.is_err() {
+                    log::warn!("AICLI Tier 2 client projection could not be resumed at startup");
+                }
+            }
             "active" => (),
             _ => return Err(TakeoverError::State),
         }
@@ -313,13 +365,14 @@ pub async fn startup(state: &AppState, store: &dyn SecretStore) -> Result<(), Ta
     Ok(())
 }
 
-/// Keyless seed rows are enriched with public model facts and local credentials only.
-pub(crate) fn prepare_projection(
+/// The public models of the client's selected profile that can be reached over
+/// `protocol`, sorted. An empty list is an error: nothing could be projected.
+fn routable_models(
     db: &crate::Database,
     app: &AppType,
     snapshot: &super::runtime::RoutesSnapshot,
-    mut provider: crate::provider::Provider,
-) -> Result<crate::provider::Provider, TakeoverError> {
+    protocol: &str,
+) -> Result<Vec<String>, TakeoverError> {
     let mut selected = None;
     {
         let conn = db.conn.lock().map_err(|_| TakeoverError::State)?;
@@ -345,11 +398,6 @@ pub(crate) fn prepare_projection(
         .get(&selected)
         .ok_or(TakeoverError::NoModels)?;
     let catalog = snapshot.catalog.as_ref().ok_or(TakeoverError::NoModels)?;
-    let protocol = match app {
-        AppType::Claude | AppType::ClaudeDesktop => "anthropic",
-        AppType::Gemini => "gemini",
-        _ => "openai-response",
-    };
     let mut models = entry
         .compiled
         .routes
@@ -391,6 +439,22 @@ pub(crate) fn prepare_projection(
         }
         return Err(TakeoverError::NoModels);
     }
+    Ok(models)
+}
+
+/// Keyless seed rows are enriched with public model facts and local credentials only.
+pub(crate) fn prepare_projection(
+    db: &crate::Database,
+    app: &AppType,
+    snapshot: &super::runtime::RoutesSnapshot,
+    mut provider: crate::provider::Provider,
+) -> Result<crate::provider::Provider, TakeoverError> {
+    let protocol = match app {
+        AppType::Claude | AppType::ClaudeDesktop => "anthropic",
+        AppType::Gemini => "gemini",
+        _ => "openai-response",
+    };
+    let models = routable_models(db, app, snapshot, protocol)?;
     // Claude/Codex/Gemini retain the existing projection path.
     if !matches!(app, AppType::GrokBuild | AppType::ClaudeDesktop) {
         return Ok(provider);
@@ -479,6 +543,82 @@ fn choose_grok_model<'a>(models: &'a [String], previous: Option<&str>) -> Option
         .or_else(|| models.iter().find(|m| m.to_lowercase().contains("grok")))
         .or_else(|| models.first())
         .map(String::as_str)
+}
+
+/// Write the client's own `aicli` provider: local proxy address under
+/// `/app/<client>`, the local token, and the profile's models. No upstream
+/// credential ever reaches a client file.
+async fn project_tier2(
+    state: &AppState,
+    app: &AppType,
+    models: &[String],
+) -> Result<(), TakeoverError> {
+    if !state.proxy_service.is_running().await {
+        state
+            .proxy_service
+            .start()
+            .await
+            .map_err(|_| TakeoverError::Client)?;
+    }
+    let (origin, _) = state
+        .proxy_service
+        .build_proxy_urls()
+        .await
+        .map_err(|_| TakeoverError::Client)?;
+    let token =
+        super::local_auth::token_for(&state.db, app.as_str()).map_err(|_| TakeoverError::State)?;
+    let written = match app {
+        AppType::OpenCode => crate::opencode_config::set_provider_with_format(
+            TIER2_PROVIDER_ID,
+            serde_json::json!({
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "AICLI",
+                "options": {
+                    "baseURL": format!("{origin}/app/{}/v1", app.as_str()),
+                    "apiKey": token,
+                },
+                "models": models
+                    .iter()
+                    .map(|model| (model.clone(), serde_json::json!({ "name": model })))
+                    .collect::<serde_json::Map<_, _>>(),
+            }),
+            crate::provider::OpenCodeConfigFormat::V1,
+        ),
+        _ => return Err(TakeoverError::Unsupported),
+    };
+    written.map_err(|error| {
+        log::error!(
+            "AICLI Tier 2 client projection failed: {}",
+            crate::error_for_log(&error.to_string())
+        );
+        TakeoverError::Client
+    })
+}
+
+/// The provider id AICLI owns inside a Tier 2 client's config.
+pub(crate) const TIER2_PROVIDER_ID: &str = "aicli";
+
+/// Recompute the model list and rewrite an already taken-over Tier 2 client.
+async fn resync_tier2(state: &AppState, app: &AppType) -> Result<(), TakeoverError> {
+    let _guard = lock(app)?.lock().await;
+    if !is_managed(&state.db, app) {
+        return Ok(());
+    }
+    let runtime = state
+        .proxy_service
+        .aicli_runtime()
+        .await
+        .unwrap_or_else(|| super::runtime::AicliRuntime::new(state.db.clone()));
+    let projection = runtime
+        .cached_projection()
+        .map_err(|_| TakeoverError::State)?;
+    let models = routable_models(&state.db, app, &projection, tier::tier2_protocol(app))?;
+    project_tier2(state, app, &models).await
+}
+
+/// A Tier 2 takeover keeps the proxy alive even when no Tier 1 app routes.
+pub(crate) fn any_tier2_managed(db: &crate::Database) -> bool {
+    tier::TIER2_SUPPORTED.iter().any(|app| is_managed(db, app))
 }
 
 pub(crate) fn is_managed(db: &crate::Database, app: &AppType) -> bool {
@@ -580,6 +720,13 @@ pub(crate) fn watch_projection_changes(
                     && controller::resync_route(&state, &app).await.is_err()
                 {
                     log::warn!("AICLI client projection refresh failed; retaining existing backup");
+                }
+            }
+            for app in tier::TIER2_SUPPORTED {
+                if is_managed(&state.db, &app) && resync_tier2(&state, &app).await.is_err() {
+                    log::warn!(
+                        "AICLI Tier 2 client projection refresh failed; keeping the last one"
+                    );
                 }
             }
         }
@@ -746,6 +893,122 @@ mod tests {
             assert!(store.get(&account(&app)).unwrap().is_none());
             assert!(status(&state).unwrap().is_empty());
         }
+    }
+    /// J-02: the shared fixture's models only list the Tier 1 protocols.
+    fn allow_openai(state: &AppState) {
+        let conn = state.db.conn.lock().unwrap();
+        let body: String = conn
+            .query_row(
+                "SELECT body_json FROM aicli_cache WHERE kind='pricing'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let body = body.replace("\"openai-response\"", "\"openai\",\"openai-response\"");
+        assert!(body.contains("\"openai\","));
+        conn.execute(
+            "UPDATE aicli_cache SET body_json=?1 WHERE kind='pricing'",
+            [body],
+        )
+        .unwrap();
+    }
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn tier2_opencode_writes_only_the_local_provider_and_restores_exact_bytes() {
+        let app = AppType::OpenCode;
+        for original in [
+            None,
+            Some((
+                "opencode.json",
+                "{\n  \"theme\": \"keep\",\n  \"provider\": {\"mine\": {\"npm\": \"own\"}}\n}\n",
+            )),
+            Some((
+                "opencode.jsonc",
+                "// keep this comment\n{\n  \"theme\": \"keep\"\n}\n",
+            )),
+        ] {
+            let _home = Home::new();
+            let state = fixture().await;
+            allow_openai(&state);
+            let store = MemoryStore::default();
+            let dir = crate::opencode_config::get_opencode_dir();
+            if let Some((name, text)) = original {
+                std::fs::create_dir_all(&dir).unwrap();
+                std::fs::write(dir.join(name), text).unwrap();
+            }
+            let before = snapshot(&app).unwrap();
+
+            take_over(&state, &store, &app, false).await.unwrap();
+            let text = managed_client_text(&app);
+            let (origin, _) = state.proxy_service.build_proxy_urls().await.unwrap();
+            assert!(
+                text.contains(&format!("{origin}/app/opencode/v1")),
+                "{original:?}: {text}"
+            );
+            let token = super::super::local_auth::token_for(&state.db, "opencode").unwrap();
+            assert!(text.contains(&token), "{original:?}");
+            assert!(!text.contains("sk-"), "{original:?}");
+            assert!(!text.contains("fixture-access-token"), "{original:?}");
+            assert!(text.contains("\"alpha\""), "{original:?}: {text}");
+            assert!(text.contains("@ai-sdk/openai-compatible"), "{original:?}");
+            if original.is_some() {
+                assert!(text.contains("keep"), "{original:?}: {text}");
+            }
+            // 只写入其中一个文件名：原来有哪个就改哪个。
+            let written = snapshot(&app).unwrap().files;
+            assert_eq!(written.iter().flatten().count(), 1, "{original:?}");
+            assert_eq!(
+                written[0].is_some(),
+                matches!(original, Some(("opencode.jsonc", _))),
+                "{original:?}"
+            );
+            let rows = status(&state).unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(
+                (rows[0].app.as_str(), rows[0].state.as_str()),
+                ("opencode", "active")
+            );
+            assert!(state.proxy_service.is_running().await);
+            assert!(store.get(&account(&app)).unwrap().is_some());
+
+            // 再接管一次（如启动时续接）不重新备份，还原仍回到最初的字节。
+            take_over(&state, &store, &app, false).await.unwrap();
+
+            release(&state, &store, &app).await.unwrap();
+            assert_eq!(snapshot(&app).unwrap().files, before.files, "{original:?}");
+            assert!(store.get(&account(&app)).unwrap().is_none());
+            assert!(status(&state).unwrap().is_empty());
+            // Tier 2 是代理的最后一个使用者：还原后代理停掉。
+            assert!(!state.proxy_service.is_running().await);
+        }
+    }
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn tier2_takeover_needs_routable_models_and_a_supported_client() {
+        let _home = Home::new();
+        let state = fixture().await;
+        let store = MemoryStore::default();
+        // 夹具的模型没有 openai 协议：没有可投影的模型，客户端文件不动。
+        assert_eq!(
+            take_over(&state, &store, &AppType::OpenCode, false).await,
+            Err(TakeoverError::NoModels)
+        );
+        assert!(snapshot(&AppType::OpenCode)
+            .unwrap()
+            .files
+            .iter()
+            .all(Option::is_none));
+        allow_openai(&state);
+        // 还没通过 J 阶段验收的 Tier 2 客户端不提供接管。
+        for app in [AppType::Hermes, AppType::Pi, AppType::Agy] {
+            assert_eq!(
+                take_over(&state, &store, &app, false).await,
+                Err(TakeoverError::Unsupported),
+                "{}",
+                app.as_str()
+            );
+        }
+        assert!(status(&state).unwrap().is_empty());
     }
     #[test]
     fn grok_default_selection_three_levels() {
