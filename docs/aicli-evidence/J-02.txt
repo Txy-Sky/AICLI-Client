@@ -58,3 +58,21 @@ J-02 OpenCode（2026-11-11；后端完成，真实客户端验收未做）
   不支持 gemini 线协议）。
 - 「关闭本地路由」（exit_all）会停掉代理，此时已接管的 OpenCode 仍指向本地代理，
   需要重新进入或停止接管。
+
+---------------------------------------------------------------------------
+2026-11-11 更新：界面开放 OpenCode 接管（负责人决定）
+
+负责人决定现在就把 OpenCode 加入界面的可接管列表，供测试机通过按钮做真实客户端验收；
+真实客户端不通过再回退为「暂不支持」。
+
+- e2026a6d：AICLI_TAKEOVER_APPS 加入 opencode；protocolForApp("opencode") = "openai"；
+  客户端总览与详情页的测试同步更新。
+- run 43023112121（e2026a6d）：failure。类型检查与其余单测通过；失败的只有
+  AicliClientPage「does not offer takeover for clients AICLI cannot take over」，
+  该用例原本用 OpenCode 作「不可接管」的例子。
+- 859b08be：该用例改用 Kimi；同一提交加入交接单 docs/aicli-handover/J-02.md。
+- run 43024563886（859b08be）：success，五个 job 全过；前端 129 个文件 / 1283 个测试通过。
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/43024563886
+- 审查方没有在真实界面里看过 OpenCode 的卡片和详情页。
+
+验收 3（真实 OpenCode）仍未做，J-02 保持 [!]，等测试机按交接单执行。
