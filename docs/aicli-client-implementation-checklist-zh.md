@@ -1005,7 +1005,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 编号 | 客户端 | 写入器 | 状态 | 证据 |
 |---|---|---|---|---|
-| J-02 | OpenCode | `opencode_config.rs` | [ ] | |
+| J-02 | OpenCode | `opencode_config.rs` | [!] | 后端完成：验收 1、2 通过（15f584ef，`J-02-opencode-unit` 2 passed，CI run 43015679721 success）；验收 3（真实 OpenCode）未做，见第 12 节。`docs/aicli-evidence/J-02.txt` |
 | J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [ ] | |
 | J-04 | Hermes | `hermes_config.rs::set_provider` | [ ] | |
 | J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [ ] | |
@@ -1066,6 +1066,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
+| J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | 负责人决定：① 是否现在把 OpenCode 加入界面的可接管列表供测试机验收（不通过再回退），还是由测试的人用开发者工具调用接管命令；② 之后由 H-02 测试机执行真实客户端验收。 |
 | J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
 | G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 第 3 项与翻译键已关闭：负责人于 2026-11-11 决定名称扫描只查用户可见部分、残留供应商键清掉、OAuth 认证模式文案保留；已按此执行（09fa60cc）并重跑通过。第 1 项：负责人于 2026-11-11 决定界面走查截图先跳过，门禁放行；该项未做，留到 K-04 交付摘要列出。已关闭。 |
 | F-07～F-11、G-01/G-02（2026-11-09 界面修订） | 负责人试用后提出：脱敏无入口、侧栏客户端列表占空间、用量页新卡片风格不统一、未绑定直接进入应用、配置集名不显示中文、仍有供应商残留。 | 新增 F-07～F-11（插在 F-GATE 前），G-01/G-02 在 F-GATE 前执行；方案见各项条款。 | 负责人于 2026-11-09 决定：侧栏合并为一个「客户端」入口；隐私脱敏做侧栏独立页（参考 Magpie）；G-01/G-02 本次完成、G-03/G-04 仍按原顺序；违反第 0.2 节第 1 条阶段顺序由负责人批准。已关闭。 |
@@ -1095,6 +1096,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| J-02（Tier 2 的接管路径） | 用种子 Provider 通过 `write_live_snapshot`（或专用入口）写入；接管和还原走 C3-10 的同一套。 | Tier 2 没有路由模式也没有种子 Provider 行，不经模式控制器和 `write_live_snapshot`：直接用 `opencode_config::set_provider_with_format` 写一个 `aicli` 提供方（Chat Completions，`/app/opencode/v1`，本地令牌）；备份、状态机、逐字节还原与 C3-10 共用。新增 `aicli/tier.rs`；已接管的 Tier 2 客户端让代理保持运行，启动和配置集变化时刷新写入内容。不改用户的默认模型。 | 模式控制器只支持有路由模式的 5 个应用；`aicli/seed.rs` 对 Tier 2 应用没有种子行（J-01 按协议借用 Tier 1 的种子）。 |
 | J-01（适配器选择方式） | 对 `get_adapter` 返回 None 的 app，AICLI 路径按协议选适配器。 | 没有改 `get_adapter`。`/app/:client` 请求整条转发链路使用承载协议的 Tier 1 应用（anthropic → Claude，openai/responses → Codex，gemini → Gemini）及其种子 Provider，client 只作为身份（配置集绑定、会话固定、别名）和统计的 `app_type`。OpenCode、OpenClaw、Hermes 在该入口下同样按协议选适配器，不固定用 Codex 适配器。 | 转发器、凭证注入、整流等大量逻辑按 `AppType` 分支，只换适配器不够；按协议承载与清单「路径决定协议」一致。 |
 | J-01（不带模型的请求） | 清单未规定。 | `/app/:client` 下解析不出可路由模型的请求（如 Gemini 的 `GET /v1beta/models`）返回 400 `model_not_in_profile`，不回落到旧 Provider；Tier 1 入口行为不变。 | Tier 2 客户端没有可回落的 AICLI 旧 Provider，回落会用到用户自己的旧供应商配置。是否需要为 Gemini 协议提供模型列表，留待 J-02～J-10 真实客户端测试确认。 |
 | G-GATE（名称扫描范围与翻译键清理） | 第 3 项要求预设中的第三方中转名称在 `src`、`src-tauri/src` 全量 grep 无结果；B-07 白名单内联在工作流里，只放行 G-01/G-02/G-04 列出的命名空间和键。 | 名称扫描收窄为 `src/i18n` 与前端界面字符串。五种语言删除 214 个未被代码引用的供应商键（tr 191 个）及因此变空的对象；路径含 oauth 的 5 个键保留。B-07 白名单新增一个来源：`scripts/aicli-b07-removed-keys.txt`（172 条路径）。仍被引用的含「供应商」文案（37 行）未改写。 | 负责人 2026-11-11 决定。全量扫描与保留统一会话迁移、官方账号后端、代理兼容代码的既有决定冲突，且名单混有模型名和客户端名。 |

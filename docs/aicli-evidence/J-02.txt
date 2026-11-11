@@ -1,0 +1,60 @@
+J-02 OpenCode（2026-11-11；后端完成，真实客户端验收未做）
+
+实现提交：f205f033（后端）、15f584ef（修正一个测试的错误假设）
+
+## 实现
+
+- aicli/tier.rs（新增）：TIER2_SUPPORTED = [OpenCode]，Tier 2 走 Chat Completions（openai）。
+- aicli/takeover.rs：
+  - 接管：Tier 2 没有路由模式，不经模式控制器。备份 opencode.jsonc 与 opencode.json 两个
+    文件名（存在哪个改哪个，都不存在则新建 opencode.json），再用 OpenCode 自己的写入器
+    opencode_config::set_provider_with_format 写入一个 id 为 aicli 的提供方：
+      npm     = @ai-sdk/openai-compatible
+      baseURL = <本地代理地址>/app/opencode/v1
+      apiKey  = 本地令牌（aicli-local-…，只对本地代理有效）
+      models  = 该客户端所用配置集里可路由的公开模型名
+    不写入 sk- 密钥或访问令牌；不改用户的默认模型和其他配置。
+  - 还原：逐文件写回备份字节，原本不存在的文件删除，写回后逐字节比对；与 C3-10 共用
+    同一套备份（SecretStore）与 aicli_takeover 状态机。
+  - 代理保活：已接管的 Tier 2 客户端算作代理的使用者（mode/controller.rs 的
+    stop_server_if_unused 增加判断）；应用启动时为 active 的 Tier 2 重新拉起代理并刷新
+    写入内容；配置集或目录变化时同样刷新。
+- 界面未改：OpenCode 仍在「即将支持」里，没有接管按钮（清单要求真实客户端通过后才提供）。
+
+## 清单验收逐项
+
+1. 配置写入后的文件不含 sk- 和访问令牌 —— 单测通过。
+2. 还原后逐字节一致 —— 单测通过（三种初始状态：无文件 / opencode.json / 带注释的
+   opencode.jsonc）。
+3. 真实 OpenCode 发文本请求和工具调用请求、proxy_request_logs.app_type 正确 —— 未做。
+   本机是 2 GB 内存的 Linux，没有 node，也无法编译应用；按清单第 0.6 节，阶段 J 的真实
+   客户端测试在 H-02 的 Windows 测试机上做。
+
+## 测试（src-tauri/src/aicli/takeover.rs）
+
+- tier2_opencode_writes_only_the_local_provider_and_restores_exact_bytes
+  写入内容含本地代理地址 /app/opencode/v1、本地令牌、模型名、@ai-sdk/openai-compatible；
+  不含 sk- 和访问令牌；保留用户原有内容；只改动一个文件名；状态为 active、代理在运行；
+  重复接管不重新备份；还原后与接管前逐字节一致，备份与状态行清除，代理停止。
+- tier2_takeover_needs_routable_models_and_a_supported_client
+  客户端绑到不存在的配置集时返回 NoModels 且不动文件；Hermes / Pi / Agy 返回 Unsupported。
+
+## CI
+
+- run 43013668054（f205f033）：failure。编译、clippy 与主测试通过；失败的是我新写的
+  tier2_takeover_needs_routable_models_and_a_supported_client：我假设夹具的模型没有
+  openai 协议所以应当 NoModels，实际上目录对每个协议都会回落到模型支持的第一个端点，
+  接管成功了（left: Ok(()) right: Err(NoModels)）。产品代码未改，改了测试的构造方式。
+- run 43015679721（15f584ef）：success，五个 job 全过。
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/43015679721
+  J-02-opencode-unit 2/2 PASS；C3-10-unit（takeover 全部 13 个）PASS；
+  A3-01 基线 4539 tests run: 4539 passed, 9 skipped。
+- 本机未编译、未运行。
+
+## 已知限制
+
+- 模型列表按「该协议有线协议映射」筛选，与 Tier 1 的 Codex 一致。只支持 gemini 端点的
+  模型会出现在 OpenCode 的列表里，但请求时会返回 capability_unsupported（Codex 承载
+  不支持 gemini 线协议）。
+- 「关闭本地路由」（exit_all）会停掉代理，此时已接管的 OpenCode 仍指向本地代理，
+  需要重新进入或停止接管。
