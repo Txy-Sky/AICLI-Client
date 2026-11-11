@@ -279,6 +279,19 @@ jobs:
               ("settings", "authCenter"),
               ("notifications", "proxyReasonCopilot"),
               ("notifications", "copilotProxyHint"),
+              # G-04 (owner 2026-11-10): WebDAV / S3 cloud sync removed (syncs the
+              # credential database off-device); tray panel rewritten to native menu
+              ("settings", "webdavSync"),
+              ("settings", "s3Sync"),
+              ("settings", "syncType"),
+              ("confirm", "autoSync"),
+          }
+          removed_keys = removed_keys | {
+              ("settings", "advanced", "cloudSync"),
+              ("settings", "general", "trayStyle"),
+              ("settings", "general", "trayStylePanel"),
+              ("settings", "general", "trayStyleMenu"),
+              ("settings", "general", "trayStyleHelp"),
           }
 
           def compare(old, new, path=()):

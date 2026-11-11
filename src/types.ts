@@ -311,40 +311,6 @@ export interface VisibleApps {
 }
 
 // WebDAV 同步状态
-export interface WebDavSyncStatus {
-  lastSyncAt?: number | null;
-  lastError?: string | null;
-  lastErrorSource?: string | null;
-  lastRemoteEtag?: string | null;
-  lastLocalManifestHash?: string | null;
-  lastRemoteManifestHash?: string | null;
-}
-
-// WebDAV 同步配置
-export interface WebDavSyncSettings {
-  enabled?: boolean;
-  autoSync?: boolean;
-  baseUrl?: string;
-  username?: string;
-  password?: string;
-  remoteRoot?: string;
-  profile?: string;
-  status?: WebDavSyncStatus;
-}
-
-// S3 同步配置
-export interface S3SyncSettings {
-  enabled?: boolean;
-  autoSync?: boolean;
-  region?: string;
-  bucket?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  endpoint?: string;
-  remoteRoot?: string;
-  profile?: string;
-  status?: WebDavSyncStatus;
-}
 
 export type RemoteSnapshotLayout = "current" | "legacy";
 
@@ -495,10 +461,8 @@ export interface Settings {
   skillStorageLocation?: SkillStorageLocation;
 
   // ===== WebDAV v2 同步设置 =====
-  webdavSync?: WebDavSyncSettings;
 
   // ===== S3 同步设置 =====
-  s3Sync?: S3SyncSettings;
 
   // ===== 备份策略设置 =====
   // Auto-backup interval in hours (0=disabled, default 24)

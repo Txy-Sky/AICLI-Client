@@ -54,7 +54,6 @@ mod store;
 mod tray;
 #[cfg(target_os = "windows")]
 mod tray_compat;
-mod tray_panel;
 mod usage_events;
 mod usage_script;
 
@@ -421,11 +420,6 @@ async fn update_tray_menu(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
-    if !tray_panel::uses_native_menu() {
-        // 用托盘面板、不挂原生菜单：更新图标状态，通知开着的面板重新取数据。
-        tray::refresh_tray_menu(&app);
-        return Ok(app.tray_by_id(tray::TRAY_ID).is_some());
-    }
     match tray::create_tray_menu(&app, state.inner()) {
         Ok(new_menu) => {
             if let Some(tray) = app.tray_by_id(tray::TRAY_ID) {
@@ -557,10 +551,6 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         // 拦截窗口关闭：根据设置决定是否最小化到托盘
         .on_window_event(|window, event| {
-            // 托盘面板自己处理关闭（只隐藏），不走主窗口的「最小化到托盘 / 退出」
-            if window.label() == tray_panel::PANEL_LABEL {
-                return;
-            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 log::info!("收到窗口关闭请求: label={}", window.label());
                 // 数据库版本过新的恢复模式下没有托盘可唤回，关闭即退出，避免应用隐身后台
@@ -601,7 +591,6 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(window_state_flags())
-                .with_denylist(&[tray_panel::PANEL_LABEL])
                 .build(),
         )
         .setup(|app| {
@@ -1216,21 +1205,17 @@ pub fn run() {
                 Err(e) => log::warn!("读取启动时的深链接失败: {e}"),
             }
 
-            // 构建托盘：Windows 左键打开主界面，右键默认弹出面板；macOS 左右键默认都弹出面板。
-            // 设置里打开「原生托盘菜单」就挂原生菜单（`tray::apply_tray_style` 运行时切换）。
-            // Linux（AppIndicator）不派发点击事件，只能出原生菜单，菜单里有一项打开面板。
-            let native_menu = tray_panel::uses_native_menu();
+            // 构建托盘（G-04 方案 A）：Windows 左键打开主界面、右键出菜单；
+            // macOS 左右键都弹出原生菜单；Linux（AppIndicator）同样原生菜单。
+            let menu = tray::create_tray_menu(app.handle(), &app_state)?;
             let mut tray_builder = TrayIconBuilder::with_id(tray::TRAY_ID)
-                .tooltip("CC Switch") // 鼠标悬停提示
+                .tooltip("AICLI Client") // 鼠标悬停提示
+                .menu(&menu)
                 .on_tray_icon_event(tray::handle_tray_icon_event)
                 .on_menu_event(|app, event| {
                     tray::handle_tray_menu_event(app, &event.id.0);
                 })
-                .show_menu_on_left_click(tray::native_menu_on_left_click(native_menu));
-            if native_menu {
-                let menu = tray::create_tray_menu(app.handle(), &app_state)?;
-                tray_builder = tray_builder.menu(&menu);
-            }
+                .show_menu_on_left_click(tray::native_menu_on_left_click(true));
 
             // 使用平台对应的托盘图标（macOS 使用模板图标适配深浅色）；出问题时 tray.rs 换成带圆点的那张
             if let Some((icon, template)) = tray::base_tray_icon(app.handle()) {
@@ -1240,14 +1225,6 @@ pub fn run() {
             let _tray = tray_builder.build(app)?;
             #[cfg(target_os = "windows")]
             tray_compat::install(app.handle());
-            crate::services::webdav_auto_sync::start_worker(
-                app_state.db.clone(),
-                app.handle().clone(),
-            );
-            crate::services::s3_auto_sync::start_worker(
-                app_state.db.clone(),
-                app.handle().clone(),
-            );
             // 将同一个实例注入到全局状态，避免重复创建导致的不一致
             app.manage(app_state);
             app.manage(services::kimi_oauth::KimiOAuthManager::default());
@@ -1658,17 +1635,6 @@ pub fn run() {
             // theirs: config import/export and dialogs
             commands::export_config_to_file,
             commands::import_config_from_file,
-            commands::webdav_test_connection,
-            commands::webdav_sync_upload,
-            commands::webdav_sync_download,
-            commands::webdav_sync_save_settings,
-            commands::webdav_sync_clear_settings,
-            commands::webdav_sync_fetch_remote_info,
-            commands::s3_test_connection,
-            commands::s3_sync_upload,
-            commands::s3_sync_download,
-            commands::s3_sync_save_settings,
-            commands::s3_sync_fetch_remote_info,
             commands::save_file_dialog,
             commands::open_file_dialog,
             commands::open_zip_file_dialog,
@@ -1732,13 +1698,6 @@ pub fn run() {
             commands::get_app_mode,
             commands::set_proxy_route,
             commands::take_startup_attach_failures,
-            tray::take_tray_navigation,
-            tray_panel::tray_panel_state,
-            tray_panel::tray_panel_placement,
-            tray_panel::tray_panel_layout,
-            tray_panel::tray_panel_hide,
-            tray_panel::tray_panel_action,
-            tray::tray_app_page_seen,
             commands::exit_proxy_apps_in_mode,
             commands::get_direct_provider,
             commands::get_proxy_status,

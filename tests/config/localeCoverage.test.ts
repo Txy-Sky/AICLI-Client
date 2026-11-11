@@ -135,13 +135,8 @@ describe("Turkish locale", () => {
     }
 
     // G-01：opencode / grokBuild / codexConfig / providerPreset / usageScript 的
-    // 字面量随供应商表单与用量脚本一起删除
-    expect(translations.get("settings.s3Sync.presets.r2Hint")).toContain(
-      "'auto'",
-    );
-    expect(translations.get("settings.s3Sync.presets.cosHint")).toContain(
-      "ap-beijing",
-    );
+    // 字面量随供应商表单与用量脚本一起删除；G-04 又移除了 settings.s3Sync
+    // （WebDAV / S3 云同步）命名空间，协议字面量随之删除
     expect(translations.get("hermes.webui.launchConfirmMessage")).toContain(
       "pip install hermes-agent[web]",
     );

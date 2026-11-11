@@ -43,7 +43,7 @@ pub use dao::Profile;
 
 use crate::config::get_app_config_dir;
 use crate::error::AppError;
-use rusqlite::{hooks::Action, Connection};
+use rusqlite::Connection;
 use serde::Serialize;
 use std::sync::Mutex;
 
@@ -81,17 +81,7 @@ pub struct Database {
     pub(crate) log_count_cache: Mutex<Option<crate::services::usage_stats::LogCountCache>>,
 }
 
-fn register_db_change_hook(conn: &Connection) {
-    conn.update_hook(Some(
-        |action: Action, _database: &str, table: &str, _row_id: i64| match action {
-            Action::SQLITE_INSERT | Action::SQLITE_UPDATE | Action::SQLITE_DELETE => {
-                crate::services::webdav_auto_sync::notify_db_changed(table);
-                crate::services::s3_auto_sync::notify_db_changed(table);
-            }
-            _ => {}
-        },
-    ));
-}
+// （G-04：WebDAV / S3 自动同步的 DB 变更钩子已随云同步移除。）
 
 impl Database {
     /// 初始化数据库连接并创建表
@@ -117,7 +107,6 @@ impl Database {
             conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", [])
                 .map_err(|e| AppError::Database(e.to_string()))?;
         }
-        register_db_change_hook(&conn);
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -192,7 +181,6 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", [])
             .map_err(|e| AppError::Database(e.to_string()))?;
-        register_db_change_hook(&conn);
 
         let db = Self {
             conn: Mutex::new(conn),

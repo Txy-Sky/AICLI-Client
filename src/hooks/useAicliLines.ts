@@ -1,6 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { aicliApi } from "@/lib/api/aicli";
+import { useTauriEvent } from "@/hooks/useTauriEvent";
 import { aicliKeys } from "./aicliKeys";
+
+/** 托盘菜单切换线路后（G-04），后端广播 aicli-line-changed：刷新线路相关的缓存。 */
+export function useAicliLineChanged() {
+  const queryClient = useQueryClient();
+  useTauriEvent("aicli-line-changed", () => {
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: aicliKeys.lines }),
+      queryClient.invalidateQueries({ queryKey: aicliKeys.account }),
+      queryClient.invalidateQueries({ queryKey: aicliKeys.routes }),
+    ]);
+  });
+}
 
 /** 线路列表与健康状态（本地记录的最近一次探测）。 */
 export function useAicliLines(enabled = true) {

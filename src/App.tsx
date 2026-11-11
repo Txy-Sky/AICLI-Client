@@ -14,12 +14,8 @@ import { checkAllEnvConflicts, checkEnvConflicts } from "@/lib/api/env";
 import { useOpenClawHealth } from "@/hooks/useOpenClaw";
 import { useOpenHermesWebUI } from "@/hooks/useHermes";
 import { hermesApi } from "@/lib/api/hermes";
-import { useUsageCacheBridge } from "@/hooks/useUsageCacheBridge";
-import {
-  useTrayAppPageSeen,
-  useTrayNavigation,
-} from "@/hooks/useTrayNavigation";
 import { useTauriEvent } from "@/hooks/useTauriEvent";
+import { useAicliLineChanged } from "@/hooks/useAicliLines";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { isLinux, isWindows } from "@/lib/platform";
@@ -91,12 +87,6 @@ import {
   isModeAppId,
   orderAppIds,
 } from "@/config/appConfig";
-
-interface SyncStatusUpdatedPayload {
-  source?: string;
-  status?: string;
-  error?: string;
-}
 
 type OpenClawConfigTab = "env" | "tools" | "agents";
 
@@ -190,11 +180,11 @@ function App() {
 
   const mainScrollRef = useRef<HTMLElement>(null);
 
-  useUsageCacheBridge();
   // F-01：后端缓存刷新完成 → 对应的 AICLI 查询原地更新
   useAicliEventBridge();
   // F-07：深链 aicliapi://bind 打开绑定对话框（AicliBindGate）
   const [aicliBindRequest, setAicliBindRequest] = useState(0);
+  useAicliLineChanged();
   useTauriEvent(AICLI_EVENTS.openBind, () => {
     const navigate = () => {
       setCurrentView("usage");
@@ -235,38 +225,6 @@ function App() {
       queryKey: ["providers", "claude-desktop"],
     });
   });
-
-  useTauriEvent<SyncStatusUpdatedPayload | null | undefined>(
-    "webdav-sync-status-updated",
-    async (payload) => {
-      const statusPayload = payload ?? {};
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
-      if (statusPayload.source !== "auto" || statusPayload.status !== "error") {
-        return;
-      }
-      toast.error(
-        t("settings.webdavSync.autoSyncFailedToast", {
-          error: statusPayload.error || t("common.unknown"),
-        }),
-      );
-    },
-  );
-
-  useTauriEvent<SyncStatusUpdatedPayload | null | undefined>(
-    "s3-sync-status-updated",
-    async (payload) => {
-      const statusPayload = payload ?? {};
-      await queryClient.invalidateQueries({ queryKey: ["settings"] });
-      if (statusPayload.source !== "auto" || statusPayload.status !== "error") {
-        return;
-      }
-      toast.error(
-        t("settings.s3Sync.autoSyncFailedToast", {
-          error: statusPayload.error || t("common.unknown"),
-        }),
-      );
-    },
-  );
 
   useEffect(() => {
     // settingsData 未加载时跳过，避免用 fallback false 覆盖 Rust 侧已设好的装饰状态
@@ -593,20 +551,6 @@ function App() {
     }
     setCurrentView(page);
   };
-  useTrayAppPageSeen(currentView === "client" ? activeApp : null);
-
-  useTrayNavigation((navigation) => {
-    const navigate = () => {
-      if (navigation.section) {
-        openSettings(navigation.section);
-        return;
-      }
-      if (!navigation.app) return;
-      // G-01：添加供应商入口已移除，托盘的 add / needsRoute 意图只打开该应用页
-      selectApp(navigation.app);
-    };
-    if (managementBusyRef.current || !confirmLeave(navigate)) navigate();
-  });
 
   // 侧栏、⌘K 进用量统计看全部应用；只有应用页 ⋯ 进来时带应用筛选
   const openPageFromNav = (page: GlobalPage | "settings") => {

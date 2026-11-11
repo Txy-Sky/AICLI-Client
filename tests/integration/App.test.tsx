@@ -12,7 +12,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "../msw/server";
 import { resetProviderState, setSettings } from "../msw/state";
-import { emitTauriEvent } from "../msw/tauriMocks";
 
 // The heaviest App integration cases kept a 10s budget on Linux; Windows
 // jsdom is several times slower (docs/aicli-handover/E-GATE.md).
@@ -269,49 +268,6 @@ describe("App integration with MSW", () => {
     APP_TEST_TIMEOUT,
   );
 
-  it("shows toast when auto sync fails in background", async () => {
-    const { default: App } = await import("@/App");
-    await renderAppReady(App);
-
-    // 等首页渲染完（监听在挂载后异步注册）
-    await waitFor(() =>
-      expect(sidebarApp("nav.usage")).toHaveAttribute("aria-current", "page"),
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(() => {
-      emitTauriEvent("webdav-sync-status-updated", null);
-    }).not.toThrow();
-    expect(toastErrorMock).not.toHaveBeenCalled();
-
-    emitTauriEvent("webdav-sync-status-updated", {
-      source: "auto",
-      status: "error",
-      error: "network timeout",
-    });
-
-    await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalled();
-    });
-
-    toastErrorMock.mockReset();
-    expect(() => {
-      emitTauriEvent("s3-sync-status-updated", null);
-    }).not.toThrow();
-    expect(toastErrorMock).not.toHaveBeenCalled();
-
-    emitTauriEvent("s3-sync-status-updated", {
-      source: "auto",
-      status: "error",
-      error: "s3 timeout",
-    });
-
-    await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalled();
-    });
-  });
 
   it("renders the Skills page with its own header", async () => {
     const { default: App } = await import("@/App");

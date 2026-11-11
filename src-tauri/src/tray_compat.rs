@@ -158,7 +158,7 @@ fn click(app: &AppHandle, hwnd: isize, button: MouseButton, x: i32, y: i32) {
             button_state: MouseButtonState::Up,
         },
     );
-    if button == MouseButton::Right && crate::tray_panel::uses_native_menu() {
+    if button == MouseButton::Right {
         show_native_menu(hwnd, x, y);
     }
 }
