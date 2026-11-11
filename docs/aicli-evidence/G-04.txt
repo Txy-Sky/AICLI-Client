@@ -42,3 +42,7 @@ G-04 设置和托盘清理（2026-11-10，负责人方案 A + 官网入口）
   App 自动同步失败 toast、settings 密码回填 6 项、backup 云同步 5 项、
   provider.rs 用量凭据与 zhipu 余额（命令链删除）；native_tray_menu 默认值测试
   （字段删除）。Rust 测试 4666 → 4482（-184，全部对应删除的功能面）。
+
+## CI
+
+- `AICLI Acceptance` run 42998746287（提交 21639e55）：success（五个 job 全过；B-07 白名单与嵌套键残留检查经两轮修复，见 G-03.txt 的 CI 记录）。https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287

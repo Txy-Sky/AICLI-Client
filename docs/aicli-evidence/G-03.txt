@@ -84,3 +84,8 @@ G-03 移除 Rust 命令和服务（2026-11-10，按负责人当日决定收窄�
     （被测路径已删）；fish 引号测试保留（agy 恢复终端仍在用该引号规则）。
   - tests/provider_commands.rs、tests/golden/import_rows.rs：播种改用
     seed_official_providers_for_app，断言与快照不变。
+
+## CI
+
+- `AICLI Acceptance` run 42998746287（提交 21639e55，含本项与 G-04 及两轮 CI 修复）：success。
+  首轮 42966857680 失败：`#[cfg(unix)]` 测试引用已删的 `claude_terminal_launch`（Windows 本地不编译未发现），已随 af693162 删除；次轮 42987255114 的 B-07 残留检查只认二元组键、误判 G-04 的嵌套删除，已随 21639e55 改为按完整键路径探测。

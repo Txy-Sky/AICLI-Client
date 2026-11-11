@@ -964,7 +964,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - `cargo nextest` 通过；`transform*`、`streaming*` 相关测试数量**不减少**（前后对比，写入证据）。
   - `src-tauri/tests/provider_*.rs` 删除或改写，写明原因。
 - 证据：
-- 证据：2026-11-10 完成（按当日负责人决定收窄，第 13 节）。第 4 组：init_default_official_providers 删（C3-02 已取代启动播种），测试改用 seed_official_providers_for_app，golden 35 项快照逐字节不变；providers_seed.rs 与 ensure_official_seed_by_id 保留（官方登录链路在用）。第 5 组：24 个对外命令（CRUD/编辑器/排序/universal/测速端点/usage 脚本测试/终端/import 包装）+ lib.rs 注册删除；codex_terminal.rs 整文件与 open_provider_terminal 级联、update_pi_provider_usage_script 删除；queryProviderUsage 转为 pub(crate)（托盘在用，G-04 删）；switch_provider、ensure_*、只读命令、账号链路全部保留。第 6 组部分：usage_script.rs 保留（Pi/OMP Provider 模型与用量查询仍引用）。前端同步删死包装（mutations 缩减、vscode.ts 删除）。aicli-check.sh 全过（typecheck、prettier、前端 1349、build、fmt、clippy -D warnings、Rust 4666 passed / 13 skipped）；transform/streaming 测试 757→757 名单逐一相同。删除/改写测试及原因见证据文件。详见 docs/aicli-evidence/G-03.txt。
+- 证据：2026-11-10 完成（按当日负责人决定收窄，第 13 节）。第 4 组：init_default_official_providers 删（C3-02 已取代启动播种），测试改用 seed_official_providers_for_app，golden 35 项快照逐字节不变；providers_seed.rs 与 ensure_official_seed_by_id 保留（官方登录链路在用）。第 5 组：24 个对外命令（CRUD/编辑器/排序/universal/测速端点/usage 脚本测试/终端/import 包装）+ lib.rs 注册删除；codex_terminal.rs 整文件与 open_provider_terminal 级联、update_pi_provider_usage_script 删除；queryProviderUsage 转为 pub(crate)（托盘在用，G-04 删）；switch_provider、ensure_*、只读命令、账号链路全部保留。第 6 组部分：usage_script.rs 保留（Pi/OMP Provider 模型与用量查询仍引用）。前端同步删死包装（mutations 缩减、vscode.ts 删除）。aicli-check.sh 全过（typecheck、prettier、前端 1349、build、fmt、clippy -D warnings、Rust 4666 passed / 13 skipped）；transform/streaming 测试 757→757 名单逐一相同。删除/改写测试及原因见证据文件。详见 docs/aicli-evidence/G-03.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ### G-04 设置和托盘清理
 - [x] 完成
@@ -972,7 +972,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 修改补充（负责人 2026-11-10）：官方账号后端保留（见 G-03 决定），但托盘仍按方案 A 收口：供应商/账号信息在托盘不可见，不提供面板选项。
 - 验收：检查通过；`grep -n 'providers' src-tauri/src/tray.rs` 只剩内部调用或无结果。
 - 证据：
-- 证据：2026-11-10 完成（方案 A + 官网入口，第 13 节）。tray.rs 重写（4955→462 行）：打开主窗口 / 线路子菜单（三线单选、未绑定禁用，切线路广播 aicli-line-changed）/ 轻量模式 / 打开官方网站（WEBSITE_URL）/ 退出；托盘面板（tray_panel.rs + src/tray-panel/）、供应商菜单、问题圆点、用量刷新、TrayNavigation 全删；「托盘样式」设置与 native_tray_menu 字段删除。WebDAV/S3 整体移除：commands/services/settings 字段/前端 UI 与监听/i18n 六组键（B-07 白名单扩充，本地基线比对通过）；sync_protocol 缩为 sync_mutex。验收 grep providers tray.rs 无结果；aicli-check.sh 全过（前端 1283、Rust 4482 passed / 10 skipped）。详见 docs/aicli-evidence/G-04.txt。
+- 证据：2026-11-10 完成（方案 A + 官网入口，第 13 节）。tray.rs 重写（4955→462 行）：打开主窗口 / 线路子菜单（三线单选、未绑定禁用，切线路广播 aicli-line-changed）/ 轻量模式 / 打开官方网站（WEBSITE_URL）/ 退出；托盘面板（tray_panel.rs + src/tray-panel/）、供应商菜单、问题圆点、用量刷新、TrayNavigation 全删；「托盘样式」设置与 native_tray_menu 字段删除。WebDAV/S3 整体移除：commands/services/settings 字段/前端 UI 与监听/i18n 六组键（B-07 白名单扩充，本地基线比对通过）；sync_protocol 缩为 sync_mutex。验收 grep providers tray.rs 无结果；aicli-check.sh 全过（前端 1283、Rust 4482 passed / 10 skipped）。详见 docs/aicli-evidence/G-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ### G-GATE 阶段 G 门禁
 - [ ] 完成
