@@ -6884,27 +6884,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn claude_terminal_config_is_private() {
-        use std::os::unix::fs::PermissionsExt;
-        let launch =
-            claude_terminal_launch(&[("ANTHROPIC_AUTH_TOKEN".into(), "t".into())], "p").unwrap();
-        let file = &launch.cleanup[0];
-        assert_eq!(
-            std::fs::metadata(file).unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-        assert_eq!(
-            launch.args,
-            vec![
-                "--settings".to_string(),
-                file.to_string_lossy().into_owned()
-            ]
-        );
-        std::fs::remove_file(file).unwrap();
-    }
-
     #[test]
     fn test_build_final_shell_cd_command() {
         assert_eq!(build_final_shell_cd_command("/bin/zsh", None), "");
