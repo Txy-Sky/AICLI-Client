@@ -948,7 +948,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 证据：2026-11-09 完成（负责人决定在 F-GATE 前执行）。删除官方账号额度页脚、UsageFooter、quota/、授权与订阅相关前端 API 与查询、Copilot 图标；侧栏不再轮询授权状态；五种语言删除 7 个命名空间与 3 个嵌套键，B-07 白名单扩充并断言已删。验收 grep 无结果；前端 137 文件 / 1346 测试、Rust 4722 passed / 12 skipped。实现 aabaa3a2（AuthCenterPanel 等依赖已删表单的文件随 G-01 先删，第 13 节）。详见 docs/aicli-evidence/G-02.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42729640404
 
 ### G-03 移除 Rust 命令和服务
-- [ ] 完成
+- [x] 完成
 - 修改：按以下顺序**逐个**删除，每删一组就编译一次。遇到编译错误时，只删除依赖该模块的调用分支；如果该模块还被非账号逻辑使用，保留被用到的部分并写入第 13 节。
   1. `commands/`：`copilot.rs`、`codex_oauth.rs`、`xai_oauth.rs`、`kimi_oauth.rs`、`claude_account.rs`、`agy_account.rs`、`auth.rs`、`subscription.rs`、`coding_plan.rs`、`balance.rs`，以及 `lib.rs` 的注册。
   2. `services/`：`claude_account/`、`agy_account/`、`kimi_oauth/`、`dsh_account.rs`、`codex_oauth_models.rs`、`subscription*.rs`、`coding_plan.rs`、`balance.rs`。
@@ -964,6 +964,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - `cargo nextest` 通过；`transform*`、`streaming*` 相关测试数量**不减少**（前后对比，写入证据）。
   - `src-tauri/tests/provider_*.rs` 删除或改写，写明原因。
 - 证据：
+- 证据：2026-11-10 完成（按当日负责人决定收窄，第 13 节）。第 4 组：init_default_official_providers 删（C3-02 已取代启动播种），测试改用 seed_official_providers_for_app，golden 35 项快照逐字节不变；providers_seed.rs 与 ensure_official_seed_by_id 保留（官方登录链路在用）。第 5 组：24 个对外命令（CRUD/编辑器/排序/universal/测速端点/usage 脚本测试/终端/import 包装）+ lib.rs 注册删除；codex_terminal.rs 整文件与 open_provider_terminal 级联、update_pi_provider_usage_script 删除；queryProviderUsage 转为 pub(crate)（托盘在用，G-04 删）；switch_provider、ensure_*、只读命令、账号链路全部保留。第 6 组部分：usage_script.rs 保留（Pi/OMP Provider 模型与用量查询仍引用）。前端同步删死包装（mutations 缩减、vscode.ts 删除）。aicli-check.sh 全过（typecheck、prettier、前端 1349、build、fmt、clippy -D warnings、Rust 4666 passed / 13 skipped）；transform/streaming 测试 757→757 名单逐一相同。删除/改写测试及原因见证据文件。详见 docs/aicli-evidence/G-03.txt。
 
 ### G-04 设置和托盘清理
 - [ ] 完成
