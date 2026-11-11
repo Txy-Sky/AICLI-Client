@@ -1,0 +1,282 @@
+G-GATE 翻译键清理：删除与保留明细（2026-11-11，提交 09fa60cc）
+
+范围：zh.json 中 provider 命名空间的全部键，加上其他命名空间里中文文案含「供应商」的键。
+判定：键的完整路径以带引号的字面量出现在 src/、tests/ 的 .ts/.tsx（不含 locales）即视为被引用；
+另排除动态键前缀（t(`a.b.${x}`)）、后端以键名返回的 omp.errors.*、proxy.ts 仍引用的 provider notice。
+
+## 删除（214 个，tr.json 原本缺 23 个，实删 191 个）
+header.addProvider
+provider.connectivityCheck
+provider.tabProvider
+provider.tabUniversal
+provider.noProviders
+provider.noProvidersDescription
+provider.noProvidersDescriptionKeyFields
+provider.importCurrent
+provider.importFromClaude
+provider.importCurrentDescription
+provider.currentlyUsing
+provider.enable
+provider.inUse
+provider.needsRouting
+provider.directProvider
+provider.directProviderHint
+provider.stackBadge
+provider.stackBadgeHint
+provider.stackBadgeNoModels
+provider.stackDefaultCannotRemove
+provider.stackDefaultHint
+provider.adoptCatalog
+provider.noRoutingSupport
+provider.blockedByProxyHint
+provider.editProvider
+provider.editProviderHint
+provider.deleteProvider
+provider.addNewProvider
+provider.addFooterHint
+provider.addClaudeProvider
+provider.addCodexProvider
+provider.addGeminiProvider
+provider.addOpenCodeProvider
+provider.addToConfig
+provider.removeFromConfig
+provider.setAsDefault
+provider.isDefault
+provider.inConfig
+provider.addProviderHint
+provider.editClaudeProvider
+provider.editCodexProvider
+provider.configError
+provider.notConfigured
+provider.applyToClaudePlugin
+provider.removeFromClaudePlugin
+provider.dragToReorder
+provider.dragHandle
+provider.searchPlaceholder
+provider.searchAriaLabel
+provider.searchScopeHint
+provider.searchButtonTip
+provider.searchCloseHint
+provider.searchCloseAriaLabel
+provider.noSearchResults
+provider.duplicate
+provider.sortUpdateFailed
+provider.configureUsage
+provider.managedByHermes
+provider.managedByHermesHint
+provider.openTerminal
+provider.openTerminalIsolated
+provider.openTerminalWithProvider
+provider.terminalOpened
+provider.terminalOpenFailed
+provider.openTerminalDialog.title
+provider.openTerminalDialog.description
+provider.openTerminalDialog.isolationTitle
+provider.openTerminalDialog.isolationBody
+provider.openTerminalDialog.isolationBodyAgy
+provider.openTerminalDialog.noDir
+provider.openTerminalDialog.choose
+provider.openTerminalDialog.change
+provider.openTerminalDialog.recent
+provider.openTerminalDialog.forget
+provider.openTerminalDialog.confirm
+provider.openTerminalDialog.skipPermissions
+provider.openTerminalDialog.extraArgs
+provider.openTerminalDialog.extraArgsPlaceholder
+provider.openTerminalDialog.extraArgsHint
+provider.openTerminalDialog.agySwitchTitle
+provider.openTerminalDialog.agySwitchBody
+provider.openTerminalDialog.agySwitchRunning
+provider.name
+provider.namePlaceholder
+provider.websiteUrl
+provider.notes
+provider.notesPlaceholder
+provider.configJson
+provider.configJsonHint
+provider.addProvider
+provider.sortUpdated
+provider.usageSaved
+provider.usageSaveFailed
+provider.geminiConfig
+provider.geminiConfigHint
+provider.form.agy.endpointHelp
+provider.form.agy.keyFieldsHint
+provider.form.agy.envFile
+provider.form.agy.envFileHint
+provider.form.agy.configJson
+provider.form.agy.configJsonHint
+provider.form.agy.account
+provider.form.agy.accountFollow
+provider.form.agy.accountMissing
+provider.form.agy.accountHelp
+provider.form.gemini.model
+provider.form.gemini.apiKeyPlaceholder
+provider.form.claudeAccount.label
+provider.form.claudeAccount.default
+provider.form.claudeAccount.defaultDescription
+provider.form.claudeAccount.missing
+provider.form.claudeAccount.manage
+provider.form.claudeAccount.helpTerminal
+provider.form.claudeAccount.helpWsl
+provider.form.claudeAccount.help
+provider.form.claudeAccount.claudeAccount
+provider.form.claudeAccount.reauthBadge
+provider.form.claudeAccount.terminalHint
+provider.form.claudeAccount.wslHint
+provider.form.claudeAccount.plan.pro
+provider.form.claudeAccount.plan.max
+provider.form.claudeAccount.plan.max5x
+provider.form.claudeAccount.plan.max20x
+provider.form.claudeAccount.plan.team
+provider.form.claudeAccount.plan.teamPremium
+provider.form.claudeAccount.plan.enterprise
+provider.duplicateLiveIdsLoadFailed
+provider.editorViewFailed
+provider.editConflict.title
+provider.editConflict.message
+provider.editConflict.keepTheirs
+provider.editConflict.keepMine
+provider.backToList
+provider.editProviderNamed
+provider.formSubtitleStack
+provider.editCurrentNoticeFile
+provider.editCurrentNoticeFileEnd
+provider.editCurrentNotice
+notifications.providerAdded
+notifications.providerSaved
+notifications.providerDeleted
+notifications.removeFromConfigFailed
+notifications.autoImported
+notifications.addFailed
+notifications.updateSuccess
+notifications.updateFailed
+notifications.deleteSuccess
+notifications.deleteFailed
+notifications.proxyRequiredForSwitch
+notifications.openAIFormatHint
+notifications.openclawNoModels
+notifications.backfillWarning
+notifications.officialBlockedByProxy
+notifications.proxyOfficialWarning
+confirm.deleteProvider
+confirm.deleteProviderMessage
+confirm.removeProvider
+confirm.removeProviderMessage
+confirm.piDefaultProviderWarning
+confirm.proxy.message
+confirm.failover.message
+confirm.usage.message
+settings.general.quotaDisplayHelp
+settings.advanced.proxy.enableStackModeDescription
+settings.syncLiveFailed
+settings.codexStackClassicSubagentsDescription
+settings.appVisibility.showProviderSearch
+settings.appVisibility.showProviderSearchDescription
+pi.empty.title
+pi.empty.description
+pi.provider.enableFailed
+pi.form.providerKey
+pi.form.providerKeyRequired
+pi.current.readFailed
+pi.current.stateUnavailableHint
+openclaw.providerKey
+openclaw.providerKeyLockedHint
+openclaw.providerKeyRequired
+openclaw.apiProtocolHint
+openclaw.userAgentHint
+hermes.form.providerKey
+hermes.form.providerKeyHint
+hermes.form.providerKeyLockedHint
+hermes.form.providerKeyRequired
+hermes.form.providerKeyInvalid
+hermes.form.providerKeyDuplicate
+hermes.form.providerKeyBuiltin
+hermes.form.providerKeyBuiltinLocked
+hermes.form.noModels
+hermes.form.modelsHint
+proxy.takeover.tooltip.active
+proxy.failover.autoSwitchDescription
+proxy.failoverQueue.description
+proxy.failoverQueue.info
+proxy.failoverQueue.selectProvider
+proxy.failoverQueue.noAvailableProviders
+proxy.failoverQueue.empty
+proxy.failoverQueue.orderHint
+proxy.failoverQueue.dragHint
+proxy.autoFailover.info
+proxy.autoFailover.failureThresholdExplain
+proxy.autoFailover.successThresholdExplain
+appPage.providers
+kimi.modelSelectionHint
+kimi.empty.title
+omp.empty.title
+omp.empty.description
+omp.provider.enableFailed
+omp.current.readFailed
+omp.current.stateUnavailableHint
+dsh.empty.title
+dsh.empty.description
+dsh.sharedProviders
+dsh.account.signOutConfirm
+
+## 保留（59 个）
+provider.stackSaved	proxy.ts 仍引用/后端 notice
+provider.stackSavedLive	proxy.ts 仍引用/后端 notice
+provider.stackReselectHint	proxy.ts 仍引用/后端 notice
+provider.stackPartial	proxy.ts 仍引用/后端 notice
+provider.stackFailed	proxy.ts 仍引用/后端 notice
+provider.officialModelsBundled	proxy.ts 仍引用/后端 notice
+provider.officialModelsUnavailable	proxy.ts 仍引用/后端 notice
+provider.officialModelsOutdated	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.noLogin	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.loginStale	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.loginIncomplete	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.noVersion	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.fetchFailed	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.invalidList	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.noCli	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.cliFailed	proxy.ts 仍引用/后端 notice
+provider.officialModelsReason.nothingUsable	proxy.ts 仍引用/后端 notice
+provider.routeOwnsCatalog	proxy.ts 仍引用/后端 notice
+provider.adoptCatalogDone	proxy.ts 仍引用/后端 notice
+provider.adoptCatalogFailed	proxy.ts 仍引用/后端 notice
+provider.form.agy.modelHelp	前端引用
+provider.form.gemini.oauthTitle	oauth（负责人保留）
+provider.form.gemini.oauthHint	oauth（负责人保留）
+confirm.unifyCodexHistory.message	前端引用
+settings.advanced.rectifier.thinkingSignatureDescription	前端引用
+settings.advanced.rectifier.thinkingBudgetDescription	前端引用
+settings.advanced.rectifier.mediaFallbackDescription	前端引用
+settings.advanced.optimizer.description	前端引用
+settings.importPartialSuccess	前端引用
+settings.importPartialHint	前端引用
+settings.enableClaudePluginIntegrationDescription	前端引用
+settings.skipClaudeOnboardingDescription	前端引用
+settings.preserveCodexOfficialAuthOnSwitchDescription	前端引用
+settings.unifyCodexSessionHistoryDescription	前端引用
+settings.configDirectoryDescription	前端引用
+pi.form.providerKeyDuplicate	前端引用
+sessionManager.codexResumeNote	前端引用
+usage.sessionProvider.hint	前端引用
+usage.modelsDevSearchPlaceholder	前端引用
+usage.modelsDevAllProviders	前端引用
+usage.modelsDevAutoSync.configureDescription	前端引用
+profiles.switcherTooltip.claude	动态键前缀
+profiles.switcherTooltip.claude-desktop	动态键前缀
+profiles.switcherTooltip.codex	动态键前缀
+profiles.createDescription.claude	动态键前缀
+profiles.createDescription.claude-desktop	动态键前缀
+profiles.createDescription.codex	动态键前缀
+openclaw.agents.primaryModelHint	前端引用
+openclaw.agents.notInList	前端引用
+kimi.oauth.description	oauth（负责人保留）
+kimi.oauth.removeConfirm	oauth（负责人保留）
+kimi.oauth.help	oauth（负责人保留）
+kimi.error.defaultModelInUse	前端引用
+kimi.error.secondaryModelInUse	前端引用
+omp.errors.invalidProvider	动态键前缀
+omp.errors.duplicateProvider	动态键前缀
+omp.errors.renameProvider	动态键前缀
+omp.errors.providerMissing	动态键前缀
+omp.errors.legacyModelsJson	动态键前缀

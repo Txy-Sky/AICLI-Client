@@ -90,3 +90,41 @@ G-GATE 阶段 G 门禁（2026-11-11，未通过：第 1 项待走查，第 3 项
 - 静态核对（仅供参考，不替代截图）：
   grep -rnoE 'invoke\("(copilot|codex_oauth|xai|kimi_oauth|claude_account|agy_account|auth_|subscription|coding_plan|balance|add_provider|update_provider|delete_provider)[a-z_]*"' src
   => 无结果，前端不再调用任何官方账号或供应商增删改命令。
+
+---------------------------------------------------------------------------
+2026-11-11 负责人决定后的更新
+
+负责人决定：① 第 3 项名称扫描只查用户可见部分（src/i18n 与前端界面字符串）；
+② 残留的供应商翻译键清掉；③ OAuth 认证模式文案保留。
+
+## 翻译键清理（提交 09fa60cc）
+
+- 五种语言各删 214 个未被代码引用的键（tr.json 原本缺 23 个，实删 191 个），并删掉
+  因此变空的 10 个对象（tr 为 8 个）。删除与保留明细及判定方法见 G-GATE-i18n-keys.txt。
+- 保留 59 个：仍被前端引用 23 个；src/lib/query/proxy.ts 仍引用或后端 notice 返回的
+  provider.* 20 个；动态键前缀 11 个（profiles.switcherTooltip.*、
+  profiles.createDescription.*、omp.errors.*）；路径含 oauth 的 5 个（负责人保留：
+  provider.form.gemini.oauthTitle / oauthHint、kimi.oauth.description / removeConfirm / help）。
+- B-07 工作流白名单改为从 scripts/aicli-b07-removed-keys.txt 读取（172 条路径，变空的
+  对象记其根路径）。本机把工作流里的 B-07 脚本原样抽出运行：
+  "B-07: PASS"，五种语言 removed namespaces=36 keys=184。
+- 测试：被删键在 tests/ 中只有一处引用，是 tests/integration/App.test.tsx:342 的反向断言
+  （页头不应出现 provider.addProvider 按钮），不受影响。
+- 本机没有 node，prettier、typecheck、前端单测未在本地运行，以 CI 为准：CI run 43004625557（09fa60cc，五个 job 全部 success）https://github.com/Txy-Sky/AICLI-Client/actions/runs/43004625557
+
+## 第 3 项按收窄后的范围重跑 —— 通过
+
+- grep -rn 'sponsor\|赞助' src src-tauri/src => 无结果。
+- 373 个名称逐个 grep -rnF 于 src/i18n，仍有命中的只有 15 个，全部是模型名、客户端名、
+  协议或本机运行时名称、通用词：
+  AWS Bedrock(4) Auto(30) Claude Opus 5(5) Codex(410) DeepSeek(90) Kimi(93) LM Studio(5)
+  MiniMax(40) Ollama(5) claude-opus-5(5) cloudflare(5) kimi(5) llama.cpp(5) meta(12) together(4)
+- 前端界面字符串（src 下 .tsx 中带引号的整串，排除 icons/extracted 与测试）：
+  Codex(4) Kimi(1) MiniMax(1) deepseek(2) kimi(15)，同样只有客户端名和模型名。
+- 第三方中转名称在用户可见范围内命中为 0。
+- 清理后 zh.json 仍有 37 行含「供应商」，都属于仍被引用的键（高级设置说明、会话与用量
+  提示、Pi / OpenClaw / Hermes / Kimi 页面文案等），不是增删改入口，未改写。
+
+## 第 1 项 —— 仍未做
+
+需要在有图形界面的机器上走查截图。
