@@ -66,7 +66,6 @@
     "viewOnGithub": "GitHub で見る",
     "toggleDarkMode": "ダークモードに切り替え",
     "toggleLightMode": "ライトモードに切り替え",
-    "addProvider": "プロバイダーを追加",
     "switchToChinese": "中国語に切り替え",
     "switchToEnglish": "英語に切り替え",
     "enterEditMode": "編集モードに入る",
@@ -77,31 +76,11 @@
     "windowClose": "ウィンドウを閉じる"
   },
   "provider": {
-    "connectivityCheck": "接続チェック",
-    "tabProvider": "プロバイダー",
-    "tabUniversal": "統一プロバイダー",
-    "noProviders": "まだプロバイダーがありません",
-    "noProvidersDescription": "既存の設定がある場合は「現在の設定をインポート」をクリックしてください。すべてのデータが default プロバイダーに安全に保存されます",
-    "noProvidersDescriptionKeyFields": "プロバイダーを切り替えても置き換わるのはキー、リクエスト URL、モデルだけです。プラグインなどのその他の設定は設定ファイルに残り、すべてのプロバイダーに適用されます",
-    "importCurrent": "現在の設定をインポート",
-    "importFromClaude": "Claude Code の既存プロバイダーをインポート",
-    "importCurrentDescription": "現在使用中の設定をデフォルトプロバイダーとしてインポート",
-    "currentlyUsing": "現在使用中",
-    "enable": "有効化",
-    "inUse": "使用中",
-    "needsRouting": "ルーティングが必要",
-    "directProvider": "直接接続",
-    "directProviderHint": "ルーティングを終了するとこのプロバイダに戻ります",
-    "stackBadge": "集約",
-    "stackBadgeHint": "{{client}} のモデル選択で選べます：{{models}}",
-    "stackBadgeNoModels": "モデルが設定されていないため、モデル選択には表示されません",
     "stackSaved": "保存しました。{{client}} を再起動すると反映されます",
     "stackSavedLive": "保存しました。{{client}} にすぐ反映されます",
     "stackReselectHint": "AICLI Client がクライアント設定を書き換えるたびに、モデル選択で集約したモデルを選び直してください",
     "stackPartial": "一部だけ書き込まれました。次の操作時または AICLI Client の再起動時に完了します",
     "stackFailed": "集約したモデルの保存に失敗しました：{{error}}",
-    "stackDefaultCannotRemove": "デフォルトのプロバイダーは削除できません。先に別のプロバイダーをデフォルトに設定してください",
-    "stackDefaultHint": "デフォルトのプロバイダーです：一覧の先頭のモデルが Claude Code の起動時とバックグラウンドタスクを担当します",
     "officialModelsBundled": "公式モデル一覧をまだ取得できていないため、Codex 内蔵の一覧を使っています。アカウント専用のモデルが表示されない場合があります",
     "officialModelsUnavailable": "Codex のモデル一覧を読み込めないため、集約したモデルは現在使用できません",
     "officialModelsOutdated": "このコンピューターの Codex が古いため、公式モデル一覧を完全に取得できません。Codex（CLI を含む）を最新版に更新してください",
@@ -117,147 +96,19 @@
       "nothingUsable": "Codex 内蔵の一覧：使えるモデルがありません。Codex を最新版に更新してください"
     },
     "routeOwnsCatalog": "ルーティング先のプロバイダーが独自のモデルカタログファイル（model_catalog_json）を使っているため、集約したモデルは Codex に表示されません",
-    "adoptCatalog": "AICLI Client のモデルカタログを使う",
     "adoptCatalogDone": "AICLI Client のモデルカタログに切り替えました。Codex を再起動すると反映されます",
     "adoptCatalogFailed": "AICLI Client のモデルカタログへの切り替えに失敗しました：{{error}}",
-    "noRoutingSupport": "ルーティング非対応",
-    "blockedByProxyHint": "ルーティングモードでは公式プロバイダーに切り替えできません",
-    "editProvider": "プロバイダーを編集",
-    "editProviderHint": "保存すると現在のプロバイダーにすぐ反映されます。",
-    "deleteProvider": "プロバイダーを削除",
-    "addNewProvider": "プロバイダーを追加",
-    "addFooterHint": "💡 プリセットを選んだら、下のフィールド（API Key など）を入力してください",
-    "addClaudeProvider": "Claude Code プロバイダーを追加",
-    "addCodexProvider": "Codex プロバイダーを追加",
-    "addGeminiProvider": "Gemini プロバイダーを追加",
-    "addOpenCodeProvider": "OpenCode プロバイダーを追加",
-    "addToConfig": "追加",
-    "removeFromConfig": "削除",
-    "setAsDefault": "デフォルトに設定",
-    "isDefault": "現在のデフォルト",
-    "inConfig": "追加済み",
-    "addProviderHint": "一覧にすばやく切り替えられるよう、ここに情報を入力してください。",
-    "editClaudeProvider": "Claude Code プロバイダーを編集",
-    "editCodexProvider": "Codex プロバイダーを編集",
-    "configError": "設定エラー",
-    "notConfigured": "公式サイト用に未設定",
-    "applyToClaudePlugin": "Claude プラグインに適用",
-    "removeFromClaudePlugin": "Claude プラグインから解除",
-    "dragToReorder": "ドラッグで並べ替え",
-    "dragHandle": "ドラッグで並べ替え",
-    "searchPlaceholder": "名前・メモ・URLで検索...",
-    "searchAriaLabel": "プロバイダーを検索",
-    "searchScopeHint": "名前・メモ・公式サイト・API アドレスを対象に検索します。",
-    "searchButtonTip": "プロバイダーを検索（{{shortcut}}）",
-    "searchCloseHint": "Esc で閉じる",
-    "searchCloseAriaLabel": "検索を閉じる",
-    "noSearchResults": "一致するプロバイダーがありません。",
-    "duplicate": "複製",
-    "sortUpdateFailed": "並び順の更新に失敗しました",
-    "configureUsage": "利用状況を設定",
-    "managedByHermes": "Hermes 管理",
-    "managedByHermesHint": "Hermes の providers: dict で定義されています。Hermes Web UI で編集または削除してください。",
-    "openTerminal": "このプロバイダーでターミナルを開く",
-    "openTerminalIsolated": "このプロバイダーでターミナルを開く（環境を分離）",
-    "openTerminalWithProvider": "このプロバイダーでターミナルを開く",
-    "terminalOpened": "ターミナルを開きました",
-    "terminalOpenFailed": "ターミナルを開けませんでした",
-    "openTerminalDialog": {
-      "title": "どのフォルダでターミナルを開きますか？",
-      "description": "選んだフォルダでターミナルを開き、「{{name}}」の設定で {{app}} を起動します。通常はプロジェクトのフォルダを選びます。",
-      "isolationTitle": "このターミナルは分離されています",
-      "isolationBody": "常に「{{name}}」を使います。あとで AICLI Client でプロバイダーを切り替えても影響を受けず、AICLI Client で使用中のプロバイダーも変更しません。",
-      "isolationBodyAgy": "「{{name}}」のキーとエンドポイントはこのターミナルの agy にだけ渡され、ファイルには書き込まれません。別のターミナルで直接 agy を実行した場合は Google ログインのままです。",
-      "noDir": "フォルダが未選択です",
-      "choose": "フォルダを選択…",
-      "change": "変更…",
-      "recent": "最近使ったフォルダ",
-      "forget": "最近使ったフォルダから削除",
-      "confirm": "ターミナルを開く",
-      "skipPermissions": "権限の確認をスキップ",
-      "extraArgs": "追加の引数（任意）",
-      "extraArgsPlaceholder": "例: --debug --append-system-prompt \"簡潔に答えて\"",
-      "extraArgsHint": "起動コマンドの後ろに付け、今回開くターミナルだけで使います。スペースで区切り、スペースを含む値は引用符で囲んでください。",
-      "agySwitchTitle": "agy のログインを切り替えます",
-      "agySwitchBody": "開く前に agy のログインを {{account}} に切り替えます。以降に起動する agy はこのアカウントを使います。",
-      "agySwitchRunning": "agy が実行中です。開いている agy は元のアカウントのままで、元のアカウントを書き戻す可能性があります。できれば先に終了してください。"
-    },
-    "name": "名前",
-    "namePlaceholder": "例: Claude Official",
-    "websiteUrl": "Web サイト URL",
-    "notes": "メモ",
-    "notesPlaceholder": "例: 会社用アカウント",
-    "configJson": "Config JSON",
-    "configJsonHint": "Claude Code の設定をすべて入力してください",
-    "addProvider": "プロバイダーを追加",
-    "sortUpdated": "並び順を更新しました",
-    "usageSaved": "利用状況の設定を保存しました",
-    "usageSaveFailed": "利用状況設定の保存に失敗しました",
-    "geminiConfig": "Gemini 設定",
-    "geminiConfigHint": ".env 形式で Gemini を設定してください",
     "form": {
       "agy": {
-        "endpointHelp": "空欄なら Google の標準 API を使います。外部接続先は Gemini API と agy 内蔵の Gemini モデルに対応している必要があります。",
-        "modelHelp": "モデル一覧の表示名を入力してください（「モデル一覧を取得」から選べます）。そのセッションにのみ適用されます。",
-        "keyFieldsHint": "モデル、キー、エンドポイントは「ターミナルを開く」でのみ使われ、Antigravity 自身の設定には書き込みません。",
-        "envFile": "起動時の環境変数",
-        "envFileHint": "カードの「ターミナルを開く」から agy を起動すると、AICLI Client は API キーとエンドポイントをその agy プロセスだけに渡し、ファイルには書き込みません。他の環境変数は適用されません。",
-        "configJson": "モデル設定（AICLI Client 形式）",
-        "configJsonHint": "ここではモデル設定のみ対応しています。他の Antigravity 設定は agy で変更し、MCP は MCP パネルで管理してください。",
-        "account": "アカウント",
-        "accountFollow": "agy の現在のログインに従う",
-        "accountMissing": "このコンピューターにないアカウント",
-        "accountHelp": "アカウントを選ぶと、「ターミナルを開く」の前に agy のログインをそのアカウントに切り替えます（全体に適用され、以降に起動する agy はそのアカウントを使います）。アカウントは認証センターで追加します。"
+        "modelHelp": "モデル一覧の表示名を入力してください（「モデル一覧を取得」から選べます）。そのセッションにのみ適用されます。"
       },
       "gemini": {
-        "model": "モデル",
         "oauthTitle": "OAuth 認証モード",
-        "oauthHint": "Google 公式は OAuth 個人認証を使用するため API Key は不要です。初回利用時にブラウザが開きます。",
-        "apiKeyPlaceholder": "Gemini API Key を入力"
-      },
-      "claudeAccount": {
-        "label": "ログイン方法",
-        "default": "Claude Code のログインに追従",
-        "defaultDescription": "Claude Code で現在ログイン中のアカウントに追従します",
-        "missing": "このコンピューターにないアカウント",
-        "manage": "Claude アカウントを追加または管理",
-        "helpTerminal": "設定で Claude の設定フォルダーが上書きされているため、このカードに切り替えても Claude Code のログインは変わりません。選んだアカウントはカードの「ターミナルを開く」から使ってください。",
-        "helpWsl": "Claude の設定フォルダーが WSL にあるため、Claude アカウントにはまだ対応していません。このカードに切り替えても Claude Code のログインは変わりません。",
-        "help": "このカードに切り替えると、実行中のセッションも含めて Claude Code のログインがすぐに選んだアカウントに変わります。複数のアカウントを同時に使うには、カードの「ターミナルを開く」を使ってください。",
-        "claudeAccount": "Claude アカウント",
-        "reauthBadge": "再ログインが必要",
-        "terminalHint": "ターミナルを開いて使用",
-        "wslHint": "WSL は未対応",
-        "plan": {
-          "pro": "Pro",
-          "max": "Max",
-          "max5x": "Max 5x",
-          "max20x": "Max 20x",
-          "team": "Team",
-          "teamPremium": "Team プレミアム",
-          "enterprise": "Enterprise"
-        }
+        "oauthHint": "Google 公式は OAuth 個人認証を使用するため API Key は不要です。初回利用時にブラウザが開きます。"
       }
-    },
-    "duplicateLiveIdsLoadFailed": "設定内のプロバイダー識別子を読み込めませんでした。設定を修正してから再度お試しください",
-    "editorViewFailed": "クライアントの設定ファイルを読み込めないため、保存済みのプロバイダー設定を表示しています：{{error}}",
-    "editConflict": {
-      "title": "編集中に設定ファイルが変更されました",
-      "message": "エディターを開いた後、以下の設定が他のプログラム（Claude Code など）によって変更されました。自分の編集で上書きしますか？それとも外部の変更を残しますか？その他の編集はどちらでも保存されます。",
-      "keepTheirs": "外部の変更を残す",
-      "keepMine": "自分の編集で上書き"
-    },
-    "backToList": "プロバイダー一覧に戻る",
-    "editProviderNamed": "{{name}} を編集",
-    "formSubtitleStack": "{{app}}（集約モード）",
-    "editCurrentNoticeFile": "使用中のプロバイダーです。保存するとすぐに",
-    "editCurrentNoticeFileEnd": " に書き込まれ、次のリクエストから反映されます。",
-    "editCurrentNotice": "使用中のプロバイダーです。保存するとすぐに反映され、次のリクエストから新しい設定が使われます。"
+    }
   },
   "notifications": {
-    "providerAdded": "プロバイダーを追加しました",
-    "providerSaved": "プロバイダー設定を保存しました",
-    "providerDeleted": "プロバイダーを削除しました",
     "switchSuccess": "切り替え成功！",
     "codexRestartRequired": "切り替えました。反映するにはクライアントを再起動してください",
     "geminiRestartRequired": "切り替えました。反映するには Gemini CLI を再起動してください",
@@ -265,11 +116,8 @@
     "claudeDesktopRestartRequired": "切り替えました。反映するには Claude Desktop を再起動してください",
     "addToConfigSuccess": "設定に追加しました",
     "removeFromConfigSuccess": "設定から削除しました",
-    "removeFromConfigFailed": "プロバイダーを削除できません",
     "switchFailedTitle": "切り替えに失敗しました",
     "switchFailed": "切り替えに失敗しました: {{error}}",
-    "autoImported": "既存設定からデフォルトプロバイダーを自動作成しました",
-    "addFailed": "プロバイダーの追加に失敗しました: {{error}}",
     "saveFailed": "保存に失敗しました: {{error}}",
     "saveFailedGeneric": "保存に失敗しました。もう一度お試しください",
     "appliedToClaudePlugin": "Claude プラグインに適用しました",
@@ -277,13 +125,8 @@
     "syncClaudePluginFailed": "Claude プラグインとの同期に失敗しました",
     "skipClaudeOnboardingFailed": "Claude Code の初回確認スキップに失敗しました",
     "clearClaudeOnboardingSkipFailed": "Claude Code の初回確認の復元に失敗しました",
-    "updateSuccess": "プロバイダーを更新しました",
-    "updateFailed": "プロバイダーの更新に失敗しました: {{error}}",
-    "deleteSuccess": "プロバイダーを削除しました",
-    "deleteFailed": "プロバイダーの削除に失敗しました: {{error}}",
     "settingsSaved": "設定を保存しました",
     "settingsSaveFailed": "設定の保存に失敗しました: {{error}}",
-    "proxyRequiredForSwitch": "このプロバイダーは{{reason}}、ルーティングサービスが必要です。先にルーティングを起動してください",
     "proxyReasonOpenAIChat": "OpenAI Chat API フォーマットを使用しており",
     "proxyReasonOpenAIResponses": "OpenAI Responses API フォーマットを使用しており",
     "proxyReasonAnthropicMessages": "Anthropic Messages API フォーマットを使用しており",
@@ -291,33 +134,21 @@
     "proxyReasonDesktopMapping": "モデルマッピングを使っており（Claude Desktop は Claude のモデル名しか受け付けません）",
     "proxyReasonManagedOAuth": "マネージド OAuth ログイン（トークンはローカルルーティングが注入）を使用しており",
     "proxyReasonRoutingRequired": "リクエスト処理にローカルルーティングが必要であり",
-    "openAIFormatHint": "このプロバイダーは OpenAI 互換フォーマットを使用しており、ルーティングサービスの有効化が必要です",
     "openLinkFailed": "リンクを開けませんでした",
     "openclawModelsRegistered": "モデルが /model リストに登録されました",
     "openclawDefaultModelSet": "デフォルトモデルに設定しました",
     "openclawDefaultModelSetFailed": "デフォルトモデルの設定に失敗しました",
-    "openclawNoModels": "モデルが設定されていません",
     "openclawModelNotFound": "選択したモデルは存在しません。更新してからもう一度お試しください。",
-    "backfillWarning": "切り替え成功しましたが、前のプロバイダーへの設定保存に失敗しました",
     "codexAuthCleanupFailed": "切り替えは成功しましたが、auth.json を削除できませんでした。公式ログイン資格情報がディスクに残っています。完全に削除するには Codex 設定ディレクトリの auth.json を手動で削除してください",
-    "windowControlFailed": "ウィンドウ操作に失敗しました: {{error}}",
-    "officialBlockedByProxy": "ローカルルーティングモード中は公式プロバイダーに切り替えできません。ルーティング経由で公式 API にアクセスするとアカウントが停止される可能性があります。",
-    "proxyOfficialWarning": "現在のプロバイダー {{name}} は公式です。ローカルルーティングを使用する前にサードパーティプロバイダーに切り替えてください。"
+    "windowControlFailed": "ウィンドウ操作に失敗しました: {{error}}"
   },
   "confirm": {
-    "deleteProvider": "プロバイダーを削除",
-    "deleteProviderMessage": "プロバイダー「{{name}}」を削除してもよろしいですか？この操作は元に戻せません。",
-    "removeProvider": "プロバイダーを解除",
-    "removeProviderMessage": "プロバイダー「{{name}}」を設定から解除してもよろしいですか？\n\n解除後、このプロバイダーは無効になりますが、設定データは AICLI Client に保持されます。いつでも再追加できます。",
-    "piDefaultProviderWarning": "Pi のグローバルデフォルトは現在このプロバイダーを参照しています。続行すると、Pi は別の利用可能なモデルを試します。/model で再選択するか、/login で別のプロバイダーにログインできます。",
     "proxy": {
       "title": "ローカルルーティングの有効化",
-      "message": "ローカルルーティングは上級機能です。有効にする前に、その仕組みを理解していることをご確認ください。\n\n適切な設定方法については、関連ドキュメントまたはプロバイダーにご相談ください。",
       "confirm": "理解しました、有効にする"
     },
     "failover": {
       "title": "フェイルオーバーの有効化",
-      "message": "フェイルオーバーは上級機能です。有効にする前に、その仕組みを理解していることをご確認ください。\n\nフェイルオーバーキューでプロバイダーの優先順位を先に設定することをお勧めします。",
       "confirm": "理解しました、有効にする"
     },
     "unifyCodexHistory": {
@@ -334,7 +165,6 @@
     },
     "usage": {
       "title": "使用量クエリの設定",
-      "message": "使用量クエリにはカスタムスクリプトまたは API パラメータが必要です。プロバイダーから必要な情報を取得していることをご確認ください。\n\n設定方法が不明な場合は、プロバイダーのドキュメントを先にご確認ください。",
       "confirm": "理解しました、設定する"
     }
   },
@@ -345,7 +175,6 @@
       "quotaDisplay": "残量の表示",
       "quotaDisplayLeft": "残り",
       "quotaDisplayUsed": "使用済み",
-      "quotaDisplayHelp": "プロバイダーカード、アカウント、トレイで、各枠の残量を「残り」と「使用済み」のどちらで表示するかを選びます。残高と Credits は常に残りを表示します。",
       "sidebarAndHeader": "サイドバーとヘッダー",
       "visibleApps": "サイドバーに表示するアプリ",
       "goToApps": "「アプリ」を開く",
@@ -371,7 +200,6 @@
         "enableFeature": "メインページにルーティング切り替えを表示",
         "enableFeatureDescription": "有効にすると、メインページ上部にルーティングとフェイルオーバーの切り替えが表示されます",
         "enableStackMode": "メインページに集約モードのスイッチを表示",
-        "enableStackModeDescription": "オンにすると、Claude Code と Codex のメインページのスイッチが集約モードになります。OpenCode のように複数のプロバイダーを追加でき、それらのモデルがすべてクライアントのモデル一覧に表示されます（Codex は再起動後に反映）。フェイルオーバーは行いません。ローカルルーティングのスイッチとはどちらか一方のみで、切り替え時はオンになっている Claude Code、Codex をいったん直接接続に戻します",
         "enableFailoverToggle": "メインページにフェイルオーバー切り替えを表示",
         "enableFailoverToggleDescription": "有効にすると、メインページ上部にフェイルオーバー切り替えが独立して表示されます",
         "running": "実行中",
@@ -462,7 +290,6 @@
     "importing": "インポート中...",
     "importSuccess": "インポート成功！",
     "importFailed": "インポート失敗",
-    "syncLiveFailed": "インポートしましたが、現在のプロバイダーへの同期に失敗しました。手動で再選択してください。",
     "importPartialSuccess": "設定はインポートされましたが、現在のプロバイダーへの同期に失敗しました。",
     "importPartialHint": "ライブ設定を更新するため、もう一度プロバイダーを選択してください。",
     "configExported": "設定をエクスポートしました:",
@@ -602,7 +429,6 @@
     "unifyCodexSessionHistory": "Codex セッション履歴を統一",
     "unifyCodexSessionHistoryDescription": "Codex CLI にのみ影響します：CLI の resume 一覧には現在のプロバイダーのセッションしか表示されません。オンにすると公式サブスクリプションも共有の custom プロバイダー ID で動作し、公式とサードパーティのセッションが同じ一覧に表示されます。Codex デスクトップ版はアップデートで全セッションを表示できるようになったため、デスクトップ版だけなら不要です。既存の公式セッションの移行も選択できます（移行前に自動バックアップ）。オフにする際はバックアップから復元できます。注意：プロバイダーをまたいで古いセッションを再開すると、encrypted_content の推論内容を相手のバックエンドが復号できず、再開に失敗する場合があります。",
     "codexStackClassicSubagents": "集約モードでサブエージェントにクラシックツールを使う",
-    "codexStackClassicSubagentsDescription": "メインとサブのエージェントが別のプロバイダーを使う場合は必ずオンにしてください。オフだとサブエージェントにタスクが届きません。",
     "codexStackClassicSubagentsForcedV2": "Codex の config.toml で [features] multi_agent_v2 がオンになっています。こちらが優先されるため、この設定は効きません。",
     "codexSessionCompression": "Codex の古いセッションを圧縮",
     "codexSessionCompressionDescription": "オンにすると、Codex は起動するたびに 7 日以上更新のないセッションファイルをバックグラウンドで圧縮し、ディスク使用量を大きく減らします。圧縮したセッションで会話を続けると Codex が自動的に展開します。AICLI Client は圧縮されたセッションも通常どおり表示・集計しますが、一覧には最後の返信のプレビューが表示されません。Codex でまだ開発中の機能のため、オンの間は Codex の起動時に毎回通知が表示されます。新しめの Codex が必要で、Codex を再起動すると有効になります。オフにすると圧縮は止まりますが、圧縮済みのセッションはそのまま残ります。",
@@ -620,9 +446,7 @@
       "geminiDesc": "Google Gemini CLI",
       "opencodeDesc": "OpenCode CLI",
       "showProfileSwitcher": "プロジェクト切り替えを表示",
-      "showProfileSwitcherDescription": "メイン画面上部にプロジェクト切り替えを表示します",
-      "showProviderSearch": "プロバイダー検索を表示",
-      "showProviderSearchDescription": "プロバイダー画面の上部に検索ボタンを表示し、名前・メモ・公式サイト・API アドレスで検索できます。非表示にしても ⌘F / Ctrl+F で検索を開けます"
+      "showProfileSwitcherDescription": "メイン画面上部にプロジェクト切り替えを表示します"
     },
     "terminal": {
       "title": "優先ターミナル",
@@ -848,19 +672,12 @@
     "omp": "Oh My Pi"
   },
   "pi": {
-    "empty": {
-      "title": "API キープロバイダーはまだありません",
-      "description": "右上の + から、プリセットまたはカスタムプロバイダーを追加できます。"
-    },
     "provider": {
       "enabled": "Pi で有効にしました",
-      "enableFailed": "Pi でこのプロバイダーを有効にできませんでした",
       "removed": "Pi から削除しました",
       "writeConflict": "別のプロセスが Pi の設定を更新しています。しばらくしてから再試行してください。"
     },
     "form": {
-      "providerKey": "プロバイダーキー",
-      "providerKeyRequired": "プロバイダーキーを入力してください",
       "selectPresetRequired": "先にプリセットまたはカスタム設定を選択してください",
       "fixJsonFirst": "下の設定 JSON を修正してから、構造化フィールドを編集してください。",
       "nameRequired": "表示名を入力してください",
@@ -913,10 +730,6 @@
       "duplicateModel": "モデル ID {{id}} が重複しています",
       "modelRequired": "モデルを 1 つ以上追加してください",
       "providerKeyDuplicate": "このプロバイダーキーは既に存在します"
-    },
-    "current": {
-      "readFailed": "Pi のプロバイダー設定を読み込めません",
-      "stateUnavailableHint": "AICLI Client が Pi のプロバイダー設定を読み込むまで、プロバイダーの変更は無効です。"
     },
     "prompts": {
       "globalTab": "ライブラリ",
@@ -1883,7 +1696,6 @@
     "disableFailed": "無効化に失敗しました",
     "importSuccess": "インポートしました",
     "importFailed": "インポートに失敗しました",
-    "confirm": {},
     "appSelect": "アプリを選択",
     "helpTitle": "プロンプトの反映のしかた",
     "helpText": "各アプリで同時に有効にできるのは 1 件で、その内容が対象ファイルになります。ほかで編集した内容は次にこのページを開いたとき有効なプロンプトに取り込まれます。ここにない内容がファイルにある場合は、別のプロンプトを有効にする前に「元のプロンプト」として保存されます。",
@@ -2056,16 +1868,12 @@
   },
   "openclaw": {
     "backupCreated": "バックアップを作成しました: {{path}}",
-    "providerKey": "プロバイダーキー",
     "providerKeyPlaceholder": "my-provider",
     "providerKeyHint": "設定ファイル内のユニーク識別子。小文字、数字、ハイフンのみ使用可能。",
-    "providerKeyLockedHint": "このプロバイダーは既にアプリ設定へ追加されているため、キーは変更できません。",
-    "providerKeyRequired": "プロバイダーキーを入力してください",
     "providerKeyDuplicate": "このキーは既に使用されています",
     "providerKeyInvalid": "無効な形式です。小文字、数字、ハイフンのみ使用可能。",
     "apiProtocol": "API プロトコル",
     "selectProtocol": "API プロトコルを選択",
-    "apiProtocolHint": "プロバイダーの API と互換性のあるプロトコルタイプを選択してください。ほとんどのプロバイダーは OpenAI Completions 形式を使用します。",
     "baseUrl": "API エンドポイント",
     "models": "モデル設定",
     "addModel": "モデルを追加",
@@ -2087,7 +1895,6 @@
     "cacheReadCost": "キャッシュ読み取り",
     "cacheWriteCost": "キャッシュ書き込み",
     "userAgent": "User-Agent を送信",
-    "userAgentHint": "一部のプロバイダーはブラウザの User-Agent ヘッダーが必要です。",
     "env": {
       "title": "環境変数",
       "editorHint": "env セクション全体を JSON として編集します。env.vars や env.shellEnv などのネストしたオブジェクトにも対応しています。",
@@ -2157,15 +1964,7 @@
   "hermes": {
     "form": {
       "baseUrl": "API エンドポイント",
-      "providerKey": "プロバイダーキー",
       "providerKeyPlaceholder": "my-provider",
-      "providerKeyHint": "小文字、数字、ハイフンのみ。config.yaml のプロバイダー名として使用されます。",
-      "providerKeyLockedHint": "このプロバイダーは Hermes 設定に追加済みのため、キーは変更できません。",
-      "providerKeyRequired": "プロバイダーキーは必須です",
-      "providerKeyInvalid": "プロバイダーキーは小文字、数字、ハイフンのみ使用できます",
-      "providerKeyDuplicate": "このプロバイダーキーは既に存在します",
-      "providerKeyBuiltin": "「{{key}}」は Hermes 組み込みプロバイダーの ID です。Hermes は組み込みプロバイダー（専用の環境変数の API キーが必要）を使い、このカードのエンドポイントとキーは使われません。aicli-{{key}} など別のキーにしてください。",
-      "providerKeyBuiltinLocked": "「{{key}}」は Hermes 組み込みプロバイダーの ID です。Hermes は組み込みプロバイダーを使い、このカードのエンドポイントとキーは使われません。キーはロックされているため、別のキー（例: aicli-{{key}}）でこのプロバイダーを追加し直してから、このカードを削除してください。",
       "apiMode": "API モード",
       "apiModeChatCompletions": "OpenAI Chat Completions",
       "apiModeAnthropicMessages": "Anthropic Messages",
@@ -2176,7 +1975,6 @@
       "baseUrlInvalid": "API エンドポイントは有効な URL ではありません",
       "models": "モデル一覧",
       "addModel": "モデルを追加",
-      "noModels": "モデル未設定。このプロバイダーに切り替えてもデフォルトモデルは更新されません。",
       "modelId": "モデル ID",
       "modelIdPlaceholder": "anthropic/claude-opus-5",
       "modelName": "表示名",
@@ -2185,7 +1983,6 @@
       "supportsVision": "画像入力に対応",
       "toggleModelDetails": "モデル詳細を展開または折りたたむ",
       "removeModel": "モデルを削除",
-      "modelsHint": "現在のプロバイダーとして有効にすると、最初のモデルが Hermes のデフォルトモデルになります。",
       "rateLimitDelay": "リクエスト間隔（秒）",
       "rateLimitDelayHint": "連続したリクエスト間の最小待機秒数（任意）。空欄の場合は制限なし。"
     },
@@ -2583,7 +2380,6 @@
       "disabled": "{{app}} ルーティング無効",
       "failed": "ルーティングの切り替えに失敗しました: {{detail}}",
       "tooltip": {
-        "active": "{{appLabel}} がルーティング中 - {{address}}:{{port}}\nプロバイダを切り替えるとルートだけが変わり、直接接続のプロバイダはそのままです",
         "broken": "{{appLabel}} がルーティング中ですが、ルーティングサービスが実行されていません",
         "inactive": "{{appLabel}} のリクエストをローカルルーティング経由でルーティング"
       }
@@ -2611,18 +2407,10 @@
     },
     "failover": {
       "proxyRequired": "フェイルオーバーを設定するには、ルーティングサービスを先に起動する必要があります",
-      "autoSwitch": "自動フェイルオーバー",
-      "autoSwitchDescription": "有効にするとキューの P1 に即時切り替え、リクエスト失敗時はキュー内の次のプロバイダーを自動で試行します"
+      "autoSwitch": "自動フェイルオーバー"
     },
     "failoverQueue": {
       "title": "フェイルオーバーキュー",
-      "description": "各アプリのプロバイダーのフェイルオーバー順序を管理します",
-      "info": "自動フェイルオーバーを有効にすると、キューの優先度順（P1 優先）でプロバイダーを使用します。失敗時はキュー内の次のプロバイダーを順に試行します。",
-      "selectProvider": "キューに追加するプロバイダーを選択",
-      "noAvailableProviders": "追加できるプロバイダーがありません",
-      "empty": "フェイルオーバーキューが空です。自動フェイルオーバーを有効にするにはプロバイダーを追加してください。",
-      "orderHint": "キューの順序はホームのプロバイダー一覧の順序と一致します。ホームでドラッグして順序を変更できます。",
-      "dragHint": "ドラッグでフェイルオーバー順序を調整します。番号が小さいほど優先度が高くなります。",
       "toggleEnabled": "有効/無効",
       "addSuccess": "フェイルオーバーキューに追加しました",
       "addFailed": "追加に失敗しました",
@@ -2633,7 +2421,6 @@
       "toggleFailed": "状態の更新に失敗しました"
     },
     "autoFailover": {
-      "info": "フェイルオーバーキューに複数のプロバイダーが設定されている場合、リクエストが失敗すると優先度順に試行します。プロバイダーが連続失敗のしきい値に達すると、サーキットブレーカーが開き、一時的にスキップされます。",
       "configSaved": "自動フェイルオーバー設定を保存しました",
       "configSaveFailed": "保存に失敗しました",
       "validationFailed": "以下のフィールドが有効範囲外です: {{fields}}",
@@ -2651,11 +2438,9 @@
       "minRequestsHint": "エラー率を計算する前の最小リクエスト数",
       "explanationTitle": "仕組み",
       "failureThresholdLabel": "失敗しきい値",
-      "failureThresholdExplain": "この回数連続で失敗すると、サーキットブレーカーが開き、プロバイダーは一時的に利用不可になります",
       "timeoutLabel": "回復待ち時間",
       "timeoutExplain": "サーキットが開いた後、半開状態を試みるまでの待ち時間",
       "successThresholdLabel": "回復成功しきい値",
-      "successThresholdExplain": "半開状態でこの回数成功するとサーキットブレーカーが閉じ、プロバイダーが再び利用可能になります",
       "errorRateLabel": "エラー率しきい値",
       "errorRateExplain": "失敗しきい値に達していなくても、エラー率がこの値を超えるとサーキットブレーカーが開きます",
       "maxRetries": "最大リトライ回数",
@@ -2759,7 +2544,6 @@
     "configDirectory": "設定ディレクトリ",
     "installAndUpgrade": "インストールとアップグレード",
     "hideFromSidebar": "クライアント一覧から隠す",
-    "providers": "プロバイダー",
     "client": "クライアント",
     "workspace": "ワークスペース",
     "openclawConfig": "設定",
@@ -3221,11 +3005,9 @@
       "empty": "Kimi アカウントはまだありません。Kimi Code でログイン中のアカウントは自動的にここに表示されます。",
       "help": "Kimi コーディングプランのアカウントを複数追加でき、それぞれ Kimi Code 内に専用のプロバイダーとモデルを持ちます。「このアカウントを使用」で Kimi Code の既定モデルをそのアカウントに切り替え、以降の新しいセッションで使われます。Kimi Code 自身がログインしているアカウントは自動的にここに表示され、Web 検索と取得には常にこれが使われます。ここで削除してもリストから外すだけで、Kimi Code はログアウトしません。"
     },
-    "modelSelectionHint": "プロバイダーカードの切り替えボタンで既定のプロバイダーを選択します。別のモデルを選ぶには、Kimi Code で /model を使用してください。",
     "contextSize": "コンテキスト長",
     "deleteSessionHint": "インデックスと履歴を同期するため、Kimi Code 内でセッションを削除してください。",
     "empty": {
-      "title": "Kimi Code プロバイダーを追加",
       "description": "URL、API キー、モデルを設定します。既存の Kimi 設定は自動的にインポートされます。"
     },
     "capabilities": {
@@ -3245,18 +3027,9 @@
     }
   },
   "omp": {
-    "empty": {
-      "title": "API キープロバイダーはまだありません",
-      "description": "右上の + から、プリセットまたはカスタムプロバイダーを追加できます。"
-    },
     "provider": {
       "enabled": "Oh My Pi で有効にしました",
-      "enableFailed": "Oh My Pi でこのプロバイダーを有効にできませんでした",
       "removed": "Oh My Pi から削除しました"
-    },
-    "current": {
-      "readFailed": "Oh My Pi のプロバイダー設定を読み込めません",
-      "stateUnavailableHint": "AICLI Client が Oh My Pi のプロバイダー設定を読み込むまで、プロバイダーの変更は無効です。"
     },
     "form": {
       "discoveryType": "モデルの自動検出",
@@ -3287,11 +3060,6 @@
     }
   },
   "dsh": {
-    "empty": {
-      "title": "DeepSeek Harness プロバイダーを追加",
-      "description": "接続先 URL、API キー、モデルを設定します。既存のカスタムプロバイダーは自動的にここに表示されます。"
-    },
-    "sharedProviders": "Web と Desktop はこのプロバイダー一覧を共有します。追加・編集・削除は web と desktop の profile（なければ先に作成し、Desktop は初回起動時にそのまま使います）と、初期化済みの headless、acp にまとめて書き込まれます。",
     "account": {
       "help": "DeepSeek アカウントはブラウザでログインします（OAuth）。ここでも DeepSeek Harness でもログインできます。ログイン情報は $DSH_HOME/.credentials.yaml（既定は ~/.dsh/.credentials.yaml） に保存され、DeepSeek Harness の Web と Desktop で共有されます。どこでログイン・ログアウトしても両方に反映され、実行中の DeepSeek Harness は自動で読み直します。アカウント経由のモデルの使用量は、使用量ページで「DeepSeek アカウント（OAuth）」として別に表示されます。",
       "statusFailed": "DeepSeek アカウントのログイン状態を読み取れません",
@@ -3300,7 +3068,6 @@
       "expired": "ログインの有効期限が切れました。再ログインしてください",
       "shared": "Web と Desktop で共有",
       "signOut": "ログアウト",
-      "signOutConfirm": "DeepSeek アカウント「{{name}}」からログアウトしますか？DeepSeek Harness の Web と Desktop の両方がログアウトされます。API キーのプロバイダーには影響しません。",
       "signOutFailed": "DeepSeek アカウントからログアウトできませんでした",
       "balance": "残高 {{amount}}",
       "bonus": "ボーナス {{amount}}",

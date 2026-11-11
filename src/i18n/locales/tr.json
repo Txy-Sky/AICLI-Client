@@ -66,7 +66,6 @@
     "viewOnGithub": "GitHub’da görüntüle",
     "toggleDarkMode": "Koyu moda geç",
     "toggleLightMode": "Açık moda geç",
-    "addProvider": "Sağlayıcı Ekle",
     "switchToChinese": "Çinceye geç",
     "switchToEnglish": "İngilizceye geç",
     "enterEditMode": "Düzenleme Moduna Girin",
@@ -77,31 +76,11 @@
     "windowClose": "Pencereyi kapat"
   },
   "provider": {
-    "connectivityCheck": "Bağlantı kontrolü",
-    "tabProvider": "Sağlayıcı",
-    "tabUniversal": "Evrensel",
-    "noProviders": "Henüz sağlayıcı yok",
-    "noProvidersDescription": "Zaten bir yapılandırmanız varsa “Mevcut Yapılandırmayı İçe Aktar” düğmesine tıklayın. Tüm veriler varsayılan sağlayıcıya güvenli bir şekilde kaydedilecektir.",
-    "noProvidersDescriptionKeyFields": "Sağlayıcıların değiştirilmesi yalnızca anahtarın, uç noktanın ve modelin yerini alır; eklentiler ve diğer ayarlar yapılandırma dosyasında kalır ve her sağlayıcıya uygulanır",
-    "importCurrent": "Mevcut Yapılandırmayı İçe Aktar",
-    "importFromClaude": "Mevcut sağlayıcıları Claude Code'den içe aktarın",
-    "importCurrentDescription": "Geçerli canlı yapılandırmayı varsayılan sağlayıcı olarak içe aktar",
-    "currentlyUsing": "Şu anda Kullanılıyor",
-    "enable": "Etkinleştir",
-    "inUse": "Kullanımda",
-    "needsRouting": "Yönlendirme Gerekiyor",
-    "directProvider": "Doğrudan",
-    "directProviderHint": "Yönlendirme modundan çıkıldığında bu sağlayıcıya geri dönülür",
-    "stackBadge": "Birleştirme",
-    "stackBadgeHint": "{{client}}'nin model seçicisini seçin: {{models}}",
-    "stackBadgeNoModels": "Bu sağlayıcının yapılandırılmış modeli yok, dolayısıyla model seçicide hiçbir şey görünmüyor",
     "stackSaved": "Kaydedildi. Uygulamak için {{client}}'yi yeniden başlatın",
     "stackSavedLive": "Kaydedildi. {{client}}'de hemen yürürlüğe girer",
     "stackReselectHint": "AICLI Client istemci yapılandırmasını yeniden yazdığında, model seçicide toplanan modeli tekrar seçin",
     "stackPartial": "Kısmen yazılı; bir sonraki değişiklikte veya AICLI Client yeniden başlatıldığında tamamlanacak",
     "stackFailed": "Birleştirilmiş modeller kaydedilemedi: {{error}}",
-    "stackDefaultCannotRemove": "Varsayılan sağlayıcı kaldırılamaz; önce başka bir sağlayıcıyı varsayılan olarak ayarlayın",
-    "stackDefaultHint": "Bu varsayılan sağlayıcıdır: listesindeki ilk model Claude Code'nin başlangıç ​​ve arka plan görevlerini yönetir",
     "officialModelsBundled": "Resmi model listesi henüz mevcut olmadığından şimdilik Codex'nin yerleşik listesi kullanılıyor ve hesaba özel modeller eksik olabilir",
     "officialModelsUnavailable": "Toplu modeller şimdilik kullanılamıyor: Codex model listesi okunamıyor",
     "officialModelsOutdated": "Bu bilgisayardaki Codex, tam resmi model listesini almak için çok eski: Codex uygulamasını (CLI dahil) en son sürüme güncelleyin",
@@ -117,120 +96,19 @@
       "nothingUsable": "Codex yerleşik liste: kullanılabilir modeli yoktur. Codex uygulamasını en son sürüme güncelleyin"
     },
     "routeOwnsCatalog": "Toplanan modeller Codex'de görünmüyor: yönlendirilen sağlayıcı kendi model katalog dosyasını (model_catalog_json) kullanıyor",
-    "adoptCatalog": "AICLI Client’in model kataloğunu kullanın",
     "adoptCatalogDone": "Artık AICLI Client’in model kataloğunu kullanıyoruz. Uygulamak için Codex uygulamasını yeniden başlatın",
     "adoptCatalogFailed": "AICLI Client’in model kataloğuna geçilemedi: {{error}}",
-    "noRoutingSupport": "Yönlendirme Desteği Yok",
-    "blockedByProxyHint": "Yönlendirme modunda resmi bir sağlayıcıya geçilemiyor",
-    "editProvider": "Sağlayıcıyı Düzenle",
-    "editProviderHint": "Yapılandırma, güncellemeden hemen sonra mevcut sağlayıcıya uygulanacaktır.",
-    "deleteProvider": "Sağlayıcıyı Sil",
-    "addNewProvider": "Sağlayıcı ekle",
-    "addFooterHint": "💡 Bir ön ayar seçtikten sonra aşağıdaki alanları doldurun (örn. API Tuşu)",
-    "addClaudeProvider": "Claude Code Sağlayıcı Ekle",
-    "addCodexProvider": "Codex Sağlayıcı Ekle",
-    "addGeminiProvider": "Gemini Sağlayıcı Ekle",
-    "addOpenCodeProvider": "OpenCode Sağlayıcı Ekle",
-    "addToConfig": "Ekle",
-    "removeFromConfig": "Kaldır",
-    "setAsDefault": "Varsayılanı Ayarla",
-    "isDefault": "Mevcut Varsayılan",
-    "inConfig": "Eklendi",
-    "addProviderHint": "Listedeki sağlayıcıları hızlı bir şekilde değiştirmek için bilgileri doldurun.",
-    "editClaudeProvider": "Claude Code Sağlayıcıyı Düzenle",
-    "editCodexProvider": "Codex Sağlayıcıyı Düzenle",
-    "configError": "Yapılandırma Hatası",
-    "notConfigured": "Resmi web sitesi için yapılandırılmamış",
-    "applyToClaudePlugin": "Claude eklentisine uygula",
-    "removeFromClaudePlugin": "Claude eklentisinden kaldır",
-    "dragToReorder": "Yeniden sıralamak için sürükleyin",
-    "dragHandle": "Yeniden sıralamak için sürükleyin",
-    "searchPlaceholder": "Adı, notları veya URL'yi arayın...",
-    "searchAriaLabel": "Sağlayıcılarda ara",
-    "searchScopeHint": "Sağlayıcının adı, notları, web sitesi ve API adresiyle eşleşir.",
-    "searchButtonTip": "Sağlayıcılarda ara ({{shortcut}})",
-    "searchCloseHint": "Kapatmak için Esc tuşuna basın",
-    "searchCloseAriaLabel": "Sağlayıcı aramasını kapat",
-    "noSearchResults": "Aramanızla eşleşen sağlayıcı yok.",
-    "duplicate": "Çoğalt",
-    "sortUpdateFailed": "Sıralama düzeni güncellenemedi",
-    "configureUsage": "Kullanım sorgusunu yapılandırma",
-    "managedByHermes": "Hermes Yönetilen",
-    "managedByHermesHint": "Hermes' sağlayıcılarında tanımlanmıştır: dict. Hermes Web kullanıcı arayüzü aracılığıyla düzenleyin veya kaldırın.",
-    "openTerminal": "Bu sağlayıcıyla terminal aç",
-    "openTerminalIsolated": "Bu sağlayıcıyla terminal aç (yalıtılmış)",
-    "openTerminalWithProvider": "Bu sağlayıcıyla terminal aç",
-    "terminalOpened": "Terminal açıldı",
-    "terminalOpenFailed": "Terminal açılamadı",
-    "openTerminalDialog": {
-      "title": "Terminal hangi klasörde açılsın?",
-      "description": "Seçtiğiniz klasörde bir terminal açılır ve {{app}}, \"{{name}}\" ayarlarıyla başlatılır. Genellikle proje klasörünüzü seçebilirsiniz.",
-      "isolationTitle": "Bu terminal yalıtılmıştır",
-      "isolationBody": "Bu terminal \"{{name}}\" sağlayıcısında kalır: AICLI Client'te daha sonra sağlayıcı değiştirmeniz bu terminali etkilemez ve AICLI Client'in o anda kullandığı sağlayıcıyı değiştirmez.",
-      "isolationBodyAgy": "\"{{name}}\" anahtarı ve uç noktası yalnızca bu terminalde agy tarafından kullanılır ve hiçbir dosyaya yazılmaz. agy'yi başka bir terminalde doğrudan çalıştırırsanız Google hesabınızdaki oturum kullanılır.",
-      "noDir": "Klasör seçilmedi",
-      "choose": "Klasör Seç…",
-      "change": "Değiştir…",
-      "recent": "Son kullanılanlar",
-      "forget": "Son kullanılanlardan kaldır",
-      "confirm": "Terminali Aç",
-      "agySwitchTitle": "Bu işlem agy'nin oturum açma hesabını değiştirir",
-      "agySwitchBody": "Terminal açılmadan önce agy'nin oturumu {{account}} hesabına geçirilir; bundan sonra başlatılan agy oturumları bu hesabı kullanır.",
-      "agySwitchRunning": "agy çalışıyor: açık agy oturumları önceki hesabı kullanmaya devam eder ve hesabı yeniden kaydedebilir. Mümkünse önce agy oturumlarını kapatın."
-    },
-    "name": "İsim",
-    "namePlaceholder": "ör. Claude Resmi",
-    "websiteUrl": "Web sitesi URL'si",
-    "notes": "Notlar",
-    "notesPlaceholder": "ör. Şirkete özel hesap",
-    "configJson": "Yapılandırma JSON",
-    "configJsonHint": "Lütfen Claude Code yapılandırmasının tamamını doldurun",
-    "addProvider": "Sağlayıcı Ekle",
-    "sortUpdated": "Sıralama düzeni güncellendi",
-    "usageSaved": "Kullanım sorgusu yapılandırması kaydedildi",
-    "usageSaveFailed": "Kullanım sorgusu yapılandırması kaydedilemedi",
-    "geminiConfig": "Gemini Yapılandırması",
-    "geminiConfigHint": "Gemini'yi yapılandırmak için .env biçimini kullanın",
     "form": {
       "agy": {
-        "endpointHelp": "Google'ın varsayılan API'sini kullanmak için boş bırakın. Üçüncü taraf uç noktalar Gemini API'sini ve agy'nin yerleşik Gemini modellerini desteklemelidir.",
-        "modelHelp": "Model listesindeki görünen adı kullanın (Modelleri Getir). Yalnızca bu oturum için geçerlidir.",
-        "keyFieldsHint": "Model, anahtar ve uç nokta yalnızca \"Terminal Aç\" tarafından kullanılır ve Antigravity’nin kendi ayarlarına hiçbir zaman yazılmaz.",
-        "envFile": "Başlatıcı ortam değişkenleri",
-        "envFileHint": "agy, sağlayıcı kartındaki \"Terminal Aç\" seçeneğiyle başlatıldığında AICLI Client API anahtarını ve uç noktasını yalnızca o agy sürecine iletir; hiçbir dosyaya yazmaz. Diğer ortam değişkenleri uygulanmaz.",
-        "configJson": "Model yapılandırması (AICLI Client biçimi)",
-        "configJsonHint": "Burada yalnızca model ayarları desteklenir. Diğer Antigravity seçeneklerini agy'de değiştirin; MCP'yi MCP panelinden yönetin.",
-        "account": "Hesap",
-        "accountFollow": "agy'nin mevcut oturum açma hesabını kullan",
-        "accountMissing": "Bu bilgisayarda bulunmayan hesap",
-        "accountHelp": "Bir hesap seçildiğinde Terminal Aç, önce agy'nin oturumunu bu hesaba geçirir (bu değişiklik genel olarak geçerlidir: bundan sonra başlatılan agy oturumları bu hesabı kullanır). Hesapları Kimlik Doğrulama Merkezi'ne ekleyin."
+        "modelHelp": "Model listesindeki görünen adı kullanın (Modelleri Getir). Yalnızca bu oturum için geçerlidir."
       },
       "gemini": {
-        "model": "Model",
         "oauthTitle": "OAuth Kimlik Doğrulama Modu",
-        "oauthHint": "Google’ın resmî hizmeti kişisel OAuth kimlik doğrulaması kullanır; API anahtarı girmeniz gerekmez. İlk kullanımda oturum açmanız için tarayıcı otomatik açılır.",
-        "apiKeyPlaceholder": "Gemini API Anahtarını girin"
+        "oauthHint": "Google’ın resmî hizmeti kişisel OAuth kimlik doğrulaması kullanır; API anahtarı girmeniz gerekmez. İlk kullanımda oturum açmanız için tarayıcı otomatik açılır."
       }
-    },
-    "duplicateLiveIdsLoadFailed": "Sağlayıcı tanımlayıcıları yapılandırmadan okunamadı. Lütfen yapılandırmayı düzeltip tekrar deneyin.",
-    "editorViewFailed": "İstemci yapılandırma dosyası okunamıyor, dolayısıyla kayıtlı sağlayıcı yapılandırması aşağıda gösterilmektedir: {{error}}",
-    "editConflict": {
-      "title": "Yapılandırma dosyası siz düzenleme yaparken değişti",
-      "message": "Editör açıldıktan sonra aşağıdaki ayarlar başka bir program (Claude Code gibi) tarafından değiştirildi. Düzenlemelerinizle bunların üzerine yazmak mı yoksa harici değişiklikleri saklamak mı istiyorsunuz? Diğer düzenlemeleriniz her iki şekilde de kaydedilir.",
-      "keepTheirs": "Harici değişiklikleri koru",
-      "keepMine": "Benim düzenlemelerimle üzerine yaz"
-    },
-    "backToList": "Sağlayıcılara geri dön",
-    "editProviderNamed": "{{name}}'yi düzenleyin",
-    "formSubtitleStack": "{{app}} (Birleştirme modu)",
-    "editCurrentNoticeFile": "Bu, kullanımda olan sağlayıcıdır. Kaydetme şunu yazar:",
-    "editCurrentNoticeFileEnd": "hemen; sonraki istek bunu kullanır.",
-    "editCurrentNotice": "Bu, kullanımda olan sağlayıcıdır. Kaydetme hemen etkili olur; sonraki istek yeni ayarları kullanır."
+    }
   },
   "notifications": {
-    "providerAdded": "Sağlayıcı eklendi",
-    "providerSaved": "Sağlayıcı yapılandırması kaydedildi",
-    "providerDeleted": "Sağlayıcı başarıyla silindi",
     "switchSuccess": "Geçiş başarılı!",
     "codexRestartRequired": "Başarıyla değiştirildi. Değişiklikleri uygulamak için istemciyi yeniden başlatın.",
     "geminiRestartRequired": "Başarıyla değiştirildi. Değişiklikleri uygulamak için Gemini CLI'yi yeniden başlatın.",
@@ -238,11 +116,8 @@
     "claudeDesktopRestartRequired": "Başarıyla değiştirildi. Değişiklikleri uygulamak için Claude Desktop'yi yeniden başlatın.",
     "addToConfigSuccess": "Yapılandırmaya eklendi",
     "removeFromConfigSuccess": "Yapılandırmadan kaldırıldı",
-    "removeFromConfigFailed": "Sağlayıcı kaldırılamadı",
     "switchFailedTitle": "Geçiş başarısız oldu",
     "switchFailed": "Geçiş başarısız oldu: {{error}}",
-    "autoImported": "Mevcut yapılandırmadan oluşturulan varsayılan sağlayıcı",
-    "addFailed": "Sağlayıcı eklenemedi: {{error}}",
     "saveFailed": "Kaydetme başarısız oldu: {{error}}",
     "saveFailedGeneric": "Kaydetme başarısız oldu, lütfen tekrar deneyin",
     "appliedToClaudePlugin": "Claude eklentisine uygulandı",
@@ -250,13 +125,8 @@
     "syncClaudePluginFailed": "Claude eklentisinin eşitlemeu başarısız oldu",
     "skipClaudeOnboardingFailed": "Claude Code ilk çalıştırma onayı atlanamadı",
     "clearClaudeOnboardingSkipFailed": "Claude Code ilk çalıştırma onayı geri yüklenemedi",
-    "updateSuccess": "Sağlayıcı başarıyla güncellendi",
-    "updateFailed": "Sağlayıcı güncellenemedi: {{error}}",
-    "deleteSuccess": "Sağlayıcı silindi",
-    "deleteFailed": "Sağlayıcı silinemedi: {{error}}",
     "settingsSaved": "Ayarlar kaydedildi",
     "settingsSaveFailed": "Ayarlar kaydedilemedi: {{error}}",
-    "proxyRequiredForSwitch": "Bu sağlayıcı {{reason}}, yönlendirme hizmetinin düzgün çalışmasını gerektirir. Önce yönlendirmeye başlayın.",
     "proxyReasonOpenAIChat": "OpenAI Sohbet API formatını kullanır",
     "proxyReasonOpenAIResponses": "OpenAI Yanıtları API biçimini kullanır",
     "proxyReasonAnthropicMessages": "Anthropic Mesajları API formatını kullanır",
@@ -264,33 +134,21 @@
     "proxyReasonDesktopMapping": "model eşlemesi kullanıyor (Claude Desktop yalnızca Claude model adlarını kabul eder)",
     "proxyReasonManagedOAuth": "yönetilen OAuth oturum açma bilgilerini kullanır (yerel yönlendirme tarafından enjekte edilen token)",
     "proxyReasonRoutingRequired": "istekleri işlemek için yerel yönlendirme gerektirir",
-    "openAIFormatHint": "Bu sağlayıcı OpenAI uyumlu format kullanıyor ve yönlendirme hizmetinin etkinleştirilmesini gerektiriyor",
     "openLinkFailed": "Bağlantı açılamadı",
     "openclawModelsRegistered": "Modeller /model listesine kaydedildi",
     "openclawDefaultModelSet": "Varsayılan model olarak ayarla",
     "openclawDefaultModelSetFailed": "Varsayılan model ayarlanamadı",
-    "openclawNoModels": "Yapılandırılmış model yok",
     "openclawModelNotFound": "Seçilen model artık mevcut değil. Yenileyin ve tekrar deneyin.",
-    "backfillWarning": "Başarılı bir şekilde geçiş yapıldı ancak değişiklikler önceki sağlayıcıya kaydedilemedi",
     "codexAuthCleanupFailed": "Başarılı bir şekilde geçiş yapıldı ancak auth.json kaldırılamadı; resmi oturum açma kimlik bilgileri hâlâ diskte; bunları kaldırmak için auth.json'u Codex yapılandırma dizininden silin",
-    "windowControlFailed": "Pencere kontrolü başarısız oldu: {{error}}",
-    "officialBlockedByProxy": "Yerel yönlendirme etkinken resmi sağlayıcıya geçilemez. Yönlendirmenin resmi API'lerle kullanılması hesabın yasaklanmasına neden olabilir.",
-    "proxyOfficialWarning": "Mevcut sağlayıcı {{name}} resmidir. Yerel yönlendirmeyi kullanmadan önce üçüncü taraf bir sağlayıcıya geçmeyi düşünün."
+    "windowControlFailed": "Pencere kontrolü başarısız oldu: {{error}}"
   },
   "confirm": {
-    "deleteProvider": "Sağlayıcıyı Sil",
-    "deleteProviderMessage": "\"{{name}}\" sağlayıcısını silmek istediğinizden emin misiniz? Bu eylem geri alınamaz.",
-    "removeProvider": "Sağlayıcıyı Kaldır",
-    "removeProviderMessage": "\"{{name}}\" sağlayıcısını yapılandırmadan kaldırmak istediğinizden emin misiniz?\n\nKaldırma işleminden sonra bu sağlayıcı artık etkin olmayacak ancak yapılandırma verileri AICLI Client’te saklanacak. İstediğiniz zaman yeniden ekleyebilirsiniz.",
-    "piDefaultProviderWarning": "Pi'nin genel varsayılanı şu anda bu sağlayıcıyı işaret ediyor. Devam ederseniz Pi mevcut başka bir modeli deneyecektir; Bir sağlayıcıyı seçmek için /model'i veya başka bir sağlayıcıda oturum açmak için /login'i kullanın.",
     "proxy": {
       "title": "Yerel Yönlendirmeyi Etkinleştir",
-      "message": "Yerel yönlendirme gelişmiş bir özelliktir. Lütfen etkinleştirmeden önce nasıl çalıştığını anladığınızdan emin olun.\n\nDoğru yapılandırma için ilgili belgelere veya sağlayıcınıza danışmanızı öneririz.",
       "confirm": "Anladım, etkinleştir"
     },
     "failover": {
       "title": "Yedek Sağlayıcıya Geçişyi Etkinleştir",
-      "message": "Yedek sağlayıcıya geçiş gelişmiş bir özelliktir. Lütfen etkinleştirmeden önce nasıl çalıştığını anladığınızdan emin olun.\n\nÖncelikle yedek sağlayıcıya geçiş kuyruğunda sağlayıcı önceliklerini yapılandırmanızı öneririz.",
       "confirm": "Anladım, etkinleştir"
     },
     "unifyCodexHistory": {
@@ -307,7 +165,6 @@
     },
     "usage": {
       "title": "Kullanım Sorgusunu Yapılandır",
-      "message": "Kullanım sorgusu özel bir komut dosyası veya API parametreleri gerektirir. Lütfen sağlayıcınızdan gerekli bilgileri aldığınızdan emin olun.\n\nNasıl yapılandıracağınızdan emin değilseniz lütfen önce sağlayıcınızın belgelerine bakın.",
       "confirm": "Anladım, yapılandır"
     }
   },
@@ -318,7 +175,6 @@
       "quotaDisplay": "Kota gösterimi",
       "quotaDisplayLeft": "Kalan",
       "quotaDisplayUsed": "Kullanılan",
-      "quotaDisplayHelp": "Sağlayıcı kartlarındaki, Hesaplar'daki ve tepsideki her kota penceresinin ne kadar kaldığını veya ne kadar kullanıldığını gösterip göstermediği. Bakiyeler ve Krediler her zaman kalanları gösterir.",
       "sidebarAndHeader": "Kenar çubuğu ve başlık",
       "visibleApps": "Kenar çubuğunda gösterilen uygulamalar",
       "goToApps": "Uygulamaları seç",
@@ -344,7 +200,6 @@
         "enableFeature": "Ana Sayfada Yönlendirme Geçişini Göster",
         "enableFeatureDescription": "Etkinleştirildiğinde yönlendirme ve yedek sağlayıcıya geçiş geçişleri ana sayfanın üst kısmında görünecektir",
         "enableStackMode": "Birleştirme modu anahtarını ana sayfada göster",
-        "enableStackModeDescription": "Açık olduğunda, Claude Code ve Codex için ana sayfa anahtarı Birleştirme moduna dönüşür: OpenCode'deki gibi birkaç sağlayıcı ekleyin ve bunların tüm modelleri istemcinin model listesinde görünür (Codex'nin önce yeniden başlatılması gerekir). Yedek sağlayıcıya geçiş yok. Bu ve yerel yönlendirme anahtarı birbirini dışlar; geçiş, önce Claude Code ve Codex uygulamasını doğrudan yönlendirmeye gönderir",
         "enableFailoverToggle": "Yedek Sağlayıcıya Geçiş Geçişini Ana Sayfada Göster",
         "enableFailoverToggleDescription": "Etkinleştirildiğinde, yedek sağlayıcıya geçiş geçişi ana sayfanın üst kısmında bağımsız olarak görünecektir",
         "running": "Çalışıyor",
@@ -435,7 +290,6 @@
     "importing": "İçe aktarılıyor...",
     "importSuccess": "İçe Aktarma Başarılı!",
     "importFailed": "İçe Aktarma Başarısız",
-    "syncLiveFailed": "İçe aktarıldı ancak geçerli sağlayıcıyla eşitle edilemedi. Lütfen sağlayıcıyı manuel olarak yeniden seçin.",
     "importPartialSuccess": "Yapılandırma içe aktarıldı ancak geçerli sağlayıcıyla eşitle edilemedi.",
     "importPartialHint": "Canlı yapılandırmayı yenilemek için lütfen sağlayıcıyı manuel olarak yeniden seçin.",
     "configExported": "Yapılandırma şuraya aktarıldı:",
@@ -575,7 +429,6 @@
     "unifyCodexSessionHistory": "Birleşik Codex oturum geçmişi",
     "unifyCodexSessionHistoryDescription": "Yalnızca Codex CLI'yi etkiler: devam edilebilir oturum listesi yalnızca mevcut sağlayıcının oturumlarını gösterir. Etkinleştirildiğinde resmi abonelik, paylaşılan \"özel\" sağlayıcı kimliği altında çalışır, böylece resmi ve üçüncü taraf oturumları tek bir listede görünür. Codex masaüstü uygulaması, yeni bir güncellemeden bu yana tüm oturumları gösterebilir, dolayısıyla yalnızca masaüstü kullanıcılarının buna ihtiyacı yoktur. İsteğe bağlı olarak mevcut resmi oturumları (öncelikle yedeklenen) taşıyabilir ve kapattığınızda bunları yedeklemeden geri yükleyebilirsiniz. Not: eski bir oturumun sağlayıcılar arasında sürdürülmesi başarısız olabilir, çünkü encrypted_content mantığının şifresi yalnızca onu oluşturan arka uç tarafından çözülebilir.",
     "codexStackClassicSubagents": "Birleştirmedaki klasik alt ajan araçları",
-    "codexStackClassicSubagentsDescription": "Ana ajan ile alt ajan farklı sağlayıcılar kullandığında açık olmalıdır; aksi halde alt ajan görevini alamaz.",
     "codexStackClassicSubagentsForcedV2": "Codex config.toml, bu ayara göre öncelikli olan [features] multi_agent_v2'yi açar, dolayısıyla hiçbir etkisi olmaz.",
     "codexSessionCompression": "Eski Codex oturumlarını sıkıştır",
     "codexSessionCompressionDescription": "Codex açıkken, her başlatıldığında arka planda 7 gün boyunca değişmeyen oturum dosyalarını sıkıştırır ve bu da çok fazla disk alanı tasarrufu sağlar. Codex, devam ettiğinizde oturumun sıkıştırmasını otomatik olarak açar. AICLI Client hala sıkıştırılmış oturumları listeliyor ve sayıyor; liste yalnızca son yanıtlarının önizlemesini göstermiyor. Bu, halen geliştirilmekte olan bir Codex özelliğidir: Codex, açıkken her başlangıçta bir bildirim gösterir. Yeni bir Codex sürümü gerektirir ve Codex yeniden başlatıldıktan sonra etkili olur. Kapatıldığında sıkıştırma durdurulur; zaten sıkıştırılmış olan oturumlar olduğu gibi kalır.",
@@ -593,9 +446,7 @@
       "geminiDesc": "Google Gemini CLI",
       "opencodeDesc": "OpenCode CLI",
       "showProfileSwitcher": "Proje değiştiriciyi göster",
-      "showProfileSwitcherDescription": "Proje değiştiriciyi ana sayfa başlığında göster",
-      "showProviderSearch": "Sağlayıcı aramasını göster",
-      "showProviderSearchDescription": "Sağlayıcıları ada, notlara, web sitesine veya API adresine göre bulmak için sağlayıcı sayfasının üst kısmında bir arama düğmesi gösterin. Gizlendiğinde, ⌘F / Ctrl+F yine de aramayı açar"
+      "showProfileSwitcherDescription": "Proje değiştiriciyi ana sayfa başlığında göster"
     },
     "terminal": {
       "title": "Tercih edilen terminal",
@@ -821,19 +672,12 @@
     "omp": "Oh My Pi"
   },
   "pi": {
-    "empty": {
-      "title": "Henüz API anahtar sağlayıcısı yok",
-      "description": "Ön ayar veya özel sağlayıcı eklemek için sağ üst köşedeki + düğmesini kullanın."
-    },
     "provider": {
       "enabled": "Pi'de etkinleştirildi",
-      "enableFailed": "Bu sağlayıcı Pi'de etkinleştirilemedi",
       "removed": "Pi'den kaldırıldı",
       "writeConflict": "Başka bir işlem Pi'nin yapılandırmasını güncellemektir. Kısa süre sonra tekrar deneyin."
     },
     "form": {
-      "providerKey": "Sağlayıcı anahtarı",
-      "providerKeyRequired": "Sağlayıcı anahtarı gerekli",
       "selectPresetRequired": "Önce bir ön ayar veya özel konfigürasyon seçin",
       "fixJsonFirst": "Yapılandırılmış alanları düzenlemeden önce aşağıdaki JSON yapılandırmasını düzeltin.",
       "nameRequired": "Görünen ad gerekli",
@@ -886,10 +730,6 @@
       "duplicateModel": "Model Kimliği {{id}} kopyalandı",
       "modelRequired": "En az bir model ekleyin",
       "providerKeyDuplicate": "Bu sağlayıcı anahtarı zaten mevcut"
-    },
-    "current": {
-      "readFailed": "Pi'nin sağlayıcı yapılandırması okunamadı",
-      "stateUnavailableHint": "AICLI Client, Pi'nin sağlayıcı yapılandırmasını okuyabilene kadar sağlayıcı değişiklikleri devre dışı bırakılır."
     },
     "prompts": {
       "globalTab": "Kütüphane",
@@ -1856,7 +1696,6 @@
     "disableFailed": "Devre dışı bırakılamadı",
     "importSuccess": "Başarıyla içe aktarıldı",
     "importFailed": "İçe aktarma başarısız oldu",
-    "confirm": {},
     "appSelect": "Uygulamayı seçin",
     "helpTitle": "İstemler nasıl etkili olur?",
     "helpText": "Her uygulamanın aynı anda etkinleştirilmiş bir istemi vardır ve bu, hedef dosya haline gelir. Başka bir yerde yapılan düzenlemeler, bu sayfayı bir sonraki açışınızda etkinleştirilmiş istemin içine alınır; Henüz burada olmayan dosya içeriği, başka bir bilgi istemi etkinleştirilmeden önce \"Orijinal bilgi istemi\" olarak kaydedilir.",
@@ -2029,16 +1868,12 @@
   },
   "openclaw": {
     "backupCreated": "Yedekleme oluşturuldu: {{path}}",
-    "providerKey": "Sağlayıcı Anahtarı",
     "providerKeyPlaceholder": "my-provider",
     "providerKeyHint": "Yapılandırma dosyasındaki benzersiz tanımlayıcı. Yalnızca küçük harf, rakam ve kısa çizgi kullanın.",
-    "providerKeyLockedHint": "Bu sağlayıcı zaten uygulama yapılandırmasına eklendiğinden anahtarı artık değiştirilemez.",
-    "providerKeyRequired": "Sağlayıcı anahtarı gerekli",
     "providerKeyDuplicate": "Bu anahtar zaten kullanılıyor",
     "providerKeyInvalid": "Geçersiz biçim. Yalnızca küçük harf, rakam ve kısa çizgi kullanın.",
     "apiProtocol": "API Protokolü",
     "selectProtocol": "API Protokolünü seçin",
-    "apiProtocolHint": "Sağlayıcının API'si ile uyumlu protokol türünü seçin. Çoğu sağlayıcı OpenAI Tamamlamalar biçimini kullanır.",
     "baseUrl": "API Uç Nokta",
     "models": "Model Yapılandırması",
     "addModel": "Model Ekle",
@@ -2060,7 +1895,6 @@
     "cacheReadCost": "Önbellek Okuması",
     "cacheWriteCost": "Önbelleğe Yazma",
     "userAgent": "Kullanıcı Aracısını Gönder",
-    "userAgentHint": "Bazı sağlayıcılar, düzgün çalışması için bir tarayıcı Kullanıcı Aracısı başlığına ihtiyaç duyar.",
     "env": {
       "title": "Ortam Değişkenleri",
       "editorHint": "Env bölümünün tamamını JSON olarak düzenleyin. env.vars ve env.shellEnv gibi iç içe geçmiş nesneler desteklenir.",
@@ -2130,15 +1964,7 @@
   "hermes": {
     "form": {
       "baseUrl": "API Uç Nokta",
-      "providerKey": "Sağlayıcı Anahtarı",
       "providerKeyPlaceholder": "my-provider",
-      "providerKeyHint": "Yalnızca küçük harfler, sayılar ve kısa çizgiler. config.yaml dosyasında sağlayıcı adı olarak kullanılır.",
-      "providerKeyLockedHint": "Bu sağlayıcı Hermes yapılandırmasındadır; anahtar kilitli.",
-      "providerKeyRequired": "Sağlayıcı anahtarı gerekli",
-      "providerKeyInvalid": "Sağlayıcı anahtarı yalnızca küçük harfler, sayılar ve kısa çizgiler içerebilir",
-      "providerKeyDuplicate": "Bu sağlayıcı anahtarı zaten mevcut",
-      "providerKeyBuiltin": "\"{{key}}\", Hermes'in yerleşik sağlayıcılarından birinin kimliğidir. Hermes yerleşik sağlayıcıyı kullanır (bunun için kendi API anahtarı ortam değişkeni gerekir) ve bu kartın uç noktasıyla anahtarını yok sayar. Örneğin aicli-{{key}} gibi farklı bir anahtar kullanın.",
-      "providerKeyBuiltinLocked": "\"{{key}}\", Hermes'in yerleşik sağlayıcılarından birinin kimliğidir. Hermes yerleşik sağlayıcıyı kullanır ve bu kartın uç noktasıyla anahtarını yok sayar. Anahtar kilitlidir: bu sağlayıcıyı aicli-{{key}} gibi başka bir anahtarla yeniden ekleyip bu kartı silin.",
       "apiMode": "API Modu",
       "apiModeChatCompletions": "OpenAI Sohbet Tamamlamaları",
       "apiModeAnthropicMessages": "Anthropic Mesajları",
@@ -2149,7 +1975,6 @@
       "baseUrlInvalid": "API uç noktası geçerli bir URL değil",
       "models": "Modeller",
       "addModel": "Model ekle",
-      "noModels": "Yapılandırılmış model yok. Bu sağlayıcıya geçmek varsayılan modeli değiştirmez.",
       "modelId": "Model Kimliği",
       "modelIdPlaceholder": "anthropic/claude-opus-5",
       "modelName": "Görünen ad",
@@ -2158,7 +1983,6 @@
       "supportsVision": "Görüntü girişini destekler",
       "toggleModelDetails": "Model ayrıntılarını genişletin veya daraltın",
       "removeModel": "Modeli kaldır",
-      "modelsHint": "Etkinleştirildiğinde ilk model Hermes varsayılanı olur.",
       "rateLimitDelay": "Hız sınırı gecikmesi (saniye)",
       "rateLimitDelayHint": "Ardışık istekler arasındaki saniye cinsinden minimum gecikme (isteğe bağlı). Sınırsız olarak boş bırakın."
     },
@@ -2556,7 +2380,6 @@
       "disabled": "{{app}} yönlendirme devre dışı",
       "failed": "Yönlendirme değiştirilemedi: {{detail}}",
       "tooltip": {
-        "active": "{{appLabel}} yönlendiriyor - {{address}}:{{port}}\nSağlayıcıları değiştirmek yalnızca rotayı değiştirir; doğrudan sağlayıcı kalır",
         "broken": "{{appLabel}} yönlendirme yapıyor ancak yönlendirme hizmeti çalışmıyor",
         "inactive": "{{appLabel}}'nin isteklerini yerel yönlendirme yoluyla yönlendirin"
       }
@@ -2584,18 +2407,10 @@
     },
     "failover": {
       "proxyRequired": "Yedek sağlayıcıya geçişyi yapılandırmak için yönlendirme hizmeti başlatılmalıdır",
-      "autoSwitch": "Otomatik yedek sağlayıcıya geçiş",
-      "autoSwitchDescription": "Etkinleştirildiğinde, hemen P1 kuyruğuna geçer ve arıza durumunda otomatik olarak kuyruktaki bir sonraki sağlayıcıyı dener"
+      "autoSwitch": "Otomatik yedek sağlayıcıya geçiş"
     },
     "failoverQueue": {
       "title": "Yedek Sağlayıcıya Geçiş Sırası",
-      "description": "Her uygulamanın sağlayıcıları için yedek sağlayıcıya geçiş sırasını yönetin",
-      "info": "Otomatik yedek sağlayıcıya geçiş etkinleştirildiğinde, istekler kuyruk öncelik sırasını takip eder (önce P1). Arıza durumunda sistem kuyruktaki bir sonraki sağlayıcıyı deneyecektir.",
-      "selectProvider": "Kuyruğa eklenecek sağlayıcıyı seçin",
-      "noAvailableProviders": "Eklenecek sağlayıcı yok",
-      "empty": "Yedek sağlayıcıya geçiş kuyruğu boş. Otomatik yedek sağlayıcıya geçişyi etkinleştirmek için sağlayıcıları ekleyin.",
-      "orderHint": "Kuyruk sırası, Ana sayfadaki sağlayıcı listesi sırası ile eşleşir. Önceliği değiştirmek için Ana sayfadaki sağlayıcıları yeniden sıralayın.",
-      "dragHint": "Yedek sağlayıcıya geçiş sırasını ayarlamak için sağlayıcıları sürükleyin. Düşük sayılar daha yüksek önceliğe sahiptir.",
       "toggleEnabled": "Etkinleştir/Devre Dışı Bırak",
       "addSuccess": "Yedek sağlayıcıya geçiş kuyruğuna eklendi",
       "addFailed": "Eklenemedi",
@@ -2606,7 +2421,6 @@
       "toggleFailed": "Durum güncellenemedi"
     },
     "autoFailover": {
-      "info": "Yedek sağlayıcıya geçiş kuyruğunda birden fazla sağlayıcı varsa, istekler başarısız olduğunda sistem bunları öncelik sırasına göre deneyecektir. Sağlayıcı ardışık arıza eşiğine ulaştığında devre kesici açılacak ve geçici olarak atlayacaktır.",
       "configSaved": "Otomatik yedek sağlayıcıya geçiş yapılandırması kaydedildi",
       "configSaveFailed": "Kaydedilemedi",
       "validationFailed": "Aşağıdaki alanlar geçerli aralığın dışında: {{fields}}",
@@ -2624,11 +2438,9 @@
       "minRequestsHint": "Hata oranını hesaplamadan önce minimum istekler",
       "explanationTitle": "Nasıl Çalışır?",
       "failureThresholdLabel": "Arıza Eşiği",
-      "failureThresholdExplain": "Bu kadar çok ardışık arızadan sonra devre kesici açılarak sağlayıcının geçici olarak kullanılamaz hale gelmesine neden olur",
       "timeoutLabel": "Kurtarma Bekleme Süresi",
       "timeoutExplain": "Devre açıldıktan sonra yarı açık durumu denemeden önce bu kadar bekleyin",
       "successThresholdLabel": "Kurtarma Başarı Eşiği",
-      "successThresholdExplain": "Yarı açık durumda, bu kadar çok başarının ardından devre kesiciyi kapatın ve sağlayıcıyı tekrar kullanılabilir hale getirin",
       "errorRateLabel": "Hata Oranı Eşiği",
       "errorRateExplain": "Arıza eşiğine ulaşılmasa bile hata oranı bu değeri aştığında devre kesiciyi açın",
       "maxRetries": "Maksimum Yeniden Deneme Sayısı",
@@ -2732,7 +2544,6 @@
     "configDirectory": "Yapılandırma dizini",
     "installAndUpgrade": "Yükleme ve yükseltme",
     "hideFromSidebar": "İstemci listesinden gizle",
-    "providers": "Sağlayıcılar",
     "client": "İstemci",
     "workspace": "Çalışma alanı",
     "openclawConfig": "Yapılandırma",
@@ -3190,7 +3001,6 @@
       "noSubscription": "Abonelik yok",
       "connectionManaged": "Bağlantı ve oturum açma, Yetkilendirme Merkezi'nden yönetilir; burada yalnızca modelleri düzenleyebilirsiniz. Modelleri getir seçeneği, bu hesap için şu anda kullanılabilen resmî modelleri listeler."
     },
-    "modelSelectionHint": "Bir sağlayıcıyı seçmek için kartındaki geçiş düğmesini kullanın. Başka bir model seçmek için Kimi Code'da /model komutunu kullanın.",
     "contextSize": "Bağlam uzunluğu",
     "capabilities": {
       "image_in": "Görsel girdisi",
@@ -3200,7 +3010,6 @@
       "dynamically_loaded_tools": "Araçları gerektiğinde yükle"
     },
     "empty": {
-      "title": "Kimi Code sağlayıcısı ekle",
       "description": "Bir uç nokta, API anahtarı ve modeller yapılandırın. Mevcut Kimi yapılandırması otomatik olarak içe aktarılır."
     },
     "deleteSessionHint": "Dizini ve geçmişi birlikte güncellemek için bu oturumu Kimi Code'da silin.",
@@ -3214,18 +3023,9 @@
     }
   },
   "omp": {
-    "empty": {
-      "title": "Henüz API anahtarı sağlayıcısı yok",
-      "description": "Ön ayar veya özel sağlayıcı eklemek için sağ üstteki + düğmesini kullanın."
-    },
     "provider": {
       "enabled": "Oh My Pi içinde etkinleştirildi",
-      "enableFailed": "Sağlayıcı Oh My Pi içinde etkinleştirilemedi",
       "removed": "Oh My Pi içinden kaldırıldı"
-    },
-    "current": {
-      "readFailed": "Oh My Pi sağlayıcı yapılandırması okunamadı",
-      "stateUnavailableHint": "Oh My Pi yapılandırması okunana kadar sağlayıcı değişiklikleri devre dışıdır."
     },
     "form": {
       "discoveryType": "Model keşfi",
@@ -3256,11 +3056,6 @@
     }
   },
   "dsh": {
-    "empty": {
-      "title": "DeepSeek Harness sağlayıcısı ekle",
-      "description": "Bir uç nokta, API anahtarı ve modeller yapılandırın. Mevcut özel sağlayıcılar burada otomatik olarak görünür."
-    },
-    "sharedProviders": "Web ve Desktop bu sağlayıcı listesini paylaşır: ekleme, düzenleme ve kaldırma web ve desktop profillerine (yoksa önceden oluşturulur; Desktop ilk açılışta korur) ve başlatılmış headless, acp profillerine birlikte yazılır.",
     "account": {
       "help": "DeepSeek hesabı tarayıcı üzerinden oturum açar (OAuth); burada veya DeepSeek Harness'ta oturum açabilirsiniz. Oturum $DSH_HOME/.credentials.yaml (varsayılan ~/.dsh/.credentials.yaml) içinde saklanır ve DeepSeek Harness Web ile Desktop tarafından paylaşılır: herhangi bir yerde oturum açmak veya kapatmak ikisine de uygulanır, çalışan DeepSeek Harness dosyayı otomatik olarak yeniden okur. Hesabın modellerinin kullanımı, Kullanım sayfasında ayrıca \"DeepSeek hesabı (OAuth)\" olarak görünür.",
       "statusFailed": "DeepSeek hesabı oturumu okunamadı",
@@ -3269,7 +3064,6 @@
       "expired": "Oturumun süresi doldu. Yeniden oturum açın",
       "shared": "Web ve Desktop tarafından paylaşılır",
       "signOut": "Oturumu kapat",
-      "signOutConfirm": "\"{{name}}\" DeepSeek hesabından çıkış yapılsın mı? DeepSeek Harness Web ve Desktop'ta birlikte oturum kapatılır. API anahtarı sağlayıcıları etkilenmez.",
       "signOutFailed": "DeepSeek hesabından çıkış yapılamadı",
       "balance": "Bakiye {{amount}}",
       "bonus": "Bonus {{amount}}",

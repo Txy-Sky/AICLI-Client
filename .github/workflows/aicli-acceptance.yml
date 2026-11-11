@@ -293,6 +293,13 @@ jobs:
               ("settings", "general", "trayStyleMenu"),
               ("settings", "general", "trayStyleHelp"),
           }
+          # G-GATE (owner 2026-11-11): leftover provider add/edit/delete copy that no
+          # code references any more; one dotted path per line, kept in a file so the
+          # allow-list stays reviewable. OAuth copy is kept on the owner's request.
+          removed_keys = removed_keys | {
+              tuple(line.split("."))
+              for line in Path("scripts/aicli-b07-removed-keys.txt").read_text().split()
+          }
 
           def compare(old, new, path=()):
               assert type(old) is type(new)

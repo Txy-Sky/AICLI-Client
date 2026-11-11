@@ -66,7 +66,6 @@
     "viewOnGithub": "在 GitHub 上檢視",
     "toggleDarkMode": "切換至深色模式",
     "toggleLightMode": "切換至淺色模式",
-    "addProvider": "新增供應商",
     "switchToChinese": "切換至中文",
     "switchToEnglish": "切換至英文",
     "enterEditMode": "進入編輯模式",
@@ -77,31 +76,11 @@
     "windowClose": "關閉視窗"
   },
   "provider": {
-    "connectivityCheck": "檢測連通",
-    "tabProvider": "供應商",
-    "tabUniversal": "通用供應商",
-    "noProviders": "還沒有供應商",
-    "noProvidersDescription": "如果您已有設定，請點擊「匯入目前設定」，所有資料將安全儲存在 default 供應商中",
-    "noProvidersDescriptionKeyFields": "切換供應商只會替換 Key、請求位址和模型，外掛程式等其他設定會保留在設定檔中，對所有供應商生效",
-    "importCurrent": "匯入目前設定",
-    "importFromClaude": "將 Claude Code 中已有的供應商匯入",
-    "importCurrentDescription": "將目前正在使用的設定匯入為預設供應商",
-    "currentlyUsing": "目前使用",
-    "enable": "啟用",
-    "inUse": "使用中",
-    "needsRouting": "需要路由",
-    "directProvider": "直連",
-    "directProviderHint": "退出路由後恢復為這個供應商",
-    "stackBadge": "聚合",
-    "stackBadgeHint": "在 {{client}} 的模型選擇器裡選擇：{{models}}",
-    "stackBadgeNoModels": "這家沒有設定模型，不會出現在模型選擇器裡",
     "stackSaved": "已儲存，重新啟動 {{client}} 後生效",
     "stackSavedLive": "已儲存，{{client}} 裡立即生效",
     "stackReselectHint": "AICLI Client 每次改寫用戶端設定後，如果模型選擇器裡選的是聚合的模型，需要重新選一次",
     "stackPartial": "已部分寫入，將在下次操作或重新啟動 AICLI Client 時補完",
     "stackFailed": "聚合的模型儲存失敗：{{error}}",
-    "stackDefaultCannotRemove": "預設供應商不能移除，請先把別的供應商設為預設",
-    "stackDefaultHint": "它是預設供應商：列表裡的第一個模型負責 Claude Code 啟動和背景任務",
     "officialModelsBundled": "官方模型列表暫未取得，暫用 Codex 內建列表，可能缺少帳號專屬模型",
     "officialModelsUnavailable": "聚合的模型暫不可用：讀取不到 Codex 模型列表",
     "officialModelsOutdated": "本機 Codex 版本過舊，無法取得完整的官方模型列表：請把 Codex（包括命令列）升級到最新版",
@@ -117,147 +96,19 @@
       "nothingUsable": "Codex 內建列表：裡面沒有能用的模型，請把 Codex 升級到最新版"
     },
     "routeOwnsCatalog": "聚合的模型不會出現在 Codex 中：路由供應商使用自己的模型目錄檔案（model_catalog_json）",
-    "adoptCatalog": "改用 AICLI Client 的模型目錄",
     "adoptCatalogDone": "已改用 AICLI Client 的模型目錄，重新啟動 Codex 後生效",
     "adoptCatalogFailed": "改用 AICLI Client 的模型目錄失敗：{{error}}",
-    "noRoutingSupport": "不支援路由",
-    "blockedByProxyHint": "路由模式下無法切換至官方供應商",
-    "editProvider": "編輯供應商",
-    "editProviderHint": "更新設定後將立即套用至目前供應商。",
-    "deleteProvider": "刪除供應商",
-    "addNewProvider": "新增供應商",
-    "addFooterHint": "💡 選擇預設後，請在下方填寫 API Key 等欄位",
-    "addClaudeProvider": "新增 Claude Code 供應商",
-    "addCodexProvider": "新增 Codex 供應商",
-    "addGeminiProvider": "新增 Gemini 供應商",
-    "addOpenCodeProvider": "新增 OpenCode 供應商",
-    "addToConfig": "新增",
-    "removeFromConfig": "移除",
-    "setAsDefault": "設為預設",
-    "isDefault": "目前預設",
-    "inConfig": "已新增",
-    "addProviderHint": "填寫資訊後即可在清單中快速切換供應商。",
-    "editClaudeProvider": "編輯 Claude Code 供應商",
-    "editCodexProvider": "編輯 Codex 供應商",
-    "configError": "設定錯誤",
-    "notConfigured": "未設定官網位址",
-    "applyToClaudePlugin": "套用至 Claude 外掛程式",
-    "removeFromClaudePlugin": "從 Claude 外掛程式移除",
-    "dragToReorder": "拖曳以重新排序",
-    "dragHandle": "拖曳排序",
-    "searchPlaceholder": "依名稱/備註/網址搜尋供應商...",
-    "searchAriaLabel": "搜尋供應商",
-    "searchScopeHint": "根據名稱、備註、官網和請求位址比對結果。",
-    "searchButtonTip": "搜尋供應商（{{shortcut}}）",
-    "searchCloseHint": "按 Esc 關閉",
-    "searchCloseAriaLabel": "關閉供應商搜尋",
-    "noSearchResults": "沒有符合搜尋條件的供應商。",
-    "duplicate": "複製",
-    "sortUpdateFailed": "排序更新失敗",
-    "configureUsage": "設定用量查詢",
-    "managedByHermes": "Hermes 託管",
-    "managedByHermesHint": "該專案定義於 Hermes 的 providers: dict，請在 Hermes Web UI 中編輯或刪除。",
-    "openTerminal": "以此供應商開啟終端機",
-    "openTerminalIsolated": "以此供應商開啟終端機（環境隔離）",
-    "openTerminalWithProvider": "使用此供應商開啟終端機",
-    "terminalOpened": "終端機已開啟",
-    "terminalOpenFailed": "開啟終端機失敗",
-    "openTerminalDialog": {
-      "title": "要在哪個目錄開啟終端機？",
-      "description": "會在你選的目錄裡開啟一個終端機，並用「{{name}}」的設定啟動 {{app}}。一般選你的專案資料夾。",
-      "isolationTitle": "這個終端機是隔離的",
-      "isolationBody": "它固定使用「{{name}}」，之後在 AICLI Client 裡切換供應商不會影響它；它也不會改動 AICLI Client 裡正在使用的供應商。",
-      "isolationBodyAgy": "「{{name}}」的 Key 和位址只傳給這個終端機裡的 agy，不寫進任何檔案；在別的終端機裡直接執行 agy 仍是 Google 登入。",
-      "noDir": "還沒選目錄",
-      "choose": "選擇資料夾…",
-      "change": "更換…",
-      "recent": "最近用過",
-      "forget": "從最近用過中移除",
-      "confirm": "開啟終端機",
-      "skipPermissions": "略過權限確認",
-      "extraArgs": "附加參數（選填）",
-      "extraArgsPlaceholder": "例如 --debug --append-system-prompt \"簡潔回答\"",
-      "extraArgsHint": "接在啟動命令後面，只用於這次開啟的終端機。用空格分隔，含空格的值用引號括起來。",
-      "agySwitchTitle": "會切換 agy 的登入",
-      "agySwitchBody": "開啟前把 agy 的登入切換到 {{account}}，之後新開的 agy 都用這個帳號。",
-      "agySwitchRunning": "偵測到 agy 正在執行：已開啟的 agy 仍使用原帳號，還可能把原帳號寫回去，最好先結束它們。"
-    },
-    "name": "名稱",
-    "namePlaceholder": "例如：Claude 官方",
-    "websiteUrl": "官網連結",
-    "notes": "備註",
-    "notesPlaceholder": "例如：公司專用帳號",
-    "configJson": "設定 JSON",
-    "configJsonHint": "請填寫完整的 Claude Code 設定",
-    "addProvider": "新增供應商",
-    "sortUpdated": "排序已更新",
-    "usageSaved": "用量查詢設定已儲存",
-    "usageSaveFailed": "用量查詢設定儲存失敗",
-    "geminiConfig": "Gemini 設定",
-    "geminiConfigHint": "使用 .env 格式設定 Gemini",
     "form": {
       "agy": {
-        "endpointHelp": "留空用 Google 預設 API。第三方位址須相容 Gemini API，並支援 agy 內建的 Gemini 模型。",
-        "modelHelp": "填模型清單裡的顯示名稱，可點「取得模型清單」選擇。只對那次工作階段生效。",
-        "keyFieldsHint": "模型、Key 和位址都只在「開啟終端機」時使用，不寫進 Antigravity 自己的設定。",
-        "envFile": "啟動環境變數",
-        "envFileHint": "從卡片「開啟終端機」啟動 agy 時，AICLI Client 只把 API Key 和請求位址傳給那一個 agy 行程，不寫進任何檔案。其他環境變數不會套用。",
-        "configJson": "模型設定（AICLI Client 格式）",
-        "configJsonHint": "這裡僅支援模型設定，其他 Antigravity 選項請在 agy 中調整；MCP 在 MCP 面板中管理。",
-        "account": "帳號",
-        "accountFollow": "跟隨 agy 目前登入",
-        "accountMissing": "不在這台電腦上的帳號",
-        "accountHelp": "選了帳號的話，「開啟終端機」前會先把 agy 的登入切換到它（全域生效，之後新開的 agy 都用它）。帳號在授權中心新增。"
+        "modelHelp": "填模型清單裡的顯示名稱，可點「取得模型清單」選擇。只對那次工作階段生效。"
       },
       "gemini": {
-        "model": "模型",
         "oauthTitle": "OAuth 驗證模式",
-        "oauthHint": "Google 官方使用 OAuth 個人驗證，無需填寫 API Key。首次使用時會自動開啟瀏覽器進行登入。",
-        "apiKeyPlaceholder": "請輸入 Gemini API Key"
-      },
-      "claudeAccount": {
-        "label": "登入方式",
-        "default": "跟隨 Claude Code 登入",
-        "defaultDescription": "帳號會隨 Claude Code 目前登入而變更",
-        "missing": "不在這台電腦上的帳號",
-        "manage": "新增或管理 Claude 帳號",
-        "helpTerminal": "設定裡覆寫了 Claude 設定目錄，切到這張卡不會切換 Claude Code 的登入，請從卡片「開啟終端機」使用選取的帳號。",
-        "helpWsl": "Claude 設定目錄在 WSL 裡，暫不支援 Claude 帳號，切到這張卡不會切換 Claude Code 的登入。",
-        "help": "切到這張卡後，Claude Code 的登入會即時換成選取的帳號，正在執行的工作階段也一樣。想同時用幾個帳號，從卡片「開啟終端機」。",
-        "claudeAccount": "Claude 帳號",
-        "reauthBadge": "需要重新登入",
-        "terminalHint": "從卡片開啟終端機使用",
-        "wslHint": "WSL 暫不支援",
-        "plan": {
-          "pro": "Pro",
-          "max": "Max",
-          "max5x": "Max 5x",
-          "max20x": "Max 20x",
-          "team": "Team",
-          "teamPremium": "Team 進階席位",
-          "enterprise": "Enterprise"
-        }
+        "oauthHint": "Google 官方使用 OAuth 個人驗證，無需填寫 API Key。首次使用時會自動開啟瀏覽器進行登入。"
       }
-    },
-    "duplicateLiveIdsLoadFailed": "讀取設定中的供應商識別碼失敗，請先修復設定後再試",
-    "editorViewFailed": "無法讀取用戶端設定檔，下方顯示的是保存的供應商設定：{{error}}",
-    "editConflict": {
-      "title": "設定檔在編輯期間被修改",
-      "message": "開啟編輯器之後，下面這些設定被其他程式（例如 Claude Code）改過。要用你的修改覆蓋，還是保留外部的修改？其餘變更都會照常儲存。",
-      "keepTheirs": "保留外部修改",
-      "keepMine": "用我的修改覆蓋"
-    },
-    "backToList": "返回供應商列表",
-    "editProviderNamed": "編輯 {{name}}",
-    "formSubtitleStack": "{{app}}（聚合模式）",
-    "editCurrentNoticeFile": "這是正在使用的供應商。儲存後會立即寫進",
-    "editCurrentNoticeFileEnd": "，下一次請求生效。",
-    "editCurrentNotice": "這是正在使用的供應商。儲存後立即生效，下一次請求就用新的設定。"
+    }
   },
   "notifications": {
-    "providerAdded": "供應商已新增",
-    "providerSaved": "供應商設定已儲存",
-    "providerDeleted": "供應商刪除成功",
     "switchSuccess": "切換成功！",
     "codexRestartRequired": "切換成功，請重新啟動客戶端以套用",
     "geminiRestartRequired": "切換成功，請重新啟動 Gemini CLI 以套用",
@@ -265,11 +116,8 @@
     "claudeDesktopRestartRequired": "切換成功，重新啟動 Claude Desktop 後生效",
     "addToConfigSuccess": "已新增至設定",
     "removeFromConfigSuccess": "已從設定移除",
-    "removeFromConfigFailed": "無法移除供應商",
     "switchFailedTitle": "切換失敗",
     "switchFailed": "切換失敗：{{error}}",
-    "autoImported": "已從現有設定建立預設供應商",
-    "addFailed": "新增供應商失敗：{{error}}",
     "saveFailed": "儲存失敗：{{error}}",
     "saveFailedGeneric": "儲存失敗，請重試",
     "appliedToClaudePlugin": "已套用至 Claude 外掛程式",
@@ -277,13 +125,8 @@
     "syncClaudePluginFailed": "同步 Claude 外掛程式失敗",
     "skipClaudeOnboardingFailed": "跳過 Claude Code 初次安裝確認失敗",
     "clearClaudeOnboardingSkipFailed": "還原 Claude Code 初次安裝確認失敗",
-    "updateSuccess": "供應商更新成功",
-    "updateFailed": "更新供應商失敗：{{error}}",
-    "deleteSuccess": "供應商已刪除",
-    "deleteFailed": "刪除供應商失敗：{{error}}",
     "settingsSaved": "設定已儲存",
     "settingsSaveFailed": "儲存設定失敗：{{error}}",
-    "proxyRequiredForSwitch": "此供應商 {{reason}}，需要路由服務才能正常使用，請先啟動路由",
     "proxyReasonOpenAIChat": "使用 OpenAI Chat API 格式",
     "proxyReasonOpenAIResponses": "使用 OpenAI Responses API 格式",
     "proxyReasonAnthropicMessages": "使用 Anthropic Messages API 格式",
@@ -291,33 +134,21 @@
     "proxyReasonDesktopMapping": "使用模型對應（Claude Desktop 只認 Claude 模型名稱）",
     "proxyReasonManagedOAuth": "使用託管 OAuth 登入（權杖由本機路由注入）",
     "proxyReasonRoutingRequired": "需要本機路由處理請求",
-    "openAIFormatHint": "此供應商使用 OpenAI 相容格式，需要開啟路由服務才能正常使用",
     "openLinkFailed": "連結開啟失敗",
     "openclawModelsRegistered": "模型已註冊至 /model 清單",
     "openclawDefaultModelSet": "已設為預設模型",
     "openclawDefaultModelSetFailed": "設定預設模型失敗",
-    "openclawNoModels": "該供應商沒有設定模型",
     "openclawModelNotFound": "所選模型已不存在，請重新整理後再試",
-    "backfillWarning": "切換成功，但舊供應商設定回填失敗，您手動修改的設定可能未儲存",
     "codexAuthCleanupFailed": "切換成功，但未能刪除 auth.json，官方登入憑證仍留在磁碟上；如需徹底移除請手動刪除 Codex 設定目錄中的 auth.json",
-    "windowControlFailed": "視窗控制失敗：{{error}}",
-    "officialBlockedByProxy": "本地路由模式下不能切換至官方供應商，使用路由存取官方 API 可能導致帳號被封鎖",
-    "proxyOfficialWarning": "目前供應商 {{name}} 是官方供應商，建議切換至第三方供應商後再使用本地路由"
+    "windowControlFailed": "視窗控制失敗：{{error}}"
   },
   "confirm": {
-    "deleteProvider": "刪除供應商",
-    "deleteProviderMessage": "確定要刪除供應商「{{name}}」嗎？此操作無法復原。",
-    "removeProvider": "移除供應商",
-    "removeProviderMessage": "確定要從設定中移除供應商「{{name}}」嗎？\n\n移除後該供應商將不再生效，但設定資料會保留在 AICLI Client 中，您可以隨時重新新增。",
-    "piDefaultProviderWarning": "Pi 的全域預設目前指向此供應商。繼續後，Pi 會嘗試其他可用模型；你可以在 Pi 中使用 /model 重新選擇，或使用 /login 登入其他供應商。",
     "proxy": {
       "title": "啟用本地路由服務",
-      "message": "本地路由是一項進階功能，啟用前請確保您已了解其運作原理。\n\n建議先查閱相關文件或諮詢您的供應商，以取得正確的設定方式。",
       "confirm": "我已了解，繼續啟用"
     },
     "failover": {
       "title": "啟用故障轉移功能",
-      "message": "故障轉移是一項進階功能，啟用前請確保您已了解其運作原理。\n\n建議先在故障轉移佇列中設定好供應商優先順序。",
       "confirm": "我已了解，繼續啟用"
     },
     "unifyCodexHistory": {
@@ -334,7 +165,6 @@
     },
     "usage": {
       "title": "設定用量查詢",
-      "message": "用量查詢需要設定專用的查詢腳本或 API 參數，請確保您已從供應商處取得相關資訊。\n\n如不確定如何設定，請先查閱供應商文件。",
       "confirm": "我已了解，繼續設定"
     }
   },
@@ -345,7 +175,6 @@
       "quotaDisplay": "額度顯示",
       "quotaDisplayLeft": "剩餘",
       "quotaDisplayUsed": "已用",
-      "quotaDisplayHelp": "供應商卡片、授權中心和系統匣裡，各檔額度寫還剩多少還是已經用了多少。餘額和 Credits 始終寫剩下的。",
       "sidebarAndHeader": "側欄與頁首",
       "visibleApps": "在側欄顯示哪些應用",
       "goToApps": "前往「應用」",
@@ -371,7 +200,6 @@
         "enableFeature": "在主頁面顯示本地路由開關",
         "enableFeatureDescription": "開啟後，主頁面頂部將顯示路由和故障轉移開關",
         "enableStackMode": "在主頁面顯示聚合模式開關",
-        "enableStackModeDescription": "開啟後，Claude Code 和 Codex 的主頁面開關換成聚合模式：像 OpenCode 一樣新增多家供應商，它們的模型都會出現在用戶端的模型清單裡（Codex 需要重新啟動後生效），不做故障轉移。和本機路由開關二選一，切換時已開啟的 Claude Code、Codex 會先退回直連",
         "enableFailoverToggle": "在主頁面顯示故障轉移開關",
         "enableFailoverToggleDescription": "開啟後，主頁面頂部將獨立顯示故障轉移開關",
         "running": "執行中",
@@ -462,7 +290,6 @@
     "importing": "匯入中...",
     "importSuccess": "匯入成功！",
     "importFailed": "匯入失敗",
-    "syncLiveFailed": "已匯入，但同步至目前供應商失敗，請手動重新選擇一次供應商。",
     "importPartialSuccess": "設定已匯入，但同步至目前供應商失敗。",
     "importPartialHint": "請手動重新選擇一次供應商以重新整理對應設定。",
     "configExported": "設定已匯出至：",
@@ -602,7 +429,6 @@
     "unifyCodexSessionHistory": "統一 Codex 會話歷史",
     "unifyCodexSessionHistoryDescription": "只影響 Codex CLI：CLI 的 resume 清單只顯示目前供應商的會話，開啟後官方訂閱改以共享的 custom 供應商標識執行，官方與第三方會話出現在同一清單中。Codex 桌面版更新後已經可以顯示全部會話，只用桌面版無需開啟。可選擇把現有官方會話一併遷入（遷移前自動備份），關閉時可按備份恢復。注意：跨供應商繼續舊會話時，對方後端可能無法解密會話中的 encrypted_content 推理內容，導致繼續失敗",
     "codexStackClassicSubagents": "聚合模式下子 agent 用經典工具",
-    "codexStackClassicSubagentsDescription": "主、子 agent 不在同一家供應商時必須開啟，否則子 agent 收不到任務。",
     "codexStackClassicSubagentsForcedV2": "Codex 的 config.toml 裡開啟了 [features] multi_agent_v2，它比這個開關優先，開關不會生效",
     "codexSessionCompression": "壓縮 Codex 歷史對話",
     "codexSessionCompressionDescription": "開啟後，Codex 每次啟動時會在背景把 7 天以上沒動過的對話檔案壓縮保存，明顯減少佔用的磁碟空間；在這些對話上繼續對話時 Codex 會自動解壓。AICLI Client 照常顯示和統計壓縮過的對話，只是列表裡不顯示它們最後一則回覆的預覽。這是 Codex 還在開發中的功能，開啟後 Codex 每次啟動會顯示一條提示；需要較新版本的 Codex，重新啟動 Codex 後生效。關閉後不再壓縮，已壓縮的對話保持原樣",
@@ -620,9 +446,7 @@
       "geminiDesc": "Google Gemini CLI",
       "opencodeDesc": "OpenCode CLI",
       "showProfileSwitcher": "顯示專案切換",
-      "showProfileSwitcherDescription": "在主頁面頂部顯示專案切換入口",
-      "showProviderSearch": "顯示供應商搜尋",
-      "showProviderSearchDescription": "在供應商頁頂部顯示搜尋按鈕，可依名稱、備註、官網和請求位址查找。關閉後仍可用 ⌘F / Ctrl+F 開啟搜尋"
+      "showProfileSwitcherDescription": "在主頁面頂部顯示專案切換入口"
     },
     "terminal": {
       "title": "首選終端機",
@@ -849,19 +673,12 @@
     "omp": "Oh My Pi"
   },
   "pi": {
-    "empty": {
-      "title": "尚未新增 API Key 供應商",
-      "description": "點擊右上角的 +，從預設或自訂設定新增供應商。"
-    },
     "provider": {
       "enabled": "已在 Pi 中啟用",
-      "enableFailed": "無法在 Pi 中啟用此供應商",
       "removed": "已從 Pi 移除",
       "writeConflict": "Pi 設定正由其他程序修改，請稍後再試。"
     },
     "form": {
-      "providerKey": "供應商識別碼",
-      "providerKeyRequired": "供應商識別碼為必填",
       "selectPresetRequired": "請先選擇預設或自訂設定",
       "fixJsonFirst": "請先修正下方的設定 JSON，再編輯結構化欄位。",
       "nameRequired": "顯示名稱為必填",
@@ -914,10 +731,6 @@
       "duplicateModel": "模型 ID {{id}} 重複",
       "modelRequired": "請至少新增一個模型",
       "providerKeyDuplicate": "該供應商識別碼已存在"
-    },
-    "current": {
-      "readFailed": "無法讀取 Pi 供應商設定",
-      "stateUnavailableHint": "AICLI Client 讀取到 Pi 供應商設定前，供應商變更會暫時停用。"
     },
     "prompts": {
       "globalTab": "提示庫",
@@ -1884,7 +1697,6 @@
     "disableFailed": "停用失敗",
     "importSuccess": "匯入成功",
     "importFailed": "匯入失敗",
-    "confirm": {},
     "appSelect": "選擇應用",
     "helpTitle": "提示詞怎麼生效",
     "helpText": "每個應用同時只啟用一條，它就是目標檔案的內容。在別處改了檔案，下次開啟本頁時會收進啟用中的那條；檔案裡有本頁沒有的內容，啟用前先存成「原始提示詞」。",
@@ -2057,16 +1869,12 @@
   },
   "openclaw": {
     "backupCreated": "已建立備份：{{path}}",
-    "providerKey": "供應商標識",
     "providerKeyPlaceholder": "my-provider",
     "providerKeyHint": "設定檔中的唯一識別碼，只能使用小寫字母、數字和連字號",
-    "providerKeyLockedHint": "該供應商已新增至應用程式設定中，供應商標識不可修改",
-    "providerKeyRequired": "請填寫供應商標識",
     "providerKeyDuplicate": "此標識已被使用，請更換",
     "providerKeyInvalid": "標識格式無效，只能使用小寫字母、數字和連字號",
     "apiProtocol": "API 協定",
     "selectProtocol": "選擇 API 協定",
-    "apiProtocolHint": "選擇與供應商 API 相容的協定類型。大多數供應商使用 OpenAI Completions 格式。",
     "baseUrl": "API 端點",
     "models": "模型設定",
     "addModel": "新增模型",
@@ -2088,7 +1896,6 @@
     "cacheReadCost": "快取讀取",
     "cacheWriteCost": "快取寫入",
     "userAgent": "發送 User-Agent",
-    "userAgentHint": "部分供應商需要瀏覽器 User-Agent 才能正常存取。",
     "env": {
       "title": "環境變數",
       "editorHint": "以 JSON 形式編輯整個 env 節點。支援 env.vars、env.shellEnv 等巢狀物件。",
@@ -2158,15 +1965,7 @@
   "hermes": {
     "form": {
       "baseUrl": "API 端點",
-      "providerKey": "供應商標識",
       "providerKeyPlaceholder": "my-provider",
-      "providerKeyHint": "只能使用小寫字母、數字和連字號。用作 config.yaml 中的供應商名稱。",
-      "providerKeyLockedHint": "該供應商已新增至 Hermes 設定中，標識不可修改。",
-      "providerKeyRequired": "供應商標識不能為空",
-      "providerKeyInvalid": "供應商標識只能包含小寫字母、數字和連字號",
-      "providerKeyDuplicate": "該供應商標識已存在",
-      "providerKeyBuiltin": "「{{key}}」是 Hermes 內建供應商的標識。Hermes 會改用內建供應商（需要它自己的環境變數 Key），這張卡的位址和 Key 不會生效。請換一個標識，例如 aicli-{{key}}。",
-      "providerKeyBuiltinLocked": "「{{key}}」是 Hermes 內建供應商的標識。Hermes 會改用內建供應商，這張卡的位址和 Key 不會生效。標識已鎖定無法修改，請用其他標識（例如 aicli-{{key}}）重新新增這個供應商，再刪除這張卡。",
       "apiMode": "API 模式",
       "apiModeChatCompletions": "OpenAI Chat Completions",
       "apiModeAnthropicMessages": "Anthropic Messages",
@@ -2177,7 +1976,6 @@
       "baseUrlInvalid": "API 端點不是有效的 URL",
       "models": "模型清單",
       "addModel": "新增模型",
-      "noModels": "暫無模型設定。切換至此供應商時將不會更新預設模型。",
       "modelId": "模型 ID",
       "modelIdPlaceholder": "anthropic/claude-opus-5",
       "modelName": "顯示名稱",
@@ -2186,7 +1984,6 @@
       "supportsVision": "支援圖片輸入",
       "toggleModelDetails": "展開或收合模型詳細資訊",
       "removeModel": "移除模型",
-      "modelsHint": "啟用為目前供應商時，第一個模型會設為 Hermes 預設模型。",
       "rateLimitDelay": "請求間隔（秒）",
       "rateLimitDelayHint": "連續請求間的最小間隔秒數（選填）。留空表示無限制。"
     },
@@ -2584,7 +2381,6 @@
       "disabled": "{{app}} 路由已關閉",
       "failed": "切換路由狀態失敗：{{detail}}",
       "tooltip": {
-        "active": "{{appLabel}} 路由中 - {{address}}:{{port}}\n切換供應商只改路由，直連供應商不變",
         "broken": "{{appLabel}} 路由中，但路由服務未執行",
         "inactive": "路由 {{appLabel}} 的請求，讓該應用程式請求走本地路由"
       }
@@ -2612,18 +2408,10 @@
     },
     "failover": {
       "proxyRequired": "需要先啟動路由服務才能設定故障轉移",
-      "autoSwitch": "自動故障轉移",
-      "autoSwitchDescription": "開啟後將立即切換至佇列 P1，並在請求失敗時自動切換至佇列中的下一個供應商"
+      "autoSwitch": "自動故障轉移"
     },
     "failoverQueue": {
       "title": "故障轉移佇列",
-      "description": "管理各應用程式的供應商故障轉移順序",
-      "info": "啟用自動故障轉移後，將按佇列優先順序選擇供應商（P1 優先）。當請求失敗時，系統會按佇列順序依次嘗試下一個供應商。",
-      "selectProvider": "選擇供應商新增至佇列",
-      "noAvailableProviders": "沒有可新增的供應商",
-      "empty": "故障轉移佇列為空。新增供應商以啟用自動故障轉移。",
-      "orderHint": "佇列順序與首頁供應商清單順序一致，可在首頁拖曳調整順序。",
-      "dragHint": "拖曳供應商可調整故障轉移順序，序號越小優先順序越高。",
       "toggleEnabled": "啟用/停用",
       "addSuccess": "已新增至故障轉移佇列",
       "addFailed": "新增失敗",
@@ -2634,7 +2422,6 @@
       "toggleFailed": "狀態更新失敗"
     },
     "autoFailover": {
-      "info": "當故障轉移佇列中設定了多個供應商時，系統會在請求失敗時按優先順序依次嘗試。當某個供應商連續失敗達到閾值時，斷路器會打開並在一段時間內跳過該供應商。",
       "configSaved": "自動故障轉移設定已儲存",
       "configSaveFailed": "儲存失敗",
       "validationFailed": "以下欄位超出有效範圍：{{fields}}",
@@ -2652,11 +2439,9 @@
       "minRequestsHint": "計算錯誤率前的最小請求數",
       "explanationTitle": "運作原理",
       "failureThresholdLabel": "失敗閾值",
-      "failureThresholdExplain": "連續失敗達到此次數時，斷路器打開，該供應商暫時不可用",
       "timeoutLabel": "恢復等待時間",
       "timeoutExplain": "斷路器打開後，等待此時間後嘗試半開狀態",
       "successThresholdLabel": "恢復成功閾值",
-      "successThresholdExplain": "半開狀態下，成功達到此次數時關閉斷路器，供應商恢復可用",
       "errorRateLabel": "錯誤率閾值",
       "errorRateExplain": "錯誤率超過此值時，即使未達到失敗閾值也會打開斷路器",
       "maxRetries": "最大重試次數",
@@ -2760,7 +2545,6 @@
     "configDirectory": "設定目錄",
     "installAndUpgrade": "安裝與升級",
     "hideFromSidebar": "從客戶端列表隱藏",
-    "providers": "供應商",
     "client": "用戶端",
     "workspace": "工作區",
     "openclawConfig": "設定",
@@ -3222,11 +3006,9 @@
       "empty": "還沒有 Kimi 帳號。Kimi Code 中已登入的帳號會自動出現在這裡。",
       "help": "可新增多個 Kimi 程式設計方案帳號，每個帳號在 Kimi Code 中有自己的供應商和模型。「使用此帳號」會把 Kimi Code 的預設模型換成這個帳號的，之後新開的對話都用它。Kimi Code 自己登入的帳號會自動出現在這裡，聯網搜尋和網頁擷取始終用它；在這裡刪除它只會移出列表，不會讓 Kimi Code 登出。"
     },
-    "modelSelectionHint": "點擊供應商卡片的切換按鈕選擇預設供應商；若要指定其他模型，請在 Kimi Code 中使用 /model。",
     "contextSize": "上下文長度",
     "deleteSessionHint": "請在 Kimi Code 中刪除，以同時更新工作階段索引和歷史紀錄。",
     "empty": {
-      "title": "新增 Kimi Code 供應商",
       "description": "設定請求位址、API Key 和模型；已有 Kimi 設定會自動匯入。"
     },
     "capabilities": {
@@ -3246,18 +3028,9 @@
     }
   },
   "omp": {
-    "empty": {
-      "title": "尚未新增 API Key 供應商",
-      "description": "點擊右上角的 +，從預設或自訂設定新增供應商。"
-    },
     "provider": {
       "enabled": "已在 Oh My Pi 中啟用",
-      "enableFailed": "無法在 Oh My Pi 中啟用此供應商",
       "removed": "已從 Oh My Pi 移除"
-    },
-    "current": {
-      "readFailed": "無法讀取 Oh My Pi 供應商設定",
-      "stateUnavailableHint": "AICLI Client 讀取到 Oh My Pi 供應商設定前，供應商變更會暫時停用。"
     },
     "form": {
       "discoveryType": "模型自動探索",
@@ -3288,11 +3061,6 @@
     }
   },
   "dsh": {
-    "empty": {
-      "title": "新增 DeepSeek Harness 供應商",
-      "description": "設定請求網址、API Key 和模型。現有的自訂供應商會自動顯示在這裡。"
-    },
-    "sharedProviders": "Web、Desktop 共用這份供應商列表：新增、編輯、移除會一起寫入 web 和 desktop profile（沒有就先建好，Desktop 首次啟動時會保留），以及已初始化的 headless、acp。",
     "account": {
       "help": "DeepSeek 帳號以瀏覽器登入（OAuth），可以在這裡登入，也可以在 DeepSeek Harness 裡登入。登入資訊儲存在 $DSH_HOME/.credentials.yaml（預設 ~/.dsh/.credentials.yaml），DeepSeek Harness 的 Web 和 Desktop 共用：任一處登入或登出，兩端同時生效，執行中的 DeepSeek Harness 會自動重新讀取。帳號路由的模型用量在用量頁單獨顯示為「DeepSeek 帳號（OAuth）」。",
       "statusFailed": "無法讀取 DeepSeek 帳號的登入狀態",
@@ -3301,7 +3069,6 @@
       "expired": "登入已失效，請重新登入",
       "shared": "Web 與 Desktop 共用",
       "signOut": "登出",
-      "signOutConfirm": "登出 DeepSeek 帳號「{{name}}」？DeepSeek Harness 的 Web 和 Desktop 會同時登出，API Key 供應商不受影響。",
       "signOutFailed": "登出 DeepSeek 帳號失敗",
       "balance": "餘額 {{amount}}",
       "bonus": "贈金 {{amount}}",
