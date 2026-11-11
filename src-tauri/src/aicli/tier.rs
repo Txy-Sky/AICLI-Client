@@ -10,7 +10,14 @@
 use crate::app_config::AppType;
 
 /// Tier 2 clients whose takeover and restore are implemented.
-pub const TIER2_SUPPORTED: [AppType; 1] = [AppType::OpenCode];
+pub const TIER2_SUPPORTED: [AppType; 6] = [
+    AppType::OpenCode,
+    AppType::OpenClaw,
+    AppType::Hermes,
+    AppType::Pi,
+    AppType::Mcode,
+    AppType::Kimi,
+];
 
 pub fn is_tier2(app: &AppType) -> bool {
     TIER2_SUPPORTED.contains(app)
@@ -18,6 +25,6 @@ pub fn is_tier2(app: &AppType) -> bool {
 
 /// The protocol the client's `aicli` provider speaks to `/app/<client>/...`.
 pub(crate) fn tier2_protocol(_app: &AppType) -> &'static str {
-    // OpenCode: `@ai-sdk/openai-compatible`, i.e. Chat Completions.
+    // Every Tier 2 client so far gets an OpenAI-compatible (Chat Completions) provider.
     "openai"
 }

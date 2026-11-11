@@ -99,6 +99,13 @@ fn files(app: &AppType) -> Result<Vec<PathBuf>, TakeoverError> {
             let dir = crate::opencode_config::get_opencode_dir();
             vec![dir.join("opencode.jsonc"), dir.join("opencode.json")]
         }
+        AppType::OpenClaw => vec![crate::openclaw_config::get_openclaw_config_path()],
+        AppType::Hermes => vec![crate::hermes_config::get_hermes_config_path()],
+        AppType::Mcode => vec![crate::mcode_config::config_path()],
+        AppType::Kimi => vec![crate::kimi_config::config_path()],
+        AppType::Pi => {
+            vec![crate::pi_config::get_pi_models_path().map_err(|_| TakeoverError::Client)?]
+        }
         _ => return Err(TakeoverError::Unsupported),
     })
 }
@@ -567,25 +574,8 @@ async fn project_tier2(
         .map_err(|_| TakeoverError::Client)?;
     let token =
         super::local_auth::token_for(&state.db, app.as_str()).map_err(|_| TakeoverError::State)?;
-    let written = match app {
-        AppType::OpenCode => crate::opencode_config::set_provider_with_format(
-            TIER2_PROVIDER_ID,
-            serde_json::json!({
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "AICLI",
-                "options": {
-                    "baseURL": format!("{origin}/app/{}/v1", app.as_str()),
-                    "apiKey": token,
-                },
-                "models": models
-                    .iter()
-                    .map(|model| (model.clone(), serde_json::json!({ "name": model })))
-                    .collect::<serde_json::Map<_, _>>(),
-            }),
-            crate::provider::OpenCodeConfigFormat::V1,
-        ),
-        _ => return Err(TakeoverError::Unsupported),
-    };
+    let base = format!("{origin}/app/{}/v1", app.as_str());
+    let written = write_tier2_provider(app, &base, &token, models);
     written.map_err(|error| {
         log::error!(
             "AICLI Tier 2 client projection failed: {}",
@@ -594,6 +584,114 @@ async fn project_tier2(
         TakeoverError::Client
     })
 }
+
+/// One `aicli` provider in the client's own format, through the client's own
+/// writer. Every client here speaks Chat Completions to `base`.
+fn write_tier2_provider(
+    app: &AppType,
+    base: &str,
+    token: &str,
+    models: &[String],
+) -> Result<(), crate::error::AppError> {
+    use serde_json::{json, Map, Value};
+    let id = TIER2_PROVIDER_ID;
+    let keyed = |entry: &dyn Fn(&str) -> Value| -> Map<String, Value> {
+        models
+            .iter()
+            .map(|model| (model.clone(), entry(model)))
+            .collect()
+    };
+    match app {
+        AppType::OpenCode => crate::opencode_config::set_provider_with_format(
+            id,
+            json!({
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "AICLI",
+                "options": { "baseURL": base, "apiKey": token },
+                "models": keyed(&|model| json!({ "name": model })),
+            }),
+            crate::provider::OpenCodeConfigFormat::V1,
+        ),
+        AppType::OpenClaw => crate::openclaw_config::set_provider(
+            id,
+            json!({
+                "baseUrl": base,
+                "apiKey": token,
+                "api": "openai-completions",
+                "models": models
+                    .iter()
+                    .map(|model| json!({ "id": model, "name": model }))
+                    .collect::<Vec<_>>(),
+            }),
+        )
+        .map(|_| ()),
+        AppType::Hermes => crate::hermes_config::set_provider(
+            id,
+            json!({
+                "base_url": base,
+                "api_key": token,
+                "models": keyed(&|_| json!({})),
+            }),
+        )
+        .map(|_| ()),
+        AppType::Mcode => crate::mcode_config::set_provider(
+            id,
+            json!({
+                "name": "AICLI",
+                "api": "openai-completions",
+                "options": { "baseURL": base, "apiKey": token },
+                "models": keyed(&|_| json!({})),
+            }),
+        ),
+        AppType::Kimi => crate::kimi_config::set_provider(
+            id,
+            json!({
+                "provider": { "type": "openai", "base_url": base, "api_key": token },
+                "models": models
+                    .iter()
+                    .map(|model| (
+                        format!("{id}/{model}"),
+                        json!({
+                            "provider": id,
+                            "model": model,
+                            "max_context_size": TIER2_CONTEXT_WINDOW,
+                        }),
+                    ))
+                    .collect::<Map<_, _>>(),
+            }),
+        ),
+        AppType::Pi => {
+            let node = json!({
+                "baseUrl": base,
+                "apiKey": token,
+                "api": "openai-completions",
+                "models": models
+                    .iter()
+                    .map(|model| json!({
+                        "id": model,
+                        "name": model,
+                        "reasoning": false,
+                        "input": ["text"],
+                        "contextWindow": TIER2_CONTEXT_WINDOW,
+                        "maxTokens": 16384,
+                        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+                    }))
+                    .collect::<Vec<_>>(),
+            });
+            if crate::pi_config::replace_pi_provider_if_present(id, &node)?.is_none() {
+                crate::pi_config::insert_pi_provider(id, &node)?;
+            }
+            Ok(())
+        }
+        _ => Err(crate::error::AppError::Config(
+            "Client has no AICLI takeover".into(),
+        )),
+    }
+}
+
+/// new-api does not publish context lengths; same fixed value as the Grok
+/// projection (owner decision 2026-11-04).
+const TIER2_CONTEXT_WINDOW: u64 = 128_000;
 
 /// The provider id AICLI owns inside a Tier 2 client's config.
 pub(crate) const TIER2_PROVIDER_ID: &str = "aicli";
@@ -963,6 +1061,91 @@ mod tests {
             assert!(!state.proxy_service.is_running().await);
         }
     }
+    /// J-03～J-07: a user-owned config per client, with a marker that must survive.
+    fn tier2_original(app: &AppType) -> (&'static str, &'static str) {
+        match app {
+            AppType::OpenClaw => (
+                "{\n  // mine\n  models: {\n    mode: 'merge',\n    providers: { mine: { baseUrl: 'https://keep.example/v1' } },\n  },\n}\n",
+                "keep.example",
+            ),
+            AppType::Hermes => ("# mine\nmodel:\n  default: keep-me\n", "keep-me"),
+            AppType::Mcode => (
+                "# mine\ncustom_provider:\n  mine:\n    name: KeepMe\n",
+                "KeepMe",
+            ),
+            AppType::Kimi => ("# mine\n[loop_control]\nmax_steps_per_turn = 77\n", "77"),
+            AppType::Pi => (
+                "{\n  \"providers\": {\n    \"mine\": { \"baseUrl\": \"https://keep.example/v1\" }\n  }\n}\n",
+                "keep.example",
+            ),
+            _ => unreachable!(),
+        }
+    }
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn tier2_clients_write_only_the_local_provider_and_restore_exact_bytes() {
+        for app in [
+            AppType::OpenClaw,
+            AppType::Hermes,
+            AppType::Mcode,
+            AppType::Kimi,
+            AppType::Pi,
+        ] {
+            for seeded in [false, true] {
+                let _home = Home::new();
+                let state = fixture().await;
+                let store = MemoryStore::default();
+                let name = app.as_str();
+                let (original, marker) = tier2_original(&app);
+                let paths = files(&app).unwrap();
+                assert_eq!(paths.len(), 1, "{name}");
+                if seeded {
+                    std::fs::create_dir_all(paths[0].parent().unwrap()).unwrap();
+                    std::fs::write(&paths[0], original).unwrap();
+                }
+                let before = snapshot(&app).unwrap();
+
+                take_over(&state, &store, &app, false)
+                    .await
+                    .unwrap_or_else(|error| panic!("{name} seeded={seeded}: {error}"));
+                let text = managed_client_text(&app);
+                let (origin, _) = state.proxy_service.build_proxy_urls().await.unwrap();
+                assert!(
+                    text.contains(&format!("{origin}/app/{name}/v1")),
+                    "{name} seeded={seeded}: {text}"
+                );
+                let token = super::super::local_auth::token_for(&state.db, name).unwrap();
+                assert!(text.contains(&token), "{name} seeded={seeded}");
+                assert!(!text.contains("sk-"), "{name} seeded={seeded}");
+                assert!(!text.contains("fixture-access-token"), "{name}");
+                assert!(text.contains("alpha"), "{name} seeded={seeded}: {text}");
+                assert!(text.contains("aicli"), "{name} seeded={seeded}: {text}");
+                if seeded {
+                    assert!(text.contains(marker), "{name}: {text}");
+                }
+                let rows = status(&state).unwrap();
+                assert_eq!(rows.len(), 1, "{name}");
+                assert_eq!(
+                    (rows[0].app.as_str(), rows[0].state.as_str()),
+                    (name, "active")
+                );
+                assert!(state.proxy_service.is_running().await);
+
+                // 续接（再次接管）不重新备份。
+                take_over(&state, &store, &app, false).await.unwrap();
+
+                release(&state, &store, &app).await.unwrap();
+                assert_eq!(
+                    snapshot(&app).unwrap().files,
+                    before.files,
+                    "{name} seeded={seeded}"
+                );
+                assert!(store.get(&account(&app)).unwrap().is_none());
+                assert!(status(&state).unwrap().is_empty());
+                assert!(!state.proxy_service.is_running().await);
+            }
+        }
+    }
     #[tokio::test]
     #[serial_test::serial]
     async fn tier2_takeover_needs_routable_models_and_a_supported_client() {
@@ -990,7 +1173,7 @@ mod tests {
             .iter()
             .all(Option::is_none));
         // 还没通过 J 阶段验收的 Tier 2 客户端不提供接管。
-        for app in [AppType::Hermes, AppType::Pi, AppType::Agy] {
+        for app in [AppType::Dsh, AppType::Omp, AppType::Agy] {
             assert_eq!(
                 take_over(&state, &store, &app, false).await,
                 Err(TakeoverError::Unsupported),
