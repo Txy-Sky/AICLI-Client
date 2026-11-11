@@ -68,12 +68,6 @@ impl SystemKeychain {
             account: "antigravity",
         }
     }
-
-    /// 真机测试用的另一条，别动 agy 那条。
-    #[cfg(test)]
-    pub fn named(service: &'static str, account: &'static str) -> Self {
-        Self { service, account }
-    }
 }
 
 pub fn supported() -> bool {

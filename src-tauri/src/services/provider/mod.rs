@@ -11,7 +11,6 @@ pub(crate) mod codex_direct;
 mod codex_editor;
 mod codex_login;
 pub(crate) mod codex_official_models;
-pub(crate) mod codex_terminal;
 mod editor_toml;
 mod endpoints;
 mod gemini_auth;
@@ -930,7 +929,7 @@ mod tests {
             crate::settings::reload_settings().expect("reload settings");
             state
                 .db
-                .init_default_official_providers()
+                .seed_official_providers_for_app(crate::app_config::AppType::Codex)
                 .expect("seed official providers");
             let fixed_id = crate::database::CODEX_OFFICIAL_PROVIDER_ID;
             state
@@ -6518,15 +6517,6 @@ impl ProviderService {
             return Err(error);
         }
         Ok(true)
-    }
-
-    pub(crate) fn update_pi_usage_script(
-        state: &AppState,
-        app_type: AppType,
-        id: &str,
-        script: crate::provider::UsageScript,
-    ) -> Result<bool, AppError> {
-        pi::update_usage_script(state, app_type, id, script)
     }
 
     /// Delete a provider

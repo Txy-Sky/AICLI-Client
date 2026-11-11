@@ -1,6 +1,6 @@
 export type { AppId } from "./types";
 export { piApi } from "./pi";
-export { providersApi, universalProvidersApi } from "./providers";
+export { providersApi } from "./providers";
 export { settingsApi } from "./settings";
 export { backupsApi } from "./settings";
 export { mcpApi } from "./mcp";
@@ -8,7 +8,6 @@ export { profilesApi } from "./profiles";
 export { promptsApi } from "./prompts";
 export { skillsApi } from "./skills";
 export { usageApi } from "./usage";
-export { vscodeApi } from "./vscode";
 export { proxyApi } from "./proxy";
 export { openclawApi } from "./openclaw";
 export { sessionsApi } from "./sessions";

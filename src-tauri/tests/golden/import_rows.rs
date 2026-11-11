@@ -18,7 +18,7 @@ fn first_run_import(app: AppType, snapshot: &str, settings_sort: &[&str]) {
     import_default_config_test_hook(&state, app.clone()).expect("import live config");
     state
         .db
-        .init_default_official_providers()
+        .seed_official_providers_for_app(app.clone())
         .expect("seed official providers");
     let snippet = state
         .db

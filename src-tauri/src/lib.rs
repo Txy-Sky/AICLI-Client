@@ -63,7 +63,6 @@ pub use codex_config::{
     extract_codex_experimental_bearer_token, get_codex_auth_path, get_codex_config_path,
     read_codex_live_settings, write_codex_live_atomic,
 };
-pub use commands::open_provider_terminal;
 pub use commands::*;
 pub use config::{
     get_claude_mcp_path, get_claude_settings_path, get_home_dir, read_json_file, APP_DIR_NAME,
@@ -1539,14 +1538,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_providers,
             commands::get_current_provider,
-            commands::add_provider,
-            commands::update_provider,
-            commands::get_provider_editor_view,
-            commands::delete_provider,
-            commands::add_provider_to_live_config,
-            commands::remove_provider_from_live_config,
             commands::switch_provider,
-            commands::import_default_config,
             commands::get_claude_desktop_status,
             commands::get_claude_desktop_default_routes,
             commands::import_claude_desktop_providers_from_claude,
@@ -1571,7 +1563,6 @@ pub fn run() {
             commands::get_common_config_snippet,
             commands::set_common_config_snippet,
             commands::extract_common_config_snippet,
-            commands::read_live_provider_settings,
             commands::get_settings,
             commands::save_settings,
             commands::has_codex_unify_history_backup,
@@ -1608,8 +1599,6 @@ pub fn run() {
             commands::delete_claude_mcp_server,
             commands::validate_mcp_command,
             // usage query
-            commands::queryProviderUsage,
-            commands::testUsageScript,
             // subscription quota
             commands::get_subscription_quota,
             commands::get_codex_oauth_quota,
@@ -1646,7 +1635,6 @@ pub fn run() {
             commands::delete_pi_prompt_template,
             // Pi native provider and session views
             commands::get_pi_current_state,
-            commands::update_pi_provider_usage_script,
             commands::get_pi_session_discovery,
             // Oh My Pi native provider and session views
             commands::get_omp_current_state,
@@ -1663,16 +1651,10 @@ pub fn run() {
             commands::get_agy_models,
             commands::get_opencode_models,
             // ours: endpoint speed test + custom endpoint management
-            commands::test_api_endpoints,
-            commands::get_custom_endpoints,
-            commands::add_custom_endpoint,
-            commands::remove_custom_endpoint,
-            commands::update_endpoint_last_used,
             // app_config_dir override via Store
             commands::get_app_config_dir_override,
             commands::set_app_config_dir_override,
             // provider sort order management
-            commands::update_providers_sort_order,
             // theirs: config import/export and dialogs
             commands::export_config_to_file,
             commands::import_config_from_file,
@@ -1834,25 +1816,17 @@ pub fn run() {
             commands::probe_tool_installations,
             commands::list_tool_installations,
             // Provider terminal
-            commands::open_provider_terminal,
             // Universal Provider management
-            commands::get_universal_providers,
-            commands::get_universal_provider,
-            commands::upsert_universal_provider,
-            commands::delete_universal_provider,
-            commands::sync_universal_provider,
             // Custom icon library
             commands::get_custom_icons,
             commands::add_custom_icon,
             commands::rename_custom_icon,
             commands::delete_custom_icon,
             // OpenCode specific
-            commands::import_opencode_providers_from_live,
             commands::get_opencode_live_provider_ids,
             commands::get_opencode_default_model,
             commands::set_opencode_default_model,
             // OpenClaw specific
-            commands::import_openclaw_providers_from_live,
             commands::get_openclaw_live_provider_ids,
             commands::get_openclaw_live_provider,
             commands::scan_openclaw_config_health,
@@ -1867,7 +1841,6 @@ pub fn run() {
             commands::get_openclaw_tools,
             commands::set_openclaw_tools,
             // Hermes specific
-            commands::import_hermes_providers_from_live,
             commands::get_hermes_live_provider_ids,
             commands::get_hermes_live_provider,
             commands::get_hermes_model_config,

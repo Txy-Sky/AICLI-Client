@@ -313,7 +313,7 @@ fn codex_startup_import_fresh_install_imports_once_and_syncs_current_setting() {
 
     state
         .db
-        .init_default_official_providers()
+        .seed_official_providers_for_app(AppType::Codex)
         .expect("seed official providers");
     let providers_after_seed = state
         .db
@@ -439,7 +439,7 @@ fn codex_startup_import_skips_when_only_official_seed_exists() {
     let state = create_test_state().expect("create test state");
     state
         .db
-        .init_default_official_providers()
+        .seed_official_providers_for_app(AppType::Codex)
         .expect("seed official providers");
 
     let providers_before = state

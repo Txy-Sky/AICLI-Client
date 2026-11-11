@@ -1,0 +1,86 @@
+G-03 移除 Rust 命令和服务（2026-11-10，按负责人当日决定收窄范围）
+
+## 范围决定（清单第 13 节已记录）
+
+负责人 2026-11-10 决定：官方账号登录与余额/订阅/Coding Plan 查询后端整体保留，
+第 1～3 组（账号命令、账号服务、代理 OAuth 适配器与 forwarder OAuth 分支）不删。
+本项实际执行：第 4 组（收窄）+ 第 5 组（收窄）+ 第 6 组（部分）。
+
+## 删除内容（28 文件，+167 / -3416 行）
+
+第 4 组（官方种子）：
+- `Database::init_default_official_providers`（启动播种已被 C3-02 的 AICLI 种子取代，
+  生产无调用）。测试播种改用新增的 `seed_official_providers_for_app`（按 app 幂等
+  补齐，语义同 `ensure_official_seed_by_id`）。golden 快照逐字节不变（35 项全过）。
+- 保留：`providers_seed.rs`、`ensure_official_seed_by_id`、`has_non_official_seed_provider`
+  （官方登录链路 `commands/provider.rs`、`mode/controller.rs`、`live.rs` 在用）。
+
+第 5 组（provider 对外增删改命令，24 个 Tauri 命令 + 注册）：
+- `commands/provider.rs`：add_provider、update_provider、get_provider_editor_view、
+  delete_provider、add/remove_provider_to_live_config、import_default_config（命令包装；
+  internal 与 test hook 保留）、queryProviderUsage（改为 pub(crate) 内部函数，托盘面板
+  仍在调，G-04 托盘收口后删）、testUsageScript、read_live_provider_settings、
+  test_api_endpoints、get/add/remove_custom_endpoint、update_endpoint_last_used、
+  update_providers_sort_order、get/get_universal_provider(s)、upsert/delete/sync_universal_provider
+  （+UniversalProviderSyncedEvent）、import_opencode_providers_from_live（包装）。
+- `commands/hermes.rs` / `commands/openclaw.rs`：同款 import-from-live 命令包装（服务层
+  保留，启动仍调用）。
+- `commands/misc.rs`：open_provider_terminal 及其专属级联（ProviderLaunch 的
+  skip_permissions/append_user_args、USER_ARG_BATCH_VARS、split_launch_args、
+  CODEX_OVERRIDE_BATCH_VARS、codex/claude/claude_account_terminal_launch、
+  switch_agy_to_bound_account、write_claude_config、extract_env_vars_from_config）。
+  agy 会话恢复终端（open_agy_resume_terminal）及其启动基础设施保留。
+- `services/provider/codex_terminal.rs` 整文件（649 行，唯一调用方是 codex 终端启动）。
+- `commands/pi.rs` update_pi_provider_usage_script + `services/provider/pi.rs`
+  update_usage_script + `ProviderService::update_pi_usage_script`（无引用后）。
+- 孤儿死代码：codex_config.rs 的 codex_single_model_catalog、claude_official.rs 的
+  ensure_default_terminal_is_official / AccountTerminal / terminal_account、
+  claude_account/snapshot 的 dir_has_login、agy keychain 的 named。
+
+第 6 组（部分）：
+- Provider 导入导出的对外命令与前端死包装删除（见上）。`usage_script.rs` 引擎保留：
+  Pi / OMP 的 Provider 模型（meta.usage_script）与用量查询仍引用，未达「无引用后删」
+  条件（第 13 节记录）。
+
+前端配套（死代码清理）：
+- `lib/query/mutations.ts` 缩减为会话/设置两个 mutation（供应商增删改 mutation 随命令
+  删除）；删除 3 个对应测试文件。
+- `lib/api/providers.ts`：CRUD、编辑器、universal、import-from-live、ensure_*、终端等
+  死包装删除；保留 getAll/getCurrent/switch（托盘，G-04 前过渡）/importClaudeDesktopFromClaude/
+  getClaudeDesktopStatus/默认路由/updateTrayMenu/onSwitched/OpenCode·OpenClaw·Hermes 只读。
+- `lib/api/usage.ts` query/testScript、`lib/api/pi.ts` updateProviderUsageScript、
+  `lib/api/vscode.ts` 测速与自定义端点五个方法、`lib/query/queries.ts` useUsageQuery 删除。
+
+## 保留（不删）清单（与决定一致）
+
+- 全部账号命令/服务（copilot、codex_oauth、xai_oauth、kimi_oauth、claude_account、
+  agy_account、auth、subscription、coding_plan、balance 及其服务、OAuth 代理适配器、
+  forwarder OAuth 分支）。
+- ensure_claude_desktop/codex/grokbuild_official_provider、import_claude_desktop_providers_from_claude
+  （官方链路安全网）。
+- 只读命令：get_providers、get_current_provider、get_claude_desktop_status、
+  get_claude_desktop_default_routes、get_provider_stats、check_provider_limits、
+  get_direct_provider、各 Tier 2 live provider ids。
+- switch_provider 与 sync_current_providers_live：托盘与设置同步仍在用，G-04 收口。
+- codex_history_migration（负责人 2026-11-04 决定保留）：未触碰，迁移相关测试数不变。
+
+## 验收
+
+- `scripts/aicli-check.sh` 全过：typecheck、prettier、前端 1349 测试、build:renderer、
+  cargo fmt、clippy -D warnings、cargo nextest 4666 passed / 13 skipped。
+- transform*/streaming* 测试前后对比：`cargo nextest list | grep -iE "transform|streaming"`
+  基线与改后均为 757 项，名单逐一相同（IDENTICAL）。
+- 清单原验收 grep（CopilotAuth|CodexOAuth|XaiOAuth|kimi_oauth|claude_account 无结果）
+  按第 13 节决定不适用；改验删除目标：24 个命令在 src-tauri/src 与前端 invoke 中均无
+  残留（lib.rs 注册已同步移除，grep commands::<name> 无结果）。
+- 删除或改写的测试及原因：
+  - tests/hooks/useAddProviderMutation / useSwitchProviderResult / useUpdateProviderMutation
+    （被测 mutation 已删）。
+  - pi.rs usage_metadata_update_does_not_rewrite_native_provider_settings、omp.rs
+    usage_metadata_update_preserves_native_settings_and_pi_provider（被测更新路径已删）。
+  - claude_official.rs unbound_card_on_unknown_account_writes_nothing（被测
+    terminal_account 已删）。
+  - misc.rs split_launch_args、user_args、skip_permissions、codex_launch 四个终端测试
+    （被测路径已删）；fish 引号测试保留（agy 恢复终端仍在用该引号规则）。
+  - tests/provider_commands.rs、tests/golden/import_rows.rs：播种改用
+    seed_official_providers_for_app，断言与快照不变。
