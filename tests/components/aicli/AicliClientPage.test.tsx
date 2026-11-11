@@ -160,6 +160,7 @@ describe("helpers", () => {
     expect(protocolForApp("claude-desktop")).toBe("anthropic");
     expect(protocolForApp("gemini")).toBe("gemini");
     expect(protocolForApp("codex")).toBe("openai-response");
+    expect(protocolForApp("opencode")).toBe("openai");
   });
 });
 

@@ -38,6 +38,8 @@ export {
 export function protocolForApp(app: AppId): string {
   if (app === "claude" || app === "claude-desktop") return "anthropic";
   if (app === "gemini") return "gemini";
+  // Tier 2（J 阶段）：OpenCode 的 aicli 提供方走 Chat Completions
+  if (app === "opencode") return "openai";
   return "openai-response";
 }
 

@@ -15,6 +15,8 @@ export const AICLI_TAKEOVER_APPS: readonly AppId[] = [
   "gemini",
   "grokbuild",
   "claude-desktop",
+  // J 阶段的 Tier 2 客户端：与后端 `aicli/tier.rs` 的 TIER2_SUPPORTED 保持一致
+  "opencode",
 ];
 
 export type AicliTakeoverDisplay = "active" | "pending" | "inactive";

@@ -136,8 +136,9 @@ describe("AicliClientsPage", () => {
       "aicli-client-card-codex",
       "aicli-client-card-gemini",
       "aicli-client-card-grokbuild",
+      "aicli-client-card-opencode",
     ]);
-    // 已接管 1 / 5
+    // 已接管 1 / 6
     expect(screen.getByText("aicli.clients.summary")).toBeInTheDocument();
   });
 
@@ -220,11 +221,12 @@ describe("AicliClientsPage", () => {
       .getAllByRole("listitem")
       .map((item) => item.textContent);
     // 图标 SVG 自带 <title>，textContent 里会再出现一次名字
-    expect(names.some((name) => name?.includes("OpenCode"))).toBe(true);
     expect(names.some((name) => name?.includes("Kimi Code"))).toBe(true);
+    // OpenCode 已可接管（J-02），不再列在这里
+    expect(names.some((name) => name?.includes("OpenCode"))).toBe(false);
     expect(within(soon).queryByRole("button")).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("aicli-client-card-opencode"),
+      screen.queryByTestId("aicli-client-card-kimi"),
     ).not.toBeInTheDocument();
   });
 
