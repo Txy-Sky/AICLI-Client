@@ -315,8 +315,16 @@ jobs:
               before = json.loads(subprocess.check_output(["git", "show", f"{baseline}:{path}"], text=True))
               after = json.loads(path.read_text())
               compare(before, after)
+              def path_exists(obj, parts):
+                  cur = obj
+                  for part in parts:
+                      if not isinstance(cur, dict) or part not in cur:
+                          return False
+                      cur = cur[part]
+                  return True
+
               gone = sorted(removed_namespaces & after.keys())
-              gone += [".".join(key) for key in sorted(removed_keys) if key[1] in after.get(key[0], {})]
+              gone += [".".join(key) for key in sorted(removed_keys) if path_exists(after, key)]
               assert not gone, (path.stem, gone)
               # G-01 restores the full scan: no legacy brand anywhere, promotions included
               assert not legacy.search(json.dumps(after, ensure_ascii=False)), path
