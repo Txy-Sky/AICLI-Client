@@ -292,7 +292,7 @@ describe("AicliClientPage", () => {
 
   it("does not offer takeover for clients AICLI cannot take over", async () => {
     respond();
-    renderWithQueryClient(<AicliClientPage app="opencode" />);
+    renderWithQueryClient(<AicliClientPage app="kimi" />);
     expect(
       await screen.findByText("aicli.client.unsupported"),
     ).toBeInTheDocument();
