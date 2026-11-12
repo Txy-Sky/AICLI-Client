@@ -266,6 +266,143 @@ describe("AicliHome — bound", () => {
     );
   });
 
+  it("puts the rebind alert first and marks the account step", async () => {
+    respond(
+      boundResponses({
+        aicli_get_account: { ...bound, state: "needs_rebind" },
+        aicli_takeover_status: [
+          { app: "claude", state: "active", taken_over_at: 1 },
+        ],
+        get_proxy_status: { running: false },
+      }),
+    );
+    renderWithQueryClient(<AicliHome />);
+    expect(
+      await screen.findByText("aicli.overview.alertRebindBody"),
+    ).toBeInTheDocument();
+    // 一次只显示最严重的一条：代理停了的提示被令牌失效压住
+    expect(
+      screen.queryByText("aicli.overview.alertProxyTitle"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("aicli-flow-account")).toHaveAttribute(
+      "data-tone",
+      "danger",
+    );
+  });
+
+  it("offers to start the local proxy when taken-over clients lost it", async () => {
+    respond(
+      boundResponses({
+        aicli_takeover_status: [
+          { app: "claude", state: "active", taken_over_at: 1 },
+        ],
+        get_proxy_status: { running: false },
+        start_proxy_server: { address: "127.0.0.1", port: 15821 },
+      }),
+    );
+    renderWithQueryClient(<AicliHome />);
+    expect(
+      await screen.findByText("aicli.overview.alertProxyTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("aicli.overview.alertProxyBody"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.overview.alertProxyAction" }),
+    );
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("start_proxy_server"),
+    );
+  });
+
+  it("offers the fastest working line when the current one is unreachable", async () => {
+    const down = {
+      ...lines,
+      lines: [
+        {
+          ...lines.lines[0],
+          health: {
+            ...lines.lines[0].health!,
+            status: "error",
+            latency_ms: null,
+          },
+        },
+        {
+          ...lines.lines[1],
+          health: { ...lines.lines[0].health!, latency_ms: 120 },
+        },
+      ],
+    };
+    respond(boundResponses({ aicli_list_lines: down }));
+    renderWithQueryClient(<AicliHome />);
+    expect(
+      await screen.findByText("aicli.overview.alertLineTitle"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.overview.alertLineSwitch" }),
+    );
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("aicli_select_line", {
+        id: "global",
+      }),
+    );
+  });
+
+  it("asks for a speed test when no other line is known to work", async () => {
+    const down = {
+      ...lines,
+      lines: [
+        {
+          ...lines.lines[0],
+          health: {
+            ...lines.lines[0].health!,
+            status: "error",
+            latency_ms: null,
+          },
+        },
+        lines.lines[1],
+      ],
+    };
+    respond(boundResponses({ aicli_list_lines: down }));
+    renderWithQueryClient(<AicliHome />);
+    expect(
+      await screen.findByText("aicli.overview.alertLineNoFallback"),
+    ).toBeInTheDocument();
+  });
+
+  it("says the numbers are from the cache and retries the sync", async () => {
+    respond(
+      boundResponses({
+        aicli_refresh: [cachedAccount({ stale: true, last_error: "network" })],
+      }),
+    );
+    renderWithQueryClient(<AicliHome />);
+    expect(
+      await screen.findByText("aicli.overview.alertStaleTitle"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("aicli-flow-account")).toHaveAttribute(
+      "data-tone",
+      "stale",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.overview.alertStaleAction" }),
+    );
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("aicli_refresh", {
+        kind: "all",
+      }),
+    );
+  });
+
+  it("shows no alert when everything is fine", async () => {
+    respond(boundResponses());
+    renderWithQueryClient(<AicliHome />);
+    await screen.findByText("alice");
+    expect(
+      screen.queryByText(/aicli\.overview\.alert/),
+    ).not.toBeInTheDocument();
+  });
+
   it("warns when the active profile needs repair", async () => {
     respond(boundResponses({ aicli_get_routes: routes(true) }));
     renderWithQueryClient(<AicliHome />);

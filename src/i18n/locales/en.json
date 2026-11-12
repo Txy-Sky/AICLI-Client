@@ -3172,11 +3172,9 @@
         "conflict": "Conflict"
       },
       "confirmTakeOverTitle": "Take over {{app}}",
-      "confirmTakeOverBody": "Taking over rewrites the {{app}} configuration so requests go through the local proxy to AICLI; you can stop at any time and the configuration is restored as it was.",
       "confirmReleaseTitle": "Stop taking over {{app}}",
-      "confirmReleaseBody": "Stopping the takeover restores the {{app}} configuration to how it was before (for example the official sign-in or your own settings). Requests no longer go through AICLI, and you can take it over again at any time.",
-      "conflictTitle": "Old proxy settings detected",
-      "conflictBody": "The {{app}} configuration contains settings left by an older local proxy. Taking over overwrites them; stopping the takeover restores how it was before.",
+      "conflictTitle": "{{app}} has old settings",
+      "conflictBody": "Taking over replaces these settings. They are backed up too and restored when you stop the takeover.",
       "conflictNotice": "The {{app}} configuration conflicts with settings from an older local proxy; confirm overwriting them to take over.",
       "unsupported": "{{app}} does not support AICLI takeover yet.",
       "notBound": "Bind an account before taking over clients.",
@@ -3199,7 +3197,16 @@
         "text_only": "Text only",
         "unavailable": "Unavailable",
         "unverified": "Unverified"
-      }
+      },
+      "takeOverPoint1": "Its requests go through this computer, then on to AICLI",
+      "takeOverPoint2": "Its current configuration is backed up in full first",
+      "takeOverPoint3": "Stop at any time and the configuration is restored as it was",
+      "takeOverProfile": "Profile: {{name}}",
+      "takeOverProfileDefault": "Profile: {{name}} (follows the default)",
+      "releaseLead": "It goes back to how it was before the takeover:",
+      "releaseAfter": "Its requests then no longer go through AICLI or count towards usage. Take it over again whenever you like.",
+      "conflictBoxTitle": "Settings left by an old local proxy",
+      "conflictBoxBody": "Left as they are, its requests may go to an address that no longer exists."
     },
     "profiles": {
       "title": "Profiles",
@@ -3423,7 +3430,22 @@
       "today": "Today",
       "checkedAt": "Tested {{time}}",
       "usedBy": "In use by {{apps}}",
-      "privacyOpen": "View"
+      "privacyOpen": "View",
+      "flowAccountRebind": "Needs rebinding",
+      "flowAccountAsOf": "Data from {{time}}",
+      "alertFailed": "That didn't work: {{message}}",
+      "alertRebindBody": "Paste the token once more and everything comes back; your other settings are kept.",
+      "alertProxyTitle": "The local proxy isn't running",
+      "alertProxyAction": "Start proxy",
+      "alertProxyBody": "{{apps}} can't reach AICLI right now.",
+      "alertLineTitle": "{{line}} is unreachable",
+      "alertLineSwitch": "Switch to {{line}}",
+      "alertLineBody": "{{line}} tested fine ({{ms}} ms). Switching only affects later requests.",
+      "alertLineNoFallback": "The other lines are untested or unreachable too. Run a speed test first.",
+      "alertStaleTitle": "Can't reach the server for now",
+      "alertStaleAction": "Try again",
+      "alertStaleBody": "Balance and spend show data from {{time}}.",
+      "alertStaleNoTime": "Balance and spend haven't been updated for now."
     },
     "privacyPage": {
       "help": "Before a request leaves this computer, keys and personal data are swapped for placeholders here and swapped back in the reply. Clients and your files keep the real values; the upstream never sees them.",

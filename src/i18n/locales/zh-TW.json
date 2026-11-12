@@ -3173,11 +3173,9 @@
         "conflict": "衝突"
       },
       "confirmTakeOverTitle": "接管 {{app}}",
-      "confirmTakeOverBody": "接管後會改寫 {{app}} 的設定，讓請求經過本機代理送往 AICLI；隨時可以停止接管，設定會原樣還原。",
       "confirmReleaseTitle": "停止接管 {{app}}",
-      "confirmReleaseBody": "停止接管會把 {{app}} 的設定還原為接管前的樣子（例如官方登入或你自己的設定），之後請求不再經過 AICLI，隨時可以再次接管。",
-      "conflictTitle": "偵測到舊的代理設定",
-      "conflictBody": "{{app}} 的設定裡有舊版本機代理留下的設定。繼續接管會覆寫它們，停止接管時還原為接管前的樣子。",
+      "conflictTitle": "{{app}} 裡有舊設定",
+      "conflictBody": "繼續接管會覆蓋這些設定。它們也會被備份，停止接管時一併還原。",
       "conflictNotice": "{{app}} 的設定與舊版本機代理的設定衝突，確認覆寫後才能接管。",
       "unsupported": "{{app}} 暫不支援 AICLI 接管。",
       "notBound": "綁定帳戶後才能接管用戶端。",
@@ -3200,7 +3198,16 @@
         "text_only": "僅文字",
         "unavailable": "無法使用",
         "unverified": "未驗證"
-      }
+      },
+      "takeOverPoint1": "它的請求改走這台電腦，再送往 AICLI",
+      "takeOverPoint2": "現在的設定會先完整備份",
+      "takeOverPoint3": "隨時可以停止，設定原樣還原",
+      "takeOverProfile": "使用設定集：{{name}}",
+      "takeOverProfileDefault": "使用設定集：{{name}}（跟隨預設）",
+      "releaseLead": "它會回到接管前的樣子：",
+      "releaseAfter": "之後它的請求不再經過 AICLI，也不再計入用量。想用時再接管就行。",
+      "conflictBoxTitle": "發現舊版本機代理留下的設定",
+      "conflictBoxBody": "不處理的話，它的請求可能送到一個已經不存在的位址。"
     },
     "profiles": {
       "title": "設定集",
@@ -3424,7 +3431,22 @@
       "today": "今天",
       "checkedAt": "{{time}} 測速",
       "usedBy": "正在使用：{{apps}}",
-      "privacyOpen": "查看"
+      "privacyOpen": "查看",
+      "flowAccountRebind": "需要重新綁定",
+      "flowAccountAsOf": "{{time}} 的資料",
+      "alertFailed": "沒有成功：{{message}}",
+      "alertRebindBody": "重新貼上一次權杖就恢復，其他設定都還在。",
+      "alertProxyTitle": "本機代理沒在執行",
+      "alertProxyAction": "啟動代理",
+      "alertProxyBody": "{{apps}} 現在連不上 AICLI。",
+      "alertLineTitle": "{{line}}連不上",
+      "alertLineSwitch": "切到{{line}}",
+      "alertLineBody": "{{line}}測速正常（{{ms}} ms）。切換只影響之後的請求。",
+      "alertLineNoFallback": "其他線路還沒測速或也不通，先測一次速。",
+      "alertStaleTitle": "暫時連不上伺服端",
+      "alertStaleAction": "再試一次",
+      "alertStaleBody": "餘額和消耗顯示的是 {{time}} 的資料。",
+      "alertStaleNoTime": "餘額和消耗暫時沒有更新。"
     },
     "privacyPage": {
       "help": "請求離開這台電腦前，在本機把金鑰、個人資訊換成佔位符，回覆裡再換回原樣。客戶端和你的檔案裡始終是真值，上游一個也看不到。",

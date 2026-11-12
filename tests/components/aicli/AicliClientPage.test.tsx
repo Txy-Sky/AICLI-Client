@@ -188,7 +188,11 @@ describe("AicliClientPage", () => {
     );
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("aicli.client.confirmTakeOverBody"),
+      within(dialog).getByText("aicli.client.takeOverPoint3"),
+    ).toBeInTheDocument();
+    // 没有单独指定配置集：写明跟随默认
+    expect(
+      await within(dialog).findByText("aicli.client.takeOverProfileDefault"),
     ).toBeInTheDocument();
     expect(callsTo("aicli_take_over")).toHaveLength(0);
     fireEvent.click(
@@ -263,7 +267,14 @@ describe("AicliClientPage", () => {
     );
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("aicli.client.confirmReleaseBody"),
+      within(dialog).getByText("aicli.client.releaseAfter"),
+    ).toBeInTheDocument();
+    // 写明回到接管前的配置和备份时间
+    expect(
+      within(dialog).getByText("aicli.clients.restoreTo"),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("aicli.clients.restoreBackedUp"),
     ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "aicli.client.release" }),

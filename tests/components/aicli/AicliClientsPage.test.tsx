@@ -159,7 +159,7 @@ describe("AicliClientsPage", () => {
     fireEvent.click(takeOver);
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("aicli.client.confirmTakeOverBody"),
+      within(dialog).getByText("aicli.client.takeOverPoint3"),
     ).toBeInTheDocument();
     expect(
       invokeMock.mock.calls.some(([command]) => command === "aicli_take_over"),
@@ -188,7 +188,7 @@ describe("AicliClientsPage", () => {
     fireEvent.click(release);
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText("aicli.client.confirmReleaseBody"),
+      within(dialog).getByText("aicli.client.releaseAfter"),
     ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "aicli.client.release" }),

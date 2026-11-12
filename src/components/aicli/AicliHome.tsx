@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
-import { Notice } from "@/components/ui/notice";
 import { UsagePage } from "@/components/usage/UsagePage";
 import {
   useAicliAccount,
@@ -10,7 +8,6 @@ import {
 } from "@/hooks/useAicliAccount";
 import type { AppTypeFilter } from "@/types/usage";
 import { AicliOverviewPanel } from "./AicliOverviewPanel";
-import { useOpenAicliBind } from "./AicliBindGate";
 import { AicliProfilesPanel } from "./profiles/AicliProfilesPanel";
 
 interface AicliHomeProps {
@@ -45,27 +42,10 @@ export function AicliHome({
   const bound = account?.state === "bound" || account?.state === "needs_rebind";
   const cached = useAicliCachedValue("account", bound);
   const privacy = useAicliPrivacy();
-  const openBind = useOpenAicliBind();
   const [profilesOpen, setProfilesOpen] = useState(false);
 
   const leading = (
     <div data-testid="aicli-home" className="flex flex-col gap-3">
-      {account && bound && account.state === "needs_rebind" && (
-        <Notice
-          tone="danger"
-          title={t("aicli.account.tokenInvalid")}
-          actions={
-            <Button
-              type="button"
-              variant="neutral"
-              size="compact"
-              onClick={openBind}
-            >
-              {t("aicli.bind.rebindAction")}
-            </Button>
-          }
-        />
-      )}
       {account && bound && (
         <AicliOverviewPanel
           account={account}

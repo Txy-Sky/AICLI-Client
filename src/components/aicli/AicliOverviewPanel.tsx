@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,10 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import type { AppId } from "@/lib/api";
 import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
-import { useProxyStatusQuery } from "@/lib/query/proxy";
+import { aicliApi, isAicliCommandError } from "@/lib/api/aicli";
+import { proxyApi } from "@/lib/api/proxy";
+import { proxyKeys, useProxyStatusQuery } from "@/lib/query/proxy";
+import { aicliKeys } from "@/hooks/aicliKeys";
 import { cn } from "@/lib/utils";
 import {
   useAicliLines,
@@ -33,6 +37,7 @@ import type {
   AicliUsageSummary,
 } from "@/types/aicli";
 import { MiniBars, type MiniBar } from "./MiniBars";
+import { useOpenAicliBind } from "./AicliBindGate";
 import {
   aicliPresetDescription,
   aicliProfileName,
@@ -207,6 +212,9 @@ export function AicliOverviewPanel({
         : "line";
   const step = picked ?? autoStep;
 
+  const syncTime = cached ? formatSyncTime(cached.fetched_at, locale) : null;
+  const rebind = account.state === "needs_rebind";
+
   const nodes: {
     id: FlowStep;
     label: string;
@@ -288,223 +296,463 @@ export function AicliOverviewPanel({
   ];
 
   return (
-    <section
-      aria-labelledby="aicli-overview-title"
-      data-testid="aicli-overview"
-      className="overflow-hidden rounded-panel border border-border bg-surface"
-    >
-      {/* 头部：账户、用户组、来源与同步时间 */}
-      <div
-        data-testid="aicli-account-header"
-        className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-3"
+    <>
+      <HomeAlert
+        rebind={rebind}
+        proxyDownApps={proxyDown ? activeApps.map((entry) => entry.app) : []}
+        lines={linesView?.lines ?? []}
+        currentLine={currentLine}
+        stale={fromCache}
+        syncTime={syncTime}
+      />
+      <section
+        aria-labelledby="aicli-overview-title"
+        data-testid="aicli-overview"
+        className="overflow-hidden rounded-panel border border-border bg-surface"
       >
-        <span
-          aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-action-soft text-strong font-semibold text-action-text"
+        {/* 头部：账户、用户组、来源与同步时间 */}
+        <div
+          data-testid="aicli-account-header"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-3"
         >
-          {initial}
-        </span>
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0 items-center gap-2">
-            <h2
-              id="aicli-overview-title"
-              className="m-0 truncate text-strong text-fg-1"
-            >
-              {account.username || noData}
-            </h2>
-            {account.user_group && (
-              <span className="inline-flex h-5 items-center rounded-full bg-subtle px-2 text-badge text-fg-2">
-                {account.user_group}
-              </span>
-            )}
-            {fromCache && (
-              <span className="inline-flex h-5 items-center rounded-full bg-warning-soft px-2 text-badge text-warning-text">
-                {t("aicli.account.cached")}
-              </span>
-            )}
-          </div>
-          <span className="flex flex-wrap gap-x-1.5 text-caption text-fg-3">
-            <span>{t("aicli.account.source")}</span>
-            <span aria-hidden="true">·</span>
-            <span>
-              {cached
-                ? t("aicli.account.lastSync", {
-                    time: formatSyncTime(cached.fetched_at, locale),
-                  })
-                : t("aicli.account.neverSynced")}
-            </span>
+          <span
+            aria-hidden="true"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-action-soft text-strong font-semibold text-action-text"
+          >
+            {initial}
           </span>
-        </div>
-      </div>
-
-      {/* 余额与每日消耗 */}
-      <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <div className="flex min-w-0 flex-col gap-2">
           <div className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1 text-caption text-fg-2">
-              {t("aicli.account.remaining")}
-              <HelpTip title={t("aicli.account.remaining")}>
-                {t("aicli.overview.quotaHelp")}
-              </HelpTip>
-            </span>
-            <HoverTip content={remaining ?? noData}>
-              <span
-                data-testid="aicli-quota-remaining"
-                className="truncate text-metric leading-9 tabular-nums text-fg-1"
+            <div className="flex min-w-0 items-center gap-2">
+              <h2
+                id="aicli-overview-title"
+                className="m-0 truncate text-strong text-fg-1"
               >
-                {remaining ?? noData}
+                {account.username || noData}
+              </h2>
+              {account.user_group && (
+                <span className="inline-flex h-5 items-center rounded-full bg-subtle px-2 text-badge text-fg-2">
+                  {account.user_group}
+                </span>
+              )}
+              {fromCache && (
+                <span className="inline-flex h-5 items-center rounded-full bg-warning-soft px-2 text-badge text-warning-text">
+                  {t("aicli.account.cached")}
+                </span>
+              )}
+            </div>
+            <span className="flex flex-wrap gap-x-1.5 text-caption text-fg-3">
+              <span>{t("aicli.account.source")}</span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {cached
+                  ? t("aicli.account.lastSync", {
+                      time: formatSyncTime(cached.fetched_at, locale),
+                    })
+                  : t("aicli.account.neverSynced")}
               </span>
-            </HoverTip>
+            </span>
           </div>
-          {usedRatio != null && (
-            <div
-              role="meter"
-              aria-label={t("aicli.overview.usedShare")}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(usedRatio * 100)}
-              className="h-1.5 w-full overflow-hidden rounded-full bg-subtle"
-            >
+        </div>
+
+        {/* 余额与每日消耗 */}
+        <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-1 text-caption text-fg-2">
+                {t("aicli.account.remaining")}
+                <HelpTip title={t("aicli.account.remaining")}>
+                  {t("aicli.overview.quotaHelp")}
+                </HelpTip>
+              </span>
+              <HoverTip content={remaining ?? noData}>
+                <span
+                  data-testid="aicli-quota-remaining"
+                  className="truncate text-metric leading-9 tabular-nums text-fg-1"
+                >
+                  {remaining ?? noData}
+                </span>
+              </HoverTip>
+            </div>
+            {usedRatio != null && (
               <div
-                className="h-full rounded-full bg-action"
-                style={{ width: `${Math.max(usedRatio * 100, 1)}%` }}
+                role="meter"
+                aria-label={t("aicli.overview.usedShare")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(usedRatio * 100)}
+                className="h-1.5 w-full overflow-hidden rounded-full bg-subtle"
+              >
+                <div
+                  className="h-full rounded-full bg-action"
+                  style={{ width: `${Math.max(usedRatio * 100, 1)}%` }}
+                />
+              </div>
+            )}
+            <span className="flex flex-wrap items-baseline gap-x-1.5 text-caption text-fg-2">
+              <span>{t("aicli.account.used")}</span>
+              <span
+                data-testid="aicli-quota-used"
+                className="font-medium tabular-nums text-fg-1"
+              >
+                {used ?? noData}
+              </span>
+              {usedRatio != null && (
+                <span className="tabular-nums text-fg-3">
+                  {t("aicli.overview.usedPct", {
+                    pct: Math.round(usedRatio * 100),
+                  })}
+                </span>
+              )}
+            </span>
+            {runwayDays != null && (
+              <span
+                data-testid="aicli-quota-runway"
+                className="text-caption font-medium text-action-text"
+              >
+                {t("aicli.overview.runway", { days: range, count: runwayDays })}
+              </span>
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <h3 className="m-0 text-caption font-semibold text-fg-2">
+                {t("aicli.overview.dailyTitle")}
+              </h3>
+              <InlineStat
+                label={t("aicli.overview.spend", { days: range })}
+                value={totals ? (fmt(totals.quota) ?? noData) : noData}
+                testId="aicli-server-spend"
+              />
+              <InlineStat
+                label={t("aicli.overview.requests", { days: range })}
+                value={totals ? totals.requests.toLocaleString(locale) : noData}
+                testId="aicli-server-requests"
+              />
+              <SegmentedControl<string>
+                size="sm"
+                className="ms-auto"
+                aria-label={t("aicli.overview.rangeLabel")}
+                value={String(range)}
+                onValueChange={(value) => setRange(Number(value) as Range)}
+                items={[
+                  { value: "7", label: t("aicli.overview.range7") },
+                  { value: "30", label: t("aicli.overview.range30") },
+                ]}
               />
             </div>
-          )}
-          <span className="flex flex-wrap items-baseline gap-x-1.5 text-caption text-fg-2">
-            <span>{t("aicli.account.used")}</span>
-            <span
-              data-testid="aicli-quota-used"
-              className="font-medium tabular-nums text-fg-1"
-            >
-              {used ?? noData}
-            </span>
-            {usedRatio != null && (
-              <span className="tabular-nums text-fg-3">
-                {t("aicli.overview.usedPct", {
-                  pct: Math.round(usedRatio * 100),
-                })}
-              </span>
-            )}
-          </span>
-          {runwayDays != null && (
-            <span
-              data-testid="aicli-quota-runway"
-              className="text-caption font-medium text-action-text"
-            >
-              {t("aicli.overview.runway", { days: range, count: runwayDays })}
-            </span>
-          )}
+            <MiniBars
+              bars={bars}
+              height={labelled ? 112 : 72}
+              ariaLabel={t("aicli.overview.dailyTitle")}
+              startLabel={labelled ? undefined : days[0]?.slice(5)}
+              endLabel={labelled ? undefined : t("aicli.overview.today")}
+            />
+          </div>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {/* 请求链路 */}
+        <div className="flex flex-col gap-3 px-4 py-4">
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
             <h3 className="m-0 text-caption font-semibold text-fg-2">
-              {t("aicli.overview.dailyTitle")}
+              {t("aicli.overview.flowTitle")}
             </h3>
-            <InlineStat
-              label={t("aicli.overview.spend", { days: range })}
-              value={totals ? (fmt(totals.quota) ?? noData) : noData}
-              testId="aicli-server-spend"
-            />
-            <InlineStat
-              label={t("aicli.overview.requests", { days: range })}
-              value={totals ? totals.requests.toLocaleString(locale) : noData}
-              testId="aicli-server-requests"
-            />
-            <SegmentedControl<string>
-              size="sm"
-              className="ms-auto"
-              aria-label={t("aicli.overview.rangeLabel")}
-              value={String(range)}
-              onValueChange={(value) => setRange(Number(value) as Range)}
-              items={[
-                { value: "7", label: t("aicli.overview.range7") },
-                { value: "30", label: t("aicli.overview.range30") },
-              ]}
-            />
+            <span className="text-caption text-fg-3">
+              {t("aicli.overview.flowHint")}
+            </span>
           </div>
-          <MiniBars
-            bars={bars}
-            height={labelled ? 112 : 72}
-            ariaLabel={t("aicli.overview.dailyTitle")}
-            startLabel={labelled ? undefined : days[0]?.slice(5)}
-            endLabel={labelled ? undefined : t("aicli.overview.today")}
-          />
-        </div>
-      </div>
+          <div className="flex flex-wrap items-stretch gap-1.5">
+            {nodes.map((node) => (
+              <Fragment key={node.id}>
+                <FlowNode
+                  label={node.label}
+                  value={node.value}
+                  sub={node.sub}
+                  tone={node.tone}
+                  selected={step === node.id}
+                  testId={`aicli-flow-${node.id}`}
+                  onSelect={() => setPicked(node.id)}
+                />
+                <span
+                  aria-hidden="true"
+                  className="flex items-center text-fg-3"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </span>
+              </Fragment>
+            ))}
+            <div
+              data-testid="aicli-flow-account"
+              data-tone={rebind ? "danger" : fromCache ? "stale" : "ok"}
+              className={cn(
+                "flex min-w-[124px] flex-1 flex-col gap-0.5 rounded-panel border px-3 py-2.5",
+                rebind
+                  ? "border-danger bg-danger-soft"
+                  : fromCache
+                    ? "border-dashed border-border-strong bg-surface"
+                    : "border-transparent bg-action-soft",
+              )}
+            >
+              <span
+                className={cn(
+                  "text-badge",
+                  rebind || fromCache ? "text-fg-2" : "text-action-text",
+                )}
+              >
+                {t("aicli.overview.flowAccount")}
+              </span>
+              <span
+                className={cn(
+                  "truncate text-strong font-semibold tabular-nums",
+                  rebind ? "text-danger-text" : "text-fg-1",
+                )}
+              >
+                {rebind
+                  ? t("aicli.overview.flowAccountRebind")
+                  : (remaining ?? noData)}
+              </span>
+              {rebind || fromCache
+                ? syncTime && (
+                    <span className="truncate text-badge font-normal text-fg-2">
+                      {t("aicli.overview.flowAccountAsOf", { time: syncTime })}
+                    </span>
+                  )
+                : usedRatio != null && (
+                    <span className="text-badge font-normal tabular-nums text-fg-2">
+                      {t("aicli.overview.usedPct", {
+                        pct: Math.round(usedRatio * 100),
+                      })}
+                    </span>
+                  )}
+            </div>
+          </div>
 
-      {/* 请求链路 */}
-      <div className="flex flex-col gap-3 px-4 py-4">
-        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-          <h3 className="m-0 text-caption font-semibold text-fg-2">
-            {t("aicli.overview.flowTitle")}
-          </h3>
-          <span className="text-caption text-fg-3">
-            {t("aicli.overview.flowHint")}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-stretch gap-1.5">
-          {nodes.map((node) => (
-            <Fragment key={node.id}>
-              <FlowNode
-                label={node.label}
-                value={node.value}
-                sub={node.sub}
-                tone={node.tone}
-                selected={step === node.id}
-                testId={`aicli-flow-${node.id}`}
-                onSelect={() => setPicked(node.id)}
+          <div
+            data-testid={`aicli-flow-detail-${step}`}
+            className="border-t border-border pt-3"
+          >
+            {step === "clients" && (
+              <ClientsDetail
+                states={clientStates}
+                onOpenClients={onOpenClients}
               />
-              <span aria-hidden="true" className="flex items-center text-fg-3">
-                <ChevronRight className="h-3.5 w-3.5" />
-              </span>
-            </Fragment>
-          ))}
-          <div className="flex min-w-[124px] flex-1 flex-col gap-0.5 rounded-panel border border-transparent bg-action-soft px-3 py-2.5">
-            <span className="text-badge text-action-text">
-              {t("aicli.overview.flowAccount")}
-            </span>
-            <span className="truncate text-strong font-semibold tabular-nums text-fg-1">
-              {remaining ?? noData}
-            </span>
-            {usedRatio != null && (
-              <span className="text-badge font-normal tabular-nums text-fg-2">
-                {t("aicli.overview.usedPct", {
-                  pct: Math.round(usedRatio * 100),
-                })}
-              </span>
+            )}
+            {step === "proxy" && <ProxyDetail down={proxyDown} />}
+            {step === "privacy" && (
+              <PrivacyDetail privacy={privacy} onOpenPrivacy={onOpenPrivacy} />
+            )}
+            {step === "line" && <LinesDetail />}
+            {step === "profile" && (
+              <ProfileDetail
+                profileId={profileId}
+                profile={profile}
+                takeover={takeover}
+                onOpenProfiles={onOpenProfiles}
+              />
             )}
           </div>
         </div>
-
-        <div
-          data-testid={`aicli-flow-detail-${step}`}
-          className="border-t border-border pt-3"
-        >
-          {step === "clients" && (
-            <ClientsDetail
-              states={clientStates}
-              onOpenClients={onOpenClients}
-            />
-          )}
-          {step === "proxy" && <ProxyDetail down={proxyDown} />}
-          {step === "privacy" && (
-            <PrivacyDetail privacy={privacy} onOpenPrivacy={onOpenPrivacy} />
-          )}
-          {step === "line" && <LinesDetail />}
-          {step === "profile" && (
-            <ProfileDetail
-              profileId={profileId}
-              profile={profile}
-              takeover={takeover}
-              onOpenProfiles={onOpenProfiles}
-            />
-          )}
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
+}
+
+/**
+ * 首页顶部提示条（设计稿画板 18）：一次只显示最严重的一条，按钮直接解决问题。
+ * 红：令牌失效、本地代理停了（已接管的客户端用不了）；橙：当前线路不通（要你决定换哪条）；
+ * 灰：同步失败、显示的是缓存（只是告知）。
+ */
+function HomeAlert({
+  rebind,
+  proxyDownApps,
+  lines,
+  currentLine,
+  stale,
+  syncTime,
+}: {
+  rebind: boolean;
+  proxyDownApps: AppId[];
+  lines: AicliLine[];
+  currentLine: AicliLine | undefined;
+  stale: boolean;
+  syncTime: string | null;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const openBind = useOpenAicliBind();
+  const select = useAicliSelectLine();
+  const probe = useAicliProbeLines();
+  const startProxy = useMutation({
+    mutationFn: () => proxyApi.startProxyServer(),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: proxyKeys.status }),
+  });
+  const retry = useMutation({
+    mutationFn: () => aicliApi.refresh("all"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: aicliKeys.all }),
+  });
+  const failed = (failure: unknown) =>
+    failure ? (
+      <span role="alert" className="block text-danger-text">
+        {t("aicli.overview.alertFailed", {
+          message: isAicliCommandError(failure)
+            ? failure.message
+            : String(failure),
+        })}
+      </span>
+    ) : null;
+  const spinner = (pending: boolean) =>
+    pending ? (
+      <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+    ) : null;
+
+  if (rebind) {
+    return (
+      <Notice
+        tone="danger"
+        className="border border-danger"
+        title={
+          <span className="font-semibold text-danger-text">
+            {t("aicli.account.tokenInvalid")}
+          </span>
+        }
+        actions={
+          <Button
+            type="button"
+            variant="solid"
+            size="compact"
+            onClick={openBind}
+          >
+            {t("aicli.bind.rebindAction")}
+          </Button>
+        }
+      >
+        {t("aicli.overview.alertRebindBody")}
+      </Notice>
+    );
+  }
+
+  if (proxyDownApps.length > 0) {
+    return (
+      <Notice
+        tone="danger"
+        className="border border-danger"
+        title={
+          <span className="font-semibold text-danger-text">
+            {t("aicli.overview.alertProxyTitle")}
+          </span>
+        }
+        actions={
+          <Button
+            type="button"
+            variant="solid"
+            size="compact"
+            disabled={startProxy.isPending}
+            onClick={() => startProxy.mutate()}
+          >
+            {spinner(startProxy.isPending)}
+            {t("aicli.overview.alertProxyAction")}
+          </Button>
+        }
+      >
+        {t("aicli.overview.alertProxyBody", {
+          apps: proxyDownApps
+            .map((app) => APP_DISPLAY_NAME[app] ?? app)
+            .join("、"),
+        })}
+        {failed(startProxy.error)}
+      </Notice>
+    );
+  }
+
+  if (currentLine && lineHealth(currentLine).state === "unreachable") {
+    // 测速正常的其他线路里最快的一条
+    const fallback = lines
+      .filter((line) => line.id !== currentLine.id)
+      .map((line) => ({ line, health: lineHealth(line) }))
+      .filter((entry) => entry.health.state === "ok")
+      .sort((a, b) => (a.health.ms ?? 0) - (b.health.ms ?? 0))[0];
+    const current = t(currentLine.label_key);
+    return (
+      <Notice
+        tone="warning"
+        className="border border-warning"
+        title={
+          <span className="font-semibold text-warning-text">
+            {t("aicli.overview.alertLineTitle", { line: current })}
+          </span>
+        }
+        actions={
+          fallback ? (
+            <Button
+              type="button"
+              variant="neutral"
+              size="compact"
+              disabled={select.isPending}
+              onClick={() => select.mutate(fallback.line.id)}
+            >
+              {spinner(select.isPending)}
+              {t("aicli.overview.alertLineSwitch", {
+                line: t(fallback.line.label_key),
+              })}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="neutral"
+              size="compact"
+              disabled={probe.isPending}
+              onClick={() => probe.mutate()}
+            >
+              {spinner(probe.isPending)}
+              {t("aicli.lines.probe")}
+            </Button>
+          )
+        }
+      >
+        {fallback
+          ? t("aicli.overview.alertLineBody", {
+              line: t(fallback.line.label_key),
+              ms: fallback.health.ms,
+            })
+          : t("aicli.overview.alertLineNoFallback")}
+        {failed(select.error)}
+      </Notice>
+    );
+  }
+
+  if (stale) {
+    return (
+      <Notice
+        tone="neutral"
+        className="border border-border"
+        title={
+          <span className="font-semibold">
+            {t("aicli.overview.alertStaleTitle")}
+          </span>
+        }
+        actions={
+          <Button
+            type="button"
+            variant="neutral"
+            size="compact"
+            disabled={retry.isPending}
+            onClick={() => retry.mutate()}
+          >
+            {spinner(retry.isPending)}
+            {t("aicli.overview.alertStaleAction")}
+          </Button>
+        }
+      >
+        {syncTime
+          ? t("aicli.overview.alertStaleBody", { time: syncTime })
+          : t("aicli.overview.alertStaleNoTime")}
+        {failed(retry.error)}
+      </Notice>
+    );
+  }
+
+  return null;
 }
 
 function InlineStat({

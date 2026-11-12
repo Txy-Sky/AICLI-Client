@@ -3168,11 +3168,9 @@
         "conflict": "Çakışma"
       },
       "confirmTakeOverTitle": "{{app}} devralınsın mı",
-      "confirmTakeOverBody": "Devralma, istekler yerel proxy üzerinden AICLI'ye gitsin diye {{app}} yapılandırmasını yeniden yazar; istediğiniz zaman durdurabilirsiniz, yapılandırma olduğu gibi geri yüklenir.",
       "confirmReleaseTitle": "{{app}} devralması durdurulsun mu",
-      "confirmReleaseBody": "Devralmayı durdurmak {{app}} yapılandırmasını devralmadan önceki hâline (örneğin resmî oturum açma ya da kendi ayarlarınız) geri getirir; istekler artık AICLI üzerinden gitmez ve istediğiniz zaman yeniden devralabilirsiniz.",
-      "conflictTitle": "Eski proxy ayarları bulundu",
-      "conflictBody": "{{app}} yapılandırmasında eski bir yerel proxy'den kalan ayarlar var. Devralma bunların üzerine yazar; devralma durdurulunca önceki hâline geri döner.",
+      "conflictTitle": "{{app}} içinde eski ayarlar var",
+      "conflictBody": "Devralmak bu ayarların yerine yazar. Bunlar da yedeklenir ve devralmayı durdurduğunuzda geri yüklenir.",
       "conflictNotice": "{{app}} yapılandırması eski bir yerel proxy'nin ayarlarıyla çakışıyor; devralmak için üzerine yazmayı onaylayın.",
       "unsupported": "{{app}} henüz AICLI devralmayı desteklemiyor.",
       "notBound": "İstemcileri devralmak için önce bir hesap bağlayın.",
@@ -3195,7 +3193,16 @@
         "text_only": "Yalnızca metin",
         "unavailable": "Kullanılamıyor",
         "unverified": "Doğrulanmadı"
-      }
+      },
+      "takeOverPoint1": "İstekleri bu bilgisayar üzerinden AICLI'ye gider",
+      "takeOverPoint2": "Mevcut yapılandırması önce eksiksiz yedeklenir",
+      "takeOverPoint3": "İstediğiniz zaman durdurun, yapılandırma olduğu gibi geri yüklenir",
+      "takeOverProfile": "Yapılandırma seti: {{name}}",
+      "takeOverProfileDefault": "Yapılandırma seti: {{name}} (varsayılanı izler)",
+      "releaseLead": "Devralmadan önceki haline döner:",
+      "releaseAfter": "Bundan sonra istekleri AICLI üzerinden gitmez ve kullanıma sayılmaz. İstediğiniz zaman yeniden devralabilirsiniz.",
+      "conflictBoxTitle": "Eski bir yerel proxy'den kalan ayarlar bulundu",
+      "conflictBoxBody": "Böyle bırakılırsa istekleri artık var olmayan bir adrese gidebilir."
     },
     "profiles": {
       "title": "Yapılandırma setleri",
@@ -3419,7 +3426,22 @@
       "today": "Bugün",
       "checkedAt": "{{time}} ölçüldü",
       "usedBy": "Kullanan: {{apps}}",
-      "privacyOpen": "Görüntüle"
+      "privacyOpen": "Görüntüle",
+      "flowAccountRebind": "Yeniden bağlanmalı",
+      "flowAccountAsOf": "{{time}} verisi",
+      "alertFailed": "Olmadı: {{message}}",
+      "alertRebindBody": "Belirteci bir kez daha yapıştırın, her şey geri gelir; diğer ayarlarınız korunur.",
+      "alertProxyTitle": "Yerel proxy çalışmıyor",
+      "alertProxyAction": "Proxy'yi başlat",
+      "alertProxyBody": "{{apps}} şu anda AICLI'ye ulaşamıyor.",
+      "alertLineTitle": "{{line}} erişilemiyor",
+      "alertLineSwitch": "{{line}} hattına geç",
+      "alertLineBody": "{{line}} hız testinde sorunsuz ({{ms}} ms). Geçiş yalnızca sonraki istekleri etkiler.",
+      "alertLineNoFallback": "Diğer hatlar da test edilmedi veya erişilemiyor. Önce bir hız testi yapın.",
+      "alertStaleTitle": "Sunucuya şu an ulaşılamıyor",
+      "alertStaleAction": "Yeniden dene",
+      "alertStaleBody": "Bakiye ve harcama {{time}} verisini gösteriyor.",
+      "alertStaleNoTime": "Bakiye ve harcama şu an güncellenmedi."
     },
     "privacyPage": {
       "help": "Bir istek bu bilgisayardan çıkmadan önce anahtarlar ve kişisel veriler burada yer tutucularla değiştirilir, yanıtta geri konur. İstemciler ve dosyalarınız gerçek değerleri tutar; üst hizmet hiçbirini görmez.",

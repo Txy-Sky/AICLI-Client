@@ -3172,11 +3172,9 @@
         "conflict": "競合"
       },
       "confirmTakeOverTitle": "{{app}} を引き継ぐ",
-      "confirmTakeOverBody": "引き継ぐと {{app}} の設定を書き換え、リクエストをローカルプロキシ経由で AICLI に送ります。いつでも停止でき、設定はそのまま元に戻ります。",
       "confirmReleaseTitle": "{{app}} の引き継ぎを停止",
-      "confirmReleaseBody": "引き継ぎを停止すると {{app}} の設定を引き継ぎ前（公式ログインやご自身の設定など）に戻し、リクエストは AICLI を経由しなくなります。いつでも再度引き継げます。",
-      "conflictTitle": "古いプロキシ設定が見つかりました",
-      "conflictBody": "{{app}} の設定に旧バージョンのローカルプロキシが残した設定があります。引き継ぐと上書きされ、引き継ぎを停止すると引き継ぎ前の状態に戻ります。",
+      "conflictTitle": "{{app}} に古い設定があります",
+      "conflictBody": "引き継ぐとこれらの設定は上書きされます。これらもバックアップされ、引き継ぎを停止すると元に戻ります。",
       "conflictNotice": "{{app}} の設定が旧バージョンのローカルプロキシの設定と競合しています。上書きを確認すると引き継げます。",
       "unsupported": "{{app}} はまだ AICLI の引き継ぎに対応していません。",
       "notBound": "クライアントを引き継ぐにはアカウントを連携してください。",
@@ -3199,7 +3197,16 @@
         "text_only": "テキストのみ",
         "unavailable": "利用不可",
         "unverified": "未検証"
-      }
+      },
+      "takeOverPoint1": "リクエストはこのコンピューターを経由して AICLI に送られます",
+      "takeOverPoint2": "現在の設定は先にすべてバックアップされます",
+      "takeOverPoint3": "いつでも停止でき、設定は元どおりに戻ります",
+      "takeOverProfile": "構成セット：{{name}}",
+      "takeOverProfileDefault": "構成セット：{{name}}（既定に従う）",
+      "releaseLead": "引き継ぐ前の状態に戻ります：",
+      "releaseAfter": "以後、リクエストは AICLI を経由せず、使用量にも数えられません。使いたくなったらもう一度引き継いでください。",
+      "conflictBoxTitle": "旧バージョンのローカルプロキシが残した設定が見つかりました",
+      "conflictBoxBody": "このままだと、リクエストが存在しないアドレスに送られる可能性があります。"
     },
     "profiles": {
       "title": "構成セット",
@@ -3423,7 +3430,22 @@
       "today": "今日",
       "checkedAt": "{{time}} に測定",
       "usedBy": "使用中：{{apps}}",
-      "privacyOpen": "表示"
+      "privacyOpen": "表示",
+      "flowAccountRebind": "再バインドが必要",
+      "flowAccountAsOf": "{{time}} 時点のデータ",
+      "alertFailed": "失敗しました：{{message}}",
+      "alertRebindBody": "トークンをもう一度貼り付ければ元に戻ります。ほかの設定はそのままです。",
+      "alertProxyTitle": "ローカルプロキシが動いていません",
+      "alertProxyAction": "プロキシを起動",
+      "alertProxyBody": "{{apps}} は現在 AICLI に接続できません。",
+      "alertLineTitle": "{{line}}に接続できません",
+      "alertLineSwitch": "{{line}}に切り替え",
+      "alertLineBody": "{{line}}は速度テストで正常でした（{{ms}} ms）。切り替えは以降のリクエストにだけ影響します。",
+      "alertLineNoFallback": "ほかの回線も未テストか接続できません。まず速度テストをしてください。",
+      "alertStaleTitle": "サーバーに一時的に接続できません",
+      "alertStaleAction": "もう一度試す",
+      "alertStaleBody": "残高と消費は {{time}} 時点のデータです。",
+      "alertStaleNoTime": "残高と消費はいま更新されていません。"
     },
     "privacyPage": {
       "help": "リクエストがこのコンピューターを出る前に、キーや個人情報をローカルでプレースホルダーに置き換え、返答で元に戻します。クライアントとファイルには常に実際の値が残り、上流には一切見えません。",

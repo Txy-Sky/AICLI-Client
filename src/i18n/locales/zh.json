@@ -3172,11 +3172,9 @@
         "conflict": "冲突"
       },
       "confirmTakeOverTitle": "接管 {{app}}",
-      "confirmTakeOverBody": "接管后会改写 {{app}} 的配置，让请求经过本机代理发往 AICLI；随时可以停止接管，配置会原样还原。",
       "confirmReleaseTitle": "停止接管 {{app}}",
-      "confirmReleaseBody": "停止接管会把 {{app}} 的配置还原为接管前的样子（例如官方登录或你自己的设置），之后请求不再经过 AICLI，随时可以再次接管。",
-      "conflictTitle": "检测到旧的代理配置",
-      "conflictBody": "{{app}} 的配置里有旧版本地代理留下的设置。继续接管会覆盖它们，停止接管时还原为接管前的样子。",
+      "conflictTitle": "{{app}} 里有旧配置",
+      "conflictBody": "继续接管会覆盖这些设置。它们也会被备份，停止接管时一并还原。",
       "conflictNotice": "{{app}} 的配置与旧版本地代理的设置冲突，确认覆盖后才能接管。",
       "unsupported": "{{app}} 暂不支持 AICLI 接管。",
       "notBound": "绑定账户后才能接管客户端。",
@@ -3199,7 +3197,16 @@
         "text_only": "仅文本",
         "unavailable": "不可用",
         "unverified": "未验证"
-      }
+      },
+      "takeOverPoint1": "它的请求改走这台电脑，再发往 AICLI",
+      "takeOverPoint2": "现在的配置会先完整备份",
+      "takeOverPoint3": "随时可以停止，配置原样还原",
+      "takeOverProfile": "使用配置集：{{name}}",
+      "takeOverProfileDefault": "使用配置集：{{name}}（跟随默认）",
+      "releaseLead": "它会回到接管前的样子：",
+      "releaseAfter": "之后它的请求不再经过 AICLI，也不再计入用量。想用时再接管就行。",
+      "conflictBoxTitle": "发现旧版本地代理留下的设置",
+      "conflictBoxBody": "不处理的话，它的请求可能发到一个已经不存在的地址。"
     },
     "profiles": {
       "title": "配置集",
@@ -3423,7 +3430,22 @@
       "today": "今天",
       "checkedAt": "{{time}} 测速",
       "usedBy": "正在使用：{{apps}}",
-      "privacyOpen": "查看"
+      "privacyOpen": "查看",
+      "flowAccountRebind": "需要重新绑定",
+      "flowAccountAsOf": "{{time}} 的数据",
+      "alertFailed": "没有成功：{{message}}",
+      "alertRebindBody": "重新粘贴一次令牌就恢复，其他设置都还在。",
+      "alertProxyTitle": "本地代理没在运行",
+      "alertProxyAction": "启动代理",
+      "alertProxyBody": "{{apps}} 现在连不上 AICLI。",
+      "alertLineTitle": "{{line}}连不上",
+      "alertLineSwitch": "切到{{line}}",
+      "alertLineBody": "{{line}}测速正常（{{ms}} ms）。切换只影响之后的请求。",
+      "alertLineNoFallback": "其他线路还没测速或也不通，先测一次速。",
+      "alertStaleTitle": "暂时连不上服务端",
+      "alertStaleAction": "再试一次",
+      "alertStaleBody": "余额和消耗显示的是 {{time}} 的数据。",
+      "alertStaleNoTime": "余额和消耗暂时没有更新。"
     },
     "privacyPage": {
       "help": "请求离开这台电脑前，在本机把密钥、个人信息换成占位符，回复里再换回原样。客户端和你的文件里始终是真值，上游一个也看不到。",
