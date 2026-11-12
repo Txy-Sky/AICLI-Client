@@ -900,6 +900,7 @@ function App() {
             initialAppType={usageAppFilter}
             onOpenRoutingSettings={() => openSettings("routing")}
             onOpenPrivacy={() => openPage("privacy")}
+            onOpenClients={() => openPage("clients")}
           />
         );
       case "mcp":

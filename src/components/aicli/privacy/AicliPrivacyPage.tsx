@@ -139,6 +139,9 @@ export function AicliPrivacyPage() {
     () => events.data?.pages.flatMap((page) => page.items) ?? [],
     [events.data],
   );
+  // 关闭且从没有过记录时，不摆一排全是 0 的统计和空列表；以前有过记录的照常能看
+  const showRecords =
+    !privacy || enabled || (summary?.total_values ?? 0) > 0 || items.length > 0;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -151,15 +154,18 @@ export function AicliPrivacyPage() {
           </HelpTip>
         }
         actions={
-          <label className="flex items-center gap-2 text-body text-fg-2">
-            {enabled ? t("aicli.privacyPage.on") : t("aicli.privacyPage.off")}
-            <Switch
-              aria-label={t("aicli.settings.privacyEnabled")}
-              checked={enabled}
-              disabled={!privacy?.bound || setPrivacy.isPending}
-              onCheckedChange={toggle}
-            />
-          </label>
+          // 关闭时页面里只有说明区的一个「开启」按钮；开启后总开关放在页头，用来关闭
+          enabled ? (
+            <label className="flex items-center gap-2 text-body font-medium text-action-text">
+              {t("aicli.privacyPage.on")}
+              <Switch
+                aria-label={t("aicli.settings.privacyEnabled")}
+                checked
+                disabled={!privacy?.bound || setPrivacy.isPending}
+                onCheckedChange={toggle}
+              />
+            </label>
+          ) : undefined
         }
       />
       <div
@@ -168,21 +174,9 @@ export function AicliPrivacyPage() {
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto scroll-stable px-6 pb-10 pt-4"
       >
         {privacy && !enabled && (
-          <Notice
-            tone="neutral"
-            icon={ShieldOff}
-            title={t("aicli.privacyPage.offNotice")}
-            actions={
-              <Button
-                type="button"
-                variant="solid"
-                size="compact"
-                disabled={!privacy.bound || setPrivacy.isPending}
-                onClick={() => toggle(true)}
-              >
-                {t("aicli.privacyPage.enable")}
-              </Button>
-            }
+          <OffIntro
+            disabled={!privacy.bound || setPrivacy.isPending}
+            onEnable={() => toggle(true)}
           />
         )}
         {enabled && degraded > 0 && (
@@ -195,16 +189,18 @@ export function AicliPrivacyPage() {
           <Notice tone="neutral" title={t("aicli.privacy.engineStopped")} />
         )}
 
-        <Hero
-          range={range}
-          onRangeChange={setRange}
-          summary={summary}
-          locale={locale}
-        />
+        {showRecords && (
+          <Hero
+            range={range}
+            onRangeChange={setRange}
+            summary={summary}
+            locale={locale}
+          />
+        )}
 
         <section
           aria-labelledby="aicli-privacy-records"
-          className="flex flex-col gap-3"
+          className={cn("flex flex-col gap-3", !showRecords && "hidden")}
         >
           <div className="flex flex-wrap items-center gap-2">
             <h2
@@ -246,7 +242,7 @@ export function AicliPrivacyPage() {
 
         <TryIt />
 
-        <AicliPrivacySettings />
+        <AicliPrivacySettings hideEnable />
 
         <div className="flex flex-wrap items-center gap-2 text-caption text-fg-3">
           <span>
@@ -283,6 +279,111 @@ export function AicliPrivacyPage() {
   );
 }
 
+/** 说明区示例里的三处敏感值：原文与换成占位符之后（占位符按引擎的实际写法）。 */
+const DEMO_LINES: { prefix: string; raw: string; masked: string }[] = [
+  {
+    prefix: "export API_KEY=",
+    raw: "sk-proj-9fQ2…kL7x",
+    masked: "{{API_KEY_k3v7m2qa}}",
+  },
+  {
+    prefix: "notify: ",
+    raw: "li.wei@example.com",
+    masked: "{{EMAIL_p5n2x7hd}}",
+  },
+  { prefix: "host: ", raw: "10.24.8.17", masked: "{{IP_w4c6t2ya}}" },
+];
+
+/**
+ * 关闭时的说明区：一句话说清开启后会怎样，一组前后对照的示例，和整页唯一的「开启」按钮。
+ * 示例是固定文字；想看自己的文字会变成什么，用下面的「试一试」（走真实引擎）。
+ */
+function OffIntro({
+  disabled,
+  onEnable,
+}: {
+  disabled: boolean;
+  onEnable: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section
+      aria-labelledby="aicli-privacy-off"
+      data-testid="aicli-privacy-off"
+      className="flex flex-col gap-5 rounded-panel border border-border bg-surface p-5"
+    >
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-80 flex-col gap-1.5">
+          <h2
+            id="aicli-privacy-off"
+            className="m-0 flex items-center gap-2 text-page text-fg-1"
+          >
+            <ShieldOff
+              aria-hidden="true"
+              strokeWidth={1.5}
+              className="h-5 w-5 shrink-0 text-fg-3"
+            />
+            {t("aicli.privacyPage.offTitle")}
+          </h2>
+          <p className="m-0 text-body text-fg-2">
+            {t("aicli.privacyPage.offNotice")}
+          </p>
+          <p className="m-0 text-body text-fg-2">
+            {t("aicli.privacyPage.offBody")}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="solid"
+          size="regular"
+          className="px-6"
+          disabled={disabled}
+          onClick={onEnable}
+        >
+          {t("aicli.privacyPage.enable")}
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <DemoBlock label={t("aicli.privacyPage.demoBefore")} tone="raw" />
+        <DemoBlock label={t("aicli.privacyPage.demoAfter")} tone="masked" />
+      </div>
+      <p className="m-0 text-caption text-fg-3">
+        {t("aicli.privacyPage.demoNote")}
+      </p>
+    </section>
+  );
+}
+
+function DemoBlock({ label, tone }: { label: string; tone: "raw" | "masked" }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-caption font-semibold text-fg-2">{label}</span>
+      <pre
+        className={cn(
+          "m-0 whitespace-pre-wrap break-all rounded-control px-3 py-2.5 font-mono text-caption leading-6 text-fg-1",
+          tone === "raw" ? "bg-subtle" : "bg-action-soft",
+        )}
+      >
+        {DEMO_LINES.map((line) => (
+          <span key={line.prefix} className="block">
+            {line.prefix}
+            <mark
+              className={cn(
+                "rounded-[4px] px-0.5",
+                tone === "raw"
+                  ? "bg-warning-soft text-warning-text"
+                  : "bg-action text-action-fg",
+              )}
+            >
+              {tone === "raw" ? line.raw : line.masked}
+            </mark>
+          </span>
+        ))}
+      </pre>
+    </div>
+  );
+}
+
 function Hero({
   range,
   onRangeChange,
@@ -300,6 +401,7 @@ function Hero({
   const apps = summary?.apps ?? [];
   const maxApp = Math.max(1, ...apps.map((app) => app.count));
   const total = summary?.total_values ?? 0;
+  const labelled = range === 7 && days.length <= 7;
 
   return (
     <section
@@ -361,9 +463,10 @@ function Hero({
           </p>
           <MiniBars
             ariaLabel={t("aicli.privacyPage.trend")}
-            height={56}
-            startLabel={days[0]?.day.slice(5)}
-            endLabel={t("aicli.overview.today")}
+            // 一周的柱子够宽，直接标数量和日期；30 天太密，靠悬停
+            height={labelled ? 104 : 56}
+            startLabel={labelled ? undefined : days[0]?.day.slice(5)}
+            endLabel={labelled ? undefined : t("aicli.overview.today")}
             bars={days.map((day) => ({
               key: day.day,
               label: day.day,
@@ -373,6 +476,12 @@ function Hero({
                 requests: day.requests,
               }),
               highlight: day.day === today,
+              caption: labelled ? compact(day.values, locale) : undefined,
+              tick: labelled
+                ? day.day === today
+                  ? t("aicli.overview.today")
+                  : day.day.slice(5)
+                : undefined,
             }))}
           />
         </div>

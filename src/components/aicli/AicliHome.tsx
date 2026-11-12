@@ -20,6 +20,8 @@ interface AicliHomeProps {
   onOpenProfiles?: () => void;
   /** 隐私状态的「查看」入口（F-09 隐私脱敏页）。 */
   onOpenPrivacy?: () => void;
+  /** 请求链路里「客户端」环节的入口（F-08 客户端总览）。 */
+  onOpenClients?: () => void;
 }
 
 /**
@@ -35,6 +37,7 @@ export function AicliHome({
   onOpenRoutingSettings,
   onOpenProfiles,
   onOpenPrivacy,
+  onOpenClients,
 }: AicliHomeProps) {
   const { t } = useTranslation();
   const accountQuery = useAicliAccount();
@@ -70,6 +73,7 @@ export function AicliHome({
           privacy={privacy.data}
           onOpenProfiles={onOpenProfiles ?? (() => setProfilesOpen(true))}
           onOpenPrivacy={onOpenPrivacy}
+          onOpenClients={onOpenClients}
         />
       )}
     </div>

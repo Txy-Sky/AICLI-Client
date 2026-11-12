@@ -182,7 +182,11 @@ describe("bind copy translations", () => {
     >;
     for (const key of keys) {
       expect(bind[key], `${lng} aicli.bind.${key}`).toBeTruthy();
-      if (!["failed", "binding"].includes(key)) {
+      // flowTools（「你的 AI 工具」）在简体和繁体里写法相同，不算漏翻
+      const sameAsZh =
+        ["failed", "binding"].includes(key) ||
+        (lng === "zh-TW" && key === "flowTools");
+      if (!sameAsZh) {
         expect(bind[key], `${lng} aicli.bind.${key}`).not.toBe(
           zh.aicli.bind[key],
         );

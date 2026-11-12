@@ -39,8 +39,8 @@ export interface AicliTakeoverFlow {
   busy: boolean;
   error: string | null;
   dialog: AicliTakeoverDialogKind | null;
-  /** 打开确认对话框（接管 / 停止接管）。 */
-  request: (kind: "takeover" | "release") => void;
+  /** 打开确认对话框（接管 / 停止接管；已知有旧代理配置冲突时直接开「覆盖并接管」）。 */
+  request: (kind: AicliTakeoverDialogKind) => void;
   /** 确认对话框里的主按钮。 */
   confirm: () => void;
   cancel: () => void;

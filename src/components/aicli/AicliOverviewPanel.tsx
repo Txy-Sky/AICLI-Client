@@ -1,14 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Loader2, ShieldCheck, Zap } from "lucide-react";
+import { Check, ChevronRight, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/ui/help-tip";
 import { HoverTip } from "@/components/ui/hover-tip";
 import { Notice } from "@/components/ui/notice";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { APP_DISPLAY_NAME } from "@/components/shell/AppGlyph";
+import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import type { AppId } from "@/lib/api";
 import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
+import { useProxyStatusQuery } from "@/lib/query/proxy";
 import { cn } from "@/lib/utils";
 import {
   useAicliLines,
@@ -27,6 +28,8 @@ import type {
   AicliCachedValue,
   AicliLine,
   AicliPrivacyView,
+  AicliRouteProfile,
+  AicliTakeoverStatus,
   AicliUsageSummary,
 } from "@/types/aicli";
 import { MiniBars, type MiniBar } from "./MiniBars";
@@ -34,13 +37,21 @@ import {
   aicliPresetDescription,
   aicliProfileName,
 } from "./profiles/profileName";
-import { takeoverDisplay } from "./takeover/useAicliTakeoverFlow";
+import {
+  AICLI_TAKEOVER_APPS,
+  takeoverDisplay,
+} from "./takeover/useAicliTakeoverFlow";
 
 export function formatSyncTime(seconds: number, locale?: string): string {
   return new Date(seconds * 1000).toLocaleString(locale);
 }
 
 type Range = 7 | 30;
+
+/** 请求链路上的环节；账户是终点，不可展开。 */
+type FlowStep = "clients" | "proxy" | "privacy" | "line" | "profile";
+
+type FlowTone = "ok" | "idle" | "warn" | "danger";
 
 interface AicliOverviewPanelProps {
   account: AicliAccountView;
@@ -49,6 +60,7 @@ interface AicliOverviewPanelProps {
   privacy?: AicliPrivacyView | null;
   onOpenProfiles: () => void;
   onOpenPrivacy?: () => void;
+  onOpenClients?: () => void;
 }
 
 /** 最近 n 天（UTC 日期，新 → 旧的反序：旧 → 新），与后端 aicli_usage_daily 的 day 同口径。 */
@@ -74,11 +86,21 @@ function periodTotals(summary: AicliUsageSummary | undefined, days: string[]) {
   };
 }
 
+function lineHealth(line: AicliLine | undefined) {
+  const h = line?.health;
+  if (!h || (h.status === "ok" && h.latency_ms == null))
+    return { state: "untested" as const, ms: null };
+  if (h.status !== "ok") return { state: "unreachable" as const, ms: null };
+  return { state: "ok" as const, ms: h.latency_ms ?? 0 };
+}
+
 /**
- * 首页 AICLI 账户面板（F-10）：与原用量概览同一套视觉——一块面板、内部分隔线、
- * 指标格（说明在上、大号数字在下）。包含额度与使用条、服务端每日消耗趋势、线路
- * 健康与延迟、当前配置集摘要、隐私状态。状态规则沿用 F-03：缓存优先；同步失败显示
- * 缓存与时间并标「缓存数据」；没有快照写「暂无数据」，不写 0。
+ * 首页 AICLI 账户面板（F-10，2026-11 改版）：一块面板分三段。
+ * 1. 头部：账户、用户组、来源与同步时间。
+ * 2. 余额与每日消耗：剩余额度、使用条、按近期速度估算还能用几天；右边是服务端每日消耗柱状图。
+ * 3. 请求链路：客户端 → 本地代理 → 隐私脱敏 → 线路 → 配置集 → 账户。每个环节显示当前状态，
+ *    点开在下方就地查看和调整；有环节出问题时自动展开那一个，否则展开线路。
+ * 状态规则沿用 F-03：缓存优先；同步失败显示缓存与时间并标「缓存数据」；没有快照写「暂无数据」，不写 0。
  */
 export function AicliOverviewPanel({
   account,
@@ -86,10 +108,12 @@ export function AicliOverviewPanel({
   privacy,
   onOpenProfiles,
   onOpenPrivacy,
+  onOpenClients,
 }: AicliOverviewPanelProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const [range, setRange] = useState<Range>(7);
+  const [picked, setPicked] = useState<FlowStep | null>(null);
   const display = account.quota_display;
   const quota = readAccountQuota(cached?.value);
   const noData = t("aicli.account.noData");
@@ -109,9 +133,15 @@ export function AicliOverviewPanel({
     quota.remaining + quota.used > 0
       ? quota.used / (quota.remaining + quota.used)
       : null;
+  // 按所选区间的日均消耗估算余额还能用几天；没有消耗或没有余额数据时不显示
+  const runwayDays =
+    totals && totals.quota > 0 && quota.remaining != null && quota.remaining > 0
+      ? Math.floor(quota.remaining / (totals.quota / range))
+      : null;
 
   const today = days[days.length - 1];
   const byDay = new Map((summary?.days ?? []).map((row) => [row.day, row]));
+  const labelled = range === 7;
   const bars: MiniBar[] = days.map((day) => {
     const row = byDay.get(day);
     return {
@@ -125,10 +155,137 @@ export function AicliOverviewPanel({
         : t("aicli.overview.dayNotSynced"),
       highlight: day === today,
       muted: row ? !row.is_final && day !== today : false,
+      // 一周的柱子够宽，直接标金额和日期；30 天太密，靠悬停
+      caption: labelled ? (row ? (fmt(row.quota) ?? "") : "") : undefined,
+      tick: labelled
+        ? day === today
+          ? t("aicli.overview.today")
+          : day.slice(5)
+        : undefined,
     };
   });
 
   const initial = Array.from(account.username ?? "?")[0]?.toUpperCase();
+
+  // ── 请求链路各环节的状态 ──────────────────────────────────────────────
+  const takeover = useAicliTakeoverStatus(true).data ?? [];
+  const { data: proxyStatus } = useProxyStatusQuery();
+  const linesView = useAicliLines(true).data;
+  const routes = useAicliRoutes(true).data;
+
+  const clientStates = AICLI_TAKEOVER_APPS.map((app) => ({
+    app,
+    display: takeoverDisplay(
+      takeover.find((entry) => entry.app === app)?.state,
+    ),
+  }));
+  const activeApps = clientStates.filter((entry) => entry.display === "active");
+  const proxyDown =
+    activeApps.length > 0 && proxyStatus !== undefined && !proxyStatus.running;
+
+  const currentLine = linesView?.lines.find(
+    (line) => line.id === linesView.selected_line_id,
+  );
+  const currentHealth = lineHealth(currentLine);
+
+  const profileId =
+    account.active_profile_id ?? routes?.active_profile_id ?? "recommended";
+  const profile = routes?.profiles.find((entry) => entry.id === profileId);
+  const modelCount = profile?.routes.length ?? 0;
+  const needsRepair = Boolean(profile?.repair?.needs_repair);
+
+  const privacyOn = privacy?.privacy_enabled ?? false;
+  const degraded = privacy?.engine?.degraded ?? 0;
+
+  // 有环节出问题时自动展开它；都正常时展开线路（最常调整的一项）
+  const autoStep: FlowStep = proxyDown
+    ? "proxy"
+    : needsRepair
+      ? "profile"
+      : degraded > 0
+        ? "privacy"
+        : "line";
+  const step = picked ?? autoStep;
+
+  const nodes: {
+    id: FlowStep;
+    label: string;
+    value: string;
+    sub?: string;
+    tone: FlowTone;
+  }[] = [
+    {
+      id: "clients",
+      label: t("nav.clients"),
+      value: t("aicli.overview.flowClientsValue", {
+        active: activeApps.length,
+        total: clientStates.length,
+      }),
+      sub:
+        activeApps.length > 0
+          ? activeApps.map((entry) => APP_DISPLAY_NAME[entry.app]).join("、")
+          : t("aicli.overview.flowClientsNone"),
+      tone: activeApps.length > 0 ? "ok" : "idle",
+    },
+    {
+      id: "proxy",
+      label: t("aicli.overview.flowProxy"),
+      value:
+        proxyStatus === undefined
+          ? t("aicli.overview.flowProxyUnknown")
+          : proxyStatus.running
+            ? t("aicli.overview.flowProxyRunning")
+            : t("aicli.overview.flowProxyStopped"),
+      tone: proxyDown ? "danger" : proxyStatus?.running ? "ok" : "idle",
+    },
+    {
+      id: "privacy",
+      label: t("nav.privacy"),
+      value:
+        privacy == null
+          ? noData
+          : privacyOn
+            ? t("aicli.overview.flowPrivacyOn")
+            : t("aicli.overview.flowPrivacyOff"),
+      sub:
+        privacy == null
+          ? undefined
+          : privacyOn
+            ? privacy.engine
+              ? t("aicli.privacy.engineRunning", {
+                  count: privacy.engine.masked_values,
+                })
+              : t("aicli.privacy.engineStopped")
+            : t("aicli.overview.flowPrivacyOffSub"),
+      tone: degraded > 0 ? "danger" : privacyOn ? "ok" : "idle",
+    },
+    {
+      id: "line",
+      label: t("aicli.lines.title"),
+      value: currentLine ? t(currentLine.label_key) : noData,
+      sub: currentLine
+        ? currentHealth.state === "ok"
+          ? t("aicli.lines.latency", { ms: currentHealth.ms })
+          : t(`aicli.lines.${currentHealth.state}`)
+        : undefined,
+      tone:
+        currentHealth.state === "unreachable"
+          ? "warn"
+          : currentHealth.state === "ok"
+            ? "ok"
+            : "idle",
+    },
+    {
+      id: "profile",
+      label: t("aicli.profile.title"),
+      value: aicliProfileName(t, profile, profileId),
+      sub:
+        profile && modelCount > 0
+          ? t("aicli.profile.models", { count: modelCount })
+          : t("aicli.profile.noModels"),
+      tone: needsRepair ? "warn" : "ok",
+    },
+  ];
 
   return (
     <section
@@ -143,7 +300,7 @@ export function AicliOverviewPanel({
       >
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--chart-usage)_16%,transparent)] text-strong font-semibold text-[var(--chart-usage)]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-action-soft text-strong font-semibold text-action-text"
         >
           {initial}
         </span>
@@ -180,135 +337,393 @@ export function AicliOverviewPanel({
         </div>
       </div>
 
-      {/* 指标：剩余 / 已用 / 区间消耗 / 区间请求 */}
-      <div className="grid grid-cols-2 divide-border border-b border-border md:grid-cols-4 md:divide-x [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(-n+2)]:border-border md:[&>*:nth-child(-n+2)]:border-b-0">
-        <Metric
-          label={t("aicli.account.remaining")}
-          help={t("aicli.overview.quotaHelp")}
-          value={remaining ?? noData}
-          testId="aicli-quota-remaining"
-          strong
-        >
-          {usedRatio != null && (
-            <div className="mt-2 flex flex-col gap-1">
-              <div
-                role="meter"
-                aria-label={t("aicli.overview.usedShare")}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(usedRatio * 100)}
-                className="h-1.5 w-full overflow-hidden rounded-full bg-subtle"
+      {/* 余额与每日消耗 */}
+      <div className="grid grid-cols-1 gap-x-6 gap-y-4 border-b border-border px-4 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-1 text-caption text-fg-2">
+              {t("aicli.account.remaining")}
+              <HelpTip title={t("aicli.account.remaining")}>
+                {t("aicli.overview.quotaHelp")}
+              </HelpTip>
+            </span>
+            <HoverTip content={remaining ?? noData}>
+              <span
+                data-testid="aicli-quota-remaining"
+                className="truncate text-metric leading-9 tabular-nums text-fg-1"
               >
-                <div
-                  className="h-full rounded-full bg-[var(--chart-usage)]"
-                  style={{ width: `${Math.max(usedRatio * 100, 1)}%` }}
-                />
-              </div>
-              <span className="text-badge tabular-nums text-fg-3">
+                {remaining ?? noData}
+              </span>
+            </HoverTip>
+          </div>
+          {usedRatio != null && (
+            <div
+              role="meter"
+              aria-label={t("aicli.overview.usedShare")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(usedRatio * 100)}
+              className="h-1.5 w-full overflow-hidden rounded-full bg-subtle"
+            >
+              <div
+                className="h-full rounded-full bg-action"
+                style={{ width: `${Math.max(usedRatio * 100, 1)}%` }}
+              />
+            </div>
+          )}
+          <span className="flex flex-wrap items-baseline gap-x-1.5 text-caption text-fg-2">
+            <span>{t("aicli.account.used")}</span>
+            <span
+              data-testid="aicli-quota-used"
+              className="font-medium tabular-nums text-fg-1"
+            >
+              {used ?? noData}
+            </span>
+            {usedRatio != null && (
+              <span className="tabular-nums text-fg-3">
                 {t("aicli.overview.usedPct", {
                   pct: Math.round(usedRatio * 100),
                 })}
               </span>
-            </div>
+            )}
+          </span>
+          {runwayDays != null && (
+            <span
+              data-testid="aicli-quota-runway"
+              className="text-caption font-medium text-action-text"
+            >
+              {t("aicli.overview.runway", { days: range, count: runwayDays })}
+            </span>
           )}
-        </Metric>
-        <Metric
-          label={t("aicli.account.used")}
-          value={used ?? noData}
-          testId="aicli-quota-used"
-        />
-        <Metric
-          label={t("aicli.overview.spend", { days: range })}
-          value={totals ? (fmt(totals.quota) ?? noData) : noData}
-          testId="aicli-server-spend"
-        />
-        <Metric
-          label={t("aicli.overview.requests", { days: range })}
-          value={totals ? totals.requests.toLocaleString(locale) : noData}
-          testId="aicli-server-requests"
-        />
-      </div>
+        </div>
 
-      {/* 服务端每日消耗 */}
-      <div className="border-b border-border px-4 pb-3 pt-3">
-        <div className="mb-2 flex items-center gap-2">
-          <h3 className="m-0 text-caption font-semibold text-fg-2">
-            {t("aicli.overview.dailyTitle")}
-          </h3>
-          <SegmentedControl<string>
-            size="sm"
-            className="ms-auto"
-            aria-label={t("aicli.overview.rangeLabel")}
-            value={String(range)}
-            onValueChange={(value) => setRange(Number(value) as Range)}
-            items={[
-              { value: "7", label: t("aicli.overview.range7") },
-              { value: "30", label: t("aicli.overview.range30") },
-            ]}
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <h3 className="m-0 text-caption font-semibold text-fg-2">
+              {t("aicli.overview.dailyTitle")}
+            </h3>
+            <InlineStat
+              label={t("aicli.overview.spend", { days: range })}
+              value={totals ? (fmt(totals.quota) ?? noData) : noData}
+              testId="aicli-server-spend"
+            />
+            <InlineStat
+              label={t("aicli.overview.requests", { days: range })}
+              value={totals ? totals.requests.toLocaleString(locale) : noData}
+              testId="aicli-server-requests"
+            />
+            <SegmentedControl<string>
+              size="sm"
+              className="ms-auto"
+              aria-label={t("aicli.overview.rangeLabel")}
+              value={String(range)}
+              onValueChange={(value) => setRange(Number(value) as Range)}
+              items={[
+                { value: "7", label: t("aicli.overview.range7") },
+                { value: "30", label: t("aicli.overview.range30") },
+              ]}
+            />
+          </div>
+          <MiniBars
+            bars={bars}
+            height={labelled ? 112 : 72}
+            ariaLabel={t("aicli.overview.dailyTitle")}
+            startLabel={labelled ? undefined : days[0]?.slice(5)}
+            endLabel={labelled ? undefined : t("aicli.overview.today")}
           />
         </div>
-        <MiniBars
-          bars={bars}
-          height={64}
-          ariaLabel={t("aicli.overview.dailyTitle")}
-          startLabel={days[0]?.slice(5)}
-          endLabel={t("aicli.overview.today")}
-        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x lg:divide-border">
-        <LinesTile />
-        <ProfileTile account={account} onOpenProfiles={onOpenProfiles} />
-      </div>
+      {/* 请求链路 */}
+      <div className="flex flex-col gap-3 px-4 py-4">
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+          <h3 className="m-0 text-caption font-semibold text-fg-2">
+            {t("aicli.overview.flowTitle")}
+          </h3>
+          <span className="text-caption text-fg-3">
+            {t("aicli.overview.flowHint")}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-stretch gap-1.5">
+          {nodes.map((node) => (
+            <Fragment key={node.id}>
+              <FlowNode
+                label={node.label}
+                value={node.value}
+                sub={node.sub}
+                tone={node.tone}
+                selected={step === node.id}
+                testId={`aicli-flow-${node.id}`}
+                onSelect={() => setPicked(node.id)}
+              />
+              <span aria-hidden="true" className="flex items-center text-fg-3">
+                <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            </Fragment>
+          ))}
+          <div className="flex min-w-[124px] flex-1 flex-col gap-0.5 rounded-panel border border-transparent bg-action-soft px-3 py-2.5">
+            <span className="text-badge text-action-text">
+              {t("aicli.overview.flowAccount")}
+            </span>
+            <span className="truncate text-strong font-semibold tabular-nums text-fg-1">
+              {remaining ?? noData}
+            </span>
+            {usedRatio != null && (
+              <span className="text-badge font-normal tabular-nums text-fg-2">
+                {t("aicli.overview.usedPct", {
+                  pct: Math.round(usedRatio * 100),
+                })}
+              </span>
+            )}
+          </div>
+        </div>
 
-      {privacy?.privacy_enabled && (
-        <PrivacyRow privacy={privacy} onOpenPrivacy={onOpenPrivacy} />
-      )}
+        <div
+          data-testid={`aicli-flow-detail-${step}`}
+          className="border-t border-border pt-3"
+        >
+          {step === "clients" && (
+            <ClientsDetail
+              states={clientStates}
+              onOpenClients={onOpenClients}
+            />
+          )}
+          {step === "proxy" && <ProxyDetail down={proxyDown} />}
+          {step === "privacy" && (
+            <PrivacyDetail privacy={privacy} onOpenPrivacy={onOpenPrivacy} />
+          )}
+          {step === "line" && <LinesDetail />}
+          {step === "profile" && (
+            <ProfileDetail
+              profileId={profileId}
+              profile={profile}
+              takeover={takeover}
+              onOpenProfiles={onOpenProfiles}
+            />
+          )}
+        </div>
+      </div>
     </section>
   );
 }
 
-function Metric({
+function InlineStat({
   label,
-  help,
   value,
   testId,
-  strong = false,
-  children,
 }: {
   label: string;
-  help?: string;
   value: string;
   testId: string;
-  strong?: boolean;
-  children?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col px-4 pb-3.5 pt-2.5">
-      <span className="flex items-center gap-1 text-caption text-fg-2">
-        {label}
-        {help && <HelpTip title={label}>{help}</HelpTip>}
+    <span className="flex items-baseline gap-1.5 text-caption text-fg-2">
+      {label}
+      <span
+        data-testid={testId}
+        className="text-strong font-semibold tabular-nums text-fg-1"
+      >
+        {value}
       </span>
-      <HoverTip content={value}>
+    </span>
+  );
+}
+
+const TONE_DOT: Record<FlowTone, string> = {
+  ok: "bg-action",
+  idle: "bg-fg-3",
+  warn: "bg-warning",
+  danger: "bg-danger",
+};
+
+/** 链路上的一个环节：小标题带状态点、当前值、一行补充；选中时描边加粗。 */
+function FlowNode({
+  label,
+  value,
+  sub,
+  tone,
+  selected,
+  testId,
+  onSelect,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone: FlowTone;
+  selected: boolean;
+  testId: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      data-testid={testId}
+      data-tone={tone}
+      onClick={onSelect}
+      className={cn(
+        "flex min-w-[124px] flex-1 flex-col gap-0.5 rounded-panel border px-3 py-2.5 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        tone === "danger"
+          ? "bg-danger-soft"
+          : tone === "warn"
+            ? "bg-warning-soft"
+            : "bg-surface",
+        selected
+          ? "border-action ring-1 ring-action"
+          : "border-border hover:border-border-strong",
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-badge text-fg-2">
         <span
-          data-testid={testId}
-          className={cn(
-            "truncate tabular-nums text-fg-1",
-            strong
-              ? "text-metric leading-8"
-              : "text-[20px] font-semibold leading-8",
-          )}
-        >
-          {value}
-        </span>
-      </HoverTip>
-      {children}
+          aria-hidden="true"
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[tone])}
+        />
+        {label}
+      </span>
+      <span className="truncate text-strong font-semibold text-fg-1">
+        {value}
+      </span>
+      {sub && (
+        <span className="truncate text-badge font-normal text-fg-3">{sub}</span>
+      )}
+    </button>
+  );
+}
+
+/** 客户端：哪些已接管、哪些还按原配置用。 */
+function ClientsDetail({
+  states,
+  onOpenClients,
+}: {
+  states: { app: AppId; display: ReturnType<typeof takeoverDisplay> }[];
+  onOpenClients?: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-2.5">
+      <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+        {states.map(({ app, display }) => (
+          <li
+            key={app}
+            className={cn(
+              "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-caption",
+              display === "active"
+                ? "bg-action-soft text-action-text"
+                : "bg-subtle text-fg-2",
+            )}
+          >
+            <AppGlyph
+              app={app}
+              size={14}
+              badgeClassName={
+                display === "active" ? "bg-action-soft" : "bg-subtle"
+              }
+            />
+            {APP_DISPLAY_NAME[app]}
+            <span aria-hidden="true">·</span>
+            {t(`aicli.client.status.${display}`)}
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <p className="m-0 min-w-0 flex-1 text-caption text-fg-2">
+          {t("aicli.overview.flowClientsDetail")}
+        </p>
+        {onOpenClients && (
+          <Button
+            type="button"
+            variant="neutral"
+            size="compact"
+            onClick={onOpenClients}
+          >
+            {t("aicli.overview.flowClientsOpen")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 本地代理：停了且有客户端在用时红色提示，否则一句说明。 */
+function ProxyDetail({ down }: { down: boolean }) {
+  const { t } = useTranslation();
+  if (down) {
+    return <Notice tone="danger" title={t("aicli.clients.proxyDown")} />;
+  }
+  return (
+    <p className="m-0 text-caption text-fg-2">
+      {t("aicli.overview.flowProxyDetail")}
+    </p>
+  );
+}
+
+/** 隐私：开启时显示出错处理方式，可用性优先模式下发生降级为红色提示（F-03）；未开启时说明后果。 */
+function PrivacyDetail({
+  privacy,
+  onOpenPrivacy,
+}: {
+  privacy?: AicliPrivacyView | null;
+  onOpenPrivacy?: () => void;
+}) {
+  const { t } = useTranslation();
+  if (privacy == null) {
+    return (
+      <p className="m-0 text-caption text-fg-3">{t("aicli.account.noData")}</p>
+    );
+  }
+  if (!privacy.privacy_enabled) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <p className="m-0 min-w-0 flex-1 text-caption text-fg-2">
+          {t("aicli.overview.flowPrivacyOffDetail")}
+        </p>
+        {onOpenPrivacy && (
+          <Button
+            type="button"
+            variant="neutral"
+            size="compact"
+            onClick={onOpenPrivacy}
+          >
+            {t("aicli.overview.flowPrivacyGo")}
+          </Button>
+        )}
+      </div>
+    );
+  }
+  const mode =
+    privacy.privacy_failure_mode === "pass"
+      ? t("aicli.privacy.modePass")
+      : t("aicli.privacy.modeBlock");
+  const degraded = privacy.engine?.degraded ?? 0;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <p className="m-0 min-w-0 flex-1 text-caption text-fg-2">
+          {t("aicli.privacy.enabled")} · {mode}
+        </p>
+        {onOpenPrivacy && (
+          <Button
+            type="button"
+            variant="quiet"
+            size="compact"
+            onClick={onOpenPrivacy}
+          >
+            {t("aicli.overview.privacyOpen")}
+          </Button>
+        )}
+      </div>
+      {degraded > 0 && (
+        <Notice
+          tone="danger"
+          title={t("aicli.privacy.degraded", { count: degraded })}
+        />
+      )}
     </div>
   );
 }
 
 /** 线路：健康圆点、延迟条、类型、当前 / 切换、测速。 */
-function LinesTile() {
+function LinesDetail() {
   const { t, i18n } = useTranslation();
   const lines = useAicliLines(true);
   const select = useAicliSelectLine();
@@ -320,35 +735,25 @@ function LinesTile() {
   );
 
   const health = (line: AicliLine) => {
-    const h = line.health;
-    if (!h || (h.status === "ok" && h.latency_ms == null))
+    const h = lineHealth(line);
+    if (h.state === "untested")
       return { tone: "bg-fg-3", text: t("aicli.lines.untested"), ms: null };
-    if (h.status !== "ok")
+    if (h.state === "unreachable")
       return {
         tone: "bg-danger",
         text: t("aicli.lines.unreachable"),
         ms: null,
       };
-    const ms = h.latency_ms ?? 0;
     return {
-      tone: ms > 800 ? "bg-warning" : "bg-success",
-      text: t("aicli.lines.latency", { ms }),
-      ms,
+      tone: h.ms > 800 ? "bg-warning" : "bg-success",
+      text: t("aicli.lines.latency", { ms: h.ms }),
+      ms: h.ms,
     };
   };
 
   return (
-    <section
-      aria-labelledby="aicli-lines-title"
-      className="flex min-w-0 flex-col gap-2 border-b border-border px-4 py-3 lg:border-b-0"
-    >
+    <div className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3
-          id="aicli-lines-title"
-          className="m-0 text-caption font-semibold text-fg-2"
-        >
-          {t("aicli.lines.title")}
-        </h3>
         {lastChecked > 0 && (
           <span className="text-badge text-fg-3">
             {t("aicli.overview.checkedAt", {
@@ -437,30 +842,26 @@ function LinesTile() {
       <p className="m-0 text-caption text-fg-3">
         {t("aicli.lines.switchNote")}
       </p>
-    </section>
+    </div>
   );
 }
 
-/** 配置集：显示名与说明、模型数与分组、哪些客户端在用、需要修复。 */
-function ProfileTile({
-  account,
+/** 配置集：说明、分组与倍率、哪些客户端在用、需要修复。名称和模型数在链路节点上。 */
+function ProfileDetail({
+  profileId,
+  profile,
+  takeover,
   onOpenProfiles,
 }: {
-  account: AicliAccountView;
+  profileId: string;
+  profile: AicliRouteProfile | undefined;
+  takeover: AicliTakeoverStatus[];
   onOpenProfiles: () => void;
 }) {
   const { t } = useTranslation();
-  const routes = useAicliRoutes(true);
   const profiles = useAicliProfiles(true);
   const catalog = useAicliCatalog(true);
-  const takeover = useAicliTakeoverStatus(true);
-  const view = routes.data;
-  const id =
-    account.active_profile_id ?? view?.active_profile_id ?? "recommended";
-  const profile = view?.profiles.find((entry) => entry.id === id);
-  const name = aicliProfileName(t, profile, id);
-  const description = aicliPresetDescription(t, id);
-  const count = profile?.routes.length ?? 0;
+  const description = aicliPresetDescription(t, profileId);
   const groups = Array.from(
     new Set((profile?.routes ?? []).flatMap((route) => route.ordered_groups)),
   );
@@ -468,52 +869,41 @@ function ProfileTile({
 
   // 正在使用它的客户端：已接管，且没有绑定到别的配置集
   const bindings = profiles.data?.bindings ?? [];
-  const usedBy = (takeover.data ?? [])
+  const usedBy = takeover
     .filter((entry) => takeoverDisplay(entry.state) === "active")
     .map((entry) => entry.app)
     .filter((app) => {
       const own = bindings.find(
         (binding) => binding.scope === "app" && binding.scope_key === app,
       );
-      return (own?.profile_id ?? id) === id;
+      return (own?.profile_id ?? profileId) === profileId;
     });
 
   return (
-    <section
-      aria-labelledby="aicli-profile-title"
-      className="flex min-w-0 flex-col gap-2 px-4 py-3"
-    >
-      <div className="flex items-center gap-2">
-        <h3
-          id="aicli-profile-title"
-          className="m-0 text-caption font-semibold text-fg-2"
-        >
-          {t("aicli.profile.title")}
-        </h3>
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <p className="m-0 min-w-0 flex-1 text-caption text-fg-2">
+          {description ??
+            (usedBy.length > 0
+              ? t("aicli.overview.usedBy", {
+                  apps: usedBy
+                    .map((app) => APP_DISPLAY_NAME[app as AppId] ?? app)
+                    .join("、"),
+                })
+              : null)}
+        </p>
         <Button
           type="button"
           variant="quiet"
           size="compact"
-          className="ms-auto"
           onClick={onOpenProfiles}
         >
           {t("aicli.profile.manage")}
         </Button>
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="truncate text-title text-fg-1">{name}</span>
-        <span className="text-caption tabular-nums text-fg-3">
-          {profile && count > 0
-            ? t("aicli.profile.models", { count })
-            : t("aicli.profile.noModels")}
-        </span>
-      </div>
-      {description && (
-        <p className="m-0 text-caption text-fg-2">{description}</p>
-      )}
       {groups.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {groups.slice(0, 5).map((group) => {
+          {groups.slice(0, 8).map((group) => {
             const info = catalog.data?.groups[group];
             const ratio =
               info?.ratio_known && info.ratio != null ? `×${info.ratio}` : null;
@@ -529,14 +919,14 @@ function ProfileTile({
               </span>
             );
           })}
-          {groups.length > 5 && (
+          {groups.length > 8 && (
             <span className="inline-flex h-5 items-center rounded-full bg-subtle px-2 text-badge text-fg-3">
-              +{groups.length - 5}
+              +{groups.length - 8}
             </span>
           )}
         </div>
       )}
-      {usedBy.length > 0 && (
+      {description && usedBy.length > 0 && (
         <p className="m-0 text-caption text-fg-3">
           {t("aicli.overview.usedBy", {
             apps: usedBy
@@ -552,58 +942,6 @@ function ProfileTile({
             groups: repair.missing_groups.join("、"),
             count: repair.affected_models.length,
           })}
-        />
-      )}
-    </section>
-  );
-}
-
-/** 隐私开启时的引擎状态；可用性优先模式下发生降级时为红色提示（F-03）。 */
-function PrivacyRow({
-  privacy,
-  onOpenPrivacy,
-}: {
-  privacy: AicliPrivacyView;
-  onOpenPrivacy?: () => void;
-}) {
-  const { t } = useTranslation();
-  const mode =
-    privacy.privacy_failure_mode === "pass"
-      ? t("aicli.privacy.modePass")
-      : t("aicli.privacy.modeBlock");
-  const engine = privacy.engine;
-  const degraded = engine?.degraded ?? 0;
-  return (
-    <div className="flex flex-col gap-2 border-t border-border px-4 py-3">
-      <div className="flex flex-wrap items-center gap-2 text-caption text-fg-2">
-        <ShieldCheck
-          aria-hidden="true"
-          className="h-3.5 w-3.5 text-success-text"
-        />
-        <span>
-          {t("aicli.privacy.enabled")} · {mode}
-        </span>
-        <span className="text-fg-3">
-          {engine
-            ? t("aicli.privacy.engineRunning", { count: engine.masked_values })
-            : t("aicli.privacy.engineStopped")}
-        </span>
-        {onOpenPrivacy && (
-          <Button
-            type="button"
-            variant="quiet"
-            size="compact"
-            className="ms-auto"
-            onClick={onOpenPrivacy}
-          >
-            {t("aicli.overview.privacyOpen")}
-          </Button>
-        )}
-      </div>
-      {degraded > 0 && (
-        <Notice
-          tone="danger"
-          title={t("aicli.privacy.degraded", { count: degraded })}
         />
       )}
     </div>

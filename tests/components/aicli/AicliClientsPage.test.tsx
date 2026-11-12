@@ -109,8 +109,10 @@ describe("AicliClientsPage", () => {
     expect(
       within(claude).getByText("aicli.clients.status.active"),
     ).toBeInTheDocument();
+    // 2026-11 改版：行尾是开关（开 = 经 AICLI），已接管的行写明停止后回到接管前的配置
+    expect(within(claude).getByRole("switch")).toBeChecked();
     expect(
-      within(claude).getByRole("button", { name: "aicli.client.release" }),
+      within(claude).getByText("aicli.clients.restoreTo"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("aicli-client-card-gemini")).toHaveAttribute(
       "data-state",
@@ -120,12 +122,17 @@ describe("AicliClientsPage", () => {
       "data-state",
       "inactive",
     );
+    const codexSwitch = within(
+      screen.getByTestId("aicli-client-card-codex"),
+    ).getByRole("switch");
+    expect(codexSwitch).toBeEnabled();
+    expect(codexSwitch).not.toBeChecked();
+    // 处理中的那一行开关不可点
     expect(
-      within(screen.getByTestId("aicli-client-card-codex")).getByRole(
-        "button",
-        { name: "aicli.client.takeOver" },
+      within(screen.getByTestId("aicli-client-card-gemini")).getByRole(
+        "switch",
       ),
-    ).toBeEnabled();
+    ).toBeDisabled();
     expect(
       screen
         .getAllByTestId(/^aicli-client-card-/)
@@ -146,9 +153,7 @@ describe("AicliClientsPage", () => {
     respond({ aicli_take_over: undefined });
     renderPage();
     const codex = await screen.findByTestId("aicli-client-card-codex");
-    const takeOver = within(codex).getByRole("button", {
-      name: "aicli.client.takeOver",
-    });
+    const takeOver = within(codex).getByRole("switch");
     // 账户读完才可操作
     await waitFor(() => expect(takeOver).toBeEnabled());
     fireEvent.click(takeOver);
@@ -178,9 +183,7 @@ describe("AicliClientsPage", () => {
     ).toBeInTheDocument();
     const claude = await screen.findByTestId("aicli-client-card-claude");
     await waitFor(() => expect(claude).toHaveAttribute("data-state", "active"));
-    const release = within(claude).getByRole("button", {
-      name: "aicli.client.release",
-    });
+    const release = within(claude).getByRole("switch");
     await waitFor(() => expect(release).toBeEnabled());
     fireEvent.click(release);
     const dialog = await screen.findByRole("dialog");
@@ -240,6 +243,55 @@ describe("AicliClientsPage", () => {
     expect(
       screen.queryByTestId("aicli-client-other-openclaw"),
     ).not.toBeInTheDocument();
+  });
+
+  it("takes over the remaining clients in one go after a single confirmation", async () => {
+    respond({ aicli_take_over: undefined });
+    renderPage();
+    const rest = await screen.findByTestId("aicli-clients-takeover-rest");
+    await waitFor(() => expect(rest).toBeEnabled());
+    fireEvent.click(rest);
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("aicli.clients.bulkBody"),
+    ).toBeInTheDocument();
+    expect(
+      invokeMock.mock.calls.some(([command]) => command === "aicli_take_over"),
+    ).toBe(false);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "aicli.client.takeOver" }),
+    );
+    // 已接管的 claude 和处理中的 gemini 不在其中
+    await waitFor(() =>
+      expect(
+        invokeMock.mock.calls
+          .filter(([command]) => command === "aicli_take_over")
+          .map(([, args]) => (args as { app: string }).app),
+      ).toEqual(["claude-desktop", "codex", "grokbuild", "opencode"]),
+    );
+    expect(invokeMock).toHaveBeenCalledWith("aicli_take_over", {
+      app: "codex",
+      confirmed: false,
+    });
+  });
+
+  it("reports clients the bulk takeover could not take over", async () => {
+    respond({
+      aicli_take_over: () => {
+        throw new Error("boom");
+      },
+    });
+    renderPage();
+    const rest = await screen.findByTestId("aicli-clients-takeover-rest");
+    await waitFor(() => expect(rest).toBeEnabled());
+    fireEvent.click(rest);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "aicli.client.takeOver" }),
+    );
+    expect(
+      await screen.findByText("aicli.clients.bulkFailed"),
+    ).toBeInTheDocument();
   });
 
   it("warns when taken-over clients cannot reach the stopped local proxy", async () => {

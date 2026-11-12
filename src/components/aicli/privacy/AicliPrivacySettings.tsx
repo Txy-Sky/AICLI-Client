@@ -207,7 +207,12 @@ function CustomTerms({ privacy }: { privacy: AicliPrivacyView }) {
  * 隐私设置（F-06 的隐私块，F-09 起放在侧栏「隐私脱敏」页）：开关、失败模式、允许
  * 未扫描媒体、自定义词和规则。
  */
-export function AicliPrivacySettings() {
+export function AicliPrivacySettings({
+  hideEnable = false,
+}: {
+  /** 隐私脱敏页自己在页头 / 关闭说明里放了总开关，这里不再重复一个。 */
+  hideEnable?: boolean;
+} = {}) {
   const { t } = useTranslation();
   const privacy = useAicliPrivacy().data;
   const setPrivacy = useAicliSetPrivacy();
@@ -234,15 +239,17 @@ export function AicliPrivacySettings() {
       )}
       {privacy && (
         <SettingsCard>
-          <SettingsSwitchRow
-            label={t("aicli.settings.privacyEnabled")}
-            description={t("aicli.settings.privacyEnabledHint")}
-            checked={privacy.privacy_enabled}
-            disabled={!privacy.bound || setPrivacy.isPending}
-            onCheckedChange={(value) =>
-              updatePrivacy({ privacyEnabled: value })
-            }
-          />
+          {!hideEnable && (
+            <SettingsSwitchRow
+              label={t("aicli.settings.privacyEnabled")}
+              description={t("aicli.settings.privacyEnabledHint")}
+              checked={privacy.privacy_enabled}
+              disabled={!privacy.bound || setPrivacy.isPending}
+              onCheckedChange={(value) =>
+                updatePrivacy({ privacyEnabled: value })
+              }
+            />
+          )}
           <SettingsRow
             label={t("aicli.settings.failureMode")}
             description={

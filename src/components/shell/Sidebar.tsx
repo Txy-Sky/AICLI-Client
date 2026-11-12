@@ -489,7 +489,7 @@ function NavItem({
       {collapsed && alert && (
         <span
           className={cn(
-            "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-danger text-action-fg",
+            "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-danger text-white",
             ring,
           )}
         >

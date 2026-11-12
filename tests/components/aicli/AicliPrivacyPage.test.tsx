@@ -272,6 +272,60 @@ describe("AicliPrivacyPage", () => {
     );
   });
 
+  // 2026-11 改版：关闭且从没有过记录时，只有说明区和一个「开启」按钮，不摆全是 0 的统计
+  it("shows the intro instead of empty stats while off with no records", async () => {
+    respond({
+      aicli_get_privacy: privacy({ privacy_enabled: false, engine: null }),
+      aicli_privacy_summary: (args: { days: number }) => ({
+        ...summary(args.days),
+        total_values: 0,
+        distinct_values: 0,
+        requests: 0,
+        days: [],
+        apps: [],
+        categories: [],
+      }),
+      aicli_privacy_events: { items: [], next_before_id: null },
+    });
+    renderWithQueryClient(<AicliPrivacyPage />);
+    expect(await screen.findByTestId("aicli-privacy-off")).toBeInTheDocument();
+    expect(
+      screen.getByText("aicli.privacyPage.demoBefore"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("aicli-privacy-hero"),
+      ).not.toBeInTheDocument(),
+    );
+    // 整页只有说明区里一个开启入口：页头和设置里都没有总开关
+    expect(
+      screen.queryByRole("switch", { name: "aicli.settings.privacyEnabled" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps earlier records visible while off", async () => {
+    respond({
+      aicli_get_privacy: privacy({ privacy_enabled: false, engine: null }),
+    });
+    renderWithQueryClient(<AicliPrivacyPage />);
+    expect(await screen.findByTestId("aicli-privacy-off")).toBeInTheDocument();
+    expect(await screen.findByTestId("aicli-privacy-hero")).toBeInTheDocument();
+  });
+
+  it("has a single master switch while on", async () => {
+    respond();
+    renderWithQueryClient(<AicliPrivacyPage />);
+    await screen.findByTestId("aicli-privacy-hero");
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("switch", {
+          name: "aicli.settings.privacyEnabled",
+        }),
+      ).toHaveLength(1),
+    );
+    expect(screen.queryByTestId("aicli-privacy-off")).not.toBeInTheDocument();
+  });
+
   it("shows a red notice when availability-first mode degraded", async () => {
     respond({
       aicli_get_privacy: privacy({

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, Cloud, SquareTerminal } from "lucide-react";
 import appLogo from "@/assets/icons/aicli-logo.png";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
@@ -75,28 +76,33 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
     return (
       <GateBackdrop testId="aicli-bind-gate">
         <Dialog open>
+          {/* 两栏：左边说明这是什么（窄窗口下收起），右边是绑定表单。
+              右栏里 AicliBindCard 的文案按清单 0.4 节逐字不变。 */}
           <DialogContent
             zIndex="top"
-            className="max-w-md gap-6 p-7"
+            className="max-w-md gap-0 overflow-hidden p-0 md:max-w-[840px] md:flex-row"
             onEscapeKeyDown={(event) => event.preventDefault()}
           >
-            <DialogHeader className="items-center gap-1 p-0 text-center">
-              <img
-                src={appLogo}
-                alt=""
-                draggable={false}
-                className="mb-2 h-12 w-12"
+            <BindIntro />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-6 p-7 md:p-9">
+              <DialogHeader className="items-center gap-1 p-0 text-center md:items-start md:text-start">
+                <img
+                  src={appLogo}
+                  alt=""
+                  draggable={false}
+                  className="mb-2 h-12 w-12 md:hidden"
+                />
+                <DialogTitle>{t("aicli.bind.gateTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("aicli.bind.gateSubtitle")}
+                </DialogDescription>
+              </DialogHeader>
+              <AicliBindCard
+                line={line}
+                focusSignal={bindRequest}
+                className="flex flex-col gap-3"
               />
-              <DialogTitle>{t("aicli.bind.gateTitle")}</DialogTitle>
-              <DialogDescription>
-                {t("aicli.bind.gateSubtitle")}
-              </DialogDescription>
-            </DialogHeader>
-            <AicliBindCard
-              line={line}
-              focusSignal={bindRequest}
-              className="flex flex-col gap-3"
-            />
+            </div>
           </DialogContent>
         </Dialog>
       </GateBackdrop>
@@ -158,6 +164,93 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
         </Dialog>
       )}
     </BindGateContext.Provider>
+  );
+}
+
+/**
+ * 首次绑定对话框的左栏：一句话说明、三格示意图（你的 AI 工具 → 这台电脑 → AICLI 服务）、
+ * 三条好处。纯说明，没有操作；窄窗口（md 以下）不显示，只留右边的表单。
+ */
+function BindIntro() {
+  const { t } = useTranslation();
+  const benefits = [
+    t("aicli.bind.benefitTakeover"),
+    t("aicli.bind.benefitPrivacy"),
+    t("aicli.bind.benefitUsage"),
+  ];
+  return (
+    <div className="hidden w-1/2 shrink-0 flex-col gap-7 bg-action-soft p-9 md:flex">
+      <div className="flex items-center gap-2 text-strong font-semibold text-fg-1">
+        <img src={appLogo} alt="" draggable={false} className="h-7 w-7" />
+        AICLI Client
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="m-0 text-metric font-bold text-fg-1">
+          {t("aicli.bind.heroTitle")}
+        </p>
+        <p className="m-0 text-strong font-normal text-fg-2">
+          {t("aicli.bind.heroSubtitle")}
+        </p>
+      </div>
+      <div
+        role="img"
+        aria-label={t("aicli.bind.flowLabel")}
+        className="flex items-start gap-1.5"
+      >
+        <FlowNode label={t("aicli.bind.flowTools")}>
+          <SquareTerminal
+            aria-hidden="true"
+            strokeWidth={1.75}
+            className="h-6 w-6 text-fg-1"
+          />
+        </FlowNode>
+        <FlowLink />
+        <FlowNode label={t("aicli.bind.flowDevice")}>
+          <img src={appLogo} alt="" draggable={false} className="h-9 w-9" />
+        </FlowNode>
+        <FlowLink />
+        <FlowNode label={t("aicli.bind.flowService")}>
+          <Cloud
+            aria-hidden="true"
+            strokeWidth={1.75}
+            className="h-6 w-6 text-action-text"
+          />
+        </FlowNode>
+      </div>
+      <ul className="m-0 mt-auto flex list-none flex-col gap-2.5 p-0 text-strong font-normal text-fg-1">
+        {benefits.map((benefit) => (
+          <li key={benefit} className="flex items-center gap-2">
+            <Check
+              aria-hidden="true"
+              strokeWidth={2.25}
+              className="h-4 w-4 shrink-0 text-action-text"
+            />
+            {benefit}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function FlowNode({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex w-[84px] shrink-0 flex-col items-center gap-2">
+      <span className="flex h-14 w-14 items-center justify-center rounded-dialog border border-border bg-surface">
+        {children}
+      </span>
+      <span className="text-center text-caption font-medium text-fg-1">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function FlowLink() {
+  return (
+    <span aria-hidden="true" className="flex h-14 min-w-0 flex-1 items-center">
+      <span className="block w-full border-t-2 border-dashed border-action" />
+    </span>
   );
 }
 

@@ -1,18 +1,30 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Download, Loader2, MonitorSmartphone } from "lucide-react";
 import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { HelpTip } from "@/components/ui/help-tip";
 import { Notice } from "@/components/ui/notice";
+import { Switch } from "@/components/ui/switch";
 import { orderAppIds } from "@/config/appConfig";
 import type { AppId } from "@/lib/api";
+import { aicliErrorCode } from "@/lib/api/aicli";
 import { cn } from "@/lib/utils";
 import { useProxyStatusQuery } from "@/lib/query/proxy";
 import { useAicliAccount } from "@/hooks/useAicliAccount";
 import {
   useAicliProfiles,
   useAicliRoutes,
+  useAicliTakeOver,
   useAicliTakeoverStatus,
 } from "@/hooks/useAicliProfiles";
 import type { VisibleApps } from "@/types";
@@ -28,6 +40,15 @@ import {
 /** 有自己专属页（工作区、配置、记忆）的客户端：还没有 AICLI 接管，但页面仍可进入。 */
 const DEDICATED_PAGE_APPS: readonly AppId[] = ["openclaw", "hermes"];
 
+/** 列表四列：客户端 / 请求现在走哪里 / 停止接管后回到 / 开关。表头和每一行共用。 */
+const ROW_GRID =
+  "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.7fr)_minmax(0,1.1fr)_112px] items-center gap-4";
+
+interface BulkResult {
+  conflicts: AppId[];
+  failed: AppId[];
+}
+
 interface AicliClientsPageProps {
   visibleApps: VisibleApps;
   appOrder?: string[];
@@ -36,10 +57,11 @@ interface AicliClientsPageProps {
 }
 
 /**
- * 客户端总览（F-08）：侧栏只剩一个「客户端」入口，进来是卡片网格。支持接管的客户端
- * 一张卡：状态、所用配置集与模型数、一键接管 / 停止接管（停止接管会还原为接管前的
- * 配置，例如官方登录）；点卡片进入详情页。有专属页的客户端单列一行，其余客户端列为
- * 「即将支持」。
+ * 客户端总览（F-08，2026-11 改版）：侧栏只有一个「客户端」入口，进来是一张列表。
+ * 支持接管的客户端一行一个，三列分别回答「请求现在走哪里」「停止接管后回到哪里」，
+ * 行尾一个开关（开 = 经 AICLI）；打开或关闭都先过确认对话框，停止接管会还原为接管前的
+ * 配置。点行里的名字进入详情页。顶部一条分段条显示接管了几个，可以一次接管其余的。
+ * 有专属页的客户端单列一行，其余客户端列为「即将支持」。
  */
 export function AicliClientsPage({
   visibleApps,
@@ -47,11 +69,12 @@ export function AicliClientsPage({
   onOpenApp,
   onOpenApps,
 }: AicliClientsPageProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const account = useAicliAccount().data;
   const bound = account?.state === "bound" || account?.state === "needs_rebind";
   const takeover = useAicliTakeoverStatus(bound);
   const { data: proxyStatus } = useProxyStatusQuery();
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
 
   const ordered = orderAppIds(appOrder).filter((app) => visibleApps[app]);
   const supported = ordered.filter((app) => AICLI_TAKEOVER_APPS.includes(app));
@@ -61,14 +84,17 @@ export function AicliClientsPage({
       !AICLI_TAKEOVER_APPS.includes(app) && !DEDICATED_PAGE_APPS.includes(app),
   );
 
+  const entryOf = (app: AppId) =>
+    takeover.data?.find((entry) => entry.app === app);
+  const displayOf = (app: AppId) => takeoverDisplay(entryOf(app)?.state);
   const activeCount = supported.filter(
-    (app) =>
-      takeoverDisplay(
-        takeover.data?.find((entry) => entry.app === app)?.state,
-      ) === "active",
+    (app) => displayOf(app) === "active",
   ).length;
+  const rest = supported.filter((app) => displayOf(app) === "inactive");
   const proxyDown =
     activeCount > 0 && proxyStatus !== undefined && !proxyStatus.running;
+  const names = (apps: AppId[]) =>
+    apps.map((app) => APP_DISPLAY_NAME[app]).join("、");
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -97,24 +123,71 @@ export function AicliClientsPage({
         data-testid="aicli-clients-page"
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto scroll-stable px-6 pb-10 pt-4"
       >
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="text-metric tabular-nums text-fg-1">
-            {activeCount}
-            <span className="text-section font-normal text-fg-3">
-              {" "}
-              / {supported.length}
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span
+                role="img"
+                aria-label={t("aicli.clients.summaryAria", {
+                  active: activeCount,
+                  total: supported.length,
+                })}
+                className="flex gap-1"
+              >
+                {supported.map((app) => (
+                  <span
+                    key={app}
+                    className={cn(
+                      "h-2 w-6 rounded-full",
+                      displayOf(app) === "active"
+                        ? "bg-action"
+                        : "bg-border-strong",
+                    )}
+                  />
+                ))}
+              </span>
+              <span className="text-body text-fg-1">
+                <span className="text-section tabular-nums">
+                  {activeCount}
+                  <span className="font-normal text-fg-3">
+                    {" "}
+                    / {supported.length}
+                  </span>
+                </span>{" "}
+                {t("aicli.clients.summary")}
+              </span>
+            </div>
+            <span className="text-caption text-fg-3">
+              {t("aicli.clients.restoreHint")}
             </span>
-          </span>
-          <span className="text-body text-fg-2">
-            {t("aicli.clients.summary")}
-          </span>
-          <span className="basis-full text-caption text-fg-3">
-            {t("aicli.clients.restoreHint")}
-          </span>
+          </div>
+          {rest.length > 0 && (
+            <BulkTakeover
+              apps={rest}
+              disabled={!bound}
+              onDone={setBulkResult}
+            />
+          )}
         </div>
 
         {proxyDown && (
           <Notice tone="danger" title={t("aicli.clients.proxyDown")} />
+        )}
+        {bulkResult && bulkResult.conflicts.length > 0 && (
+          <Notice
+            tone="warning"
+            title={t("aicli.clients.bulkConflict", {
+              apps: names(bulkResult.conflicts),
+            })}
+          />
+        )}
+        {bulkResult && bulkResult.failed.length > 0 && (
+          <Notice
+            tone="danger"
+            title={t("aicli.clients.bulkFailed", {
+              apps: names(bulkResult.failed),
+            })}
+          />
         )}
 
         <section
@@ -127,15 +200,46 @@ export function AicliClientsPage({
           >
             {t("aicli.clients.supportedTitle")}
           </h2>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
-            {supported.map((app) => (
-              <ClientCard
-                key={app}
-                app={app}
-                bound={bound}
-                onOpen={() => onOpenApp(app)}
-              />
-            ))}
+          <div className="overflow-x-auto rounded-panel border border-border bg-surface">
+            <div className="min-w-[640px]">
+              <div
+                aria-hidden="true"
+                className={cn(
+                  ROW_GRID,
+                  "border-b border-border px-4 py-2 text-badge font-normal text-fg-2",
+                )}
+              >
+                <span>{t("aicli.clients.colClient")}</span>
+                <span>{t("aicli.clients.colRoute")}</span>
+                <span>{t("aicli.clients.colRestore")}</span>
+                <span className="text-end">{t("aicli.clients.colSwitch")}</span>
+              </div>
+              {supported.map((app) => {
+                const takenAt = entryOf(app)?.taken_over_at ?? null;
+                return (
+                  <ClientRow
+                    key={app}
+                    app={app}
+                    bound={bound}
+                    lineId={account?.selected_line_id ?? "main"}
+                    takenAt={
+                      takenAt
+                        ? new Date(takenAt * 1000).toLocaleString(
+                            i18n.language,
+                            {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )
+                        : null
+                    }
+                    onOpen={() => onOpenApp(app)}
+                  />
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -218,13 +322,124 @@ export function AicliClientsPage({
   );
 }
 
-function ClientCard({
+/**
+ * 一次接管其余的客户端：确认对话框列出会改写哪几个，确认后逐个接管。
+ * 遇到旧代理配置冲突的不强行覆盖，留给用户在那一行单独确认；其余失败的一并报告。
+ */
+function BulkTakeover({
+  apps,
+  disabled,
+  onDone,
+}: {
+  apps: AppId[];
+  disabled: boolean;
+  onDone: (result: BulkResult) => void;
+}) {
+  const { t } = useTranslation();
+  const takeOver = useAicliTakeOver();
+  const [open, setOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    const result: BulkResult = { conflicts: [], failed: [] };
+    for (const app of apps) {
+      try {
+        await takeOver.mutateAsync({ app, confirmed: false });
+      } catch (failure) {
+        if (aicliErrorCode(failure) === "cc_switch_conflict") {
+          result.conflicts.push(app);
+        } else {
+          result.failed.push(app);
+        }
+      }
+    }
+    setRunning(false);
+    setOpen(false);
+    onDone(result);
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="neutral"
+        size="regular"
+        data-testid="aicli-clients-takeover-rest"
+        disabled={disabled || running}
+        onClick={() => setOpen(true)}
+      >
+        {t("aicli.clients.takeOverRest", { count: apps.length })}
+      </Button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && !running) setOpen(false);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("aicli.clients.bulkTitle", { count: apps.length })}
+            </DialogTitle>
+            <DialogDescription>{t("aicli.clients.bulkBody")}</DialogDescription>
+          </DialogHeader>
+          <ul className="m-0 flex list-none flex-wrap gap-1.5 px-6 pb-2">
+            {apps.map((app) => (
+              <li
+                key={app}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full bg-subtle px-2.5 text-caption text-fg-1"
+              >
+                <AppGlyph app={app} size={14} badgeClassName="bg-subtle" />
+                {APP_DISPLAY_NAME[app]}
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="neutral"
+              size="regular"
+              disabled={running}
+              onClick={() => setOpen(false)}
+            >
+              {t("aicli.client.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="solid"
+              size="regular"
+              disabled={running}
+              onClick={() => void run()}
+            >
+              {running && (
+                <Loader2
+                  aria-hidden="true"
+                  className="h-3.5 w-3.5 animate-spin"
+                />
+              )}
+              {t("aicli.client.takeOver")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ClientRow({
   app,
   bound,
+  lineId,
+  takenAt,
   onOpen,
 }: {
   app: AppId;
   bound: boolean;
+  /** 当前线路 id：已接管的客户端经它发往 AICLI。 */
+  lineId: string;
+  /** 接管时间（已格式化）；接管前的配置就是那时备份的。 */
+  takenAt: string | null;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
@@ -239,96 +454,113 @@ function ClientCard({
     profiles.data,
     routes.data,
   );
+  const profileName = aicliProfileName(t, profile, id);
   const models = profile?.routes.length ?? 0;
   const state = flow.conflict ? "conflict" : flow.display;
-
-  const pill = {
-    active: "bg-success-soft text-success-text",
-    inactive: "bg-subtle text-fg-3",
-    pending: "bg-subtle text-fg-2",
-    conflict: "bg-warning-soft text-warning-text",
-  }[state];
-  const dot = {
-    active: "bg-success",
-    inactive: "bg-fg-3",
-    pending: "bg-fg-2",
-    conflict: "bg-warning",
-  }[state];
+  const active = flow.display === "active";
 
   return (
     <article
       data-testid={`aicli-client-card-${app}`}
       data-state={state}
       className={cn(
-        "relative flex min-w-0 flex-col gap-3 rounded-panel border bg-surface p-4 transition-colors hover:border-border-strong",
-        state === "active" ? "border-border-strong" : "border-border",
+        ROW_GRID,
+        "relative border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-subtle",
+        state === "active" && "bg-action-soft hover:bg-action-soft",
+        state === "conflict" && "bg-warning-soft hover:bg-warning-soft",
       )}
     >
-      {/* 整张卡可点进详情；按钮叠在上面，避免按钮套按钮 */}
+      {/* 整行可点进详情；开关和按钮叠在上面，避免按钮套按钮 */}
       <button
         type="button"
         aria-label={t("aicli.clients.open", { app: name })}
         onClick={onOpen}
-        className="absolute inset-0 rounded-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       />
-      <div className="pointer-events-none flex items-center gap-3">
-        <AppGlyph app={app} size={28} badgeClassName="bg-surface" />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="m-0 truncate text-strong text-fg-1">{name}</h3>
-          <span
-            data-testid={`aicli-client-state-${app}`}
-            className={cn(
-              "inline-flex h-5 w-fit items-center gap-1.5 rounded-full px-2 text-badge font-medium",
-              pill,
-            )}
-          >
-            {state === "pending" ? (
-              <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
-            ) : (
-              <span
-                aria-hidden="true"
-                className={cn("h-1.5 w-1.5 rounded-full", dot)}
-              />
-            )}
-            {t(`aicli.clients.status.${state}`)}
-          </span>
-        </div>
+      <div className="pointer-events-none flex min-w-0 items-center gap-3">
+        <AppGlyph
+          app={app}
+          size={24}
+          badgeClassName={active ? "bg-action-soft" : "bg-surface"}
+        />
+        <h3 className="m-0 truncate text-strong text-fg-1">{name}</h3>
       </div>
-      <p className="pointer-events-none m-0 truncate text-caption text-fg-2">
-        {t("aicli.clients.profileLine", {
-          name: aicliProfileName(t, profile, id),
-          count: models,
-        })}
-      </p>
-      {flow.error && (
-        <p
-          role="alert"
-          className="pointer-events-none relative m-0 text-caption text-danger-text"
+      <div className="pointer-events-none flex min-w-0 flex-col gap-0.5">
+        <span
+          data-testid={`aicli-client-state-${app}`}
+          className={cn(
+            "inline-flex items-center gap-1.5 text-body font-medium",
+            state === "active"
+              ? "text-action-text"
+              : state === "conflict"
+                ? "text-warning-text"
+                : "text-fg-1",
+          )}
         >
-          {flow.error}
-        </p>
-      )}
-      <div className="relative flex">
-        {flow.display === "active" ? (
+          {state === "pending" && (
+            <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+          )}
+          {t(`aicli.clients.status.${state}`)}
+        </span>
+        <span className="truncate text-caption text-fg-2">
+          {state === "conflict"
+            ? t("aicli.client.conflictNotice", { app: name })
+            : active
+              ? `${t("aicli.lines.aicliSource", {
+                  line: t(`aicli.lines.${lineId}`, { defaultValue: lineId }),
+                })} · ${t("aicli.clients.profileLine", {
+                  name: profileName,
+                  count: models,
+                })}`
+              : t("aicli.clients.afterProfileLine", {
+                  name: profileName,
+                  count: models,
+                })}
+        </span>
+        {flow.error && (
+          <span role="alert" className="text-caption text-danger-text">
+            {flow.error}
+          </span>
+        )}
+      </div>
+      <div className="pointer-events-none flex min-w-0 flex-col gap-0.5">
+        {active ? (
+          <>
+            <span className="truncate text-body text-fg-1">
+              {t("aicli.clients.restoreTo")}
+            </span>
+            {takenAt && (
+              <span className="truncate text-caption text-fg-3">
+                {t("aicli.clients.restoreBackedUp", { time: takenAt })}
+              </span>
+            )}
+          </>
+        ) : (
+          <span aria-hidden="true" className="text-body text-fg-3">
+            —
+          </span>
+        )}
+      </div>
+      <div className="relative flex justify-end">
+        {state === "conflict" ? (
           <Button
             type="button"
             variant="neutral"
             size="compact"
             disabled={!bound || flow.busy}
-            onClick={() => flow.request("release")}
+            onClick={() => flow.request("conflict")}
           >
-            {t("aicli.client.release")}
+            {t("aicli.client.overrideAndTakeOver")}
           </Button>
         ) : (
-          <Button
-            type="button"
-            variant="solid"
-            size="compact"
+          <Switch
+            checked={active}
+            aria-label={t("aicli.clients.switchLabel", { app: name })}
             disabled={!bound || flow.busy || flow.display === "pending"}
-            onClick={() => flow.request("takeover")}
-          >
-            {t("aicli.client.takeOver")}
-          </Button>
+            onCheckedChange={(next) =>
+              flow.request(next ? "takeover" : "release")
+            }
+          />
         )}
       </div>
       <AicliTakeoverDialog flow={flow} />

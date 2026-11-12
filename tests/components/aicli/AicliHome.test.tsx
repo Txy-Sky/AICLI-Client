@@ -385,5 +385,52 @@ describe("AicliHome — bound", () => {
       "data-empty",
       "true",
     );
+    // 没有消耗数据就不估算还能用几天
+    expect(screen.queryByTestId("aicli-quota-runway")).not.toBeInTheDocument();
+  });
+
+  // 2026-11 改版：请求链路默认展开线路，点别的环节在原地换成那一环的内容
+  it("opens another step of the request flow in place", async () => {
+    respond(boundResponses());
+    renderWithQueryClient(<AicliHome />);
+    await screen.findByTestId("aicli-line-main");
+    expect(screen.getByTestId("aicli-flow-line")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    fireEvent.click(screen.getByTestId("aicli-flow-privacy"));
+    expect(
+      screen.getByText("aicli.overview.flowPrivacyOffDetail"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("aicli-line-main")).not.toBeInTheDocument();
+    expect(screen.getByTestId("aicli-flow-privacy")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("estimates how long the balance lasts from recent spend", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    respond(
+      boundResponses({
+        aicli_get_usage_summary: {
+          days: [
+            {
+              day: today,
+              quota: 250_000,
+              requests: 12,
+              is_final: false,
+              fetched_at: 1,
+              stale: false,
+            },
+          ],
+          total_quota: 250_000,
+          total_requests: 12,
+        },
+      }),
+    );
+    renderWithQueryClient(<AicliHome />);
+    expect(await screen.findByTestId("aicli-quota-runway")).toBeInTheDocument();
   });
 });
