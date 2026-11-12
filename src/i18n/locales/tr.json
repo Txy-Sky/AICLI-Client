@@ -2028,7 +2028,9 @@
       "remaining": "Kalan {{limit}} karakterlerinden {{remaining}}",
       "overLimitBy": "{{over}} karakterler sınırı aştı — Hermes bir sonraki yüklemede kesilecek",
       "toggledOn": "{{name}} etkinleştirildi. Hermes yeniden başlatıldığında veya yeni bir oturum başlatıldığında etkili olur.",
-      "toggledOff": "{{name}} devre dışı. Hermes yeniden başlatıldığında veya yeni bir oturum başlatıldığında etkili olur."
+      "toggledOff": "{{name}} devre dışı. Hermes yeniden başlatıldığında veya yeni bir oturum başlatıldığında etkili olur.",
+      "intro": "Hermes kendi notlarını tutar. Burada ne yazdığını görün, yanlış olanları düzeltin.",
+      "saveOne": "{{name}} kaydet"
     }
   },
   "env": {
@@ -3554,6 +3556,18 @@
         "TERM": "Özel sözcük",
         "CUSTOM": "Özel kural"
       }
+    },
+    "accountSettings": {
+      "title": "Hesap",
+      "boundHere": "Bu bilgisayara bağlı · kalan {{remaining}}",
+      "changeToken": "Başka bir belirteç kullan",
+      "unbind": "Bağlantıyı kaldır",
+      "unbindNote": "Bağlantıyı kaldırmadan önce devralınan istemciler kendi yapılandırmalarına geri döndürülür.",
+      "confirmTitle": "Bu bilgisayarın bağlantısını kaldır",
+      "confirmBody": "Devralınan istemciler önce kendi yapılandırmalarına döndürülür, ardından bu bilgisayardaki belirteç ve hesap verileri silinir. Yerel istek kayıtları korunur. Kullanmak istediğinizde belirteci yeniden yapıştırın.",
+      "deleteTokens": "AICLI Client'ın hesabınızda oluşturduğu belirteçleri de sil",
+      "deleteTokensHint": "Aynı hesaba bağlı diğer bilgisayarlar da bu belirteçleri kullanır ve yeniden oluşturmaları gerekir. Emin değilseniz işaretlemeyin.",
+      "unbindFailed": "Bağlantı kaldırma tamamlanmadı: {{message}}"
     }
   }
 }

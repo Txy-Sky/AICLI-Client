@@ -4,7 +4,6 @@ import { toast } from "@/lib/toast";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { PageTabs } from "@/components/ui/page-tabs";
 import { DisabledReason, HelpTip } from "@/components/ui/help-tip";
 import {
   useHermesConfigDir,
@@ -60,14 +59,18 @@ function memoryFilePath(configDir: string | undefined, file: string) {
 }
 
 /**
- * 页头的「保存」（记忆页唯一的 solid 按钮）：保存当前页签那份记忆。
+ * 一份记忆的「保存」（2026-11 改版，设计稿画板 15：两份记忆并排，各自保存）。
+ * 不传 kind 时保存当前选中的那份。
  * 「Hermes 下次启动或新建会话时生效」是后果，写在保存成功的 toast 里。
  */
-export const HermesMemorySaveButton: React.FC = () => {
+export const HermesMemorySaveButton: React.FC<{
+  kind?: HermesMemoryKind;
+  label?: string;
+}> = ({ kind: kindProp, label }) => {
   const { t } = useTranslation();
   const drafts = useHermesMemoryDrafts();
   const saveMutation = useSaveHermesMemory();
-  const kind = drafts.active;
+  const kind = kindProp ?? drafts.active;
   const dirty = isHermesMemoryDirty(drafts, kind);
   const saving = saveMutation.isPending;
 
@@ -89,9 +92,10 @@ export const HermesMemorySaveButton: React.FC = () => {
       align="end"
     >
       <Button
-        variant="solid"
+        variant="neutral"
         size="regular"
         className="px-4"
+        aria-label={label}
         disabled={saving}
         onClick={() => void handleSave()}
       >
@@ -266,7 +270,6 @@ const HermesMemoryPanel: React.FC<HermesMemoryPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const drafts = useHermesMemoryDrafts();
-  const activeTab = drafts.active;
   const fallbackOpenWebUI = useOpenHermesWebUI();
   const openWebUI = onOpenWebUI ?? fallbackOpenWebUI;
   const { data: limits } = useHermesMemoryLimits(true);
@@ -281,70 +284,72 @@ const HermesMemoryPanel: React.FC<HermesMemoryPanelProps> = ({
   const enabledOf = (kind: HermesMemoryKind) =>
     (kind === "memory" ? limits?.memoryEnabled : limits?.userEnabled) ?? true;
 
-  // 两份记忆是两份文件、换的是整块内容：用二级下划线页签。两个面板都保持挂载，
-  // 草稿也各存一份，切过去再切回来不会丢掉还没保存的修改；有未保存修改的那份
-  // 页签上带一个小圆点。
+  // 两份记忆并排（窄窗口上下排）：不用来回切页签，各自保存。草稿各存一份；
+  // 有未保存修改的那份标题旁带一个小圆点。
   return (
-    <div className="flex min-h-full flex-col gap-3 px-6 pb-2 pt-3">
-      <PageTabs
-        size="sm"
-        aria-label={t("hermes.memory.fileTabs")}
-        idPrefix="hermes-memory"
-        value={activeTab}
-        onValueChange={(kind) => hermesMemoryDrafts.setActive(kind)}
-        className="shrink-0"
-        items={KINDS.map((kind) => ({
-          value: kind,
-          label: (
-            <>
-              <span>{t(KIND_META[kind].nameKey)}</span>
-              <span className="font-mono text-badge font-normal text-fg-3">
-                {KIND_META[kind].file}
-              </span>
-              {isHermesMemoryDirty(drafts, kind) && (
-                <span
-                  role="img"
-                  aria-label={t("hermes.memory.unsaved")}
-                  title={t("hermes.memory.unsaved")}
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
-                />
-              )}
-            </>
-          ),
-        }))}
-        trailing={
-          <Button
-            variant="quiet"
-            size="compact"
-            className="text-fg-2"
-            onClick={() => void openWebUI("/config")}
-          >
-            {t("hermes.memory.openConfig")}
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        }
-      />
-
-      {KINDS.map((kind) => (
-        <div
-          key={kind}
-          role="tabpanel"
-          id={`hermes-memory-panel-${kind}`}
-          aria-labelledby={`hermes-memory-${kind}`}
-          hidden={activeTab !== kind}
-          className={cn(
-            "min-h-0 flex-1 flex-col",
-            activeTab === kind ? "flex" : "hidden",
-          )}
+    <div className="flex min-h-full flex-col gap-3 px-6 pb-4 pt-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <p className="m-0 text-body text-fg-2">{t("hermes.memory.intro")}</p>
+        <Button
+          variant="quiet"
+          size="compact"
+          className="text-fg-2"
+          onClick={() => void openWebUI("/config")}
         >
-          <MemoryTabPane
-            kind={kind}
-            limit={limitOf(kind)}
-            enabled={enabledOf(kind)}
-            configDir={configDir}
-          />
-        </div>
-      ))}
+          {t("hermes.memory.openConfig")}
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
+        {KINDS.map((kind) => {
+          const name = t(KIND_META[kind].nameKey);
+          return (
+            <section
+              key={kind}
+              data-testid={`hermes-memory-${kind}`}
+              aria-labelledby={`hermes-memory-title-${kind}`}
+              onFocusCapture={() => hermesMemoryDrafts.setActive(kind)}
+              className="flex min-h-[360px] min-w-0 flex-col gap-3 rounded-panel border border-border bg-surface p-4"
+            >
+              <div className="flex shrink-0 items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <h2
+                    id={`hermes-memory-title-${kind}`}
+                    className="m-0 flex items-center gap-2 text-section text-fg-1"
+                  >
+                    <span>{name}</span>
+                    <span className="font-mono text-badge font-normal text-fg-3">
+                      {KIND_META[kind].file}
+                    </span>
+                    {isHermesMemoryDirty(drafts, kind) && (
+                      <span
+                        role="img"
+                        aria-label={t("hermes.memory.unsaved")}
+                        title={t("hermes.memory.unsaved")}
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+                      />
+                    )}
+                  </h2>
+                  <span className="text-caption text-fg-2">
+                    {t(KIND_META[kind].descKey)}
+                  </span>
+                </div>
+                <HermesMemorySaveButton
+                  kind={kind}
+                  label={t("hermes.memory.saveOne", { name })}
+                />
+              </div>
+              <MemoryTabPane
+                kind={kind}
+                limit={limitOf(kind)}
+                enabled={enabledOf(kind)}
+                configDir={configDir}
+              />
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 };

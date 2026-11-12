@@ -268,7 +268,6 @@ describe("App integration with MSW", () => {
     APP_TEST_TIMEOUT,
   );
 
-
   it("renders the Skills page with its own header", async () => {
     const { default: App } = await import("@/App");
     await renderAppReady(App);
@@ -329,26 +328,26 @@ describe("App integration with MSW", () => {
       "appPage.memory",
     ]);
 
-    // 记忆页：页头的 solid 主操作换成「保存」，两份记忆用二级页签
+    // 记忆页（2026-11 改版）：两份记忆并排、各自保存，页头不再放保存
     fireEvent.click(hermesPageTabs[1]);
     const header = document.querySelector("header") as HTMLElement;
-    const save = await within(header).findByRole("button", {
-      name: "common.save",
-      hidden: true,
-    });
-    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(header).queryByRole("button", {
+        name: "common.save",
+        hidden: true,
+      }),
+    ).not.toBeInTheDocument();
     expect(
       within(header).queryByRole("button", {
         name: /provider.addProvider/,
         hidden: true,
       }),
     ).not.toBeInTheDocument();
-    const memoryTabs = await screen.findByRole("tablist", {
-      name: "hermes.memory.fileTabs",
-      hidden: true,
-    });
     expect(
-      within(memoryTabs).getAllByRole("tab", { hidden: true }),
+      await screen.findAllByRole("button", {
+        name: "hermes.memory.saveOne",
+        hidden: true,
+      }),
     ).toHaveLength(2);
     await waitFor(() =>
       expect(

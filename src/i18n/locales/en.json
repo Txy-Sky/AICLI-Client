@@ -2028,7 +2028,9 @@
       "remaining": "{{remaining}} of {{limit}} characters remaining",
       "overLimitBy": "{{over}} characters over the limit — Hermes will truncate on next load",
       "toggledOn": "{{name}} enabled. Takes effect when Hermes restarts or starts a new session.",
-      "toggledOff": "{{name}} disabled. Takes effect when Hermes restarts or starts a new session."
+      "toggledOff": "{{name}} disabled. Takes effect when Hermes restarts or starts a new session.",
+      "intro": "Hermes keeps its own notes. See what it wrote down here and fix anything it got wrong.",
+      "saveOne": "Save {{name}}"
     }
   },
   "env": {
@@ -3558,6 +3560,18 @@
         "TERM": "Custom word",
         "CUSTOM": "Custom rule"
       }
+    },
+    "accountSettings": {
+      "title": "Account",
+      "boundHere": "Bound on this computer · {{remaining}} remaining",
+      "changeToken": "Use another token",
+      "unbind": "Unbind",
+      "unbindNote": "Before unbinding, taken-over clients are restored to their own configuration.",
+      "confirmTitle": "Unbind this computer",
+      "confirmBody": "Taken-over clients are restored to their own configuration first, then the token and account data on this computer are cleared. Local request records are kept. Paste a token again whenever you want to use it.",
+      "deleteTokens": "Also delete the tokens AICLI Client created in your account",
+      "deleteTokensHint": "Other computers bound to the same account use these tokens too and would have to create them again. Leave this unticked if unsure.",
+      "unbindFailed": "Unbinding didn't finish: {{message}}"
     }
   }
 }

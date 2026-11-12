@@ -2028,7 +2028,9 @@
       "remaining": "剩余 {{remaining}} / {{limit}} 字符",
       "overLimitBy": "超出上限 {{over}} 字符，Hermes 下次加载时会截断",
       "toggledOn": "已启用 {{name}}，Hermes 下次启动或新建会话时生效。",
-      "toggledOff": "已停用 {{name}}，Hermes 下次启动或新建会话时生效。"
+      "toggledOff": "已停用 {{name}}，Hermes 下次启动或新建会话时生效。",
+      "intro": "Hermes 会自己记笔记。在这里看它记了什么，改掉记错的。",
+      "saveOne": "保存{{name}}"
     }
   },
   "env": {
@@ -3558,6 +3560,18 @@
         "TERM": "自定义词",
         "CUSTOM": "自定义规则"
       }
+    },
+    "accountSettings": {
+      "title": "账户",
+      "boundHere": "已绑定这台电脑 · 剩余额度 {{remaining}}",
+      "changeToken": "换一个令牌",
+      "unbind": "解除绑定",
+      "unbindNote": "解除绑定前，已接管的客户端会先还原成原来的配置。",
+      "confirmTitle": "解除这台电脑的绑定",
+      "confirmBody": "已接管的客户端会先还原成原来的配置，再清掉这台电脑上的令牌和账户数据。本机的请求记录会保留。之后要用时重新粘贴令牌即可。",
+      "deleteTokens": "同时删除 AICLI Client 在你账户里创建的令牌",
+      "deleteTokensHint": "其他电脑如果绑定的是同一个账户，也在用这些令牌，删掉后它们需要重新创建。不确定就别勾。",
+      "unbindFailed": "解除绑定没有完成：{{message}}"
     }
   }
 }

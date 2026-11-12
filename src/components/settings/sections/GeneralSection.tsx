@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { isLinux } from "@/lib/platform";
 import { TerminalSelect } from "@/components/settings/TerminalSettings";
+import { AicliAccountSettings } from "@/components/aicli/AicliAccountSettings";
 import {
   SettingsBlock,
   SettingsCard,
@@ -46,6 +47,7 @@ export function GeneralSection({
 
   return (
     <>
+      <AicliAccountSettings />
       <SettingsBlock title={t("settings.general.appearance")}>
         <SettingsCard>
           <SettingsRow

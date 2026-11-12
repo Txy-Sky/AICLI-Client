@@ -78,9 +78,7 @@ import EnvPanel from "@/components/openclaw/EnvPanel";
 import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
-import HermesMemoryPanel, {
-  HermesMemorySaveButton,
-} from "@/components/hermes/HermesMemoryPanel";
+import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 import {
   APP_IDS,
   DEFAULT_VISIBLE_APPS,
@@ -765,8 +763,8 @@ function App() {
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
           )}
-          {/* F-04：客户端页没有供应商列表，页头不再放搜索和「添加供应商」 */}
-          {currentView === "hermesMemory" && <HermesMemorySaveButton />}
+          {/* F-04：客户端页没有供应商列表，页头不再放搜索和「添加供应商」；
+              Hermes 记忆页的保存在两份记忆各自的面板里（2026-11 改版） */}
           {appMenu}
         </>
       }

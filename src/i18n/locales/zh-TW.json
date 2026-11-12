@@ -2029,7 +2029,9 @@
       "remaining": "剩餘 {{remaining}} / {{limit}} 字元",
       "overLimitBy": "超出上限 {{over}} 字元，Hermes 下次載入時會截斷",
       "toggledOn": "已啟用 {{name}}，Hermes 下次啟動或建立新工作階段時生效。",
-      "toggledOff": "已停用 {{name}}，Hermes 下次啟動或建立新工作階段時生效。"
+      "toggledOff": "已停用 {{name}}，Hermes 下次啟動或建立新工作階段時生效。",
+      "intro": "Hermes 會自己記筆記。在這裡看它記了什麼，改掉記錯的。",
+      "saveOne": "儲存{{name}}"
     }
   },
   "env": {
@@ -3559,6 +3561,18 @@
         "TERM": "自訂詞",
         "CUSTOM": "自訂規則"
       }
+    },
+    "accountSettings": {
+      "title": "帳戶",
+      "boundHere": "已綁定這台電腦 · 剩餘額度 {{remaining}}",
+      "changeToken": "換一個權杖",
+      "unbind": "解除綁定",
+      "unbindNote": "解除綁定前，已接管的用戶端會先還原成原來的設定。",
+      "confirmTitle": "解除這台電腦的綁定",
+      "confirmBody": "已接管的用戶端會先還原成原來的設定，再清掉這台電腦上的權杖和帳戶資料。本機的請求記錄會保留。之後要用時重新貼上權杖即可。",
+      "deleteTokens": "同時刪除 AICLI Client 在你帳戶裡建立的權杖",
+      "deleteTokensHint": "其他電腦如果綁定的是同一個帳戶，也在用這些權杖，刪掉後它們需要重新建立。不確定就別勾。",
+      "unbindFailed": "解除綁定沒有完成：{{message}}"
     }
   }
 }
