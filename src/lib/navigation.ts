@@ -5,9 +5,11 @@ import type { AppId } from "@/lib/api";
  *
  * - 客户端（F-08）：侧栏只有一个「客户端」入口，进入客户端总览；点卡片进入单个应用的
  *   客户端页，OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
- * - 全局页：客户端总览、用量统计（首页）、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
+ * - 全局页（2026-11 改版，负责人同意改 F-02/F-03/F-10 的口径）：首页（AICLI 账户与请求链路）、
+ *   客户端总览、用量（本机统计）、隐私脱敏、配置集，以及 MCP、Skills、提示词、会话，每样只出现一次。
+ *   「应用」（安装与升级）不在侧栏，从客户端页进入。
  * - 设置：侧栏换成设置目录，6 个分组。
- * - 冷启动恒进用量页（F-02）：不再记住上次停留的页面。
+ * - 冷启动恒进首页（F-02）：不再记住上次停留的页面。
  */
 
 export type AppPage =
@@ -17,9 +19,11 @@ export type AppPage =
   | "hermesMemory";
 
 export type GlobalPage =
+  | "home"
   | "clients"
   | "privacy"
   | "usage"
+  | "profiles"
   | "mcp"
   | "skills"
   | "skillsDiscovery"
@@ -54,9 +58,11 @@ const APP_PAGES: AppPage[] = [
 ];
 
 const GLOBAL_PAGES: GlobalPage[] = [
+  "home",
   "clients",
   "privacy",
   "usage",
+  "profiles",
   "mcp",
   "skills",
   "skillsDiscovery",
@@ -65,20 +71,20 @@ const GLOBAL_PAGES: GlobalPage[] = [
   "apps",
 ];
 
-/** 旧版存过的上次视图的键；F-02 起不再读写（冷启动恒进用量页）。 */
+/** 旧版存过的上次视图的键；F-02 起不再读写（冷启动恒进首页）。 */
 export const VIEW_STORAGE_KEY = "aicli-client-last-view";
 export const APP_STORAGE_KEY = "aicli-client-last-app";
 
 /**
  * 旧版视图名 → 新视图：OpenClaw 的三个配置页合成了一个；供应商页、授权中心
- * 在 AICLI 客户端里不再存在，落到用量首页。
+ * 在 AICLI 客户端里不再存在，落到首页。
  */
 const LEGACY_VIEWS: Record<string, View> = {
   openclawEnv: "openclawConfig",
   openclawTools: "openclawConfig",
   openclawAgents: "openclawConfig",
-  providers: "usage",
-  auth: "usage",
+  providers: "home",
+  auth: "home",
 };
 
 export function isAppPage(view: View): view is AppPage {
@@ -112,11 +118,11 @@ export function appPageBelongsTo(page: AppPage, app: AppId): boolean {
 }
 
 /**
- * 冷启动的视图：恒为用量首页（F-02），不论 localStorage 里存过什么旧值。
+ * 冷启动的视图：恒为首页（F-02），不论 localStorage 里存过什么旧值。
  * 运行期切页不持久化。
  */
 export function readStoredView(): View {
-  return "usage";
+  return "home";
 }
 
 /**

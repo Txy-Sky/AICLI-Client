@@ -1096,6 +1096,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| F-02/F-03/F-10 → 界面改版（侧栏与首页） | F-02：`readStoredView()` 恒返回 `"usage"`，旧名映射到 `usage`。F-03：`AicliHome` 作为 `usage` 页。F-10：首页账户面板与本机统计同一滚动区。 | 新增全局页 `home`（AICLI 账户面板、请求链路、异常提示）和 `profiles`（配置集管理）；冷启动和旧名 `providers`、`auth` 改为进 `home`；`usage` 只放本机统计（`UsagePage`，标注「来源：本机记录」）。侧栏为首页、客户端、用量、隐私脱敏、配置集 / MCP、Skills、提示词、会话 / 设置；「应用」从侧栏移除，从客户端页进入，工具有更新时在「客户端」上打点。深链 `aicli-open-bind` 回到首页。 | 负责人 2026-11-12 同意按界面改版设计稿拆分侧栏（`docs/aicli-ui-redesign-deviations-zh.md`）。 |
+| F-04 → 界面改版（客户端页模型表） | 模型表列出模型名、配置集、线路、兼容级别、能力标签。 | 模型表为模型、首选分组与倍率、兼容级别、能力标签；配置集和线路每行都一样，放在表上方的「配置集」「请求现在走」两张卡片里。 | 负责人 2026-11-12 同意。 |
 | J-02（先开放按钮再做真实客户端验收） | 真实客户端不通过的客户端在 UI 中显示「暂不支持」，不提供接管按钮。 | 真实 OpenCode 验收之前就把 OpenCode 加入界面的可接管列表。验收不通过时撤掉按钮并从 `aicli/tier.rs` 的 `TIER2_SUPPORTED` 去掉。 | 负责人 2026-11-11 决定：测试机需要通过界面触发接管才能做验收。 |
 | J-02（Tier 2 的接管路径） | 用种子 Provider 通过 `write_live_snapshot`（或专用入口）写入；接管和还原走 C3-10 的同一套。 | Tier 2 没有路由模式也没有种子 Provider 行，不经模式控制器和 `write_live_snapshot`：直接用 `opencode_config::set_provider_with_format` 写一个 `aicli` 提供方（Chat Completions，`/app/opencode/v1`，本地令牌）；备份、状态机、逐字节还原与 C3-10 共用。新增 `aicli/tier.rs`；已接管的 Tier 2 客户端让代理保持运行，启动和配置集变化时刷新写入内容。不改用户的默认模型。 | 模式控制器只支持有路由模式的 5 个应用；`aicli/seed.rs` 对 Tier 2 应用没有种子行（J-01 按协议借用 Tier 1 的种子）。 |
 | J-01（适配器选择方式） | 对 `get_adapter` 返回 None 的 app，AICLI 路径按协议选适配器。 | 没有改 `get_adapter`。`/app/:client` 请求整条转发链路使用承载协议的 Tier 1 应用（anthropic → Claude，openai/responses → Codex，gemini → Gemini）及其种子 Provider，client 只作为身份（配置集绑定、会话固定、别名）和统计的 `app_type`。OpenCode、OpenClaw、Hermes 在该入口下同样按协议选适配器，不固定用 Codex 适配器。 | 转发器、凭证注入、整流等大量逻辑按 `AppType` 分支，只换适配器不够；按协议承载与清单「路径决定协议」一致。 |

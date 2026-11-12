@@ -12,8 +12,9 @@ import {
   Folder,
   Globe,
   History,
+  House,
   Info,
-  LayoutGrid,
+  Layers,
   MonitorSmartphone,
   Route,
   ShieldCheck,
@@ -41,7 +42,10 @@ import {
   type SidebarTodayItem,
 } from "@/components/usage/format";
 import { useSidebarStatus } from "@/hooks/useSidebarStatus";
-import { useAicliTakeoverStatus } from "@/hooks/useAicliProfiles";
+import {
+  useAicliProfiles,
+  useAicliTakeoverStatus,
+} from "@/hooks/useAicliProfiles";
 import { useAicliPrivacy } from "@/hooks/useAicliAccount";
 import { useAicliPrivacySummary } from "@/hooks/useAicliPrivacyRecords";
 import { useProxyStatusQuery } from "@/lib/query/proxy";
@@ -233,6 +237,7 @@ function MainDirectory({
   const { data: proxyStatus } = useProxyStatusQuery();
   const privacyOn = useAicliPrivacy().data?.privacy_enabled ?? false;
   const privacySummary = useAicliPrivacySummary(1, privacyOn).data;
+  const profilesView = useAicliProfiles().data;
   const privacyToday = privacySummary?.total_values ?? 0;
 
   // 选了的项里是 0 的不写（没配定价时金额总是 0）；命中率在今天还没有请求时不写；
@@ -286,8 +291,19 @@ function MainDirectory({
     trailing?: string | string[];
     trailingLabel?: string;
     alert?: string;
+    dot?: boolean;
+    title?: string;
   };
+  // 2026-11 改版（设计稿各页的侧栏）：首页、客户端、用量、隐私脱敏、配置集；
+  //「应用」（安装与升级）并入客户端页，侧栏少一项，工具有更新时在「客户端」上打点
+  const profileCount =
+    (profilesView?.profiles.length ?? 0) + (profilesView?.presets.length ?? 0);
   const primary: GlobalItem[] = [
+    {
+      page: "home",
+      label: t("nav.home"),
+      icon: House,
+    },
     {
       page: "clients",
       label: t("nav.clients"),
@@ -298,6 +314,8 @@ function MainDirectory({
           ? t("nav.clientsActive", { count: activeTakeovers })
           : undefined,
       alert: clientsNeedAttention ? t("nav.needsAttention") : undefined,
+      dot: appsUpdateAvailable,
+      title: appsUpdateAvailable ? t("nav.appsHasUpdate") : undefined,
     },
     {
       page: "usage",
@@ -320,6 +338,15 @@ function MainDirectory({
           ? t("nav.privacyToday", { count: privacyToday })
           : undefined,
     },
+    {
+      page: "profiles",
+      label: t("nav.profiles"),
+      icon: Layers,
+      trailing:
+        profileCount > 0
+          ? t("nav.profilesCount", { count: profileCount })
+          : undefined,
+    },
   ];
   const secondary: GlobalItem[] = [
     { page: "mcp", label: "MCP", icon: Server },
@@ -331,7 +358,7 @@ function MainDirectory({
   const isGlobalSelected = (page: GlobalPage) =>
     view === page ||
     (page === "skills" && view === "skillsDiscovery") ||
-    (page === "clients" && isAppPage(view));
+    (page === "clients" && (isAppPage(view) || view === "apps"));
 
   const renderItem = (item: GlobalItem) => (
     <NavItem
@@ -343,6 +370,8 @@ function MainDirectory({
       trailing={item.trailing}
       trailingLabel={item.trailingLabel}
       alert={item.alert}
+      dot={item.dot}
+      title={item.title}
       onClick={() => onSelectPage(item.page)}
     />
   );
@@ -379,25 +408,12 @@ function MainDirectory({
       <div
         className={cn(
           "flex shrink-0 pb-2",
-          // 收起时竖排，和上面全局项一样无间隙
-          collapsed ? "flex-col" : "gap-1 px-2",
+          // 收起时竖排，和上面全局项一样无间隙；只剩「设置」一项，占满一行
+          "flex-col",
         )}
       >
         <NavItem
           collapsed={collapsed}
-          compact={!collapsed}
-          selected={view === "apps"}
-          icon={LayoutGrid}
-          label={t("nav.apps")}
-          title={
-            appsUpdateAvailable ? t("nav.appsHasUpdate") : t("nav.appsTitle")
-          }
-          dot={appsUpdateAvailable}
-          onClick={() => onSelectPage("apps")}
-        />
-        <NavItem
-          collapsed={collapsed}
-          compact={!collapsed}
           selected={false}
           icon={Settings}
           label={t("nav.settings")}

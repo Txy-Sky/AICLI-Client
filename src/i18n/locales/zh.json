@@ -2485,7 +2485,7 @@
     "today": "今日 {{value}}",
     "todayRequests": "{{value}} 次",
     "todayHitRate": "命中 {{value}}",
-    "usage": "用量统计",
+    "usage": "用量",
     "auth": "授权中心",
     "authNeedsReauth": "有账号需要重新登录",
     "prompts": "提示词",
@@ -2504,7 +2504,10 @@
     "clients": "客户端",
     "clientsActive": "已接管 {{count}} 个客户端",
     "privacy": "隐私脱敏",
-    "privacyToday": "今天脱敏 {{count}} 处"
+    "privacyToday": "今天脱敏 {{count}} 处",
+    "home": "首页",
+    "profiles": "配置集",
+    "profilesCount": "{{count}} 份"
   },
   "appsPage": {
     "showInSidebar": "在客户端页显示 {{name}}",
@@ -3334,7 +3337,8 @@
       "landingModels": "{{count}} 个模型走这个分组",
       "landingCheaper": "其中 {{count}} 个模型在排在后面的 {{group}} 里只要 ×{{ratio}}。把它移到前面，这些模型改按 ×{{ratio}} 计。",
       "landingMoveUp": "把 {{group}} 移到前面",
-      "landingNote": "只算每个模型的首选来源，实际扣费以服务端为准。"
+      "landingNote": "只算每个模型的首选来源，实际扣费以服务端为准。",
+      "backToList": "返回全部配置集"
     },
     "settings": {
       "linesTitle": "AICLI 线路",

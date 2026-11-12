@@ -22,14 +22,14 @@ describe("navigation (F-02)", () => {
     "skillsDiscovery",
     "settings",
     "garbage",
-  ])("cold start is always usage (stored %s)", (stored) => {
+  ])("cold start is always home (stored %s)", (stored) => {
     if (stored !== null) localStorage.setItem(VIEW_STORAGE_KEY, stored);
-    expect(readStoredView()).toBe("usage");
+    expect(readStoredView()).toBe("home");
   });
 
   it("maps legacy view names", () => {
-    expect(parseView("providers")).toBe("usage");
-    expect(parseView("auth")).toBe("usage");
+    expect(parseView("providers")).toBe("home");
+    expect(parseView("auth")).toBe("home");
     expect(parseView("openclawEnv")).toBe("openclawConfig");
     expect(parseView("client")).toBe("client");
     expect(parseView("usage")).toBe("usage");
@@ -39,6 +39,9 @@ describe("navigation (F-02)", () => {
   it("renames the app page to client and drops the auth page", () => {
     expect(isAppPage("client")).toBe(true);
     expect(isGlobalPage("usage")).toBe(true);
+    // 2026-11 改版：首页、配置集是单独的全局页
+    expect(isGlobalPage("home")).toBe(true);
+    expect(isGlobalPage("profiles")).toBe(true);
     // 「auth」不再是全局页（类型上也删了）
     expect(isGlobalPage("auth" as never)).toBe(false);
   });

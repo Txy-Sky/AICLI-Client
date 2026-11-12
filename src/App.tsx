@@ -47,6 +47,8 @@ import {
   useToolUpdatesAvailable,
 } from "@/components/apps/useToolManagement";
 import { AicliHome } from "@/components/aicli/AicliHome";
+import { AicliProfilesPanel } from "@/components/aicli/profiles/AicliProfilesPanel";
+import { UsagePage } from "@/components/usage/UsagePage";
 import { AicliClientPage } from "@/components/aicli/AicliClientPage";
 import { AicliClientsPage } from "@/components/aicli/clients/AicliClientsPage";
 import { AicliPrivacyPage } from "@/components/aicli/privacy/AicliPrivacyPage";
@@ -185,7 +187,7 @@ function App() {
   useAicliLineChanged();
   useTauriEvent(AICLI_EVENTS.openBind, () => {
     const navigate = () => {
-      setCurrentView("usage");
+      setCurrentView("home");
       setAicliBindRequest((count) => count + 1);
     };
     // 与托盘导航一致：编辑页有未保存修改时先确认
@@ -864,7 +866,7 @@ function App() {
           return (
             <AicliClientPage
               app={activeApp}
-              onOpenHome={() => openPage("usage")}
+              onOpenHome={() => openPage("home")}
               onOpenSessions={() => openPage("sessions")}
               onOpenUsage={
                 activeUsageApp
@@ -908,15 +910,25 @@ function App() {
         );
       case "privacy":
         return <AicliPrivacyPage />;
-      case "usage":
+      case "home":
         return (
           <AicliHome
-            initialAppType={usageAppFilter}
-            onOpenRoutingSettings={() => openSettings("routing")}
+            onOpenProfiles={() => openPage("profiles")}
             onOpenPrivacy={() => openPage("privacy")}
             onOpenClients={() => openPage("clients")}
           />
         );
+      case "usage":
+        // 2026-11 改版：本机统计是单独的「用量」页，余额和服务端每日消耗在首页
+        return (
+          <UsagePage
+            initialAppType={usageAppFilter}
+            onOpenRoutingSettings={() => openSettings("routing")}
+            sourceNote={t("aicli.local.source")}
+          />
+        );
+      case "profiles":
+        return <AicliProfilesPanel variant="page" />;
       case "mcp":
         return (
           <UnifiedMcpPanel onInteractionBlockedChange={setMcpManagementBusy} />

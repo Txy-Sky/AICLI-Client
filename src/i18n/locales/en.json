@@ -2504,7 +2504,10 @@
     "clients": "Clients",
     "clientsActive": "{{count}} clients taken over",
     "privacy": "Privacy",
-    "privacyToday": "{{count}} values masked today"
+    "privacyToday": "{{count}} values masked today",
+    "home": "Home",
+    "profiles": "Profiles",
+    "profilesCount": "{{count}}"
   },
   "appsPage": {
     "showInSidebar": "Show {{name}} on the Clients page",
@@ -3334,7 +3337,8 @@
       "landingModels": "{{count}} models go through this group",
       "landingCheaper": "{{count}} of them are also in {{group}}, further down, at only ×{{ratio}}. Move it up and they are billed at ×{{ratio}}.",
       "landingMoveUp": "Move {{group}} up",
-      "landingNote": "Counts each model's first-choice source only. Actual charges are decided by the server."
+      "landingNote": "Counts each model's first-choice source only. Actual charges are decided by the server.",
+      "backToList": "Back to all profiles"
     },
     "settings": {
       "linesTitle": "AICLI lines",

@@ -2504,7 +2504,10 @@
     "clients": "İstemciler",
     "clientsActive": "{{count}} istemci devralındı",
     "privacy": "Gizlilik",
-    "privacyToday": "Bugün {{count}} değer maskelendi"
+    "privacyToday": "Bugün {{count}} değer maskelendi",
+    "home": "Ana sayfa",
+    "profiles": "Yapılandırma setleri",
+    "profilesCount": "{{count}}"
   },
   "appsPage": {
     "showInSidebar": "{{name}} uygulamasını İstemciler sayfasında göster",
@@ -3330,7 +3333,8 @@
       "landingModels": "{{count}} model bu grubu kullanır",
       "landingCheaper": "Bunlardan {{count}} tanesi daha aşağıdaki {{group}} grubunda da var ve orada yalnızca ×{{ratio}}. Onu öne alırsanız ×{{ratio}} üzerinden hesaplanır.",
       "landingMoveUp": "{{group}} grubunu öne al",
-      "landingNote": "Yalnızca her modelin ilk tercih edilen kaynağı sayılır. Gerçek ücreti sunucu belirler."
+      "landingNote": "Yalnızca her modelin ilk tercih edilen kaynağı sayılır. Gerçek ücreti sunucu belirler.",
+      "backToList": "Tüm setlere dön"
     },
     "settings": {
       "linesTitle": "AICLI hatları",

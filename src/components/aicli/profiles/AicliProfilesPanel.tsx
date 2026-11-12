@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CopyPlus, Pencil, PiggyBank, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  CopyPlus,
+  Layers,
+  Pencil,
+  PiggyBank,
+  Sparkles,
+} from "lucide-react";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
+import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { Button } from "@/components/ui/button";
 import { HoverTip } from "@/components/ui/hover-tip";
 import { fieldClass } from "@/components/ui/input";
@@ -36,8 +44,12 @@ import { copyPreset, diffModelLists, newProfileId } from "./profileModel";
 import { aicliPresetDescription, aicliProfileName } from "./profileName";
 
 interface AicliProfilesPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
+  /** variant="page" 时忽略 */
+  isOpen?: boolean;
+  /** 二级页的返回；variant="page" 时只在编辑中用不到 */
+  onClose?: () => void;
+  /** panel：从首页 / 客户端页打开的二级页；page：侧栏「配置集」页 */
+  variant?: "panel" | "page";
 }
 
 type DiffTarget = { preset: AicliProfile; against: AicliRouteProfile | null };
@@ -49,10 +61,12 @@ type DiffTarget = { preset: AicliProfile; against: AicliRouteProfile | null };
  * 不进入此页也能正常使用（默认推荐预设）。
  */
 export function AicliProfilesPanel({
-  isOpen,
-  onClose,
+  isOpen: isOpenProp = false,
+  onClose = () => undefined,
+  variant = "panel",
 }: AicliProfilesPanelProps) {
   const { t } = useTranslation();
+  const isOpen = variant === "page" || isOpenProp;
   const profiles = useAicliProfiles(isOpen);
   const routes = useAicliRoutes(isOpen);
   const catalog = useAicliCatalog(isOpen);
@@ -432,19 +446,15 @@ export function AicliProfilesPanel({
     );
   };
 
-  return (
-    <FullScreenPanel
-      isOpen={isOpen}
-      title={
-        editing
-          ? aicliProfileName(t, editing) || t("aicli.profiles.title")
-          : t("aicli.profiles.title")
-      }
-      onClose={() => {
-        if (editing) setEditing(null);
-        else onClose();
-      }}
-    >
+  const title = editing
+    ? aicliProfileName(t, editing) || t("aicli.profiles.title")
+    : t("aicli.profiles.title");
+  const back = () => {
+    if (editing) setEditing(null);
+    else onClose();
+  };
+  const content = (
+    <>
       <div
         className="flex flex-col gap-6 px-6 pb-10 pt-4"
         data-testid="aicli-profiles-panel"
@@ -578,6 +588,43 @@ export function AicliProfilesPanel({
           )}
         </DialogContent>
       </Dialog>
+    </>
+  );
+
+  // 侧栏「配置集」页（2026-11 改版）：页头 + 滚动区；编辑某份时页头左侧给返回
+  if (variant === "page") {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <AppPageHeader
+          icon={<Layers className="h-5 w-5" strokeWidth={1.5} />}
+          leading={
+            editing ? (
+              <Button
+                variant="quiet"
+                size="icon-compact"
+                className="h-8 w-8"
+                aria-label={t("aicli.profiles.backToList")}
+                onClick={back}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : undefined
+          }
+          title={title}
+        />
+        <div
+          id="main-content"
+          className="min-h-0 flex-1 overflow-y-auto scroll-stable"
+        >
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <FullScreenPanel isOpen={isOpen} title={title} onClose={back}>
+      {content}
     </FullScreenPanel>
   );
 }

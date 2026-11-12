@@ -105,7 +105,7 @@ vi.mock("@/components/mcp/UnifiedMcpPanel", async () => {
 });
 
 /** 侧栏里的应用行（v7 侧栏取代了原来页头的应用切换器） */
-const sidebarApp = (name: string) =>
+const sidebarApp = (name: string | RegExp) =>
   // 首次启动提示是模态对话框，会把侧栏标成 aria-hidden，所以带上 hidden
   within(document.querySelector("nav") as HTMLElement).getByRole("button", {
     name,
@@ -369,14 +369,14 @@ describe("App integration with MSW", () => {
     "mcp",
     "settings",
   ])(
-    "cold-starts on the usage page whatever view was stored (%s)",
+    "cold-starts on the home page whatever view was stored (%s)",
     async (stored) => {
       localStorage.setItem("aicli-client-last-view", stored);
       const { default: App } = await import("@/App");
       await renderAppReady(App);
 
       await waitFor(() =>
-        expect(sidebarApp("nav.usage")).toHaveAttribute("aria-current", "page"),
+        expect(sidebarApp("nav.home")).toHaveAttribute("aria-current", "page"),
       );
       expect(screen.queryByTestId("provider-list")).not.toBeInTheDocument();
       expect(
@@ -385,6 +385,35 @@ describe("App integration with MSW", () => {
       expect(screen.queryByTestId("settings-page")).not.toBeInTheDocument();
     },
   );
+
+  // 2026-11 改版：侧栏是首页、客户端、用量、隐私脱敏、配置集；「应用」并入客户端页
+  it("lists home, usage and profiles as their own pages and folds apps into clients", async () => {
+    const { default: App } = await import("@/App");
+    await renderAppReady(App);
+    expect(await screen.findByTestId("aicli-home")).toBeInTheDocument();
+    const nav = document.querySelector("nav") as HTMLElement;
+    expect(
+      within(nav).queryByRole("button", { name: /^nav\.apps/, hidden: true }),
+    ).not.toBeInTheDocument();
+
+    // 行尾带「N 份」，名字以 nav.profiles 开头
+    fireEvent.click(sidebarApp(/^nav\.profiles/));
+    expect(
+      await screen.findByTestId("aicli-profiles-panel"),
+    ).toBeInTheDocument();
+    expect(sidebarApp(/^nav\.profiles/)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    fireEvent.click(sidebarApp("nav.usage"));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("aicli-profiles-panel"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("aicli-home")).not.toBeInTheDocument();
+  });
 
   // F-07：未绑定时只出现绑定对话框，主界面（侧栏、页面）不渲染
   it("shows only the bind dialog while the account is not bound", async () => {

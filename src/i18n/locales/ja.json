@@ -2504,7 +2504,10 @@
     "clients": "クライアント",
     "clientsActive": "{{count}} 個のクライアントを引き継ぎ中",
     "privacy": "プライバシー",
-    "privacyToday": "今日 {{count}} 件をマスク"
+    "privacyToday": "今日 {{count}} 件をマスク",
+    "home": "ホーム",
+    "profiles": "構成セット",
+    "profilesCount": "{{count}} 個"
   },
   "appsPage": {
     "showInSidebar": "{{name}} をクライアントページに表示",
@@ -3334,7 +3337,8 @@
       "landingModels": "{{count}} 個のモデルがこのグループを使います",
       "landingCheaper": "このうち {{count}} 個は後ろにある {{group}} にもあり、そちらは ×{{ratio}} です。前に移すと ×{{ratio}} で計算されます。",
       "landingMoveUp": "{{group}} を前に移す",
-      "landingNote": "各モデルの第一候補だけを数えています。実際の課金はサーバー側で決まります。"
+      "landingNote": "各モデルの第一候補だけを数えています。実際の課金はサーバー側で決まります。",
+      "backToList": "すべての構成セットに戻る"
     },
     "settings": {
       "linesTitle": "AICLI 回線",

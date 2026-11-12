@@ -2486,7 +2486,7 @@
     "today": "今日 {{value}}",
     "todayRequests": "{{value}} 次",
     "todayHitRate": "命中 {{value}}",
-    "usage": "用量統計",
+    "usage": "用量",
     "auth": "授權中心",
     "authNeedsReauth": "有帳號需要重新登入",
     "prompts": "提示詞",
@@ -2505,7 +2505,10 @@
     "clients": "客戶端",
     "clientsActive": "已接管 {{count}} 個客戶端",
     "privacy": "隱私遮蔽",
-    "privacyToday": "今天遮蔽 {{count}} 處"
+    "privacyToday": "今天遮蔽 {{count}} 處",
+    "home": "首頁",
+    "profiles": "設定集",
+    "profilesCount": "{{count}} 份"
   },
   "appsPage": {
     "showInSidebar": "在客戶端頁顯示 {{name}}",
@@ -3335,7 +3338,8 @@
       "landingModels": "{{count}} 個模型走這個群組",
       "landingCheaper": "其中 {{count}} 個模型在排在後面的 {{group}} 裡只要 ×{{ratio}}。把它移到前面，這些模型改按 ×{{ratio}} 計。",
       "landingMoveUp": "把 {{group}} 移到前面",
-      "landingNote": "只算每個模型的首選來源，實際扣費以伺服端為準。"
+      "landingNote": "只算每個模型的首選來源，實際扣費以伺服端為準。",
+      "backToList": "返回全部設定集"
     },
     "settings": {
       "linesTitle": "AICLI 線路",

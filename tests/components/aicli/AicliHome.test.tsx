@@ -189,10 +189,8 @@ describe("AicliHome — bound", () => {
       await screen.findByText("aicli.profiles.presets.recommended.name"),
     ).toBeInTheDocument();
     expect(screen.queryByText("aicli.account.cached")).not.toBeInTheDocument();
-    // 本地统计标注来源（原未绑定用例里的断言，F-07 起首页只在已绑定时出现）
-    expect(screen.getByTestId("usage-source-note")).toHaveTextContent(
-      "aicli.local.source",
-    );
+    // 2026-11 改版：本机统计是单独的「用量」页，不再接在首页下面
+    expect(screen.queryByTestId("usage-page")).not.toBeInTheDocument();
   });
 
   it("renders the cached snapshot without waiting for other requests", async () => {
