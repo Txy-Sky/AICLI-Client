@@ -44,7 +44,7 @@
     --success: #16a34a; --success-text: #007634; --success-soft: #e8f7ee;
     --warning: #d97706; --warning-text: #a64a00; --warning-soft: #fef3c7;
     --danger: #dc2626;  --danger-text: #b91c1c;  --danger-soft: #fee2e2;
-    --chart-1: #0891b2; --chart-2: #db2777; --chart-grid: #ececf0;
+    --chart-1: #0d9488; --chart-2: #db2777; --chart-grid: #ececf0;
 
     --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
     --shadow-md: 0 4px 12px rgba(16, 24, 40, .08), 0 1px 3px rgba(16, 24, 40, .06);
@@ -75,7 +75,7 @@
       --success: #4ade80; --success-text: #4ade80; --success-soft: #0f2b1a;
       --warning: #e89040; --warning-text: #f0b072; --warning-soft: #3a2a17;
       --danger: #f87171;  --danger-text: #f5a3a3;  --danger-soft: #3b1d1d;
-      --chart-1: #38bdf8; --chart-2: #f472b6; --chart-grid: #2c2c31;
+      --chart-1: #2bd4c0; --chart-2: #f472b6; --chart-grid: #2c2c31;
       --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .4);
       --shadow-md: 0 4px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .4);
       --shadow-lg: 0 20px 40px rgba(0, 0, 0, .5), 0 4px 12px rgba(0, 0, 0, .4);
@@ -94,7 +94,7 @@
     --success: #4ade80; --success-text: #4ade80; --success-soft: #0f2b1a;
     --warning: #e89040; --warning-text: #f0b072; --warning-soft: #3a2a17;
     --danger: #f87171;  --danger-text: #f5a3a3;  --danger-soft: #3b1d1d;
-    --chart-1: #38bdf8; --chart-2: #f472b6; --chart-grid: #2c2c31;
+    --chart-1: #2bd4c0; --chart-2: #f472b6; --chart-grid: #2c2c31;
     --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .4);
     --shadow-lg: 0 20px 40px rgba(0, 0, 0, .5), 0 4px 12px rgba(0, 0, 0, .4);
@@ -631,8 +631,8 @@
         <div class="sw"><div class="fill" style="background:var(--success-soft);color:var(--success-text)">正常</div><div class="m"><div class="name">success</div><div class="val">#16A34A · text #007634</div><div class="role">健康、额度充足、已连接</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--warning-soft);color:var(--warning-text)">注意</div><div class="m"><div class="name">warning</div><div class="val">#D97706 · text #A64A00</div><div class="role">额度将尽、需重新登录</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--danger-soft);color:var(--danger-text)">失败</div><div class="m"><div class="name">danger</div><div class="val">#DC2626 · text #B91C1C</div><div class="role">请求失败、删除</div></div></div>
-        <div class="sw"><div class="fill" style="background:var(--chart-1)"></div><div class="m"><div class="name">chart-1</div><div class="val">#0891B2 / #38BDF8</div><div class="role">图表主序列</div></div></div>
-        <div class="sw"><div class="fill" style="background:linear-gradient(90deg,color-mix(in srgb,var(--chart-1) 32%,transparent) 0 25%,color-mix(in srgb,var(--chart-1) 62%,transparent) 25% 50%,var(--chart-1) 50% 75%,#0e7490 75%)"></div><div class="m"><div class="name">heat-1…4</div><div class="val">chart-1 32% / 62% / 100% · #0E7490</div><div class="role">热力图色阶（浅色）；深色为 chart-1 30/50/75/100%</div></div></div>
+        <div class="sw"><div class="fill" style="background:var(--chart-1)"></div><div class="m"><div class="name">chart-1</div><div class="val">#0D9488 / #2BD4C0</div><div class="role">图表主序列</div></div></div>
+        <div class="sw"><div class="fill" style="background:linear-gradient(90deg,color-mix(in srgb,var(--chart-1) 32%,transparent) 0 25%,color-mix(in srgb,var(--chart-1) 62%,transparent) 25% 50%,var(--chart-1) 50% 75%,#0b6b63 75%)"></div><div class="m"><div class="name">heat-1…4</div><div class="val">chart-1 32% / 62% / 100% · #0B6B63</div><div class="role">热力图色阶（浅色）；深色为 chart-1 30/50/75/100%</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--chart-2)"></div><div class="m"><div class="name">chart-2</div><div class="val">#DB2777 / #F472B6</div><div class="role">图表对比序列</div></div></div>
       </div>
       <p class="note"><b>青 vs 橙：</b>品牌青只出现在能点的东西和正向状态上；橙（warning）只表示「需要处理」，永远是「soft 底 + 三角图标 + 文字」。深色主题里 warning 也是橙（#E89040 / 文字 #F0B072），不是黄。</p>

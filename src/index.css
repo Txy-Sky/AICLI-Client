@@ -123,16 +123,17 @@
     --danger: #dc2626;
     --danger-text: #b91c1c;
     --danger-soft: #fee2e2;
-    --chart-1: #0891b2;
-    /* 用量页的趋势图和热力图。暂时沿用 chart-1（深色下跟着 chart-1 变）；
+    /* 图表主色（2026-11 改版）：品牌青深一档。#10B5A3 在白底上只有 2.6:1，图形要 ≥ 3:1，这里 3.7:1 */
+    --chart-1: #0d9488;
+    /* 用量页的趋势图和热力图。沿用 chart-1（深色下跟着 chart-1 变）；
        单独留一个变量，以后换用量图配色不牵动额度条等其他用 chart-1 的地方 */
     --chart-usage: var(--chart-1);
-    /* 热力图 1–4 档：前三档用 chart-usage 保住饱和度，最深档换同色相深一级的 #0e7490。
+    /* 热力图 1–4 档：前三档用 chart-usage 保住饱和度，最深档换同色相深一级的 #0b6b63（链接文字的深青）。
        chart-usage 是中等亮度，只按浓度混的话最深档不够深，整张图偏淡 */
     --heat-1: color-mix(in srgb, var(--chart-usage) 32%, transparent);
     --heat-2: color-mix(in srgb, var(--chart-usage) 62%, transparent);
     --heat-3: var(--chart-usage);
-    --heat-4: #0e7490;
+    --heat-4: #0b6b63;
     --chart-2: #db2777;
     --chart-grid: #ececf0;
 
@@ -214,7 +215,8 @@
     --danger: #f87171;
     --danger-text: #f5a3a3;
     --danger-soft: #3b1d1d;
-    --chart-1: #38bdf8;
+    /* 深色下用亮一档的青，对卡片底 7.8:1 */
+    --chart-1: #2bd4c0;
     /* 深色底上越亮越多，chart-usage 本身就是最亮档 */
     --heat-1: color-mix(in srgb, var(--chart-usage) 30%, transparent);
     --heat-2: color-mix(in srgb, var(--chart-usage) 50%, transparent);
