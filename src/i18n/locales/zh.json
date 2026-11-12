@@ -3179,17 +3179,16 @@
       "unsupported": "{{app}} 暂不支持 AICLI 接管。",
       "notBound": "绑定账户后才能接管客户端。",
       "currentProfile": "当前配置集：{{name}}",
-      "modelsTitle": "本客户端可用模型",
+      "modelsTitle": "这个客户端能用的模型",
       "refreshCatalog": "刷新模型目录",
       "noModels": "当前配置集没有可用模型。",
       "partialNotice": "有 {{count}} 个模型在 Claude Code 中只能部分兼容，部分功能（如工具调用或图片）可能不可用。",
       "failed": "操作失败：{{message}}",
       "columns": {
         "model": "模型",
-        "profile": "配置集",
-        "line": "线路",
         "compat": "兼容级别",
-        "capabilities": "能力"
+        "capabilities": "能力",
+        "group": "走哪个分组"
       },
       "compat": {
         "full": "完全兼容",
@@ -3206,7 +3205,25 @@
       "releaseLead": "它会回到接管前的样子：",
       "releaseAfter": "之后它的请求不再经过 AICLI，也不再计入用量。想用时再接管就行。",
       "conflictBoxTitle": "发现旧版本地代理留下的设置",
-      "conflictBoxBody": "不处理的话，它的请求可能发到一个已经不存在的地址。"
+      "conflictBoxBody": "不处理的话，它的请求可能发到一个已经不存在的地址。",
+      "groupWithFallback": "{{group}}，候补 {{count}} 个",
+      "routeLabel": "请求现在走",
+      "routeActive": "本地代理 → {{line}}",
+      "routeInactive": "它原来的配置",
+      "routeOpenHome": "在首页看整条链路",
+      "profileLabel": "配置集",
+      "profileOwn": "单独指定 · {{count}} 个模型",
+      "profileFollow": "跟随默认 · {{count}} 个模型",
+      "profileChange": "换一份",
+      "profilePick": "给它单独指定一份",
+      "restoreLabel": "停止接管后回到",
+      "restoreNow": "现在的配置",
+      "restoreHint": "接管前会先完整备份，停止时原样还原",
+      "modelsHint": "在 {{app}} 里直接填模型名就能用",
+      "filterAll": "全部 {{count}}",
+      "filterCompat": "{{label}} {{count}}",
+      "openSessions": "查看它的会话",
+      "openUsage": "查看它的用量"
     },
     "profiles": {
       "title": "配置集",

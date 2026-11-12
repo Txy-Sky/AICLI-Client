@@ -3186,10 +3186,9 @@
       "failed": "操作に失敗しました：{{message}}",
       "columns": {
         "model": "モデル",
-        "profile": "構成セット",
-        "line": "回線",
         "compat": "互換レベル",
-        "capabilities": "機能"
+        "capabilities": "機能",
+        "group": "使うグループ"
       },
       "compat": {
         "full": "完全互換",
@@ -3206,7 +3205,25 @@
       "releaseLead": "引き継ぐ前の状態に戻ります：",
       "releaseAfter": "以後、リクエストは AICLI を経由せず、使用量にも数えられません。使いたくなったらもう一度引き継いでください。",
       "conflictBoxTitle": "旧バージョンのローカルプロキシが残した設定が見つかりました",
-      "conflictBoxBody": "このままだと、リクエストが存在しないアドレスに送られる可能性があります。"
+      "conflictBoxBody": "このままだと、リクエストが存在しないアドレスに送られる可能性があります。",
+      "groupWithFallback": "{{group}}（予備 {{count}} 個）",
+      "routeLabel": "リクエストの経路",
+      "routeActive": "ローカルプロキシ → {{line}}",
+      "routeInactive": "元の設定",
+      "routeOpenHome": "ホームで経路全体を見る",
+      "profileLabel": "構成セット",
+      "profileOwn": "個別指定 · モデル {{count}} 個",
+      "profileFollow": "既定に従う · モデル {{count}} 個",
+      "profileChange": "変更",
+      "profilePick": "個別に指定する",
+      "restoreLabel": "停止すると戻る先",
+      "restoreNow": "現在の設定",
+      "restoreHint": "引き継ぐ前にすべてバックアップし、停止すると元どおりに戻します",
+      "modelsHint": "{{app}} でモデル名を入力すれば使えます",
+      "filterAll": "すべて {{count}}",
+      "filterCompat": "{{label}} {{count}}",
+      "openSessions": "セッションを見る",
+      "openUsage": "使用量を見る"
     },
     "profiles": {
       "title": "構成セット",

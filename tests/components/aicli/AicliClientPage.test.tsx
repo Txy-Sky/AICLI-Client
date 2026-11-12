@@ -312,24 +312,91 @@ describe("AicliClientPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lists the client's models with profile, line, compatibility and tags", async () => {
+  it("lists the client's models with their group, compatibility and tags", async () => {
     respond();
     renderWithQueryClient(<AicliClientPage app="claude" />);
     const row = await screen.findByTestId("aicli-model-sonnet");
     const cells = within(row).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("sonnet");
-    expect(cells[1]).toHaveTextContent(
-      "aicli.profiles.presets.recommended.name",
-    );
-    expect(cells[2]).toHaveTextContent("aicli.lines.main");
-    expect(cells[3]).toHaveTextContent("aicli.client.compat.full");
-    expect(within(cells[4]).getByText("tools")).toBeInTheDocument();
-    expect(within(cells[4]).getByText("vision")).toBeInTheDocument();
+    // 首选分组和它的倍率
+    await waitFor(() => expect(cells[1]).toHaveTextContent("vip ×1"));
+    expect(cells[2]).toHaveTextContent("aicli.client.compat.full");
+    expect(within(cells[3]).getByText("tools")).toBeInTheDocument();
+    expect(within(cells[3]).getByText("vision")).toBeInTheDocument();
     expect(
       within(screen.getByTestId("aicli-model-lite")).getByText(
         "aicli.client.compat.partial",
       ),
     ).toBeInTheDocument();
+    // 配置集和线路对每一行都一样，放在上面的卡片里
+    expect(
+      within(screen.getByTestId("aicli-client-profile")).getByText(
+        "aicli.profiles.presets.recommended.name",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("aicli-client-profile")).getByText(
+        "aicli.client.profileFollow",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("filters the models by compatibility", async () => {
+    respond();
+    renderWithQueryClient(<AicliClientPage app="claude" />);
+    await screen.findByTestId("aicli-model-sonnet");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "aicli.client.filterCompat" })[0],
+    );
+    // 第一个「完全兼容 / 部分兼容」按钮是完全兼容：只剩 sonnet
+    expect(screen.getByTestId("aicli-model-sonnet")).toBeInTheDocument();
+    expect(screen.queryByTestId("aicli-model-lite")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.client.filterAll" }),
+    );
+    expect(screen.getByTestId("aicli-model-lite")).toBeInTheDocument();
+  });
+
+  it("shows where requests go and what stopping restores once taken over", async () => {
+    respond({
+      aicli_takeover_status: [
+        { app: "claude", state: "active", taken_over_at: 1 },
+      ],
+    });
+    renderWithQueryClient(<AicliClientPage app="claude" />);
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("aicli-client-route")).getByText(
+          "aicli.client.routeActive",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(screen.getByTestId("aicli-client-restore")).getByText(
+        "aicli.clients.restoreTo",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("aicli-client-restore")).getByText(
+        "aicli.clients.restoreBackedUp",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the page's shortcuts only when they are wired", async () => {
+    respond();
+    const onOpenSessions = vi.fn();
+    const { unmount } = renderWithQueryClient(
+      <AicliClientPage app="claude" onOpenSessions={onOpenSessions} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "aicli.client.openSessions" }),
+    );
+    expect(onOpenSessions).toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "aicli.client.openUsage" }),
+    ).not.toBeInTheDocument();
+    unmount();
   });
 
   it("warns about partial compatibility on Claude Code", async () => {

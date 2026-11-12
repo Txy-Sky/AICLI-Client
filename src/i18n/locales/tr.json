@@ -3182,10 +3182,9 @@
       "failed": "İşlem başarısız: {{message}}",
       "columns": {
         "model": "Model",
-        "profile": "Yapılandırma seti",
-        "line": "Hat",
         "compat": "Uyumluluk",
-        "capabilities": "Yetenekler"
+        "capabilities": "Yetenekler",
+        "group": "Grup"
       },
       "compat": {
         "full": "Tam",
@@ -3202,7 +3201,25 @@
       "releaseLead": "Devralmadan önceki haline döner:",
       "releaseAfter": "Bundan sonra istekleri AICLI üzerinden gitmez ve kullanıma sayılmaz. İstediğiniz zaman yeniden devralabilirsiniz.",
       "conflictBoxTitle": "Eski bir yerel proxy'den kalan ayarlar bulundu",
-      "conflictBoxBody": "Böyle bırakılırsa istekleri artık var olmayan bir adrese gidebilir."
+      "conflictBoxBody": "Böyle bırakılırsa istekleri artık var olmayan bir adrese gidebilir.",
+      "groupWithFallback": "{{group}}, {{count}} yedek",
+      "routeLabel": "İstekler şuradan gider",
+      "routeActive": "Yerel proxy → {{line}}",
+      "routeInactive": "Kendi yapılandırması",
+      "routeOpenHome": "Tüm yolu ana sayfada gör",
+      "profileLabel": "Yapılandırma seti",
+      "profileOwn": "Kendine ait · {{count}} model",
+      "profileFollow": "Varsayılanı izler · {{count}} model",
+      "profileChange": "Değiştir",
+      "profilePick": "Ona ayrı bir set ver",
+      "restoreLabel": "Durdurunca döner",
+      "restoreNow": "Mevcut yapılandırma",
+      "restoreHint": "Devralmadan önce eksiksiz yedeklenir, durdurunca olduğu gibi geri yüklenir",
+      "modelsHint": "Kullanmak için {{app}} içinde model adını yazın",
+      "filterAll": "Tümü {{count}}",
+      "filterCompat": "{{label}} {{count}}",
+      "openSessions": "Oturumlarını gör",
+      "openUsage": "Kullanımını gör"
     },
     "profiles": {
       "title": "Yapılandırma setleri",

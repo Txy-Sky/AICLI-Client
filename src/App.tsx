@@ -863,7 +863,23 @@ function App() {
           );
         default:
           // F-04：客户端页（接管状态、配置集、模型表）取代原来的供应商列表
-          return <AicliClientPage app={activeApp} />;
+          return (
+            <AicliClientPage
+              app={activeApp}
+              onOpenHome={() => openPage("usage")}
+              onOpenSessions={() => openPage("sessions")}
+              onOpenUsage={
+                activeUsageApp
+                  ? () => {
+                      setUsageAppFilter(activeUsageApp);
+                      openPage("usage");
+                    }
+                  : undefined
+              }
+              onOpenConfigDir={() => openSettings("appConfig", activeApp)}
+              onOpenApps={() => openPage("apps")}
+            />
+          );
       }
     })();
 

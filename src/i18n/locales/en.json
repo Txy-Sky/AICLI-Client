@@ -3179,17 +3179,16 @@
       "unsupported": "{{app}} does not support AICLI takeover yet.",
       "notBound": "Bind an account before taking over clients.",
       "currentProfile": "Current profile: {{name}}",
-      "modelsTitle": "Models available to this client",
+      "modelsTitle": "Models this client can use",
       "refreshCatalog": "Refresh model catalog",
       "noModels": "The current profile has no models.",
       "partialNotice": "{{count}} models are only partially compatible with Claude Code; some features (such as tool calls or images) may not work.",
       "failed": "Action failed: {{message}}",
       "columns": {
         "model": "Model",
-        "profile": "Profile",
-        "line": "Line",
         "compat": "Compatibility",
-        "capabilities": "Capabilities"
+        "capabilities": "Capabilities",
+        "group": "Group"
       },
       "compat": {
         "full": "Full",
@@ -3206,7 +3205,25 @@
       "releaseLead": "It goes back to how it was before the takeover:",
       "releaseAfter": "Its requests then no longer go through AICLI or count towards usage. Take it over again whenever you like.",
       "conflictBoxTitle": "Settings left by an old local proxy",
-      "conflictBoxBody": "Left as they are, its requests may go to an address that no longer exists."
+      "conflictBoxBody": "Left as they are, its requests may go to an address that no longer exists.",
+      "groupWithFallback": "{{group}}, {{count}} fallback(s)",
+      "routeLabel": "Requests go through",
+      "routeActive": "Local proxy → {{line}}",
+      "routeInactive": "Its own configuration",
+      "routeOpenHome": "See the whole path on Home",
+      "profileLabel": "Profile",
+      "profileOwn": "Its own · {{count}} models",
+      "profileFollow": "Follows the default · {{count}} models",
+      "profileChange": "Change",
+      "profilePick": "Give it its own profile",
+      "restoreLabel": "Stopping restores",
+      "restoreNow": "The current configuration",
+      "restoreHint": "Backed up in full before the takeover and restored as it was when you stop",
+      "modelsHint": "Type the model name in {{app}} to use it",
+      "filterAll": "All {{count}}",
+      "filterCompat": "{{label}} {{count}}",
+      "openSessions": "View its sessions",
+      "openUsage": "View its usage"
     },
     "profiles": {
       "title": "Profiles",
