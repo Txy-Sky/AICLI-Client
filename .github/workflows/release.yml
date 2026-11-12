@@ -215,6 +215,8 @@ jobs:
         shell: pwsh
         env:
           WINDOWS_RELEASE_ARCH: ${{ matrix.arch || 'x86_64' }}
+          # 没开签名（干跑、还没有密钥）时不生成 updater 的 .sig，不要求它
+          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
@@ -252,8 +254,10 @@ jobs:
             if (Test-Path $sigPath) {
               Copy-Item $sigPath (Join-Path release-assets ("$dest.sig"))
               Write-Host "Signature copied: $dest.sig"
-            } else {
+            } elseif ($env:RELEASE_SIGNING -eq 'true') {
               throw "Signature not found for $($msi.Name)"
+            } else {
+              Write-Warning "Signing is off: $dest has no updater signature"
             }
           } else {
             throw "No Windows MSI installer found ($env:WINDOWS_RELEASE_ARCH)"
@@ -300,8 +304,21 @@ jobs:
       - name: Prepare Linux Assets
         if: runner.os == 'Linux'
         shell: bash
+        env:
+          # 没开签名（干跑、还没有密钥）时不生成 updater 的 .sig，不要求它
+          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
         run: |
           set -euxo pipefail
+          copy_sig() {
+            if [ -f "$1.sig" ]; then
+              cp "$1.sig" "release-assets/$2.sig"
+            elif [ "${RELEASE_SIGNING:-}" = "true" ]; then
+              echo "❌ Updater signature not found: $1.sig" >&2
+              exit 1
+            else
+              echo "⚠️ Signing is off: $2 has no updater signature"
+            fi
+          }
           mkdir -p release-assets
           # e.g., v3.5.0；手动干跑时是分支名，斜杠会被当成目录，换成 -
           VERSION="${GITHUB_REF_NAME//\//-}"
@@ -312,13 +329,9 @@ jobs:
             echo "❌ No AppImage found under target/release/bundle" >&2
             exit 1
           fi
-          if [ ! -f "$APPIMAGE.sig" ]; then
-            echo "❌ Updater signature not found: $APPIMAGE.sig" >&2
-            exit 1
-          fi
           NEW_APPIMAGE="AICLI-Client-${VERSION}-Linux-${ARCH}.AppImage"
           cp "$APPIMAGE" "release-assets/$NEW_APPIMAGE"
-          cp "$APPIMAGE.sig" "release-assets/$NEW_APPIMAGE.sig"
+          copy_sig "$APPIMAGE" "$NEW_APPIMAGE"
           echo "AppImage copied: $NEW_APPIMAGE"
           # 额外上传 .deb（用于 Debian/Ubuntu 自动更新）
           DEB=$(find src-tauri/target/release/bundle -name "*.deb" | head -1 || true)
@@ -326,13 +339,9 @@ jobs:
             echo "❌ No .deb found under target/release/bundle" >&2
             exit 1
           fi
-          if [ ! -f "$DEB.sig" ]; then
-            echo "❌ Updater signature not found: $DEB.sig" >&2
-            exit 1
-          fi
           NEW_DEB="AICLI-Client-${VERSION}-Linux-${ARCH}.deb"
           cp "$DEB" "release-assets/$NEW_DEB"
-          cp "$DEB.sig" "release-assets/$NEW_DEB.sig"
+          copy_sig "$DEB" "$NEW_DEB"
           echo "Deb package copied: $NEW_DEB"
           # 额外上传 .rpm（用于 Fedora/RHEL/openSUSE 等自动更新）
           RPM=$(find src-tauri/target/release/bundle -name "*.rpm" | head -1 || true)
@@ -340,13 +349,9 @@ jobs:
             echo "❌ No .rpm found under target/release/bundle" >&2
             exit 1
           fi
-          if [ ! -f "$RPM.sig" ]; then
-            echo "❌ Updater signature not found: $RPM.sig" >&2
-            exit 1
-          fi
           NEW_RPM="AICLI-Client-${VERSION}-Linux-${ARCH}.rpm"
           cp "$RPM" "release-assets/$NEW_RPM"
-          cp "$RPM.sig" "release-assets/$NEW_RPM.sig"
+          copy_sig "$RPM" "$NEW_RPM"
           echo "RPM package copied: $NEW_RPM"
 
       - name: List prepared assets
@@ -733,6 +738,24 @@ jobs:
             sleep "$sleep_seconds"
           done
 
+      # 没开签名（干跑、还没有 Apple 证书）：打一个未签名的 .app + DMG 供测试。
+      # 用户打开时会被 Gatekeeper 拦下（右键「打开」或 xattr -dr com.apple.quarantine 放行）。
+      - name: Bundle unsigned macOS app (signing off)
+        if: ${{ vars.AICLI_RELEASE_SIGNING != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm tauri bundle --target universal-apple-darwin --bundles app,dmg
+          mkdir -p release-assets
+          VERSION="${GITHUB_REF_NAME//\//-}"
+          DMG=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -maxdepth 1 -name "*.dmg" -type f | head -1 || true)
+          if [ -z "$DMG" ]; then
+            echo "❌ No unsigned DMG produced" >&2
+            exit 1
+          fi
+          cp "$DMG" "release-assets/AICLI-Client-${VERSION}-macOS-unsigned.dmg"
+          echo "Unsigned DMG copied: AICLI-Client-${VERSION}-macOS-unsigned.dmg"
+
       - name: Verify macOS code signing and notarization
         if: ${{ vars.AICLI_RELEASE_SIGNING == 'true' }}
         shell: bash
@@ -818,6 +841,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      # 正式发布必须签名：没开签名时打出来的是给测试用的未签名包，不能当正式版发出去
+      - name: Require signed builds for a release
+        shell: bash
+        env:
+          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
+        run: |
+          if [ "${RELEASE_SIGNING:-}" != "true" ]; then
+            echo "::error::Set the AICLI_RELEASE_SIGNING variable and the signing secrets before publishing a release; unsigned builds are for workflow_dispatch dry runs only."
+            exit 1
+          fi
+
       - name: Download built release artifacts
         uses: actions/download-artifact@v8
         with:
