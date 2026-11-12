@@ -55,6 +55,7 @@ import { useUsageAutoRefresh } from "@/hooks/useUsageAutoRefresh";
 import { usageApi } from "@/lib/api/usage";
 import { getUsageRangePresetLabel, resolveUsageRange } from "@/lib/usageRange";
 import { cn } from "@/lib/utils";
+import { UsageBreakdown } from "./UsageBreakdown";
 import { UsageHero } from "./UsageHero";
 import { UsageTrendChart } from "./UsageTrendChart";
 import { RequestLogTable } from "./RequestLogTable";
@@ -931,6 +932,17 @@ export function UsageDashboard({
     </section>
   );
 
+  // 2026-11 改版（画板 6）：花在哪个客户端、哪个模型上
+  const breakdownPanel = (
+    <UsageBreakdown
+      range={range}
+      appType={scopedAppType}
+      providerName={providerName}
+      model={model}
+      refreshIntervalMs={0}
+    />
+  );
+
   const emptyState = (
     <div className="mt-16 flex max-w-[440px] flex-col items-center gap-3 text-center">
       <span
@@ -974,6 +986,7 @@ export function UsageDashboard({
       className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto scroll-stable px-6 pb-6 pt-1"
     >
       {overviewPanel}
+      {breakdownPanel}
       {detailPanel}
     </div>
   );
@@ -1006,6 +1019,7 @@ export function UsageDashboard({
       ) : (
         <div className="flex flex-col gap-8 px-6 pb-6 pt-1">
           {overviewPanel}
+          {breakdownPanel}
           {detailPanel}
         </div>
       )}

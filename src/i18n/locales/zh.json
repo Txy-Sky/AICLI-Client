@@ -1481,6 +1481,13 @@
       "title": "用量设置",
       "pricingSummary": "按模型设置每百万 Tokens 的价格，可从 models.dev 同步",
       "managePricing": "管理定价…"
+    },
+    "breakdown": {
+      "byClient": "按客户端",
+      "byModel": "按模型",
+      "requests": "{{value}} 次",
+      "other": "其他 {{count}} 项",
+      "none": "这段时间没有记录"
     }
   },
   "dbUpgrade": {

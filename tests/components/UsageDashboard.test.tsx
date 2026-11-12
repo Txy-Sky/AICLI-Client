@@ -249,6 +249,63 @@ describe("UsageDashboard", () => {
     expect(screen.getByText("source-note")).toBeInTheDocument();
   });
 
+  it("splits spend by client and by model, most expensive first", async () => {
+    const summary = (requests: number, cost: string) => ({
+      totalRequests: requests,
+      totalCost: cost,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCacheCreationTokens: 0,
+      totalCacheReadTokens: 0,
+      successRate: 100,
+      realTotalTokens: 0,
+      cacheHitRate: 0,
+    });
+    useSummaryByAppMock.mockReturnValue({
+      data: [
+        { appType: "codex", summary: summary(18, "0.23") },
+        { appType: "claude", summary: summary(52, "0.82") },
+        { appType: "gemini", summary: summary(0, "0") },
+      ],
+    });
+    useModelStatsMock.mockReturnValue({
+      data: Array.from({ length: 7 }, (_, i) => ({
+        model: `m${i}`,
+        requestCount: 1,
+        totalTokens: 0,
+        totalCost: String(7 - i),
+        avgCostPerRequest: "0",
+        successRate: 100,
+      })),
+    });
+    renderDashboard();
+    const clients = await screen.findByTestId("usage-breakdown-clients");
+    const rows = within(clients)
+      .getAllByRole("listitem")
+      .map((item) => item.getAttribute("data-testid"));
+    // 没有请求的客户端不列；按成本排
+    expect(rows).toEqual([
+      "usage-breakdown-clients-claude",
+      "usage-breakdown-clients-codex",
+    ]);
+    const models = screen.getByTestId("usage-breakdown-models");
+    // 前 5 个，其余合成一行
+    expect(within(models).getAllByRole("listitem")).toHaveLength(6);
+    expect(
+      within(models).getByText("usage.breakdown.other:2"),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the by-client card while one app is selected", async () => {
+    renderDashboard({ initialAppType: "claude" });
+    expect(
+      await screen.findByTestId("usage-breakdown-models"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("usage-breakdown-clients"),
+    ).not.toBeInTheDocument();
+  });
+
   it("swaps the trend chart for the heatmap on the all-time range", async () => {
     const user = userEvent.setup();
     renderDashboard();

@@ -1481,6 +1481,13 @@
       "title": "使用量の設定",
       "pricingSummary": "モデルごとに 100 万トークンあたりの料金を設定します。models.dev から同期することもできます",
       "managePricing": "料金を管理…"
+    },
+    "breakdown": {
+      "byClient": "クライアント別",
+      "byModel": "モデル別",
+      "requests": "{{value}} 回",
+      "other": "その他 {{count}} 件",
+      "none": "この期間の記録はありません"
     }
   },
   "dbUpgrade": {

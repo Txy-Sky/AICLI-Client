@@ -1481,6 +1481,13 @@
       "title": "Usage settings",
       "pricingSummary": "Set per-model prices per million tokens, or sync them from models.dev",
       "managePricing": "Manage pricing…"
+    },
+    "breakdown": {
+      "byClient": "By client",
+      "byModel": "By model",
+      "requests": "{{value}} requests",
+      "other": "{{count}} others",
+      "none": "No records in this period"
     }
   },
   "dbUpgrade": {

@@ -59,6 +59,10 @@ const summary = {
   cacheHitRate: 0.7161,
 };
 
+// 顶部指标区（UsageHero 的 section）
+const metrics = () =>
+  screen.getByRole("region", { name: "usage.metrics.label" });
+
 describe("UsageDashboard (smoke)", () => {
   beforeEach(() => {
     usageApiMock.syncSessionUsage.mockReset().mockResolvedValue({
@@ -160,9 +164,10 @@ describe("UsageDashboard (smoke)", () => {
     );
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(usageApiMock.syncSessionUsage).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("$42.10")).toBeInTheDocument();
+    // 指标区里的金额（下方「按客户端」拆分卡也会写同一个数）
+    expect(within(metrics()).getByText("$42.10")).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(200));
-    expect(screen.getByText("$43.10")).toBeInTheDocument();
+    expect(within(metrics()).getByText("$43.10")).toBeInTheDocument();
     client.clear();
   });
 
@@ -237,7 +242,7 @@ describe("UsageDashboard (smoke)", () => {
     );
 
     // 指标卡
-    expect(await screen.findByText("$42.10")).toBeInTheDocument();
+    expect(await within(metrics()).findByText("$42.10")).toBeInTheDocument();
     expect(screen.getByText("18.2M")).toBeInTheDocument();
     // 「全部」时由各应用的 token 重新算：16.6M ÷ (1M + 0.2M + 16.6M)
     expect(screen.getByText("93.3%")).toBeInTheDocument();
@@ -269,7 +274,9 @@ describe("UsageDashboard (smoke)", () => {
     expect(within(providerRow).getByText("92")).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: /^usage\.tabs\.models/ }));
-    expect(await screen.findByText("kimi-k2.6")).toBeInTheDocument();
+    expect(
+      await within(screen.getByRole("tabpanel")).findByText("kimi-k2.6"),
+    ).toBeInTheDocument();
 
     // 定价：用量设置抽屉 → 管理定价
     await user.click(

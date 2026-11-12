@@ -1481,6 +1481,13 @@
       "title": "Kullanım ayarları",
       "pricingSummary": "Milyon token başına model fiyatlarını belirleyin veya models.dev üzerinden eşitleyin.",
       "managePricing": "Fiyatlandırmayı yönet…"
+    },
+    "breakdown": {
+      "byClient": "İstemciye göre",
+      "byModel": "Modele göre",
+      "requests": "{{value}} istek",
+      "other": "Diğer {{count}} öğe",
+      "none": "Bu dönemde kayıt yok"
     }
   },
   "dbUpgrade": {
