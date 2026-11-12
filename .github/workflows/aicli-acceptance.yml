@@ -351,15 +351,15 @@ jobs:
               assert Path(name).is_file(), name
           print("B-07: PASS; five locales retain all keys/interpolations outside the G-01/G-02 removed namespaces and keys; no legacy brand; original MIT bytes retained; project attribution added; concise docs and legacy README removal verified")
           PY
-      - name: B-08 verify generated placeholder icons and debug build
+      - name: B-08 verify icons generated from the logo and debug build
         shell: bash
         run: |
           set -euo pipefail
           {
-            python3 scripts/aicli-placeholder-icon.py
-            pnpm tauri icon scripts/assets/aicli-placeholder.png --output src-tauri/icons
-            python3 scripts/aicli-placeholder-icon.py --normalize-icns
-            git diff --exit-code -- src-tauri/icons scripts/assets/aicli-placeholder.png
+            python3 scripts/aicli-icons.py
+            pnpm tauri icon scripts/assets/aicli-icon-source.png --output src-tauri/icons
+            python3 scripts/aicli-icons.py --normalize-icns
+            git diff --exit-code -- src-tauri/icons scripts/assets/aicli-icon-source.png src/assets/icons/aicli-logo.png
             pnpm tauri build --debug --no-bundle
             test -x src-tauri/target/debug/aicli-client
             python3 - <<'PY'
@@ -370,8 +370,9 @@ jobs:
           for name in config["bundle"]["icon"]:
               path = Path("src-tauri") / name
               assert path.is_file() and path.stat().st_size > 0, path
-          assert Path("scripts/assets/aicli-placeholder.png").is_file()
-          print("B-08: PASS; generated icons reproducible; debug executable and all configured icons exist")
+          assert Path("assets/aicli-logo.png").is_file()
+          assert Path("scripts/assets/aicli-icon-source.png").is_file()
+          print("B-08: PASS; icons reproducible from assets/aicli-logo.png; debug executable and all configured icons exist")
           PY
           } 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/B-08.txt"
       - name: B-GATE real desktop startup and loopback proxy

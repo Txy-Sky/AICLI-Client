@@ -1096,6 +1096,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| B-08 → 正式图标 | 用 `pnpm tauri icon` 从自制的纯色 `AI` 字样 PNG 生成全部图标（占位）。 | 负责人 2026-11-12 提供原图 `assets/aicli-logo.png`（1254×1254，白底）。`scripts/aicli-icons.py`（只用标准库）生成 `scripts/assets/aicli-icon-source.png`（白色圆角方块 + 居中 logo）、应用内 `src/assets/icons/aicli-logo.png`、macOS 菜单栏模板图和 DMG 背景；`pnpm tauri icon` 由源图生成其余全部尺寸。删除占位脚本和占位图。CI 的 B-08 步骤改为跑这套流程后 `git diff --exit-code`，仍要求逐字节可重现。 | 占位图标换成正式 logo；可重现性检查保留。 |
 | F-02/F-03/F-10 → 界面改版（侧栏与首页） | F-02：`readStoredView()` 恒返回 `"usage"`，旧名映射到 `usage`。F-03：`AicliHome` 作为 `usage` 页。F-10：首页账户面板与本机统计同一滚动区。 | 新增全局页 `home`（AICLI 账户面板、请求链路、异常提示）和 `profiles`（配置集管理）；冷启动和旧名 `providers`、`auth` 改为进 `home`；`usage` 只放本机统计（`UsagePage`，标注「来源：本机记录」）。侧栏为首页、客户端、用量、隐私脱敏、配置集 / MCP、Skills、提示词、会话 / 设置；「应用」从侧栏移除，从客户端页进入，工具有更新时在「客户端」上打点。深链 `aicli-open-bind` 回到首页。 | 负责人 2026-11-12 同意按界面改版设计稿拆分侧栏（`docs/aicli-ui-redesign-deviations-zh.md`）。 |
 | F-04 → 界面改版（客户端页模型表） | 模型表列出模型名、配置集、线路、兼容级别、能力标签。 | 模型表为模型、首选分组与倍率、兼容级别、能力标签；配置集和线路每行都一样，放在表上方的「配置集」「请求现在走」两张卡片里。 | 负责人 2026-11-12 同意。 |
 | J-02（先开放按钮再做真实客户端验收） | 真实客户端不通过的客户端在 UI 中显示「暂不支持」，不提供接管按钮。 | 真实 OpenCode 验收之前就把 OpenCode 加入界面的可接管列表。验收不通过时撤掉按钮并从 `aicli/tier.rs` 的 `TIER2_SUPPORTED` 去掉。 | 负责人 2026-11-11 决定：测试机需要通过界面触发接管才能做验收。 |
