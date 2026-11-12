@@ -1,26 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  CopyPlus,
-  Layers,
-  MoreHorizontal,
-  Pencil,
-  PiggyBank,
-  Sparkles,
-} from "lucide-react";
+import { CopyPlus, Pencil, PiggyBank, Sparkles } from "lucide-react";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { Button } from "@/components/ui/button";
 import { HoverTip } from "@/components/ui/hover-tip";
+import { fieldClass } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +17,10 @@ import {
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import type { AppId } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { AICLI_TAKEOVER_APPS } from "@/components/aicli/AicliClientPage";
+import {
+  AICLI_TAKEOVER_APPS,
+  takeoverDisplay,
+} from "@/components/aicli/AicliClientPage";
 import { isAicliCommandError } from "@/lib/api/aicli";
 import {
   useAicliCatalog,
@@ -40,6 +28,7 @@ import {
   useAicliProfiles,
   useAicliRoutes,
   useAicliSetActiveProfile,
+  useAicliTakeoverStatus,
 } from "@/hooks/useAicliProfiles";
 import type { AicliProfile, AicliRouteProfile } from "@/types/aicli";
 import { AicliProfileEditor } from "./AicliProfileEditor";
@@ -54,9 +43,10 @@ interface AicliProfilesPanelProps {
 type DiffTarget = { preset: AicliProfile; against: AicliRouteProfile | null };
 
 /**
- * 配置集管理（F-05，F-11 改为卡片）：系统预设只读（从预设新建、查看差异），用户
- * 配置集可编辑、删除、设为默认或设为某客户端专用。每张卡片一个主操作，其余在「更多」
- * 菜单里。配置集只存本机，不跨设备同步；不进入此页也能正常使用（默认推荐预设）。
+ * 配置集管理（F-05；2026-11 改版，设计稿画板 4a）：上半「谁在用哪份」——全局默认
+ * 和每个客户端各一个下拉；下半「全部配置集」——系统预设只读（复制一份来改、查看
+ * 差异），自己的可编辑、删除，操作都直接摆在卡片上。配置集只存本机，不跨设备同步；
+ * 不进入此页也能正常使用（默认推荐预设）。
  */
 export function AicliProfilesPanel({
   isOpen,
@@ -66,6 +56,7 @@ export function AicliProfilesPanel({
   const profiles = useAicliProfiles(isOpen);
   const routes = useAicliRoutes(isOpen);
   const catalog = useAicliCatalog(isOpen);
+  const takeover = useAicliTakeoverStatus(isOpen);
   const remove = useAicliDeleteProfile();
   const setActive = useAicliSetActiveProfile();
   const [editing, setEditing] = useState<AicliProfile | null>(null);
@@ -74,16 +65,32 @@ export function AicliProfilesPanel({
   const [error, setError] = useState<string | null>(null);
 
   const view = profiles.data;
+  const all = [...(view?.presets ?? []), ...(view?.profiles ?? [])];
   const routeOf = (id: string) =>
     routes.data?.profiles.find((entry) => entry.id === id);
   const globalId =
     view?.bindings.find((binding) => binding.scope === "global")?.profile_id ??
     view?.active_profile_id ??
     "recommended";
-  const appsBoundTo = (id: string) =>
-    (view?.bindings ?? [])
-      .filter((binding) => binding.scope === "app" && binding.profile_id === id)
-      .map((binding) => binding.scope_key);
+  const globalName = aicliProfileName(
+    t,
+    all.find((profile) => profile.id === globalId),
+    globalId,
+  );
+  /** 客户端单独指定的配置集；没有指定（跟随默认）时为 null。 */
+  const appProfileId = (app: string) =>
+    view?.bindings.find(
+      (binding) => binding.scope === "app" && binding.scope_key === app,
+    )?.profile_id ?? null;
+  const isActive = (app: string) =>
+    takeoverDisplay(
+      (takeover.data ?? []).find((row) => row.app === app)?.state,
+    ) === "active";
+  /** 已接管、并且实际在用这份配置集的客户端。 */
+  const activeAppsUsing = (id: string) =>
+    AICLI_TAKEOVER_APPS.filter(
+      (app) => isActive(app) && (appProfileId(app) ?? globalId) === id,
+    );
 
   const fail = (failure: unknown) =>
     setError(
@@ -94,11 +101,17 @@ export function AicliProfilesPanel({
       }),
     );
 
+  const assign = (
+    scope: "global" | "app",
+    scopeKey: string,
+    id: string | null,
+  ) => {
+    setError(null);
+    setActive.mutate({ scope, scopeKey, id }, { onError: fail });
+  };
+
   const startFromPreset = (preset: AicliProfile) => {
-    const ids = [
-      ...(view?.profiles ?? []).map((item) => item.id),
-      ...(view?.presets ?? []).map((item) => item.id),
-    ];
+    const ids = all.map((item) => item.id);
     setEditing(
       copyPreset(
         preset,
@@ -169,7 +182,7 @@ export function AicliProfilesPanel({
   const stats = (profile: AicliProfile) => {
     const models = routeOf(profile.id)?.routes.length;
     return (
-      <p className="m-0 text-caption tabular-nums text-fg-3">
+      <p className="m-0 text-caption tabular-nums text-fg-2">
         {models == null
           ? t("aicli.profiles.groupCount", {
               count: profile.body.selected_groups.length,
@@ -182,122 +195,110 @@ export function AicliProfilesPanel({
     );
   };
 
-  const badges = (profile: AicliProfile, preset: boolean) => {
-    const apps = appsBoundTo(profile.id);
-    return (
-      <>
-        {globalId === profile.id && (
-          <span className="inline-flex h-5 items-center rounded-full bg-success-soft px-2 text-badge font-medium text-success-text">
-            {t("aicli.profiles.isDefault")}
-          </span>
-        )}
-        {preset && (
-          <span className="inline-flex h-5 items-center rounded-full border border-border px-2 text-badge text-fg-3">
-            {t("aicli.profiles.readOnly")}
-          </span>
-        )}
-        {apps.map((app) => (
-          <HoverTip
-            key={app}
-            content={t("aicli.profiles.inUseBy", {
-              app: APP_DISPLAY_NAME[app as AppId] ?? app,
-            })}
-          >
-            <span
-              aria-label={t("aicli.profiles.inUseBy", {
-                app: APP_DISPLAY_NAME[app as AppId] ?? app,
-              })}
-              className="inline-flex h-5 items-center gap-1 rounded-full border border-border px-1.5 text-badge text-fg-2"
-            >
-              <AppGlyph
-                app={app as AppId}
-                size={12}
-                badgeClassName="bg-surface"
-              />
-              {APP_DISPLAY_NAME[app as AppId] ?? app}
-            </span>
-          </HoverTip>
-        ))}
-      </>
-    );
-  };
+  const selectClass = cn(
+    fieldClass,
+    "h-8 w-auto min-w-[200px] max-w-full pe-7",
+  );
 
-  const moreMenu = (profile: AicliProfile, preset: boolean) => {
-    const name = aicliProfileName(t, profile);
-    const apps = appsBoundTo(profile.id);
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="quiet"
-            size="icon-compact"
-            aria-label={t("aicli.profiles.moreActions", { name })}
+  const whoRow =
+    "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2.5";
+
+  const whoSection = (
+    <section
+      aria-labelledby="aicli-profiles-who"
+      className="flex flex-col gap-2"
+    >
+      <h2 id="aicli-profiles-who" className="m-0 text-section text-fg-1">
+        {t("aicli.profiles.whoTitle")}
+      </h2>
+      <div className="overflow-hidden rounded-panel border border-border bg-surface">
+        <div
+          data-testid="aicli-scope-global"
+          className={cn(whoRow, "border-b border-border bg-action-soft")}
+        >
+          <span className="flex min-w-0 flex-col">
+            <span className="text-strong font-semibold text-fg-1">
+              {t("aicli.profiles.globalDefault")}
+            </span>
+            <span className="text-caption text-fg-2">
+              {t("aicli.profiles.globalDefaultHint")}
+            </span>
+          </span>
+          <select
+            aria-label={t("aicli.profiles.globalDefault")}
+            className={selectClass}
+            value={globalId}
+            disabled={setActive.isPending || all.length === 0}
+            onChange={(event) => assign("global", "", event.target.value)}
           >
-            <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[200px]">
-          {preset ? (
-            <DropdownMenuItem
-              onSelect={() =>
-                setDiff({
-                  preset: profile,
-                  against: routeOf(globalId) ?? null,
-                })
-              }
+            {all.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {aicliProfileName(t, profile)}
+              </option>
+            ))}
+          </select>
+        </div>
+        {AICLI_TAKEOVER_APPS.map((app) => {
+          const name = APP_DISPLAY_NAME[app] ?? app;
+          const active = isActive(app);
+          return (
+            <div
+              key={app}
+              data-testid={`aicli-scope-${app}`}
+              className={cn(whoRow, "border-b border-border last:border-b-0")}
             >
-              {t("aicli.profiles.viewDiff")}
-            </DropdownMenuItem>
-          ) : (
-            <>
-              <DropdownMenuItem
-                disabled={globalId === profile.id || setActive.isPending}
-                onSelect={() =>
-                  setActive.mutate(
-                    { scope: "global", scopeKey: "", id: profile.id },
-                    { onError: fail },
-                  )
+              <span className="flex min-w-0 items-center gap-2.5">
+                <AppGlyph
+                  app={app as AppId}
+                  size={18}
+                  badgeClassName="bg-surface"
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-strong text-fg-1">{name}</span>
+                  <span
+                    className={cn(
+                      "text-caption",
+                      active ? "text-action-text" : "text-fg-3",
+                    )}
+                  >
+                    {active
+                      ? t("aicli.profiles.clientActive")
+                      : t("aicli.profiles.clientInactive")}
+                  </span>
+                </span>
+              </span>
+              <select
+                aria-label={t("aicli.profiles.profileFor", { app: name })}
+                className={selectClass}
+                value={appProfileId(app) ?? ""}
+                disabled={setActive.isPending || all.length === 0}
+                onChange={(event) =>
+                  assign("app", app, event.target.value || null)
                 }
               >
-                {t("aicli.profiles.setDefault")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-caption font-normal text-fg-3">
-                {t("aicli.profiles.useForClientTitle")}
-              </DropdownMenuLabel>
-              {AICLI_TAKEOVER_APPS.map((app) => (
-                <DropdownMenuCheckboxItem
-                  key={app}
-                  checked={apps.includes(app)}
-                  disabled={apps.includes(app) || setActive.isPending}
-                  onSelect={() =>
-                    setActive.mutate(
-                      { scope: "app", scopeKey: app, id: profile.id },
-                      { onError: fail },
-                    )
-                  }
-                >
-                  {APP_DISPLAY_NAME[app]}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-danger-text focus:text-danger-text"
-                onSelect={() => setDeleting(profile)}
-              >
-                {t("aicli.profiles.delete")}
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  };
+                <option value="">
+                  {t("aicli.profiles.followDefault", { name: globalName })}
+                </option>
+                {all.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {aicliProfileName(t, profile)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const pill = "inline-flex h-5 items-center rounded-full px-2 text-badge";
 
   const card = (profile: AicliProfile, preset: boolean) => {
     const name = aicliProfileName(t, profile);
     const description = aicliPresetDescription(t, profile.id);
+    const isDefault = globalId === profile.id;
+    const users = activeAppsUsing(profile.id);
     const Icon =
       profile.id === "low_cost"
         ? PiggyBank
@@ -310,43 +311,69 @@ export function AicliProfilesPanel({
         data-testid={`aicli-${preset ? "preset" : "profile"}-${profile.id}`}
         aria-label={name}
         className={cn(
-          "flex min-w-0 flex-col gap-3 rounded-panel border bg-surface p-4 transition-colors hover:border-border-strong",
-          globalId === profile.id ? "border-border-strong" : "border-border",
+          "flex min-w-0 flex-col gap-2.5 rounded-panel bg-surface p-4",
+          // 默认那份用 2px 品牌色描边；其余 1px，内边距补 1px 让内容对齐
+          isDefault
+            ? "border-2 border-action"
+            : "border border-border p-[17px] transition-colors hover:border-border-strong",
         )}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {Icon && (
+            <Icon
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-fg-2"
+              strokeWidth={1.75}
+            />
+          )}
+          <h3 className="m-0 min-w-0 truncate text-title text-fg-1">{name}</h3>
+          {isDefault && (
+            <span
+              className={cn(
+                pill,
+                "bg-action-soft font-medium text-action-text",
+              )}
+            >
+              {t("aicli.profiles.isDefault")}
+            </span>
+          )}
           <span
-            aria-hidden="true"
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-strong font-semibold",
-              preset
-                ? "bg-[color-mix(in_srgb,var(--chart-usage)_14%,transparent)] text-[var(--chart-usage)]"
-                : "bg-subtle text-fg-2",
+              pill,
+              preset ? "border border-border text-fg-2" : "bg-subtle text-fg-2",
             )}
           >
-            {Icon ? (
-              <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            ) : (
-              Array.from(name)[0]?.toUpperCase()
-            )}
+            {preset
+              ? t("aicli.profiles.readOnly")
+              : t("aicli.profiles.mineBadge")}
           </span>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <h3 className="m-0 min-w-0 truncate text-strong text-fg-1">
-                {name}
-              </h3>
-              {badges(profile, preset)}
-            </div>
-            {description && (
-              <p className="m-0 text-caption text-fg-2">{description}</p>
-            )}
-            {stats(profile)}
-          </div>
-          {moreMenu(profile, preset)}
         </div>
+        {description && (
+          <p className="m-0 text-caption text-fg-2">{description}</p>
+        )}
+        {stats(profile)}
         {groupChips(profile.body.selected_groups)}
+        {users.length > 0 ? (
+          <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-action-text">
+            {t("aicli.profiles.inUse")}
+            {users.map((app) => (
+              <span key={app} className="inline-flex items-center gap-1">
+                <AppGlyph
+                  app={app as AppId}
+                  size={14}
+                  badgeClassName="bg-surface"
+                />
+                {APP_DISPLAY_NAME[app] ?? app}
+              </span>
+            ))}
+          </p>
+        ) : (
+          <p className="m-0 text-caption text-fg-3">
+            {t("aicli.profiles.notInUse")}
+          </p>
+        )}
         {repairNotice(profile.id)}
-        <div className="mt-auto flex">
+        <div className="mt-auto flex flex-wrap gap-2 pt-1">
           <Button
             type="button"
             variant="neutral"
@@ -364,12 +391,46 @@ export function AicliProfilesPanel({
               ? t("aicli.profiles.newFromPreset")
               : t("aicli.profiles.edit")}
           </Button>
+          {!isDefault && (
+            <Button
+              type="button"
+              variant="neutral"
+              size="compact"
+              disabled={setActive.isPending}
+              onClick={() => assign("global", "", profile.id)}
+            >
+              {t("aicli.profiles.setDefault")}
+            </Button>
+          )}
+          {preset ? (
+            <Button
+              type="button"
+              variant="quiet"
+              size="compact"
+              onClick={() =>
+                setDiff({
+                  preset: profile,
+                  against: routeOf(globalId) ?? null,
+                })
+              }
+            >
+              {t("aicli.profiles.viewDiff")}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="quiet"
+              size="compact"
+              className="text-danger-text hover:text-danger-text"
+              onClick={() => setDeleting(profile)}
+            >
+              {t("aicli.profiles.delete")}
+            </Button>
+          )}
         </div>
       </article>
     );
   };
-
-  const grid = "grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3";
 
   return (
     <FullScreenPanel
@@ -404,54 +465,28 @@ export function AicliProfilesPanel({
           />
         ) : (
           <>
+            <p className="m-0 text-body text-fg-2">
+              <span>{t("aicli.profiles.intro")}</span>{" "}
+              <span>{t("aicli.profiles.localOnly")}</span>
+            </p>
+
+            {whoSection}
+
             <section
-              aria-labelledby="aicli-presets"
-              className="flex flex-col gap-3"
+              aria-labelledby="aicli-profiles-all"
+              className="flex flex-col gap-2"
             >
               <h2
-                id="aicli-presets"
-                className="m-0 text-caption font-semibold text-fg-2"
+                id="aicli-profiles-all"
+                className="m-0 text-section text-fg-1"
               >
-                {t("aicli.profiles.presetsTitle")}
+                {t("aicli.profiles.allTitle")}
               </h2>
-              <div className={grid}>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
                 {(view?.presets ?? []).map((preset) => card(preset, true))}
+                {(view?.profiles ?? []).map((profile) => card(profile, false))}
               </div>
             </section>
-
-            <section
-              aria-labelledby="aicli-user-profiles"
-              className="flex flex-col gap-3"
-            >
-              <h2
-                id="aicli-user-profiles"
-                className="m-0 text-caption font-semibold text-fg-2"
-              >
-                {t("aicli.profiles.userTitle")}
-              </h2>
-              {(view?.profiles ?? []).length === 0 ? (
-                <div className="flex flex-col items-center gap-1 rounded-panel border border-dashed border-border px-4 py-8 text-center">
-                  <Layers
-                    aria-hidden="true"
-                    className="h-5 w-5 text-fg-3"
-                    strokeWidth={1.5}
-                  />
-                  <p className="m-0 text-body text-fg-2">
-                    {t("aicli.profiles.noUserProfiles")}
-                  </p>
-                </div>
-              ) : (
-                <div className={grid}>
-                  {(view?.profiles ?? []).map((profile) =>
-                    card(profile, false),
-                  )}
-                </div>
-              )}
-            </section>
-
-            <p className="m-0 text-caption text-fg-3">
-              {t("aicli.profiles.localOnly")}
-            </p>
           </>
         )}
       </div>

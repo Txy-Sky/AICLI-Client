@@ -276,3 +276,106 @@ export function diffModelLists(
     onlyInOther: other.filter((name) => !a.has(name)).sort(),
   };
 }
+
+function knownRatio(
+  catalog: AicliCatalog | null | undefined,
+  group: string,
+): number | null {
+  const info = catalog?.groups[group];
+  return info && info.ratio_known && info.ratio != null ? info.ratio : null;
+}
+
+/**
+ * 实际生效的分组顺序。与后端 `profiles.rs::ordered_groups` 一致：cost_first 按倍率
+ * 从低到高排（倍率未知的排最后，其余保持原顺序），否则就是用户排的顺序。
+ */
+export function effectiveGroupOrder(
+  body: AicliProfileBody,
+  catalog: AicliCatalog | null | undefined,
+): string[] {
+  if (body.selection_mode !== "cost_first") return body.selected_groups;
+  return body.selected_groups
+    .map((group, index) => ({
+      group,
+      index,
+      ratio: knownRatio(catalog, group),
+    }))
+    .sort((a, b) => {
+      if (a.ratio != null && b.ratio != null && a.ratio !== b.ratio)
+        return a.ratio - b.ratio;
+      if ((a.ratio == null) !== (b.ratio == null))
+        return a.ratio == null ? 1 : -1;
+      return a.index - b.index;
+    })
+    .map((item) => item.group);
+}
+
+export interface AicliLandingGroup {
+  group: string;
+  /** 首选来源落在这个分组的模型数（不含已排除的）。 */
+  models: number;
+  ratio: number | null;
+  /**
+   * 排在后面、却更便宜的分组：这里有 `models` 个模型在 `group` 里也有，倍率更低。
+   * 只在按用户顺序选来源时给出；指定了来源的模型不算。
+   */
+  cheaper: { group: string; ratio: number; models: number } | null;
+}
+
+/** 「按这个顺序，模型会落在」：每个分组接住多少模型，以及有没有排在后面的更便宜来源。 */
+export function landingGroups(
+  body: AicliProfileBody,
+  catalog: AicliCatalog | null | undefined,
+): AicliLandingGroup[] {
+  if (!catalog) return [];
+  const order = effectiveGroupOrder(body, catalog);
+  const counts = new Map<string, number>();
+  // 落点分组 → 更便宜的后备分组 → 涉及的模型数
+  const savings = new Map<string, Map<string, number>>();
+  for (const row of previewModels(body, catalog)) {
+    if (row.status === "excluded") continue;
+    const sources = order.filter((group) => row.sourceGroups.includes(group));
+    const pinned = row.binding?.source_group;
+    const landing = pinned && sources.includes(pinned) ? pinned : sources[0];
+    if (!landing) continue;
+    counts.set(landing, (counts.get(landing) ?? 0) + 1);
+    const ratio = knownRatio(catalog, landing);
+    if (pinned || ratio == null || body.selection_mode === "cost_first")
+      continue;
+    for (const other of sources.slice(sources.indexOf(landing) + 1)) {
+      const otherRatio = knownRatio(catalog, other);
+      if (otherRatio == null || otherRatio >= ratio) continue;
+      const perGroup = savings.get(landing) ?? new Map<string, number>();
+      perGroup.set(other, (perGroup.get(other) ?? 0) + 1);
+      savings.set(landing, perGroup);
+    }
+  }
+  return order
+    .filter((group) => counts.has(group))
+    .map((group) => {
+      let cheaper: AicliLandingGroup["cheaper"] = null;
+      for (const [other, models] of savings.get(group) ?? []) {
+        const ratio = knownRatio(catalog, other)!;
+        if (!cheaper || ratio < cheaper.ratio)
+          cheaper = { group: other, ratio, models };
+      }
+      return {
+        group,
+        models: counts.get(group)!,
+        ratio: knownRatio(catalog, group),
+        cheaper,
+      };
+    });
+}
+
+/** 把 `group` 移到 `before` 前面（「把更便宜的分组移到前面」）。 */
+export function moveGroupBefore(
+  body: AicliProfileBody,
+  group: string,
+  before: string,
+): AicliProfileBody {
+  const from = body.selected_groups.indexOf(group);
+  const to = body.selected_groups.indexOf(before);
+  if (from < 0 || to < 0 || from <= to) return body;
+  return moveGroup(body, from, to);
+}

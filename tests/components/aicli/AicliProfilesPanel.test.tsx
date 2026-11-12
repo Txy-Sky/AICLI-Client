@@ -133,6 +133,7 @@ function respond(patch: Record<string, unknown> = {}) {
     aicli_get_profiles: view(),
     aicli_get_routes: routes(),
     aicli_get_catalog: catalog,
+    aicli_takeover_status: [],
     ...patch,
   };
   invokeMock.mockImplementation(async (command: string, args?: unknown) => {
@@ -141,15 +142,6 @@ function respond(patch: Record<string, unknown> = {}) {
       return (reply as (a: unknown) => unknown)(args);
     return reply;
   });
-}
-
-// 次要操作收在每张卡片的「更多」菜单里；Radix 菜单在 jsdom 里用回车打开最稳
-async function openMenu(card: HTMLElement) {
-  fireEvent.keyDown(
-    within(card).getByRole("button", { name: "aicli.profiles.moreActions" }),
-    { key: "Enter" },
-  );
-  return screen.findByRole("menu");
 }
 
 const open = () =>
@@ -223,11 +215,11 @@ describe("AicliProfilesPanel — list", () => {
       }),
     });
     open();
-    const menu = await openMenu(
-      await screen.findByTestId("aicli-preset-recommended"),
-    );
     fireEvent.click(
-      within(menu).getByRole("menuitem", { name: "aicli.profiles.viewDiff" }),
+      within(await screen.findByTestId("aicli-preset-recommended")).getByRole(
+        "button",
+        { name: "aicli.profiles.viewDiff" },
+      ),
     );
     expect(
       await screen.findByTestId("aicli-diff-only-preset"),
@@ -235,14 +227,19 @@ describe("AicliProfilesPanel — list", () => {
     expect(screen.getByTestId("aicli-diff-only-other")).toHaveTextContent("—");
   });
 
-  it("sets a user profile as default and for one client", async () => {
+  it("sets a user profile as default from its card", async () => {
     respond({ aicli_set_active_profile: undefined });
     open();
     const row = await screen.findByTestId("aicli-profile-mine");
+    // 已经是默认的那份不再提供「设为默认」
+    expect(
+      within(screen.getByTestId("aicli-preset-recommended")).queryByRole(
+        "button",
+        { name: "aicli.profiles.setDefault" },
+      ),
+    ).not.toBeInTheDocument();
     fireEvent.click(
-      within(await openMenu(row)).getByRole("menuitem", {
-        name: "aicli.profiles.setDefault",
-      }),
+      within(row).getByRole("button", { name: "aicli.profiles.setDefault" }),
     );
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
@@ -251,14 +248,36 @@ describe("AicliProfilesPanel — list", () => {
         id: "mine",
       }),
     );
+  });
+
+  it("picks the global default and a client's own profile under who uses which", async () => {
+    respond({
+      aicli_set_active_profile: undefined,
+      aicli_get_profiles: view({
+        bindings: [{ scope: "app", scope_key: "claude", profile_id: "mine" }],
+      }),
+    });
+    open();
+    const global = within(
+      await screen.findByTestId("aicli-scope-global"),
+    ).getByRole("combobox");
+    await waitFor(() => expect(global).toHaveValue("recommended"));
+    fireEvent.change(global, { target: { value: "mine" } });
     await waitFor(() =>
-      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
-    );
-    fireEvent.click(
-      within(await openMenu(row)).getByRole("menuitemcheckbox", {
-        name: "Codex",
+      expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
+        scope: "global",
+        scopeKey: "",
+        id: "mine",
       }),
     );
+
+    // 没有单独指定的客户端显示「跟随默认」，可以指定一份
+    const codex = within(screen.getByTestId("aicli-scope-codex")).getByRole(
+      "combobox",
+    );
+    expect(codex).toHaveValue("");
+    await waitFor(() => expect(codex).toBeEnabled());
+    fireEvent.change(codex, { target: { value: "mine" } });
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
         scope: "app",
@@ -266,6 +285,65 @@ describe("AicliProfilesPanel — list", () => {
         id: "mine",
       }),
     );
+
+    // 已单独指定的客户端可以改回跟随默认（清除该作用域）
+    const claude = within(screen.getByTestId("aicli-scope-claude")).getByRole(
+      "combobox",
+    );
+    expect(claude).toHaveValue("mine");
+    await waitFor(() => expect(claude).toBeEnabled());
+    fireEvent.change(claude, { target: { value: "" } });
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("aicli_set_active_profile", {
+        scope: "app",
+        scopeKey: "claude",
+        id: null,
+      }),
+    );
+  });
+
+  it("names the taken-over clients that actually use each profile", async () => {
+    respond({
+      aicli_takeover_status: [
+        { app: "claude", state: "active", taken_over_at: 1 },
+        { app: "codex", state: "active", taken_over_at: 1 },
+        { app: "gemini", state: "inactive", taken_over_at: null },
+      ],
+      aicli_get_profiles: view({
+        bindings: [
+          { scope: "app", scope_key: "codex", profile_id: "mine" },
+          { scope: "app", scope_key: "gemini", profile_id: "mine" },
+        ],
+      }),
+    });
+    open();
+    const presetCard = await screen.findByTestId("aicli-preset-recommended");
+    // Claude Code 跟随默认（推荐）；Codex 单独指定；Gemini 指定了但没接管，不算在用
+    await within(presetCard).findByText("aicli.profiles.inUse");
+    expect(within(presetCard).getByText("Claude Code")).toBeInTheDocument();
+    expect(within(presetCard).queryByText("Codex")).not.toBeInTheDocument();
+    const mineCard = screen.getByTestId("aicli-profile-mine");
+    expect(within(mineCard).getByText("Codex")).toBeInTheDocument();
+    expect(within(mineCard).queryByText("Gemini CLI")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("aicli-scope-claude")).getByText(
+        "aicli.profiles.clientActive",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("aicli-scope-gemini")).getByText(
+        "aicli.profiles.clientInactive",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when no client is using a profile", async () => {
+    respond();
+    open();
+    const mineCard = await screen.findByTestId("aicli-profile-mine");
+    expect(
+      within(mineCard).getByText("aicli.profiles.notInUse"),
+    ).toBeInTheDocument();
   });
 
   it("deletes a user profile only after confirming", async () => {
@@ -273,9 +351,7 @@ describe("AicliProfilesPanel — list", () => {
     open();
     const row = await screen.findByTestId("aicli-profile-mine");
     fireEvent.click(
-      within(await openMenu(row)).getByRole("menuitem", {
-        name: "aicli.profiles.delete",
-      }),
+      within(row).getByRole("button", { name: "aicli.profiles.delete" }),
     );
     const dialog = await screen.findByRole("dialog");
     expect(invokeMock).not.toHaveBeenCalledWith(
@@ -395,6 +471,34 @@ describe("AicliProfileEditor — conflicts and saving", () => {
       ),
     );
     expect(groups()).toEqual(["aicli-group-cheap", "aicli-group-mid"]);
+  });
+
+  it("shows where models land and moves a cheaper group ahead in one click", async () => {
+    respond();
+    open();
+    const editor = await editFromPreset();
+    // 顺序 mid（×1）→ cheap（×0.5）：两个模型都落在 mid，其中 shared 在 cheap 更便宜
+    const mid = within(editor).getByTestId("aicli-landing-mid");
+    expect(
+      within(mid).getByText("aicli.profiles.landingCheaper"),
+    ).toBeInTheDocument();
+    expect(
+      within(editor).queryByTestId("aicli-landing-cheap"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(mid).getByRole("button", { name: "aicli.profiles.landingMoveUp" }),
+    );
+    expect(
+      within(editor)
+        .getAllByTestId(/^aicli-group-/)
+        .map((item) => item.getAttribute("data-testid")),
+    ).toEqual(["aicli-group-cheap", "aicli-group-mid"]);
+    expect(
+      within(editor).getByTestId("aicli-landing-cheap"),
+    ).toBeInTheDocument();
+    expect(
+      within(editor).queryByText("aicli.profiles.landingCheaper"),
+    ).not.toBeInTheDocument();
   });
 
   it.each(Object.entries(PROFILE_ERROR_KEYS))(

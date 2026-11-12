@@ -5,7 +5,10 @@ import {
   confirmAllByGroupOrder,
   copyPreset,
   diffModelLists,
+  effectiveGroupOrder,
+  landingGroups,
   moveGroup,
+  moveGroupBefore,
   newProfileId,
   normalizeForSave,
   previewModels,
@@ -161,5 +164,83 @@ describe("profile model (mirrors backend validate)", () => {
       onlyInPreset: ["a"],
       onlyInOther: ["c"],
     });
+  });
+
+  it("summarises where models land and points at a cheaper group further down", () => {
+    // mid（×1）在前：shared 和 unique 都落在 mid；shared 在后面的 cheap 只要 ×0.5
+    expect(landingGroups(body(), catalog)).toEqual([
+      {
+        group: "mid",
+        models: 2,
+        ratio: 1,
+        cheaper: { group: "cheap", ratio: 0.5, models: 1 },
+      },
+    ]);
+    const moved = moveGroupBefore(body(), "cheap", "mid");
+    expect(moved.selected_groups).toEqual(["cheap", "mid"]);
+    expect(landingGroups(moved, catalog)).toEqual([
+      { group: "cheap", models: 1, ratio: 0.5, cheaper: null },
+      { group: "mid", models: 1, ratio: 1, cheaper: null },
+    ]);
+    // 已经在前面的分组不动
+    expect(moveGroupBefore(moved, "cheap", "mid")).toBe(moved);
+  });
+
+  it("does not suggest reordering for pinned or excluded models, or unknown ratios", () => {
+    const pinned = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "mid",
+    });
+    expect(landingGroups(pinned, catalog)[0].cheaper).toBeNull();
+    const pinnedCheap = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "cheap",
+    });
+    expect(
+      landingGroups(pinnedCheap, catalog).map((item) => [
+        item.group,
+        item.models,
+      ]),
+    ).toEqual([
+      ["mid", 1],
+      ["cheap", 1],
+    ]);
+    const excluded = applyChoice(body(), "shared", { kind: "exclude" });
+    expect(landingGroups(excluded, catalog)).toEqual([
+      { group: "mid", models: 1, ratio: 1, cheaper: null },
+    ]);
+    // vip 倍率未知：不拿它和别的分组比价
+    expect(
+      landingGroups(body({ selected_groups: ["vip", "mid"] }), catalog),
+    ).toEqual([
+      { group: "vip", models: 1, ratio: null, cheaper: null },
+      { group: "mid", models: 2, ratio: 1, cheaper: null },
+    ]);
+    expect(landingGroups(body(), null)).toEqual([]);
+  });
+
+  it("orders groups by ratio for cost-first profiles, as the backend does", () => {
+    const costFirst = body({
+      selected_groups: ["vip", "mid", "cheap"],
+      selection_mode: "cost_first",
+    });
+    expect(effectiveGroupOrder(costFirst, catalog)).toEqual([
+      "cheap",
+      "mid",
+      "vip",
+    ]);
+    expect(effectiveGroupOrder(body(), catalog)).toEqual(["mid", "cheap"]);
+    // 按倍率选来源时没有「移到前面」的建议
+    expect(
+      landingGroups(costFirst, catalog).map((item) => [
+        item.group,
+        item.models,
+        item.cheaper,
+      ]),
+    ).toEqual([
+      ["cheap", 1, null],
+      ["mid", 1, null],
+      ["vip", 1, null],
+    ]);
   });
 });

@@ -35,7 +35,9 @@ import {
   applyAlias,
   applyChoice,
   confirmAllByGroupOrder,
+  landingGroups,
   moveGroup,
+  moveGroupBefore,
   normalizeForSave,
   previewModels,
   toggleGroup,
@@ -67,6 +69,8 @@ function SortableGroup({
   index,
   count,
   ratio,
+  barPercent,
+  costly,
   description,
   onMove,
   onRemove,
@@ -75,6 +79,10 @@ function SortableGroup({
   index: number;
   count: number;
   ratio: string;
+  /** 倍率条的长度（占已选分组里最高倍率的百分比）；倍率未知时为 null。 */
+  barPercent: number | null;
+  /** 高于原价（倍率 > 1）：倍率条用警示色。 */
+  costly: boolean;
   description?: string;
   onMove: (from: number, to: number) => void;
   onRemove: () => void;
@@ -87,7 +95,7 @@ function SortableGroup({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       data-testid={`aicli-group-${id}`}
-      className="flex items-center gap-2 rounded-control border border-border bg-surface px-2 py-1.5 text-body"
+      className="flex items-center gap-2 border-b border-border bg-surface px-2 py-2 text-body last:border-b-0"
     >
       <button
         type="button"
@@ -101,14 +109,30 @@ function SortableGroup({
       <span className="w-6 text-caption tabular-nums text-fg-3">
         {index + 1}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-fg-1">{id}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0 truncate font-medium text-fg-1">{id}</span>
+          <span className="shrink-0 text-strong font-semibold tabular-nums text-fg-1">
+            {ratio}
+          </span>
+        </span>
         {description && (
           <span className="truncate text-caption text-fg-3">{description}</span>
         )}
-      </span>
-      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-subtle px-2 text-badge tabular-nums text-fg-2">
-        {ratio}
+        {barPercent != null && (
+          <span
+            aria-hidden="true"
+            className="block h-1.5 overflow-hidden rounded-full bg-subtle"
+          >
+            <span
+              className={cn(
+                "block h-full rounded-full",
+                costly ? "bg-warning" : "bg-action",
+              )}
+              style={{ width: `${barPercent}%` }}
+            />
+          </span>
+        )}
       </span>
       <Button
         type="button"
@@ -171,11 +195,32 @@ export function AicliProfileEditor({
     (group) => !body.selected_groups.includes(group),
   );
 
-  const ratioText = (group: string) => {
+  const landing = useMemo(() => landingGroups(body, catalog), [body, catalog]);
+  const costFirst = body.selection_mode === "cost_first";
+
+  const ratioOf = (group: string) => {
     const info = catalog?.groups[group];
-    return info && info.ratio_known && info.ratio != null
-      ? t("aicli.profiles.ratio", { ratio: info.ratio })
+    return info && info.ratio_known && info.ratio != null ? info.ratio : null;
+  };
+  const ratioText = (group: string) => {
+    const ratio = ratioOf(group);
+    return ratio != null
+      ? t("aicli.profiles.ratio", { ratio })
       : t("aicli.profiles.ratioUnknown");
+  };
+  /** 大字的「×0.5」；倍率未知时写「倍率未知」。 */
+  const ratioTimes = (ratio: number | null) =>
+    ratio != null
+      ? t("aicli.profiles.ratioTimes", { ratio })
+      : t("aicli.profiles.ratioUnknown");
+  const maxRatio = Math.max(
+    0,
+    ...body.selected_groups.map((group) => ratioOf(group) ?? 0),
+  );
+  const barPercent = (group: string) => {
+    const ratio = ratioOf(group);
+    if (ratio == null || maxRatio <= 0) return null;
+    return Math.max(2, Math.round((ratio / maxRatio) * 100));
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -235,79 +280,170 @@ export function AicliProfileEditor({
         />
       </label>
 
-      <section
-        aria-labelledby="aicli-profile-groups"
-        className="flex flex-col gap-2"
-      >
-        <h3 id="aicli-profile-groups" className="m-0 text-section text-fg-1">
-          {t("aicli.profiles.groupsTitle")}
-        </h3>
-        <p className="m-0 text-caption text-fg-3">
-          {t("aicli.profiles.groupsHint")}
-        </p>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={onDragEnd}
+      <div className="flex flex-wrap items-start gap-6">
+        <section
+          aria-labelledby="aicli-profile-groups"
+          className="flex min-w-0 flex-[1_1_380px] flex-col gap-2"
         >
-          <SortableContext
-            items={body.selected_groups}
-            strategy={verticalListSortingStrategy}
+          <h3 id="aicli-profile-groups" className="m-0 text-section text-fg-1">
+            {t("aicli.profiles.groupsTitle")}
+          </h3>
+          <p className="m-0 text-caption text-fg-3">
+            {t("aicli.profiles.groupsHint")}
+          </p>
+          {costFirst && (
+            <Notice tone="neutral" title={t("aicli.profiles.costFirstNote")} />
+          )}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
           >
-            <ol className="m-0 flex list-none flex-col gap-1 p-0">
-              {body.selected_groups.map((group, index) => (
-                <SortableGroup
+            <SortableContext
+              items={body.selected_groups}
+              strategy={verticalListSortingStrategy}
+            >
+              <ol className="m-0 flex list-none flex-col overflow-hidden rounded-panel border border-border p-0">
+                {body.selected_groups.map((group, index) => (
+                  <SortableGroup
+                    key={group}
+                    id={group}
+                    index={index}
+                    count={body.selected_groups.length}
+                    ratio={ratioTimes(ratioOf(group))}
+                    barPercent={barPercent(group)}
+                    costly={(ratioOf(group) ?? 0) > 1}
+                    description={
+                      catalog?.groups[group]?.description || undefined
+                    }
+                    onMove={(from, to) =>
+                      setBody((current) => moveGroup(current, from, to))
+                    }
+                    onRemove={() =>
+                      setBody((current) => toggleGroup(current, group, false))
+                    }
+                  />
+                ))}
+              </ol>
+            </SortableContext>
+          </DndContext>
+          {unselected.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {unselected.map((group) => (
+                <label
                   key={group}
-                  id={group}
-                  index={index}
-                  count={body.selected_groups.length}
-                  ratio={ratioText(group)}
-                  description={catalog?.groups[group]?.description || undefined}
-                  onMove={(from, to) =>
-                    setBody((current) => moveGroup(current, from, to))
-                  }
-                  onRemove={() =>
-                    setBody((current) => toggleGroup(current, group, false))
-                  }
-                />
+                  className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1 text-body text-fg-2 transition-colors hover:border-border-strong"
+                >
+                  <Checkbox
+                    checked={false}
+                    onCheckedChange={() =>
+                      setBody((current) => toggleGroup(current, group, true))
+                    }
+                  />
+                  {group}
+                  <span className="text-caption text-fg-3">
+                    {ratioText(group)}
+                  </span>
+                </label>
               ))}
-            </ol>
-          </SortableContext>
-        </DndContext>
-        {unselected.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {unselected.map((group) => (
-              <label
-                key={group}
-                className="flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1 text-body text-fg-2 transition-colors hover:border-border-strong"
-              >
-                <Checkbox
-                  checked={false}
-                  onCheckedChange={() =>
-                    setBody((current) => toggleGroup(current, group, true))
-                  }
-                />
-                {group}
-                <span className="text-caption text-fg-3">
-                  {ratioText(group)}
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-        <label className="flex items-center gap-2 text-body text-fg-2">
-          <Checkbox
-            checked={body.allow_fallback}
-            onCheckedChange={(checked) =>
-              setBody((current) => ({
-                ...current,
-                allow_fallback: checked,
-              }))
-            }
-          />
-          {t("aicli.profiles.allowFallback")}
-        </label>
-      </section>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-body text-fg-2">
+            <Checkbox
+              checked={body.allow_fallback}
+              onCheckedChange={(checked) =>
+                setBody((current) => ({
+                  ...current,
+                  allow_fallback: checked,
+                }))
+              }
+            />
+            {t("aicli.profiles.allowFallback")}
+          </label>
+        </section>
+
+        <section
+          aria-labelledby="aicli-profile-landing"
+          data-testid="aicli-profile-landing"
+          className="flex min-w-0 flex-[1_1_320px] flex-col gap-2"
+        >
+          <h3 id="aicli-profile-landing" className="m-0 text-section text-fg-1">
+            {t("aicli.profiles.landingTitle")}
+          </h3>
+          <p className="m-0 text-caption text-fg-3">
+            {t("aicli.profiles.landingHint")}
+          </p>
+          {landing.length === 0 ? (
+            <p className="m-0 rounded-panel border border-dashed border-border px-4 py-6 text-center text-body text-fg-2">
+              {t("aicli.profiles.landingEmpty")}
+            </p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col overflow-hidden rounded-panel border border-border p-0">
+              {landing.map((item) => (
+                <li
+                  key={item.group}
+                  data-testid={`aicli-landing-${item.group}`}
+                  className={cn(
+                    "flex flex-col gap-2 border-b border-border px-4 py-3 last:border-b-0",
+                    item.cheaper && "bg-warning-soft",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-strong text-fg-1">
+                        {item.group}
+                      </span>
+                      <span className="text-caption text-fg-2">
+                        {t("aicli.profiles.landingModels", {
+                          count: item.models,
+                        })}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 text-title tabular-nums",
+                        item.cheaper ? "text-warning-text" : "text-fg-1",
+                      )}
+                    >
+                      {ratioTimes(item.ratio)}
+                    </span>
+                  </div>
+                  {item.cheaper && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="min-w-0 flex-[1_1_200px] text-caption text-fg-1">
+                        {t("aicli.profiles.landingCheaper", {
+                          count: item.cheaper.models,
+                          group: item.cheaper.group,
+                          ratio: item.cheaper.ratio,
+                        })}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="neutral"
+                        size="compact"
+                        onClick={() => {
+                          const cheaper = item.cheaper;
+                          if (!cheaper) return;
+                          setBody((current) =>
+                            moveGroupBefore(current, cheaper.group, item.group),
+                          );
+                        }}
+                      >
+                        {t("aicli.profiles.landingMoveUp", {
+                          group: item.cheaper.group,
+                        })}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="m-0 text-caption text-fg-3">
+            {t("aicli.profiles.landingNote")}
+          </p>
+        </section>
+      </div>
 
       <section
         aria-labelledby="aicli-profile-preview"
