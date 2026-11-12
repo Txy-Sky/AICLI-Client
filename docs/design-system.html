@@ -8,16 +8,16 @@
   /* ============================================================
      AICLI Client Design System — v7
      令牌对齐 src/index.css（:root / .dark）与 tailwind.config.cjs。
-     主题色 #F97316 只覆盖 --action-* 与 --ring（index.css 注释约定的主题色槽位）。
+     主题色 #10B5A3（取自 logo 的品牌青，2026-11 改版）只覆盖 --action-* 与 --ring（index.css 注释约定的主题色槽位）。
      ============================================================ */
   :root {
     /* 主题色（操作色）——实心按钮、开关的开、勾选框、焦点环、链接 */
-    --action-bg: #f97316;
-    --action-hover: #ea620a;
-    --action-fg: #ffffff;
-    --action-text: #c2410c;   /* 橙色当文字用（链接、选中文字）时用深一档，对白底 5.2:1 */
-    --action-soft: #fff1e6;
-    --ring: #f97316;
+    --action-bg: #10b5a3;
+    --action-hover: #0ea293;
+    --action-fg: #06302b;     /* 品牌青配白字对比度不够，实心块上用墨青字 */
+    --action-text: #0b6b63;   /* 青色当文字用（链接、选中文字）时用深一档 */
+    --action-soft: #e6f6f3;   /* 已接管、已开启的底 */
+    --ring: #0d9488;
 
     /* 中性面（v7 tokens） */
     --bg-app: #ffffff;
@@ -64,17 +64,17 @@
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --action-bg: #ea580c; --action-hover: #f06d1f; --action-fg: #ffffff; --action-text: #fb923c; --action-soft: rgba(249, 115, 21, 0.12); --ring: #d77a3c;
-      --bg-app: #1c1c1e; --bg-sidebar: #161618; --bg-subtle: #26262a; --bg-selected: #313136; --bg-card: #2e2e33;
+      --action-bg: #10b5a3; --action-hover: #1cc4b1; --action-fg: #06302b; --action-text: #5fe0d0; --action-soft: #12332f; --ring: #2bd4c0;
+      --bg-app: #1a1f24; --bg-sidebar: #14181c; --bg-subtle: #2a323a; --bg-selected: #303840; --bg-card: #232a31;
       --border: #3e3e45; --border-strong: #4a4a52;
-      --text-1: #e4e4e7; --text-2: #ababb3; --text-3: #9a9aa2;
+      --text-1: #e6e9ec; --text-2: #aab2bb; --text-3: #9aa3ad;
       --inverse-bg: #f4f4f5; --inverse-fg: #18181b; --overlay: rgba(0, 0, 0, .55); --control-off: #6f6f77;
       --direct-fill: #4a8fd9; --direct-text: #8fb8e6; --direct-soft: rgba(74, 143, 217, 0.12); --direct-solid: #2f6db3; --direct-on: #ffffff;
       --route-fill: #2a9d8f; --route-text: #7cc4ba; --route-soft: rgba(42, 157, 143, 0.12); --route-solid: #1f7d72; --route-on: #ffffff;
       --stack-fill: #8b74d6; --stack-text: #b5a6e3; --stack-soft: rgba(139, 116, 214, 0.12); --stack-solid: #6a52bf; --stack-on: #ffffff;
       --success: #4ade80; --success-text: #4ade80; --success-soft: #0f2b1a;
-      --warning: #fbbf24; --warning-text: #fcd34d; --warning-soft: #33260a;
-      --danger: #f87171;  --danger-text: #fca5a5;  --danger-soft: #3a1414;
+      --warning: #e89040; --warning-text: #f0b072; --warning-soft: #3a2a17;
+      --danger: #f87171;  --danger-text: #f5a3a3;  --danger-soft: #3b1d1d;
       --chart-1: #38bdf8; --chart-2: #f472b6; --chart-grid: #2c2c31;
       --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .4);
       --shadow-md: 0 4px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .4);
@@ -83,17 +83,17 @@
   }
 
   :root[data-theme="dark"] {
-    --action-bg: #ea580c; --action-hover: #f06d1f; --action-fg: #ffffff; --action-text: #fb923c; --action-soft: rgba(249, 115, 21, 0.12); --ring: #d77a3c;
-    --bg-app: #1c1c1e; --bg-sidebar: #161618; --bg-subtle: #26262a; --bg-selected: #313136; --bg-card: #2e2e33;
+    --action-bg: #10b5a3; --action-hover: #1cc4b1; --action-fg: #06302b; --action-text: #5fe0d0; --action-soft: #12332f; --ring: #2bd4c0;
+    --bg-app: #1a1f24; --bg-sidebar: #14181c; --bg-subtle: #2a323a; --bg-selected: #303840; --bg-card: #232a31;
     --border: #3e3e45; --border-strong: #4a4a52;
-    --text-1: #e4e4e7; --text-2: #ababb3; --text-3: #9a9aa2;
+    --text-1: #e6e9ec; --text-2: #aab2bb; --text-3: #9aa3ad;
     --inverse-bg: #f4f4f5; --inverse-fg: #18181b; --overlay: rgba(0, 0, 0, .55); --control-off: #6f6f77;
     --direct-fill: #4a8fd9; --direct-text: #8fb8e6; --direct-soft: rgba(74, 143, 217, 0.12); --direct-solid: #2f6db3; --direct-on: #ffffff;
     --route-fill: #2a9d8f; --route-text: #7cc4ba; --route-soft: rgba(42, 157, 143, 0.12); --route-solid: #1f7d72; --route-on: #ffffff;
     --stack-fill: #8b74d6; --stack-text: #b5a6e3; --stack-soft: rgba(139, 116, 214, 0.12); --stack-solid: #6a52bf; --stack-on: #ffffff;
     --success: #4ade80; --success-text: #4ade80; --success-soft: #0f2b1a;
-    --warning: #fbbf24; --warning-text: #fcd34d; --warning-soft: #33260a;
-    --danger: #f87171;  --danger-text: #fca5a5;  --danger-soft: #3a1414;
+    --warning: #e89040; --warning-text: #f0b072; --warning-soft: #3a2a17;
+    --danger: #f87171;  --danger-text: #f5a3a3;  --danger-soft: #3b1d1d;
     --chart-1: #38bdf8; --chart-2: #f472b6; --chart-grid: #2c2c31;
     --shadow-sm: 0 0 0 1px rgba(255, 255, 255, .08), 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .4);
@@ -277,7 +277,7 @@
   .switch::before { content: ""; position: absolute; inset: -5px -4px; }
   .switch i { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform var(--dur), background-color var(--dur); }
   .switch[aria-checked="true"] { background: var(--action-bg); }
-  .switch[aria-checked="true"] i { transform: translateX(12px); background: var(--action-fg); }
+  .switch[aria-checked="true"] i { transform: translateX(12px); background: #fff; }
   .switch.sm { width: 26px; height: 16px; }
   .switch.sm i { width: 12px; height: 12px; }
   .switch.sm[aria-checked="true"] i { transform: translateX(10px); }
@@ -543,13 +543,13 @@
       <div class="eyebrow">Claude Code · Codex · Gemini 供应商切换器</div>
       <h1>AICLI Client 设计系统</h1>
       <p>桌面端（Tauri + React）的视觉与交互规范。令牌直接取自 <code>src/index.css</code> 与 <code>tailwind.config.cjs</code>：
-        中性黑白骨架、主题色 <strong style="color:var(--action-text)">#F97316</strong> 只落在操作色上，
+        中性黑白骨架、主题色 <strong style="color:var(--action-text)">#10B5A3</strong> 只落在操作色上，
         直连 / 路由 / 聚合三种模式各有一套颜色，13px 正文、6 / 10 / 14 三档圆角，明暗双主题一一对应。</p>
       <div class="meta">
         <span class="chip outline">Tauri 2 · React 18</span>
         <span class="chip outline">Tailwind 3 · Radix · shadcn/ui</span>
         <span class="chip outline">lucide 图标</span>
-        <span class="chip action"><span class="d"></span>主题色 #F97316</span>
+        <span class="chip action"><span class="d"></span>主题色 #10B5A3</span>
       </div>
     </header>
 
@@ -558,21 +558,22 @@
       <div class="kicker">基础 / 01</div>
       <h2>色彩</h2>
       <p class="lede"><strong>骨架是中性灰，彩色只表达「能操作」和「是什么状态」。</strong>
-        主题色只有一个：橙 <code>#F97316</code>，它占的是 <code>--action-*</code> 和 <code>--ring</code> 这组槽位——
-        一个视图只有一个实心橙按钮。模式色、语义色各管各的，不和主题色混用。</p>
+        主题色只有一个：取自 logo 的品牌青 <code>#10B5A3</code>，它占的是 <code>--action-*</code> 和 <code>--ring</code> 这组槽位——
+        一个视图只有一个实心青按钮。「已接管」「已开启」这类正向状态用它的浅底 <code>--action-soft</code>；
+        橙色只表示「需要处理」。模式色、语义色各管各的，不和主题色混用。</p>
 
       <h3 class="sub">主题色 · 操作色</h3>
       <div class="hero-swatch">
         <div class="big">
           <span style="font-size:12px;font-weight:600">--action-bg</span>
-          <span class="hex">#F97316</span>
+          <span class="hex">#10B5A3</span>
         </div>
         <div class="scale">
-          <div style="background:#fff1e6;color:#7c2d12"><b>50 · soft</b><span class="mono">#FFF1E6</span></div>
-          <div style="background:#fb923c;color:#431407"><b>400 · 深色文字</b><span class="mono">#FB923C</span></div>
-          <div style="background:#f97316;color:#fff"><b>500 · 主题色</b><span class="mono">#F97316</span></div>
-          <div style="background:#ea620a;color:#fff"><b>600 · hover</b><span class="mono">#EA620A</span></div>
-          <div style="background:#c2410c;color:#fff"><b>700 · 浅色文字</b><span class="mono">#C2410C</span></div>
+          <div style="background:#e6f6f3;color:#0b6b63"><b>50 · soft</b><span class="mono">#E6F6F3</span></div>
+          <div style="background:#5fe0d0;color:#06302b"><b>300 · 深色文字</b><span class="mono">#5FE0D0</span></div>
+          <div style="background:#10b5a3;color:#06302b"><b>500 · 主题色</b><span class="mono">#10B5A3</span></div>
+          <div style="background:#0ea293;color:#06302b"><b>600 · hover</b><span class="mono">#0EA293</span></div>
+          <div style="background:#0b6b63;color:#fff"><b>700 · 浅色文字</b><span class="mono">#0B6B63</span></div>
         </div>
         <div class="uses">
           <button class="btn solid compact">保存</button>
@@ -582,14 +583,15 @@
           <input class="input" style="width:150px" placeholder="聚焦看焦点环">
         </div>
       </div>
-      <p class="note">对比度：浅色主题实心按钮白字 2.8:1，按钮文字统一用 600 字重补偿；橙色当文字用时一律换 <code>--action-text</code>（浅 #C2410C 5.2:1 / 深 #FB923C 7.5:1）。深色主题实心按钮压暗为 <code>#EA580C</code> + 白字（3.6:1），焦点描边用更沉的 <code>#D77A3C</code>。</p>
+      <p class="note">对比度：实心块（按钮、开关的开、勾选）用墨青字 <code>#06302B</code>，对品牌青 5.6:1，浅深两套主题相同；
+        青色当文字用时一律换 <code>--action-text</code>（浅 #0B6B63 / 深 #5FE0D0）。焦点环浅色 #0D9488、深色 #2BD4C0。开关滑块固定白色。</p>
 
       <h3 class="sub">中性面与文字</h3>
       <div class="swatches">
-        <div class="sw"><div class="fill" style="background:var(--bg-app)"></div><div class="m"><div class="name">bg-app</div><div class="val">#FFFFFF / #1C1C1E</div><div class="role">内容区底</div></div></div>
-        <div class="sw"><div class="fill" style="background:var(--bg-sidebar)"></div><div class="m"><div class="name">bg-sidebar</div><div class="val">#F5F5F7 / #161618</div><div class="role">侧栏</div></div></div>
-        <div class="sw"><div class="fill" style="background:var(--bg-subtle)"></div><div class="m"><div class="name">bg-subtle</div><div class="val">#EFEFF2 / #26262A</div><div class="role">hover、分段轨道、通知</div></div></div>
-        <div class="sw"><div class="fill" style="background:var(--bg-selected)"></div><div class="m"><div class="name">bg-selected</div><div class="val">#E4E4EA / #313136</div><div class="role">侧栏当前项</div></div></div>
+        <div class="sw"><div class="fill" style="background:var(--bg-app)"></div><div class="m"><div class="name">bg-app</div><div class="val">#FFFFFF / #1A1F24</div><div class="role">内容区底</div></div></div>
+        <div class="sw"><div class="fill" style="background:var(--bg-sidebar)"></div><div class="m"><div class="name">bg-sidebar</div><div class="val">#F5F5F7 / #14181C</div><div class="role">侧栏</div></div></div>
+        <div class="sw"><div class="fill" style="background:var(--bg-subtle)"></div><div class="m"><div class="name">bg-subtle</div><div class="val">#EFEFF2 / #2A323A</div><div class="role">hover、分段轨道、通知</div></div></div>
+        <div class="sw"><div class="fill" style="background:var(--bg-selected)"></div><div class="m"><div class="name">bg-selected</div><div class="val">#E4E4EA / #303840</div><div class="role">侧栏当前项</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--bg-card)"></div><div class="m"><div class="name">bg-card · surface</div><div class="val">#FFFFFF / #2E2E33</div><div class="role">卡片、弹层、输入</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--border-strong)"></div><div class="m"><div class="name">border-strong</div><div class="val">#CFCFD6 / #4A4A52</div><div class="role">描边按钮、hover 卡片</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--text-1);color:var(--bg-app)">Aa</div><div class="m"><div class="name">text-1 · fg-1</div><div class="val">#18181B / #F4F4F5</div><div class="role">标题、正文</div></div></div>
@@ -633,7 +635,7 @@
         <div class="sw"><div class="fill" style="background:linear-gradient(90deg,color-mix(in srgb,var(--chart-1) 32%,transparent) 0 25%,color-mix(in srgb,var(--chart-1) 62%,transparent) 25% 50%,var(--chart-1) 50% 75%,#0e7490 75%)"></div><div class="m"><div class="name">heat-1…4</div><div class="val">chart-1 32% / 62% / 100% · #0E7490</div><div class="role">热力图色阶（浅色）；深色为 chart-1 30/50/75/100%</div></div></div>
         <div class="sw"><div class="fill" style="background:var(--chart-2)"></div><div class="m"><div class="name">chart-2</div><div class="val">#DB2777 / #F472B6</div><div class="role">图表对比序列</div></div></div>
       </div>
-      <p class="note"><b>橙 vs 琥珀：</b>主题橙和 warning 琥珀色相接近。警告永远是「soft 底 + 三角图标 + 文字」，从不单独用一块橙/琥珀色表达状态；橙色只出现在能点的东西上。</p>
+      <p class="note"><b>青 vs 橙：</b>品牌青只出现在能点的东西和正向状态上；橙（warning）只表示「需要处理」，永远是「soft 底 + 三角图标 + 文字」。深色主题里 warning 也是橙（#E89040 / 文字 #F0B072），不是黄。</p>
     </section>
 
     <!-- ================= 字体 ================= -->
@@ -1043,8 +1045,8 @@
       <div class="kicker">规约 / 02</div>
       <h2>Do / Don't</h2>
       <div class="dd">
-        <div class="c do"><div class="lbl"><svg class="i sm"><use href="#check"/></svg>Do</div><p>主题橙只放在能点的东西上：主按钮、开关、勾选、焦点、链接。</p></div>
-        <div class="c dont"><div class="lbl"><svg class="i sm"><use href="#x"/></svg>Don't</div><p>用橙色表达「注意 / 警告」状态，或给分段控件选中块、页签下划线上橙色。</p></div>
+        <div class="c do"><div class="lbl"><svg class="i sm"><use href="#check"/></svg>Do</div><p>品牌青只放在能点的东西和正向状态上：主按钮、开关、勾选、焦点、链接、「已接管 / 已开启」的浅底。</p></div>
+        <div class="c dont"><div class="lbl"><svg class="i sm"><use href="#x"/></svg>Don't</div><p>用品牌青表达「注意 / 警告」状态，或用橙色做主操作。</p></div>
         <div class="c do"><div class="lbl"><svg class="i sm"><use href="#check"/></svg>Do</div><p>卡片操作、工具栏用纯图标按钮，配 HoverTip + aria-label；模式 tab 这种「选哪一个」的控件保留文字。</p></div>
         <div class="c dont"><div class="lbl"><svg class="i sm"><use href="#x"/></svg>Don't</div><p>图标按钮只靠 <code>title</code> 属性提示——要等一秒多才出现，样式也和系统不一致。</p></div>
         <div class="c do"><div class="lbl"><svg class="i sm"><use href="#check"/></svg>Do</div><p>当前生效的供应商卡片用模式 soft 底 + fill 描边。</p></div>
@@ -1055,7 +1057,7 @@
     </section>
 
     <footer style="padding:36px 0;color:var(--text-3);font-size:12px">
-      AICLI Client 设计系统 · 令牌源自 <code>src/index.css</code> / <code>tailwind.config.cjs</code> · 主题色 #F97316 覆盖 <code>--action-*</code> 与 <code>--ring</code>
+      AICLI Client 设计系统 · 令牌源自 <code>src/index.css</code> / <code>tailwind.config.cjs</code> · 主题色 #10B5A3 覆盖 <code>--action-*</code> 与 <code>--ring</code>
     </footer>
   </main>
 </div>
