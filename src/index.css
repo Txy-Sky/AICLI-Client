@@ -36,30 +36,31 @@
   }
 
   .dark {
-    --background: 240 3.4% 11.4%;
-    /* 文字色与下方 --text-1 一致（#e4e4e7）：纯白主文字铺满整屏时刺眼 */
-    --foreground: 240 5.9% 90%;
-    --card: 240 5.2% 19%;
-    --card-foreground: 240 5.9% 90%;
-    --popover: 240 5.2% 19%;
-    --popover-foreground: 240 5.9% 90%;
+    /* 2026-11 改版（设计稿画板 20）：底色取 logo 提示符的墨蓝再压暗，与下方 --bg-* 一致 */
+    --background: 210 16.1% 12.2%;
+    /* 文字色与下方 --text-1 一致（#e6e9ec）：纯白主文字铺满整屏时刺眼 */
+    --foreground: 210 13.6% 91.4%;
+    --card: 210 16.7% 16.5%;
+    --card-foreground: 210 13.6% 91.4%;
+    --popover: 210 16.7% 16.5%;
+    --popover-foreground: 210 13.6% 91.4%;
 
-    --primary: 240 4.8% 95.9%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 210 13.6% 91.4%;
+    --primary-foreground: 210 16.1% 12.2%;
 
-    --secondary: 240 5% 15.7%;
-    --secondary-foreground: 240 5.9% 90%;
+    --secondary: 210 16% 19.6%;
+    --secondary-foreground: 210 13.6% 91.4%;
 
-    --muted: 240 5% 15.7%;
-    --muted-foreground: 240 5.4% 68.6%;
-    --accent: 240 5% 15.7%;
-    --accent-foreground: 240 5.9% 90%;
+    --muted: 210 16% 19.6%;
+    --muted-foreground: 212 11.1% 70%;
+    --accent: 210 16% 19.6%;
+    --accent-foreground: 210 13.6% 91.4%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5.3% 25.7%;
-    --input: 240 5.3% 25.7%;
+    --border: 210 14.5% 21.6%;
+    --input: 210 14.5% 21.6%;
     /* 深色下焦点色用亮一档的青（约 #2bd4c0），在深底上看得清 */
     --ring: 172 66% 50%;
   }
@@ -154,29 +155,31 @@
   }
 
   .dark {
-    --bg-app: #1c1c1e;
-    --bg-sidebar: #161618;
-    --bg-subtle: #26262a;
-    --bg-selected: #313136;
-    --bg-card: #2e2e33;
-    --border-strong: #4a4a52;
+    /* 2026-11 改版（画板 20）：页面 #1A1F24、侧栏再暗一档、卡片 / 弹窗 #232A31，都带墨蓝 */
+    --bg-app: #1a1f24;
+    --bg-sidebar: #14181c;
+    --bg-subtle: #2a323a;
+    --bg-selected: #303840;
+    --bg-card: #232a31;
+    --border-strong: #4a545e;
     /* 三档文字都比纯白压低一截并拉开明度差：太亮时三档都贴近白色，整屏显得刺眼、层次压平。
        次级、三级对卡片底、选中底（--bg-card / --bg-selected）都 ≥ 4.5:1 */
-    --text-1: #e4e4e7;
-    --text-2: #ababb3;
-    --text-3: #9a9aa2;
+    --text-1: #e6e9ec;
+    --text-2: #aab2bb;
+    --text-3: #9aa3ad;
     /* 深色模式：实心块和浅色一样用品牌青 + 墨青字；文字用亮一档的 #5fe0d0 */
     --action-bg: #10b5a3;
     --action-fg: #06302b;
     --action-hover: #1cc4b1;
     --action-text: #5fe0d0;
-    /* 深色下浅青底用半透明叠在卡片 / 侧栏底色上：不透明的深青会发闷 */
-    --action-soft: rgba(16, 181, 163, 0.14);
+    /* 已接管、已开启的底：画板 20 的暗青，三档文字和 --action-text 在上面都 ≥ 5:1 */
+    --action-soft: #12332f;
     --inverse-bg: #f4f4f5;
     --inverse-fg: #18181b;
     --inverse-hover: #e4e4e7;
     --overlay: rgba(0, 0, 0, 0.55);
-    --control-off: #6f6f77;
+    /* 画板 20 是 #56606B，对卡片底只有 2.3:1；提亮到 ≥ 3:1（非文字元素的下限） */
+    --control-off: #707a85;
 
     /* 深色模式的模式色压低亮度和饱和度：原来的亮蓝 / 青绿 / 亮紫在深底上太刺眼。
        浅底用半透明叠加，当前卡片边框用半透明的 fill */
@@ -204,12 +207,13 @@
     --success: #4ade80;
     --success-text: #4ade80;
     --success-soft: #0f2b1a;
-    --warning: #fbbf24;
-    --warning-text: #fcd34d;
-    --warning-soft: #33260a;
+    /* 注意色在深色下也是橙（和浅色一致），不再是黄 */
+    --warning: #e89040;
+    --warning-text: #f0b072;
+    --warning-soft: #3a2a17;
     --danger: #f87171;
-    --danger-text: #fca5a5;
-    --danger-soft: #3a1414;
+    --danger-text: #f5a3a3;
+    --danger-soft: #3b1d1d;
     --chart-1: #38bdf8;
     /* 深色底上越亮越多，chart-usage 本身就是最亮档 */
     --heat-1: color-mix(in srgb, var(--chart-usage) 30%, transparent);
@@ -217,7 +221,7 @@
     --heat-3: color-mix(in srgb, var(--chart-usage) 75%, transparent);
     --heat-4: var(--chart-usage);
     --chart-2: #f472b6;
-    --chart-grid: #2c2c31;
+    --chart-grid: #2f373f;
 
     --agent-claude: #e08a6a;
     --agent-codex: #d4d4d8;
