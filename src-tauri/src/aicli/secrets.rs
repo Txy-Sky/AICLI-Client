@@ -70,6 +70,101 @@ impl SecretStore for NativeKeyring {
     }
 }
 
+/// Longest value written to one native credential. Windows Credential Manager rejects blobs over
+/// 2560 bytes (stored as UTF-16, so about 1280 characters); takeover backups of client config
+/// files are far larger. 1000 characters leaves headroom on every platform.
+const NATIVE_CHUNK_CHARS: usize = 1000;
+/// Marks a value split across `<account>#part<i>` entries; the suffix is the part count.
+const CHUNK_HEADER: &str = "aicli-chunked-v1:";
+
+/// Splits values longer than `max` characters across several entries of `inner`.
+///
+/// Short values are stored unchanged, so credentials written before this existed still read.
+/// Parts are written before the header and removed after it, so a crash leaves either the old
+/// value readable or orphan parts that the next write of the same account cleans up.
+struct Chunked {
+    inner: Box<dyn SecretStore>,
+    max: usize,
+}
+
+impl fmt::Debug for Chunked {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Chunked { .. }")
+    }
+}
+
+impl Chunked {
+    fn part(account: &str, index: usize) -> String {
+        format!("{account}#part{index}")
+    }
+
+    fn part_count(value: &str) -> Option<usize> {
+        value.strip_prefix(CHUNK_HEADER)?.parse().ok()
+    }
+
+    fn stored_parts(&self, account: &str) -> Result<usize, SecretError> {
+        Ok(self
+            .inner
+            .get(account)?
+            .as_deref()
+            .and_then(Self::part_count)
+            .unwrap_or(0))
+    }
+
+    fn delete_parts(&self, account: &str, from: usize, to: usize) -> Result<(), SecretError> {
+        for index in from..to {
+            self.inner.delete(&Self::part(account, index))?;
+        }
+        Ok(())
+    }
+}
+
+impl SecretStore for Chunked {
+    fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
+        let Some(value) = self.inner.get(account)? else {
+            return Ok(None);
+        };
+        let Some(count) = Self::part_count(&value) else {
+            return Ok(Some(value));
+        };
+        let mut joined = String::new();
+        for index in 0..count {
+            joined.push_str(
+                &self
+                    .inner
+                    .get(&Self::part(account, index))?
+                    .ok_or(SecretError::Read)?,
+            );
+        }
+        Ok(Some(joined))
+    }
+
+    fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
+        let previous = self.stored_parts(account)?;
+        let chars: Vec<char> = value.chars().collect();
+        if chars.len() <= self.max && Self::part_count(value).is_none() {
+            self.inner.set(account, value)?;
+            return self.delete_parts(account, 0, previous);
+        }
+        let parts: Vec<String> = chars
+            .chunks(self.max)
+            .map(|chunk| chunk.iter().collect())
+            .collect();
+        for (index, part) in parts.iter().enumerate() {
+            self.inner.set(&Self::part(account, index), part)?;
+        }
+        self.inner
+            .set(account, &format!("{CHUNK_HEADER}{}", parts.len()))?;
+        self.delete_parts(account, parts.len(), previous)
+    }
+
+    fn delete(&self, account: &str) -> Result<(), SecretError> {
+        let previous = self.stored_parts(account)?;
+        self.inner.delete(account)?;
+        self.delete_parts(account, 0, previous)
+    }
+}
+
 /// Serializes all file read/modify/write operations, including separate store instances.
 static FILE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -159,6 +254,9 @@ pub struct KeyringStore {
     primary: Box<dyn SecretStore>,
     fallback: FileFallbackStore,
     backend: Mutex<SecretBackend>,
+    /// The native store failed in this process. Until then a store that starts in file mode
+    /// (because the file exists) still reads keys the file lacks from the native store.
+    primary_failed: std::sync::atomic::AtomicBool,
 }
 
 impl fmt::Debug for KeyringStore {
@@ -171,7 +269,13 @@ impl fmt::Debug for KeyringStore {
 
 impl Default for KeyringStore {
     fn default() -> Self {
-        Self::with_primary(Box::new(NativeKeyring), FileFallbackStore::default())
+        Self::with_primary(
+            Box::new(Chunked {
+                inner: Box::new(NativeKeyring),
+                max: NATIVE_CHUNK_CHARS,
+            }),
+            FileFallbackStore::default(),
+        )
     }
 }
 
@@ -187,6 +291,7 @@ impl KeyringStore {
             primary,
             fallback,
             backend: Mutex::new(backend),
+            primary_failed: std::sync::atomic::AtomicBool::new(false),
         }
     }
     pub fn secret_backend(&self) -> SecretBackend {
@@ -206,14 +311,41 @@ impl KeyringStore {
                 return Ok(value);
             }
             *backend = SecretBackend::FileFallback;
+            self.mark_primary_failed();
         }
         operation(&self.fallback)
+    }
+
+    fn mark_primary_failed(&self) {
+        self.primary_failed
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// In file mode, the native store may still hold keys written before the downgrade (for
+    /// example the access token stored at bind time, before a large takeover backup failed on
+    /// Windows and created the file). Reading through keeps those credentials instead of
+    /// reporting them missing.
+    fn native_still_usable(&self) -> bool {
+        self.secret_backend() == SecretBackend::FileFallback
+            && !self
+                .primary_failed
+                .load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
 impl SecretStore for KeyringStore {
     fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
-        self.access(|store| store.get(account))
+        let value = self.access(|store| store.get(account))?;
+        if value.is_some() || !self.native_still_usable() {
+            return Ok(value);
+        }
+        match self.primary.get(account) {
+            Ok(native) => Ok(native),
+            Err(_) => {
+                self.mark_primary_failed();
+                Ok(None)
+            }
+        }
     }
 
     fn backend(&self) -> Option<SecretBackend> {
@@ -225,7 +357,12 @@ impl SecretStore for KeyringStore {
     }
 
     fn delete(&self, account: &str) -> Result<(), SecretError> {
-        self.access(|store| store.delete(account))
+        self.access(|store| store.delete(account))?;
+        // A copy left in the native store would be read back through `get`.
+        if self.native_still_usable() && self.primary.delete(account).is_err() {
+            self.mark_primary_failed();
+        }
+        Ok(())
     }
 }
 
@@ -357,6 +494,7 @@ mod tests {
                 primary: Box::new(Unavailable(calls.clone())),
                 fallback: file_store(&temp),
                 backend: Mutex::new(SecretBackend::Keychain),
+                primary_failed: Default::default(),
             };
             assert_eq!(store.secret_backend(), SecretBackend::Keychain);
             match first {
@@ -375,6 +513,154 @@ mod tests {
         }
     }
 
+    /// A native store that, like Windows Credential Manager, rejects long values. Shared so a
+    /// "restarted" KeyringStore sees what the previous one wrote.
+    #[derive(Debug, Clone, Default)]
+    struct Limited(Arc<MemoryStore>, usize);
+
+    impl SecretStore for Limited {
+        fn get(&self, account: &str) -> Result<Option<String>, SecretError> {
+            self.0.get(account)
+        }
+        fn set(&self, account: &str, value: &str) -> Result<(), SecretError> {
+            if value.chars().count() > self.1 {
+                return Err(SecretError::Unavailable);
+            }
+            self.0.set(account, value)
+        }
+        fn delete(&self, account: &str) -> Result<(), SecretError> {
+            self.0.delete(account)
+        }
+    }
+
+    fn limited(max: usize) -> Limited {
+        Limited(Arc::default(), max)
+    }
+
+    fn chunked(native: &Limited) -> Box<dyn SecretStore> {
+        Box::new(Chunked {
+            inner: Box::new(native.clone()),
+            max: 10,
+        })
+    }
+
+    fn entries(native: &Limited) -> Vec<String> {
+        native.0 .0.lock().unwrap().keys().cloned().collect()
+    }
+
+    #[test]
+    fn chunked_store_splits_long_values_and_cleans_up_parts() {
+        let native = limited(10);
+        let store = chunked(&native);
+        round_trip(store.as_ref());
+
+        // Short values are stored as before, so existing credentials still read.
+        store.set("access-token", "short").unwrap();
+        assert_eq!(
+            native.get("access-token").unwrap().as_deref(),
+            Some("short")
+        );
+
+        let long = "0123456789".repeat(9) + "tail";
+        store.set("takeover-backup:claude", &long).unwrap();
+        assert_eq!(
+            store.get("takeover-backup:claude").unwrap().as_deref(),
+            Some(long.as_str())
+        );
+        assert_eq!(
+            entries(&native)
+                .iter()
+                .filter(|key| key.starts_with("takeover-backup:claude#part"))
+                .count(),
+            10
+        );
+
+        // Shorter long value: extra parts are removed.
+        let shorter = "abcdefghij".repeat(2) + "x";
+        store.set("takeover-backup:claude", &shorter).unwrap();
+        assert_eq!(
+            store.get("takeover-backup:claude").unwrap().as_deref(),
+            Some(shorter.as_str())
+        );
+        assert_eq!(
+            entries(&native)
+                .iter()
+                .filter(|key| key.starts_with("takeover-backup:claude#part"))
+                .count(),
+            3
+        );
+
+        // Back to a short value, then delete: no parts left behind.
+        store.set("takeover-backup:claude", "tiny").unwrap();
+        assert!(!entries(&native).iter().any(|key| key.contains("#part")));
+        store.set("takeover-backup:claude", &long).unwrap();
+        store.delete("takeover-backup:claude").unwrap();
+        assert_eq!(store.get("takeover-backup:claude").unwrap(), None);
+        assert!(!entries(&native)
+            .iter()
+            .any(|key| key.starts_with("takeover-backup:")));
+
+        // A value that looks like the header is chunked, not mistaken for one.
+        store.set("token:1", "aicli-chunked-v1:3").unwrap();
+        assert_eq!(
+            store.get("token:1").unwrap().as_deref(),
+            Some("aicli-chunked-v1:3")
+        );
+    }
+
+    /// Windows report (2026-11-12): bind, take over clients, quit, start again → "token invalid".
+    /// The large takeover backup failed in Credential Manager, the store downgraded to the file,
+    /// and the restarted app looked for the access token only in the file.
+    #[test]
+    fn large_backup_keeps_native_storage_and_the_token_survives_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let native = limited(10);
+        let backup = "{\"files\":[123,34]}".repeat(40);
+
+        let store = KeyringStore::with_primary(chunked(&native), file_store(&temp));
+        store.set("access-token", "synthetic").unwrap();
+        store.set("takeover-backup:codex", &backup).unwrap();
+        assert_eq!(store.secret_backend(), SecretBackend::Keychain);
+        assert!(!store.fallback.path.exists());
+        drop(store);
+
+        let restarted = KeyringStore::with_primary(chunked(&native), file_store(&temp));
+        assert_eq!(
+            restarted.get("access-token").unwrap().as_deref(),
+            Some("synthetic")
+        );
+        assert_eq!(
+            restarted.get("takeover-backup:codex").unwrap().as_deref(),
+            Some(backup.as_str())
+        );
+    }
+
+    /// Installs already in the split state (token in the native store, backup in the file) read
+    /// the token back after upgrading, and deleting removes both copies.
+    #[test]
+    fn file_mode_reads_through_to_keys_left_in_the_native_store() {
+        let temp = tempfile::tempdir().unwrap();
+        let native = limited(10);
+        native.set("access-token", "synthetic").unwrap();
+        file_store(&temp)
+            .set("takeover-backup:codex", "from-file")
+            .unwrap();
+
+        let store = KeyringStore::with_primary(Box::new(native.clone()), file_store(&temp));
+        assert_eq!(store.secret_backend(), SecretBackend::FileFallback);
+        assert_eq!(
+            store.get("access-token").unwrap().as_deref(),
+            Some("synthetic")
+        );
+        assert_eq!(
+            store.get("takeover-backup:codex").unwrap().as_deref(),
+            Some("from-file")
+        );
+        store.delete("access-token").unwrap();
+        assert_eq!(store.get("access-token").unwrap(), None);
+        assert_eq!(native.get("access-token").unwrap(), None);
+    }
+
     #[test]
     fn missing_key_does_not_trigger_fallback() {
         let temp = tempfile::tempdir().unwrap();
@@ -382,6 +668,7 @@ mod tests {
             primary: Box::<MemoryStore>::default(),
             fallback: file_store(&temp),
             backend: Mutex::new(SecretBackend::Keychain),
+            primary_failed: Default::default(),
         };
         round_trip(&store);
         assert_eq!(store.secret_backend(), SecretBackend::Keychain);

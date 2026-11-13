@@ -27,6 +27,19 @@ fn merge_settings_for_save(
     incoming
 }
 
+/// 合并前端发来的设置并写回（内存和 settings.json）。返回写之前的设置和写进去的设置。
+///
+/// 2026-11-11 G-04 删托盘样式开关时把这一步连带删掉了，之后 save_settings 只合并不保存：
+/// 欢迎提示点「我知道了」关不掉、语言主题等设置重启后丢失。单独拿出来便于测试。
+fn store_settings(
+    incoming: crate::settings::AppSettings,
+) -> Result<(crate::settings::AppSettings, crate::settings::AppSettings), String> {
+    let existing = crate::settings::get_settings();
+    let merged = merge_settings_for_save(incoming, &existing);
+    crate::settings::update_settings(merged.clone()).map_err(|e| e.to_string())?;
+    Ok((existing, merged))
+}
+
 /// 获取设置
 #[tauri::command]
 pub async fn get_settings() -> Result<crate::settings::AppSettings, String> {
@@ -39,8 +52,7 @@ pub async fn save_settings(
     state: tauri::State<'_, crate::store::AppState>,
     settings: crate::settings::AppSettings,
 ) -> Result<bool, String> {
-    let existing = crate::settings::get_settings();
-    let merged = merge_settings_for_save(settings, &existing);
+    let (existing, merged) = store_settings(settings)?;
     let unify_codex_changed =
         merged.unify_codex_session_history != existing.unify_codex_session_history;
     let unify_codex_enabled = merged.unify_codex_session_history;
@@ -368,11 +380,47 @@ pub async fn set_auto_launch(enabled: bool) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::merge_settings_for_save;
+    use super::{merge_settings_for_save, store_settings};
     use crate::settings::{
         AppSettings, CodexOfficialHistoryUnifyMigration, CodexProviderTemplateMigration,
         CodexThirdPartyHistoryProviderBucketMigration, LocalMigrations,
     };
+
+    /// 回归：save_settings 必须把设置写回（内存和磁盘），不能只合并。
+    #[test]
+    #[serial_test::serial]
+    fn save_settings_should_persist_the_merged_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let previous_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        std::env::set_var("CC_SWITCH_TEST_HOME", dir.path());
+        let previous = crate::settings::get_settings();
+
+        let incoming = AppSettings {
+            first_run_notice_confirmed: Some(true),
+            ..previous.clone()
+        };
+        let result = store_settings(incoming);
+
+        let in_memory = crate::settings::get_settings().first_run_notice_confirmed;
+        let path = crate::config::get_home_dir()
+            .join(crate::config::APP_DIR_NAME)
+            .join("settings.json");
+        let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
+
+        // 先恢复，再断言：失败时也不留下被改过的全局设置
+        let _ = crate::settings::update_settings(previous);
+        match previous_home {
+            Some(home) => std::env::set_var("CC_SWITCH_TEST_HOME", home),
+            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+        }
+
+        result.expect("store settings");
+        assert_eq!(in_memory, Some(true));
+        assert!(
+            on_disk.contains("\"firstRunNoticeConfirmed\": true"),
+            "settings.json was not written: {on_disk}"
+        );
+    }
 
     #[test]
     fn save_settings_should_keep_the_existing_lightweight_mode() {
