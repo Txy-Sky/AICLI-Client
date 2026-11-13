@@ -537,6 +537,8 @@ mod tests {
         Limited(Arc::default(), max)
     }
 
+    /// Parts of 10 characters over a store that takes up to 20: the part-count header
+    /// (`aicli-chunked-v1:<n>`) must fit, as it does under the real 1000-character parts.
     fn chunked(native: &Limited) -> Box<dyn SecretStore> {
         Box::new(Chunked {
             inner: Box::new(native.clone()),
@@ -550,7 +552,7 @@ mod tests {
 
     #[test]
     fn chunked_store_splits_long_values_and_cleans_up_parts() {
-        let native = limited(10);
+        let native = limited(20);
         let store = chunked(&native);
         round_trip(store.as_ref());
 
@@ -614,7 +616,7 @@ mod tests {
     #[test]
     fn large_backup_keeps_native_storage_and_the_token_survives_restart() {
         let temp = tempfile::tempdir().unwrap();
-        let native = limited(10);
+        let native = limited(20);
         let backup = "{\"files\":[123,34]}".repeat(40);
 
         let store = KeyringStore::with_primary(chunked(&native), file_store(&temp));
