@@ -225,6 +225,32 @@ describe("AicliProfilesPanel — list", () => {
       await screen.findByTestId("aicli-diff-only-preset"),
     ).toHaveTextContent("shared");
     expect(screen.getByTestId("aicli-diff-only-other")).toHaveTextContent("—");
+    // 有关闭按钮（点遮罩不关），关得掉
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "common.close",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("offers no diff for the preset that is already the default", async () => {
+    respond();
+    open();
+    const presetCard = await screen.findByTestId("aicli-preset-recommended");
+    // 默认就是推荐：自己和自己比没有意义；预设也不能删
+    expect(
+      within(presetCard).queryByRole("button", {
+        name: "aicli.profiles.viewDiff",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(presetCard).queryByRole("button", {
+        name: "aicli.profiles.delete",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("sets a user profile as default from its card", async () => {

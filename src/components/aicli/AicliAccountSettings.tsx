@@ -149,7 +149,7 @@ export function AicliAccountSettings() {
               {t("aicli.accountSettings.confirmBody")}
             </DialogDescription>
           </DialogHeader>
-          <label className="flex items-start gap-2 text-body text-fg-1">
+          <label className="flex items-start gap-2 px-6 pb-2 text-body text-fg-1">
             <Checkbox
               checked={deleteTokens}
               disabled={unbind.isPending}

@@ -81,7 +81,7 @@ export function AicliTakeoverDialog({ flow }: { flow: AicliTakeoverFlow }) {
         </DialogHeader>
 
         {dialog === "takeover" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 px-6 pb-2">
             <DialogDescription asChild>
               <ul className="m-0 flex list-none flex-col gap-2 p-0 text-body text-fg-1">
                 {(
@@ -113,7 +113,7 @@ export function AicliTakeoverDialog({ flow }: { flow: AicliTakeoverFlow }) {
         )}
 
         {dialog === "release" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 px-6 pb-2">
             <DialogDescription className="text-body text-fg-1">
               {t("aicli.client.releaseLead")}
             </DialogDescription>
@@ -138,7 +138,7 @@ export function AicliTakeoverDialog({ flow }: { flow: AicliTakeoverFlow }) {
         )}
 
         {dialog === "conflict" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 px-6 pb-2">
             <div className="flex flex-col gap-1 rounded-panel bg-warning-soft px-4 py-3">
               <span className="text-strong font-semibold text-warning-text">
                 {t("aicli.client.conflictBoxTitle")}

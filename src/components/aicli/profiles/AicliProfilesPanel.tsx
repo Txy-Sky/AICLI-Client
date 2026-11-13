@@ -416,20 +416,23 @@ export function AicliProfilesPanel({
               {t("aicli.profiles.setDefault")}
             </Button>
           )}
+          {/* 和默认配置集比差异；默认的那份自己和自己比没有意义，不给这个按钮 */}
           {preset ? (
-            <Button
-              type="button"
-              variant="quiet"
-              size="compact"
-              onClick={() =>
-                setDiff({
-                  preset: profile,
-                  against: routeOf(globalId) ?? null,
-                })
-              }
-            >
-              {t("aicli.profiles.viewDiff")}
-            </Button>
+            isDefault ? null : (
+              <Button
+                type="button"
+                variant="quiet"
+                size="compact"
+                onClick={() =>
+                  setDiff({
+                    preset: profile,
+                    against: routeOf(globalId) ?? null,
+                  })
+                }
+              >
+                {t("aicli.profiles.viewDiff")}
+              </Button>
+            )
           ) : (
             <Button
               type="button"
@@ -560,14 +563,15 @@ export function AicliProfilesPanel({
               {t("aicli.profiles.diffBody")}
             </DialogDescription>
           </DialogHeader>
+          {/* 对话框本身没有内边距：正文和页眉、页脚一样左右各留 24px */}
           {diffResult &&
           diffResult.onlyInPreset.length === 0 &&
           diffResult.onlyInOther.length === 0 ? (
-            <p className="m-0 text-body text-fg-2">
+            <p className="m-0 px-6 pb-2 text-body text-fg-2">
               {t("aicli.profiles.diffNone")}
             </p>
           ) : (
-            <div className="flex flex-col gap-2 text-body">
+            <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto px-6 pb-2 text-body">
               <div>
                 <div className="text-caption text-fg-3">
                   {t("aicli.profiles.diffOnlyPreset")}
@@ -586,6 +590,16 @@ export function AicliProfilesPanel({
               </div>
             </div>
           )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="neutral"
+              size="regular"
+              onClick={() => setDiff(null)}
+            >
+              {t("common.close")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
