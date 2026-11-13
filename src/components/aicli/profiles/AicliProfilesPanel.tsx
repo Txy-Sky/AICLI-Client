@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
+  ArrowRight,
   CopyPlus,
   Layers,
   Pencil,
@@ -449,6 +450,67 @@ export function AicliProfilesPanel({
     );
   };
 
+  // 删除弹窗：单独指定了这份的客户端，删除后改用默认
+  const deletingApps = deleting
+    ? (view?.bindings ?? [])
+        .filter(
+          (binding) =>
+            binding.scope === "app" && binding.profile_id === deleting.id,
+        )
+        .map((binding) => binding.scope_key)
+    : [];
+
+  // 差异弹窗：两份的名字和模型数，以及一组差别的标签（最多 12 个，其余合计）
+  const diffPresetName = diff ? aicliProfileName(t, diff.preset) : "";
+  const diffOtherName = aicliProfileName(t, diff?.against, "recommended");
+  const diffPresetCount = diff
+    ? (routeOf(diff.preset.id)?.routes.length ?? 0)
+    : 0;
+  const diffOtherCount = diff?.against?.routes.length ?? 0;
+  const DIFF_SHOWN = 12;
+  const diffGroup = (
+    testId: string,
+    label: string,
+    models: string[],
+    sign: string,
+    tone: string,
+  ) => (
+    <div className="flex flex-col gap-2">
+      <span className="text-strong text-fg-1">
+        {label}{" "}
+        <span className="font-normal tabular-nums text-fg-3">
+          · {models.length}
+        </span>
+      </span>
+      <div data-testid={testId} className="flex flex-wrap gap-1.5">
+        {models.length === 0 ? (
+          <span className="text-body text-fg-3">—</span>
+        ) : (
+          <>
+            {models.slice(0, DIFF_SHOWN).map((model) => (
+              <span
+                key={model}
+                className={cn(
+                  "inline-flex h-6 items-center rounded-full px-2.5 text-caption",
+                  tone,
+                )}
+              >
+                {sign} {model}
+              </span>
+            ))}
+            {models.length > DIFF_SHOWN && (
+              <span className="inline-flex h-6 items-center rounded-full bg-subtle px-2.5 text-caption text-fg-2">
+                {t("aicli.profiles.diffMore", {
+                  count: models.length - DIFF_SHOWN,
+                })}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   const title = editing
     ? aicliProfileName(t, editing) || t("aicli.profiles.title")
     : t("aicli.profiles.title");
@@ -515,10 +577,44 @@ export function AicliProfilesPanel({
                 name: deleting ? aicliProfileName(t, deleting) : "",
               })}
             </DialogTitle>
-            <DialogDescription>
-              {t("aicli.profiles.deleteBody")}
-            </DialogDescription>
           </DialogHeader>
+          {/* 正文（2026-11 改版，设计稿画板 22）：会影响哪些客户端，只删本机这份 */}
+          <div className="flex flex-col gap-3 px-6 pb-2">
+            {deletingApps.length > 0 ? (
+              <div
+                data-testid="aicli-delete-users"
+                className="flex flex-col gap-2 rounded-control bg-subtle px-3.5 py-3"
+              >
+                <span className="text-caption font-semibold text-fg-2">
+                  {t("aicli.profiles.deleteUsers")}
+                </span>
+                {deletingApps.map((app) => (
+                  <span
+                    key={app}
+                    className="flex items-center gap-2 text-body text-fg-1"
+                  >
+                    <AppGlyph
+                      app={app as AppId}
+                      size={16}
+                      badgeClassName="bg-subtle"
+                    />
+                    {APP_DISPLAY_NAME[app as AppId] ?? app}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5 text-caption font-medium text-action-text">
+                  <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                  {t("aicli.profiles.deleteFallback")}
+                </span>
+              </div>
+            ) : (
+              <p className="m-0 text-body text-fg-2">
+                {t("aicli.profiles.deleteNoUsers")}
+              </p>
+            )}
+            <DialogDescription className="text-caption text-fg-3">
+              {t("aicli.profiles.deleteLocal")}
+            </DialogDescription>
+          </div>
           <DialogFooter>
             <Button
               type="button"
@@ -563,33 +659,52 @@ export function AicliProfilesPanel({
               {t("aicli.profiles.diffBody")}
             </DialogDescription>
           </DialogHeader>
-          {/* 对话框本身没有内边距：正文和页眉、页脚一样左右各留 24px */}
-          {diffResult &&
-          diffResult.onlyInPreset.length === 0 &&
-          diffResult.onlyInOther.length === 0 ? (
-            <p className="m-0 px-6 pb-2 text-body text-fg-2">
-              {t("aicli.profiles.diffNone")}
-            </p>
-          ) : (
-            <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto px-6 pb-2 text-body">
-              <div>
-                <div className="text-caption text-fg-3">
-                  {t("aicli.profiles.diffOnlyPreset")}
-                </div>
-                <div data-testid="aicli-diff-only-preset" className="text-fg-1">
-                  {diffResult?.onlyInPreset.join("、") || "—"}
-                </div>
+          {/* 正文（2026-11 改版，设计稿画板 22）：两份各有多少模型，再分组列出差别。
+              对话框本身没有内边距：正文和页眉、页脚一样左右各留 24px */}
+          <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto px-6 pb-2">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="flex flex-col rounded-control bg-action-soft px-3 py-2">
+                <span className="truncate text-caption text-action-text">
+                  {diffPresetName}
+                </span>
+                <span className="text-section tabular-nums text-fg-1">
+                  {t("aicli.profiles.diffCount", { count: diffPresetCount })}
+                </span>
               </div>
-              <div>
-                <div className="text-caption text-fg-3">
-                  {t("aicli.profiles.diffOnlyOther")}
-                </div>
-                <div data-testid="aicli-diff-only-other" className="text-fg-1">
-                  {diffResult?.onlyInOther.join("、") || "—"}
-                </div>
+              <div className="flex flex-col rounded-control bg-subtle px-3 py-2">
+                <span className="truncate text-caption text-fg-2">
+                  {diffOtherName} · {t("aicli.profiles.diffDefaultTag")}
+                </span>
+                <span className="text-section tabular-nums text-fg-1">
+                  {t("aicli.profiles.diffCount", { count: diffOtherCount })}
+                </span>
               </div>
             </div>
-          )}
+            {diffResult &&
+            diffResult.onlyInPreset.length === 0 &&
+            diffResult.onlyInOther.length === 0 ? (
+              <p className="m-0 text-body text-fg-2">
+                {t("aicli.profiles.diffNone")}
+              </p>
+            ) : (
+              <>
+                {diffGroup(
+                  "aicli-diff-only-preset",
+                  t("aicli.profiles.diffOnlyPreset", { name: diffPresetName }),
+                  diffResult?.onlyInPreset ?? [],
+                  "+",
+                  "bg-action-soft text-action-text",
+                )}
+                {diffGroup(
+                  "aicli-diff-only-other",
+                  t("aicli.profiles.diffOnlyOther", { name: diffOtherName }),
+                  diffResult?.onlyInOther ?? [],
+                  "−",
+                  "bg-subtle text-fg-2",
+                )}
+              </>
+            )}
+          </div>
           <DialogFooter>
             <Button
               type="button"

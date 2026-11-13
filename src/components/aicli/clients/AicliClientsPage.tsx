@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Download, Loader2, MonitorSmartphone } from "lucide-react";
+import {
+  ArrowRight,
+  Download,
+  Info,
+  Loader2,
+  MonitorSmartphone,
+} from "lucide-react";
 import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import { Button } from "@/components/ui/button";
@@ -339,6 +345,18 @@ function BulkTakeover({
   const takeOver = useAicliTakeOver();
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const account = useAicliAccount().data;
+  const profiles = useAicliProfiles(open);
+  const routes = useAicliRoutes(open);
+  const profileNameOf = (app: AppId) => {
+    const { id, profile } = resolveClientProfile(
+      app,
+      account,
+      profiles.data,
+      routes.data,
+    );
+    return aicliProfileName(t, profile, id);
+  };
 
   const run = async () => {
     setRunning(true);
@@ -384,17 +402,37 @@ function BulkTakeover({
             </DialogTitle>
             <DialogDescription>{t("aicli.clients.bulkBody")}</DialogDescription>
           </DialogHeader>
-          <ul className="m-0 flex list-none flex-wrap gap-1.5 px-6 pb-2">
-            {apps.map((app) => (
-              <li
-                key={app}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full bg-subtle px-2.5 text-caption text-fg-1"
-              >
-                <AppGlyph app={app} size={14} badgeClassName="bg-subtle" />
-                {APP_DISPLAY_NAME[app]}
-              </li>
-            ))}
-          </ul>
+          {/* 正文（2026-11 改版，设计稿画板 22）：一行一个客户端和它将用的配置集 */}
+          <div className="flex flex-col gap-3 px-6 pb-2">
+            <ul
+              data-testid="aicli-bulk-apps"
+              className="m-0 flex list-none flex-col overflow-hidden rounded-control border border-border p-0"
+            >
+              {apps.map((app) => (
+                <li
+                  key={app}
+                  className="flex items-center gap-2.5 border-b border-border px-3.5 py-2.5 last:border-b-0"
+                >
+                  <AppGlyph app={app} size={18} badgeClassName="bg-surface" />
+                  <span className="min-w-0 flex-1 truncate text-strong text-fg-1">
+                    {APP_DISPLAY_NAME[app]}
+                  </span>
+                  <span className="shrink-0 truncate text-caption text-fg-3">
+                    {t("aicli.clients.bulkProfile", {
+                      name: profileNameOf(app),
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="m-0 flex items-start gap-2 text-caption text-fg-3">
+              <Info
+                aria-hidden="true"
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+              />
+              <span>{t("aicli.clients.bulkSkipNote")}</span>
+            </p>
+          </div>
           <DialogFooter>
             <Button
               type="button"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,6 +15,7 @@ import {
   SettingsBlock,
   SettingsCard,
 } from "@/components/settings/SettingsLayout";
+import { cn } from "@/lib/utils";
 import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
 import { isAicliCommandError } from "@/lib/api/aicli";
 import {
@@ -23,6 +24,17 @@ import {
   useAicliUnbind,
 } from "@/hooks/useAicliAccount";
 import { useOpenAicliBind } from "./AicliBindGate";
+
+/** 解除绑定按顺序会发生的事：还原（青）、清除（红）、保留（灰）。 */
+const UNBIND_STEPS = [
+  {
+    key: "stepRestore",
+    Icon: RotateCcw,
+    tone: "bg-action-soft text-action-text",
+  },
+  { key: "stepClear", Icon: Trash2, tone: "bg-danger-soft text-danger-text" },
+  { key: "stepKeep", Icon: Check, tone: "bg-subtle text-fg-2" },
+] as const;
 
 /**
  * 设置 → 通用 最上面的「账户」（2026-11 改版，设计稿画板 12）：这台电脑绑定的 AICLI 账户、
@@ -145,24 +157,50 @@ export function AicliAccountSettings() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("aicli.accountSettings.confirmTitle")}</DialogTitle>
-            <DialogDescription className="text-body text-fg-1">
+          </DialogHeader>
+          {/* 正文（2026-11 改版，设计稿画板 21）：按顺序会发生的三件事 + 可选项卡片 */}
+          <div className="flex flex-col gap-4 px-6 pb-2">
+            <DialogDescription className="text-body text-fg-2">
               {t("aicli.accountSettings.confirmBody")}
             </DialogDescription>
-          </DialogHeader>
-          <label className="flex items-start gap-2 px-6 pb-2 text-body text-fg-1">
-            <Checkbox
-              checked={deleteTokens}
-              disabled={unbind.isPending}
-              onCheckedChange={(checked) => setDeleteTokens(checked === true)}
-              className="mt-0.5"
-            />
-            <span className="flex flex-col gap-0.5">
-              <span>{t("aicli.accountSettings.deleteTokens")}</span>
-              <span className="text-caption text-fg-2">
-                {t("aicli.accountSettings.deleteTokensHint")}
+            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              {UNBIND_STEPS.map(({ key, Icon, tone }) => (
+                <li key={key} className="flex items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-control",
+                      tone,
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-strong text-fg-1">
+                      {t(`aicli.accountSettings.${key}`)}
+                    </span>
+                    <span className="text-caption text-fg-2">
+                      {t(`aicli.accountSettings.${key}Body`)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-control border border-border px-3 py-2.5 text-body text-fg-1">
+              <Checkbox
+                checked={deleteTokens}
+                disabled={unbind.isPending}
+                onCheckedChange={(checked) => setDeleteTokens(checked === true)}
+                className="mt-0.5"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span>{t("aicli.accountSettings.deleteTokens")}</span>
+                <span className="text-caption text-fg-3">
+                  {t("aicli.accountSettings.deleteTokensHint")}
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          </div>
           <DialogFooter>
             <Button
               type="button"

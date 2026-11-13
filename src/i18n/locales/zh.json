@@ -54,9 +54,14 @@
   },
   "firstRunNotice": {
     "title": "欢迎使用 AICLI Client",
-    "bodyDefault": "AICLI Client 帮你一键接管 Claude Code、Codex、Gemini CLI 等客户端：请求经本机代理发往 AICLI，使用你的配置集和线路；开启隐私脱敏后，密钥等敏感值不会离开这台电脑。",
-    "bodyOfficial": "接管前的配置会完整备份。随时可以在「客户端」页停止接管，配置原样还原，例如回到官方登录或你自己的设置。",
-    "confirm": "我知道了"
+    "bodyDefault": "账户已经接上。接下来按需做：",
+    "bodyOfficial": "在「客户端」页打开开关，Claude Code、Codex 等的请求就经 AICLI 发出。接管前的配置完整备份，随时原样还原。",
+    "confirm": "我知道了",
+    "stepAccount": "绑定账户",
+    "stepDone": "已完成",
+    "stepTakeover": "接管客户端",
+    "stepPrivacy": "需要时开启隐私脱敏",
+    "stepPrivacyBody": "密钥、邮箱等在离开这台电脑前换成占位符，回来时还原。"
   },
   "jsonEditor": {
     "mustBeObject": "配置必须是JSON对象，不能是数组或其他类型",
@@ -3128,7 +3133,8 @@
       "benefitUsage": "余额和每日消耗，一眼看清",
       "later": "稍后",
       "rebindAction": "重新绑定",
-      "loadFailed": "读取绑定状态失败：{{message}}"
+      "loadFailed": "读取绑定状态失败：{{message}}",
+      "rebindKeeps": "同一个账户换令牌，已接管的客户端、配置集和线路都保留。"
     },
     "account": {
       "title": "账户",
@@ -3258,12 +3264,11 @@
       "delete": "删除",
       "setDefault": "设为默认",
       "deleteTitle": "删除配置集「{{name}}」",
-      "deleteBody": "删除后使用它的客户端改用默认配置集。此操作只影响本机。",
       "diffTitle": "「{{preset}}」与「{{other}}」的差异",
       "diffBody": "按公开模型名比较两份模型表。",
       "diffNone": "两份模型表相同。",
-      "diffOnlyPreset": "仅预设中有",
-      "diffOnlyOther": "仅对照配置集中有",
+      "diffOnlyPreset": "只在「{{name}}」里",
+      "diffOnlyOther": "只在「{{name}}」里",
       "needsRepairTitle": "配置集需要修复",
       "needsRepairBody": "缺少分组：{{groups}}；受影响的模型：{{models}}",
       "name": "名称",
@@ -3347,7 +3352,14 @@
       "landingCheaper": "其中 {{count}} 个模型在排在后面的 {{group}} 里只要 ×{{ratio}}。把它移到前面，这些模型改按 ×{{ratio}} 计。",
       "landingMoveUp": "把 {{group}} 移到前面",
       "landingNote": "只算每个模型的首选来源，实际扣费以服务端为准。",
-      "backToList": "返回全部配置集"
+      "backToList": "返回全部配置集",
+      "deleteUsers": "单独指定了它的客户端",
+      "deleteFallback": "删除后，这些客户端改用默认配置集",
+      "deleteNoUsers": "没有客户端单独指定它。",
+      "deleteLocal": "只删这台电脑上的这份，不影响服务端和其他配置集。",
+      "diffCount": "{{count}} 个模型",
+      "diffMore": "还有 {{count}} 个",
+      "diffDefaultTag": "默认"
     },
     "settings": {
       "linesTitle": "AICLI 线路",
@@ -3434,7 +3446,9 @@
       "dedicated": {
         "openclaw": "工作区、配置",
         "hermes": "记忆"
-      }
+      },
+      "bulkProfile": "配置集「{{name}}」",
+      "bulkSkipNote": "有旧版代理设置的客户端会跳过，结束后在它那一行单独确认。"
     },
     "overview": {
       "runway": "按近 {{days}} 天的速度，余额还能用约 {{count}} 天",
@@ -3582,10 +3596,16 @@
       "unbind": "解除绑定",
       "unbindNote": "解除绑定前，已接管的客户端会先还原成原来的配置。",
       "confirmTitle": "解除这台电脑的绑定",
-      "confirmBody": "已接管的客户端会先还原成原来的配置，再清掉这台电脑上的令牌和账户数据。本机的请求记录会保留。之后要用时重新粘贴令牌即可。",
+      "confirmBody": "按下面的顺序进行：",
       "deleteTokens": "同时删除 AICLI Client 在你账户里创建的令牌",
       "deleteTokensHint": "其他电脑如果绑定的是同一个账户，也在用这些令牌，删掉后它们需要重新创建。不确定就别勾。",
-      "unbindFailed": "解除绑定没有完成：{{message}}"
+      "unbindFailed": "解除绑定没有完成：{{message}}",
+      "stepRestore": "已接管的客户端先还原",
+      "stepRestoreBody": "回到接管前的配置",
+      "stepClear": "清掉这台电脑上的令牌和账户数据",
+      "stepClearBody": "之后要用，重新粘贴令牌即可",
+      "stepKeep": "本机的请求记录保留",
+      "stepKeepBody": "用量页照常能看"
     }
   }
 }

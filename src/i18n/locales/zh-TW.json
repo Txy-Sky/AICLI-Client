@@ -54,9 +54,14 @@
   },
   "firstRunNotice": {
     "title": "歡迎使用 AICLI Client",
-    "bodyDefault": "AICLI Client 幫你一鍵接管 Claude Code、Codex、Gemini CLI 等客戶端：請求經本機代理送往 AICLI，使用你的設定集和線路；開啟隱私遮蔽後，金鑰等敏感值不會離開這台電腦。",
-    "bodyOfficial": "接管前的設定會完整備份。隨時可以在「客戶端」頁停止接管，設定原樣還原，例如回到官方登入或你自己的設定。",
-    "confirm": "我了解了"
+    "bodyDefault": "帳戶已經接上。接下來依需要做：",
+    "bodyOfficial": "在「用戶端」頁開啟開關，Claude Code、Codex 等的請求就經 AICLI 送出。接管前的設定完整備份，隨時原樣還原。",
+    "confirm": "我了解了",
+    "stepAccount": "綁定帳戶",
+    "stepDone": "已完成",
+    "stepTakeover": "接管用戶端",
+    "stepPrivacy": "需要時開啟隱私遮蔽",
+    "stepPrivacyBody": "金鑰、信箱等在離開這台電腦前換成佔位符，回來時還原。"
   },
   "jsonEditor": {
     "mustBeObject": "設定必須是 JSON 物件，不能是陣列或其他類型",
@@ -3129,7 +3134,8 @@
       "benefitUsage": "餘額和每日消耗，一眼看清",
       "later": "稍後",
       "rebindAction": "重新綁定",
-      "loadFailed": "讀取綁定狀態失敗：{{message}}"
+      "loadFailed": "讀取綁定狀態失敗：{{message}}",
+      "rebindKeeps": "同一個帳戶換權杖，已接管的用戶端、設定集和線路都保留。"
     },
     "account": {
       "title": "帳戶",
@@ -3259,12 +3265,11 @@
       "delete": "刪除",
       "setDefault": "設為預設",
       "deleteTitle": "刪除設定集「{{name}}」",
-      "deleteBody": "刪除後使用它的用戶端改用預設設定集。此操作只影響本機。",
       "diffTitle": "「{{preset}}」與「{{other}}」的差異",
       "diffBody": "按公開模型名比較兩份模型表。",
       "diffNone": "兩份模型表相同。",
-      "diffOnlyPreset": "僅預設中有",
-      "diffOnlyOther": "僅對照設定集中有",
+      "diffOnlyPreset": "只在「{{name}}」裡",
+      "diffOnlyOther": "只在「{{name}}」裡",
       "needsRepairTitle": "設定集需要修復",
       "needsRepairBody": "缺少群組：{{groups}}；受影響的模型：{{models}}",
       "name": "名稱",
@@ -3348,7 +3353,14 @@
       "landingCheaper": "其中 {{count}} 個模型在排在後面的 {{group}} 裡只要 ×{{ratio}}。把它移到前面，這些模型改按 ×{{ratio}} 計。",
       "landingMoveUp": "把 {{group}} 移到前面",
       "landingNote": "只算每個模型的首選來源，實際扣費以伺服端為準。",
-      "backToList": "返回全部設定集"
+      "backToList": "返回全部設定集",
+      "deleteUsers": "單獨指定了它的用戶端",
+      "deleteFallback": "刪除後，這些用戶端改用預設設定集",
+      "deleteNoUsers": "沒有用戶端單獨指定它。",
+      "deleteLocal": "只刪這台電腦上的這份，不影響伺服端和其他設定集。",
+      "diffCount": "{{count}} 個模型",
+      "diffMore": "還有 {{count}} 個",
+      "diffDefaultTag": "預設"
     },
     "settings": {
       "linesTitle": "AICLI 線路",
@@ -3435,7 +3447,9 @@
       "dedicated": {
         "openclaw": "工作區、設定",
         "hermes": "記憶"
-      }
+      },
+      "bulkProfile": "設定集「{{name}}」",
+      "bulkSkipNote": "有舊版代理設定的用戶端會略過，結束後在它那一列單獨確認。"
     },
     "overview": {
       "runway": "按近 {{days}} 天的速度，餘額還能用約 {{count}} 天",
@@ -3583,10 +3597,16 @@
       "unbind": "解除綁定",
       "unbindNote": "解除綁定前，已接管的用戶端會先還原成原來的設定。",
       "confirmTitle": "解除這台電腦的綁定",
-      "confirmBody": "已接管的用戶端會先還原成原來的設定，再清掉這台電腦上的權杖和帳戶資料。本機的請求記錄會保留。之後要用時重新貼上權杖即可。",
+      "confirmBody": "依下面的順序進行：",
       "deleteTokens": "同時刪除 AICLI Client 在你帳戶裡建立的權杖",
       "deleteTokensHint": "其他電腦如果綁定的是同一個帳戶，也在用這些權杖，刪掉後它們需要重新建立。不確定就別勾。",
-      "unbindFailed": "解除綁定沒有完成：{{message}}"
+      "unbindFailed": "解除綁定沒有完成：{{message}}",
+      "stepRestore": "已接管的用戶端先還原",
+      "stepRestoreBody": "回到接管前的設定",
+      "stepClear": "清掉這台電腦上的權杖和帳戶資料",
+      "stepClearBody": "之後要用，重新貼上權杖即可",
+      "stepKeep": "本機的請求記錄保留",
+      "stepKeepBody": "用量頁照常能看"
     }
   }
 }

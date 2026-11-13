@@ -54,9 +54,14 @@
   },
   "firstRunNotice": {
     "title": "Welcome to AICLI Client",
-    "bodyDefault": "AICLI Client takes over Claude Code, Codex, Gemini CLI and other clients with one click: their requests go through the local proxy to AICLI with your profile and line, and with privacy masking on, keys and other sensitive values never leave this computer.",
-    "bodyOfficial": "The configuration from before the takeover is fully backed up. Stop the takeover on the Clients page at any time to restore it exactly, for example back to the official sign-in or your own settings.",
-    "confirm": "Got it"
+    "bodyDefault": "Your account is connected. Next, as you need:",
+    "bodyOfficial": "Turn on the switch on the Clients page and requests from Claude Code, Codex and others go through AICLI. Their configuration is backed up first and restored exactly whenever you stop.",
+    "confirm": "Got it",
+    "stepAccount": "Bind your account",
+    "stepDone": "Done",
+    "stepTakeover": "Take over clients",
+    "stepPrivacy": "Turn on privacy masking when you need it",
+    "stepPrivacyBody": "Keys, emails and the like are replaced with placeholders before leaving this computer and restored on the way back."
   },
   "jsonEditor": {
     "mustBeObject": "Configuration must be a JSON object, not an array or other type",
@@ -3128,7 +3133,8 @@
       "benefitUsage": "Balance and daily spend at a glance",
       "later": "Later",
       "rebindAction": "Bind again",
-      "loadFailed": "Could not read the binding state: {{message}}"
+      "loadFailed": "Could not read the binding state: {{message}}",
+      "rebindKeeps": "Changing the token of the same account keeps taken-over clients, profiles and the line."
     },
     "account": {
       "title": "Account",
@@ -3258,12 +3264,11 @@
       "delete": "Delete",
       "setDefault": "Set as default",
       "deleteTitle": "Delete profile “{{name}}”",
-      "deleteBody": "Clients using it switch to the default profile. This only affects this device.",
       "diffTitle": "Differences between “{{preset}}” and “{{other}}”",
       "diffBody": "Compares the two model tables by public model name.",
       "diffNone": "The two model tables are the same.",
-      "diffOnlyPreset": "Only in the preset",
-      "diffOnlyOther": "Only in the compared profile",
+      "diffOnlyPreset": "Only in “{{name}}”",
+      "diffOnlyOther": "Only in “{{name}}”",
       "needsRepairTitle": "This profile needs repair",
       "needsRepairBody": "Missing groups: {{groups}}; affected models: {{models}}",
       "name": "Name",
@@ -3347,7 +3352,14 @@
       "landingCheaper": "{{count}} of them are also in {{group}}, further down, at only ×{{ratio}}. Move it up and they are billed at ×{{ratio}}.",
       "landingMoveUp": "Move {{group}} up",
       "landingNote": "Counts each model's first-choice source only. Actual charges are decided by the server.",
-      "backToList": "Back to all profiles"
+      "backToList": "Back to all profiles",
+      "deleteUsers": "Clients set to use it",
+      "deleteFallback": "After deleting, these clients use the default profile",
+      "deleteNoUsers": "No client is set to use it.",
+      "deleteLocal": "Only this computer's copy is deleted; the server and other profiles are not affected.",
+      "diffCount": "{{count}} models",
+      "diffMore": "{{count}} more",
+      "diffDefaultTag": "Default"
     },
     "settings": {
       "linesTitle": "AICLI lines",
@@ -3434,7 +3446,9 @@
       "dedicated": {
         "openclaw": "Workspace, configuration",
         "hermes": "Memory"
-      }
+      },
+      "bulkProfile": "Profile “{{name}}”",
+      "bulkSkipNote": "Clients with old proxy settings are skipped; confirm them on their own row afterwards."
     },
     "overview": {
       "runway": "At the pace of the last {{days}} days, your balance lasts about {{count}} more days",
@@ -3582,10 +3596,16 @@
       "unbind": "Unbind",
       "unbindNote": "Before unbinding, taken-over clients are restored to their own configuration.",
       "confirmTitle": "Unbind this computer",
-      "confirmBody": "Taken-over clients are restored to their own configuration first, then the token and account data on this computer are cleared. Local request records are kept. Paste a token again whenever you want to use it.",
+      "confirmBody": "In this order:",
       "deleteTokens": "Also delete the tokens AICLI Client created in your account",
       "deleteTokensHint": "Other computers bound to the same account use these tokens too and would have to create them again. Leave this unticked if unsure.",
-      "unbindFailed": "Unbinding didn't finish: {{message}}"
+      "unbindFailed": "Unbinding didn't finish: {{message}}",
+      "stepRestore": "Taken-over clients are restored first",
+      "stepRestoreBody": "Back to their own configuration",
+      "stepClear": "The token and account data on this computer are cleared",
+      "stepClearBody": "Paste a token again whenever you want to use it",
+      "stepKeep": "Local request records are kept",
+      "stepKeepBody": "The Usage page still shows them"
     }
   }
 }

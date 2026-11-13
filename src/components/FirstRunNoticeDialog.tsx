@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { getVersion } from "@tauri-apps/api/app";
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -57,13 +57,61 @@ export function FirstRunNoticeDialog() {
             {t("firstRunNotice.title")}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 px-6 py-5">
-          <DialogDescription className="whitespace-pre-line leading-relaxed">
+        {/* 正文（2026-11 改版，设计稿画板 21）：账户已接上，接下来按需做的三步 */}
+        <div className="flex flex-col gap-4 px-6 py-4">
+          <DialogDescription className="text-sm text-fg-2">
             {t("firstRunNotice.bodyDefault")}
           </DialogDescription>
-          <DialogDescription className="whitespace-pre-line leading-relaxed">
-            {t("firstRunNotice.bodyOfficial")}
-          </DialogDescription>
+          <ol className="m-0 flex list-none flex-col gap-3.5 p-0">
+            <li className="flex gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-action text-action-fg"
+              >
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-strong text-fg-1">
+                  {t("firstRunNotice.stepAccount")}
+                </span>
+                <span className="text-caption text-action-text">
+                  {t("firstRunNotice.stepDone")}
+                </span>
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-action text-caption font-semibold text-action-text"
+              >
+                2
+              </span>
+              <span className="flex flex-col">
+                <span className="text-strong text-fg-1">
+                  {t("firstRunNotice.stepTakeover")}
+                </span>
+                <span className="text-caption leading-relaxed text-fg-2">
+                  {t("firstRunNotice.bodyOfficial")}
+                </span>
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-border-strong text-caption font-semibold text-fg-2"
+              >
+                3
+              </span>
+              <span className="flex flex-col">
+                <span className="text-strong text-fg-1">
+                  {t("firstRunNotice.stepPrivacy")}
+                </span>
+                <span className="text-caption leading-relaxed text-fg-2">
+                  {t("firstRunNotice.stepPrivacyBody")}
+                </span>
+              </span>
+            </li>
+          </ol>
         </div>
         <DialogFooter>
           <Button onClick={handleAcknowledge}>

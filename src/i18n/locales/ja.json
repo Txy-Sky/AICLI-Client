@@ -54,9 +54,14 @@
   },
   "firstRunNotice": {
     "title": "AICLI Client へようこそ",
-    "bodyDefault": "AICLI Client は Claude Code、Codex、Gemini CLI などのクライアントをワンクリックで引き継ぎます。リクエストはローカルプロキシ経由で AICLI に送られ、構成セットと回線を使います。プライバシーマスキングをオンにすると、キーなどの機密値はこのコンピューターから出ません。",
-    "bodyOfficial": "引き継ぎ前の設定はすべてバックアップされます。「クライアント」ページでいつでも引き継ぎを停止でき、設定はそのまま元に戻ります（公式ログインやご自身の設定など）。",
-    "confirm": "了解しました"
+    "bodyDefault": "アカウントの接続が完了しました。次は必要に応じて：",
+    "bodyOfficial": "「クライアント」ページでスイッチをオンにすると、Claude Code や Codex などのリクエストが AICLI 経由になります。引き継ぐ前の設定はすべてバックアップされ、いつでも元どおりに戻せます。",
+    "confirm": "了解しました",
+    "stepAccount": "アカウントをバインド",
+    "stepDone": "完了",
+    "stepTakeover": "クライアントを引き継ぐ",
+    "stepPrivacy": "必要に応じてプライバシーマスキングをオン",
+    "stepPrivacyBody": "キーやメールアドレスなどは、このコンピューターを出る前にプレースホルダーに置き換えられ、戻るときに復元されます。"
   },
   "jsonEditor": {
     "mustBeObject": "設定はオブジェクト形式の JSON で入力してください（配列や他の型は不可）",
@@ -3128,7 +3133,8 @@
       "benefitUsage": "残高と毎日の消費をひと目で確認",
       "later": "後で",
       "rebindAction": "再連携",
-      "loadFailed": "連携状態を読み込めませんでした：{{message}}"
+      "loadFailed": "連携状態を読み込めませんでした：{{message}}",
+      "rebindKeeps": "同じアカウントのトークンに替える場合、引き継ぎ済みのクライアント、構成セット、回線はそのまま残ります。"
     },
     "account": {
       "title": "アカウント",
@@ -3258,12 +3264,11 @@
       "delete": "削除",
       "setDefault": "既定にする",
       "deleteTitle": "構成セット「{{name}}」を削除",
-      "deleteBody": "これを使っているクライアントは既定の構成セットに切り替わります。この操作はこのデバイスにのみ影響します。",
       "diffTitle": "「{{preset}}」と「{{other}}」の差分",
       "diffBody": "公開モデル名で 2 つのモデル表を比較します。",
       "diffNone": "2 つのモデル表は同じです。",
-      "diffOnlyPreset": "プリセットのみ",
-      "diffOnlyOther": "比較対象のみ",
+      "diffOnlyPreset": "「{{name}}」にだけある",
+      "diffOnlyOther": "「{{name}}」にだけある",
       "needsRepairTitle": "構成セットの修復が必要です",
       "needsRepairBody": "不足しているグループ：{{groups}}；影響を受けるモデル：{{models}}",
       "name": "名前",
@@ -3347,7 +3352,14 @@
       "landingCheaper": "このうち {{count}} 個は後ろにある {{group}} にもあり、そちらは ×{{ratio}} です。前に移すと ×{{ratio}} で計算されます。",
       "landingMoveUp": "{{group}} を前に移す",
       "landingNote": "各モデルの第一候補だけを数えています。実際の課金はサーバー側で決まります。",
-      "backToList": "すべての構成セットに戻る"
+      "backToList": "すべての構成セットに戻る",
+      "deleteUsers": "これを個別に指定したクライアント",
+      "deleteFallback": "削除後、これらのクライアントは既定の構成セットを使います",
+      "deleteNoUsers": "個別に指定しているクライアントはありません。",
+      "deleteLocal": "このコンピューター上のものだけを削除します。サーバーやほかの構成セットには影響しません。",
+      "diffCount": "モデル {{count}} 個",
+      "diffMore": "ほか {{count}} 個",
+      "diffDefaultTag": "既定"
     },
     "settings": {
       "linesTitle": "AICLI 回線",
@@ -3434,7 +3446,9 @@
       "dedicated": {
         "openclaw": "ワークスペース、設定",
         "hermes": "メモリ"
-      }
+      },
+      "bulkProfile": "構成セット「{{name}}」",
+      "bulkSkipNote": "旧バージョンのプロキシ設定があるクライアントはスキップされます。終了後、その行で個別に確認してください。"
     },
     "overview": {
       "runway": "直近 {{days}} 日のペースなら、残高はあと約 {{count}} 日もちます",
@@ -3582,10 +3596,16 @@
       "unbind": "バインド解除",
       "unbindNote": "バインドを解除する前に、引き継いだクライアントは元の設定に戻されます。",
       "confirmTitle": "このコンピューターのバインドを解除",
-      "confirmBody": "引き継いだクライアントを先に元の設定に戻してから、このコンピューターのトークンとアカウントデータを消去します。ローカルのリクエスト記録は残ります。使うときはトークンをもう一度貼り付けてください。",
+      "confirmBody": "次の順に行います：",
       "deleteTokens": "AICLI Client がアカウントに作成したトークンも削除する",
       "deleteTokensHint": "同じアカウントにバインドしたほかのコンピューターもこれらのトークンを使っており、削除すると作り直しが必要になります。迷ったらチェックしないでください。",
-      "unbindFailed": "バインド解除が完了しませんでした：{{message}}"
+      "unbindFailed": "バインド解除が完了しませんでした：{{message}}",
+      "stepRestore": "引き継ぎ済みのクライアントを先に元に戻す",
+      "stepRestoreBody": "引き継ぐ前の設定に戻ります",
+      "stepClear": "このコンピューターのトークンとアカウントデータを消去",
+      "stepClearBody": "使うときはトークンをもう一度貼り付けてください",
+      "stepKeep": "ローカルのリクエスト記録は残す",
+      "stepKeepBody": "使用量ページで引き続き見られます"
     }
   }
 }

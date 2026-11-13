@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Cloud, SquareTerminal } from "lucide-react";
+import { Check, CircleAlert, Cloud, SquareTerminal } from "lucide-react";
 import appLogo from "@/assets/icons/aicli-logo.png";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
@@ -138,12 +138,30 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
           >
             <DialogHeader className="gap-1 p-0">
               <DialogTitle>{t("aicli.bind.rebindTitle")}</DialogTitle>
+            </DialogHeader>
+            {/* 正文（2026-11 改版，设计稿画板 21）：失效时红色提示；同账号换令牌保留什么 */}
+            <div className="flex flex-col gap-2">
               {state === "needs_rebind" && (
-                <DialogDescription>
-                  {t("aicli.account.tokenInvalid")}
+                <DialogDescription
+                  role="alert"
+                  className="m-0 flex items-start gap-2 rounded-control bg-danger-soft px-3 py-2 text-caption text-danger-text"
+                >
+                  <CircleAlert
+                    aria-hidden="true"
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  />
+                  <span>{t("aicli.account.tokenInvalid")}</span>
                 </DialogDescription>
               )}
-            </DialogHeader>
+              <p className="m-0 flex items-start gap-2 rounded-control bg-subtle px-3 py-2 text-caption text-fg-2">
+                <Check
+                  aria-hidden="true"
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-action-text"
+                  strokeWidth={2.5}
+                />
+                <span>{t("aicli.bind.rebindKeeps")}</span>
+              </p>
+            </div>
             <AicliBindCard
               line={line}
               focusSignal={bindRequest}

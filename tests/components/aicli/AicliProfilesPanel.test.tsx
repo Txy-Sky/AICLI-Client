@@ -395,6 +395,46 @@ describe("AicliProfilesPanel — list", () => {
     );
   });
 
+  it("names the clients that fall back to the default when deleting", async () => {
+    respond({
+      aicli_get_profiles: view({
+        bindings: [{ scope: "app", scope_key: "codex", profile_id: "mine" }],
+      }),
+    });
+    open();
+    fireEvent.click(
+      within(await screen.findByTestId("aicli-profile-mine")).getByRole(
+        "button",
+        { name: "aicli.profiles.delete" },
+      ),
+    );
+    const users = within(await screen.findByRole("dialog")).getByTestId(
+      "aicli-delete-users",
+    );
+    expect(within(users).getByText("Codex")).toBeInTheDocument();
+    expect(
+      within(users).getByText("aicli.profiles.deleteFallback"),
+    ).toBeInTheDocument();
+  });
+
+  it("says no client is set to it when deleting an unused profile", async () => {
+    respond();
+    open();
+    fireEvent.click(
+      within(await screen.findByTestId("aicli-profile-mine")).getByRole(
+        "button",
+        { name: "aicli.profiles.delete" },
+      ),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("aicli.profiles.deleteNoUsers"),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByTestId("aicli-delete-users"),
+    ).not.toBeInTheDocument();
+  });
+
   it("lists missing groups and affected models when a profile needs repair", async () => {
     respond({ aicli_get_routes: routes(true) });
     open();

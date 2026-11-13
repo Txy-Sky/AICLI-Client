@@ -54,9 +54,14 @@
   },
   "firstRunNotice": {
     "title": "AICLI Client’e hoş geldiniz",
-    "bodyDefault": "AICLI Client; Claude Code, Codex, Gemini CLI ve diğer istemcileri tek tıkla devralır: istekleri profiliniz ve hattınızla yerel proxy üzerinden AICLI'ye gider; gizlilik maskeleme açıkken anahtarlar ve diğer hassas değerler bu bilgisayardan çıkmaz.",
-    "bodyOfficial": "Devralmadan önceki yapılandırma tamamen yedeklenir. İstemciler sayfasında devralmayı istediğiniz zaman durdurup yapılandırmayı olduğu gibi geri getirebilirsiniz; örneğin resmî oturum açmaya ya da kendi ayarlarınıza.",
-    "confirm": "Anladım"
+    "bodyDefault": "Hesabınız bağlandı. Sırada, ihtiyaç duydukça:",
+    "bodyOfficial": "İstemciler sayfasında anahtarı açın; Claude Code, Codex ve diğerlerinin istekleri AICLI üzerinden gider. Yapılandırmaları önce yedeklenir ve durdurduğunuzda olduğu gibi geri yüklenir.",
+    "confirm": "Anladım",
+    "stepAccount": "Hesabınızı bağlayın",
+    "stepDone": "Tamamlandı",
+    "stepTakeover": "İstemcileri devralın",
+    "stepPrivacy": "Gerektiğinde gizlilik maskelemeyi açın",
+    "stepPrivacyBody": "Anahtarlar, e-postalar vb. bu bilgisayardan çıkmadan önce yer tutucularla değiştirilir ve dönüşte geri yüklenir."
   },
   "jsonEditor": {
     "mustBeObject": "Yapılandırma bir dizi veya başka türde değil, JSON nesnesi olmalıdır",
@@ -3124,7 +3129,8 @@
       "benefitUsage": "Bakiye ve günlük harcama tek bakışta",
       "later": "Daha sonra",
       "rebindAction": "Yeniden bağla",
-      "loadFailed": "Bağlantı durumu okunamadı: {{message}}"
+      "loadFailed": "Bağlantı durumu okunamadı: {{message}}",
+      "rebindKeeps": "Aynı hesabın belirtecini değiştirmek devralınan istemcileri, yapılandırma setlerini ve hattı korur."
     },
     "account": {
       "title": "Hesap",
@@ -3254,12 +3260,11 @@
       "delete": "Sil",
       "setDefault": "Varsayılan yap",
       "deleteTitle": "«{{name}}» yapılandırma setini sil",
-      "deleteBody": "Onu kullanan istemciler varsayılan sete geçer. Bu işlem yalnızca bu cihazı etkiler.",
       "diffTitle": "«{{preset}}» ile «{{other}}» arasındaki farklar",
       "diffBody": "İki model tablosunu genel model adına göre karşılaştırır.",
       "diffNone": "İki model tablosu aynı.",
-      "diffOnlyPreset": "Yalnızca ön ayarda",
-      "diffOnlyOther": "Yalnızca karşılaştırılan sette",
+      "diffOnlyPreset": "Yalnızca “{{name}}” içinde",
+      "diffOnlyOther": "Yalnızca “{{name}}” içinde",
       "needsRepairTitle": "Yapılandırma setinin onarılması gerekiyor",
       "needsRepairBody": "Eksik gruplar: {{groups}}; etkilenen modeller: {{models}}",
       "name": "Ad",
@@ -3343,7 +3348,14 @@
       "landingCheaper": "Bunlardan {{count}} tanesi daha aşağıdaki {{group}} grubunda da var ve orada yalnızca ×{{ratio}}. Onu öne alırsanız ×{{ratio}} üzerinden hesaplanır.",
       "landingMoveUp": "{{group}} grubunu öne al",
       "landingNote": "Yalnızca her modelin ilk tercih edilen kaynağı sayılır. Gerçek ücreti sunucu belirler.",
-      "backToList": "Tüm setlere dön"
+      "backToList": "Tüm setlere dön",
+      "deleteUsers": "Bunu kullanacak şekilde ayarlanan istemciler",
+      "deleteFallback": "Silindikten sonra bu istemciler varsayılan seti kullanır",
+      "deleteNoUsers": "Bunu kullanacak şekilde ayarlanmış istemci yok.",
+      "deleteLocal": "Yalnızca bu bilgisayardaki kopya silinir; sunucu ve diğer setler etkilenmez.",
+      "diffCount": "{{count}} model",
+      "diffMore": "{{count}} tane daha",
+      "diffDefaultTag": "Varsayılan"
     },
     "settings": {
       "linesTitle": "AICLI hatları",
@@ -3430,7 +3442,9 @@
       "dedicated": {
         "openclaw": "Çalışma alanı, yapılandırma",
         "hermes": "Bellek"
-      }
+      },
+      "bulkProfile": "“{{name}}” seti",
+      "bulkSkipNote": "Eski proxy ayarları olan istemciler atlanır; ardından kendi satırlarında ayrıca onaylayın."
     },
     "overview": {
       "runway": "Son {{days}} günün hızıyla bakiyeniz yaklaşık {{count}} gün daha yeter",
@@ -3578,10 +3592,16 @@
       "unbind": "Bağlantıyı kaldır",
       "unbindNote": "Bağlantıyı kaldırmadan önce devralınan istemciler kendi yapılandırmalarına geri döndürülür.",
       "confirmTitle": "Bu bilgisayarın bağlantısını kaldır",
-      "confirmBody": "Devralınan istemciler önce kendi yapılandırmalarına döndürülür, ardından bu bilgisayardaki belirteç ve hesap verileri silinir. Yerel istek kayıtları korunur. Kullanmak istediğinizde belirteci yeniden yapıştırın.",
+      "confirmBody": "Şu sırayla:",
       "deleteTokens": "AICLI Client'ın hesabınızda oluşturduğu belirteçleri de sil",
       "deleteTokensHint": "Aynı hesaba bağlı diğer bilgisayarlar da bu belirteçleri kullanır ve yeniden oluşturmaları gerekir. Emin değilseniz işaretlemeyin.",
-      "unbindFailed": "Bağlantı kaldırma tamamlanmadı: {{message}}"
+      "unbindFailed": "Bağlantı kaldırma tamamlanmadı: {{message}}",
+      "stepRestore": "Önce devralınan istemciler geri yüklenir",
+      "stepRestoreBody": "Kendi yapılandırmalarına dönerler",
+      "stepClear": "Bu bilgisayardaki belirteç ve hesap verileri silinir",
+      "stepClearBody": "Kullanmak istediğinizde belirteci yeniden yapıştırın",
+      "stepKeep": "Yerel istek kayıtları korunur",
+      "stepKeepBody": "Kullanım sayfasında görünmeye devam eder"
     }
   }
 }
