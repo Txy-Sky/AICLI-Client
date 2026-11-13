@@ -196,6 +196,7 @@ export function ProfileManageDialog({
           isOpen
           title={t("profiles.deleteConfirmTitle")}
           message={t("profiles.deleteConfirmMessage", { name: confirm.name })}
+          assurance={t("profiles.deleteConfirmAssurance")}
           variant="destructive"
           onConfirm={handleConfirm}
           onCancel={() => setConfirm(null)}

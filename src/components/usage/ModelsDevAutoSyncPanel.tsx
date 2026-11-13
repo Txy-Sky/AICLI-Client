@@ -710,6 +710,7 @@ export function ModelsDevAutoSyncPanel() {
         isOpen={showEnableConfirm}
         title={t("usage.modelsDevAutoSync.enableConfirmTitle")}
         message={t("usage.modelsDevAutoSync.enableConfirmMessage")}
+        note={t("usage.modelsDevAutoSync.enableConfirmNote")}
         confirmText={t("usage.modelsDevAutoSync.enableConfirmAction")}
         variant="destructive"
         onConfirm={() => {

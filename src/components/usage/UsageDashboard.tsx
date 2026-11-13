@@ -1089,6 +1089,8 @@ export function UsageDashboard({
         isOpen={showRebuildConfirm}
         title={t("usage.rebuildCodex.confirmTitle")}
         message={t("usage.rebuildCodex.confirmMessage")}
+        assurance={t("usage.rebuildCodex.confirmAssurance")}
+        note={t("usage.rebuildCodex.confirmNote")}
         confirmText={t("usage.rebuildCodex.confirmAction")}
         // 重建前会自动备份数据库，可从备份恢复：不算不可撤销，不用红色确认键
         variant="info"

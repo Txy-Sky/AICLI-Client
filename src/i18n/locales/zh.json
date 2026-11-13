@@ -153,15 +153,18 @@
     },
     "unifyCodexHistory": {
       "title": "统一 Codex 会话历史",
-      "message": "开启后，Codex CLI 的 resume 列表会把官方订阅与第三方的会话合并显示（Codex 桌面版更新后已经可以显示全部会话，不受影响）。注意：跨供应商继续旧会话时，可能因对方后端无法解密 encrypted_content 推理内容而失败。\n\n可选择同时把现有官方会话历史迁入共享列表（迁移前自动备份到 ~/.aicli-client/backups，关闭开关时可选择恢复）。",
+      "message": "Codex CLI 的 resume 列表会把官方订阅与第三方的会话合并显示；Codex 桌面版已经能显示全部会话，不受影响。",
       "migrateExisting": "同时迁入现有官方会话历史",
-      "confirm": "我已了解，继续开启"
+      "confirm": "我已了解，继续开启",
+      "note": "跨供应商继续旧会话时，可能因对方后端无法解密 encrypted_content 推理内容而失败。",
+      "migrateHint": "迁移前自动备份到 ~/.aicli-client/backups，关闭开关时可选择恢复。"
     },
     "unifyCodexHistoryOff": {
       "title": "关闭统一会话历史",
-      "message": "关闭后，Codex CLI 中官方订阅与第三方将恢复各自独立的会话列表（桌面版仍显示全部会话）。开启期间产生的会话因无法区分来源，将留在第三方历史中，CLI 在官方订阅下将看不到它们。",
+      "message": "Codex CLI 中官方订阅与第三方恢复各自独立的会话列表；桌面版仍显示全部会话。",
       "restoreBackup": "把开启时迁入的官方会话还原回官方历史（按备份精确还原）",
-      "confirm": "关闭"
+      "confirm": "关闭",
+      "note": "开启期间产生的会话无法区分来源，会留在第三方历史中，CLI 在官方订阅下看不到它们。"
     },
     "usage": {
       "title": "配置用量查询",
@@ -750,7 +753,7 @@
       "blankInstruction": "请输入非空白内容；不想用了就点左下角「删除文件」",
       "saveAndConfigure": "保存并配置",
       "activateOverrideTitle": "配置 {{filename}}？",
-      "activateOverrideMessage": "创建 {{filename}} 会替换 Pi 内置基础提示。上下文、AGENTS.md 和 Skills 等仍由 Pi 按自身规则加入。",
+      "activateOverrideMessage": "创建 {{filename}}，替换 Pi 内置的基础提示。",
       "fileSaved": "{{filename}} 已保存",
       "saveFailed": "保存 Pi 指令文件失败",
       "deleteFailed": "删除 Pi 指令文件失败",
@@ -805,7 +808,8 @@
       "copiedCommand": "已复制 /{{slug}}",
       "templateDeletedUndo": "已删除 /{{slug}}，Pi 里不再有这个命令",
       "templateDeletedSub": "撤销会把 prompts/{{slug}}.md 原样写回。",
-      "templateRestored": "已写回 ~/.pi/agent/prompts/{{slug}}.md"
+      "templateRestored": "已写回 ~/.pi/agent/prompts/{{slug}}.md",
+      "activateOverrideAssurance": "上下文、AGENTS.md 和 Skills 等仍由 Pi 按自身规则加入。"
     }
   },
   "sessionManager": {
@@ -1168,11 +1172,13 @@
       "warning": "重建前会自动备份数据库。若源 JSONL 已删除，对应历史将无法重新导入。",
       "action": "重建 Codex 用量",
       "confirmTitle": "确认重建 Codex 用量",
-      "confirmMessage": "此操作会清除现有 Codex 会话明细与汇总，再从本地 Codex 日志重新导入。\n\n已删除日志对应的历史将丢失；缺少父 rollout 的 fork 会暂缓导入。",
+      "confirmMessage": "清除现有 Codex 会话明细与汇总，再从本地 Codex 日志重新导入。",
       "confirmAction": "备份并重建",
       "completed": "重建完成：导入 {{imported}} 条，错误 {{errors}}，疑似重复 {{suspected}}，暂缓文件 {{deferred}}",
       "failed": "Codex 用量重建失败：{{error}}",
-      "actionEllipsis": "重建 Codex 用量"
+      "actionEllipsis": "重建 Codex 用量",
+      "confirmAssurance": "重建前自动备份数据库，可以从备份恢复。",
+      "confirmNote": "已删除日志对应的历史会丢失；缺少父 rollout 的 fork 会暂缓导入。"
     },
     "totalRecords": "共 {{total}} 条记录",
     "pageSize": "每页 {{count}} 条",
@@ -1191,7 +1197,7 @@
     "cacheReadCost": "缓存命中",
     "cacheWriteCost": "缓存创建",
     "deleteConfirmTitle": "确认删除",
-    "deleteConfirmDesc": "确定要删除此模型定价配置吗？此操作无法撤销。",
+    "deleteConfirmDesc": "这条模型定价会被删除，不能撤销。",
     "queryFailed": "查询失败",
     "refreshUsage": "刷新用量",
     "planUsage": "套餐用量",
@@ -1280,7 +1286,7 @@
       "enabled": "已开启",
       "disabled": "已关闭",
       "enableConfirmTitle": "开启自动同步定价？",
-      "enableConfirmMessage": "开启后，AICLI Client 会在启动时定期从 models.dev 更新所选模型的价格（最多每 6 小时一次）。同一模型 ID 的软件内置价格和手动设置价格都会被覆盖。",
+      "enableConfirmMessage": "AICLI Client 会在启动时定期从 models.dev 更新所选模型的价格，最多每 6 小时一次。",
       "enableConfirmAction": "开启自动同步",
       "configure": "选择模型",
       "configureTitle": "选择自动同步定价的模型",
@@ -1306,7 +1312,8 @@
       "reloadLocalFile": "重新加载文件",
       "localFileReloaded": "本地定价文件已重新加载",
       "localFileReloadFailed": "重新加载本地定价文件失败：{{error}}",
-      "syncNow": "立即同步"
+      "syncNow": "立即同步",
+      "enableConfirmNote": "同一模型 ID 的软件内置价格和手动设置的价格都会被覆盖。"
     },
     "cacheReadCostPerMillion": "缓存读取成本 (每百万 tokens, USD)",
     "cacheCreationCostPerMillion": "缓存写入成本 (每百万 tokens, USD)",
@@ -1821,7 +1828,7 @@
     "noSnapshotForScope": "本侧未保存",
     "delete": "删除",
     "deleteConfirmTitle": "确认删除",
-    "deleteConfirmMessage": "确定要删除项目 \"{{name}}\" 吗？不会改动任何现有配置。",
+    "deleteConfirmMessage": "项目「{{name}}」会被删除。",
     "createSuccess": "项目已创建",
     "createFailed": "创建项目失败: {{detail}}",
     "updateSuccess": "项目已更新",
@@ -1831,7 +1838,8 @@
     "applySuccess": "项目已应用",
     "applyFailed": "应用项目失败: {{detail}}",
     "applyWarnings": "项目已应用，{{warningCount}} 条警告：\n{{details}}",
-    "clearSuccess": "已切换为不使用项目"
+    "clearSuccess": "已切换为不使用项目",
+    "deleteConfirmAssurance": "不会改动任何现有配置。"
   },
   "workspace": {
     "title": "Workspace 文件管理",
@@ -1863,7 +1871,7 @@
       "deleteSuccess": "每日记忆文件已删除",
       "deleteFailed": "删除每日记忆文件失败",
       "confirmDeleteTitle": "删除每日记忆",
-      "confirmDeleteMessage": "确定删除 {{date}} 的每日记忆吗？此操作不可撤销。",
+      "confirmDeleteMessage": "{{date}} 的每日记忆会被删除，不能撤销。",
       "searchPlaceholder": "搜索全文内容...",
       "searchScopeHint": "全文搜索所有每日记忆 ⌘F",
       "searchCloseHint": "Esc 关闭",
@@ -1998,10 +2006,11 @@
       "offline": "Hermes Web UI 未启动，请先运行 `hermes dashboard` 启动服务。",
       "openFailed": "打开 Hermes Web UI 失败",
       "launchConfirmTitle": "Hermes Dashboard 未启动",
-      "launchConfirmMessage": "是否打开终端并运行 `hermes dashboard` 启动服务？\n\n启动完成后会自动打开浏览器。\n\n若终端提示找不到 hermes 或缺少 web 依赖，请先运行：\npip install hermes-agent[web]",
+      "launchConfirmMessage": "打开终端运行下面的命令，启动后会自动打开浏览器。",
       "launchConfirmAction": "打开终端并启动",
       "launching": "已在终端启动 hermes dashboard",
-      "launchFailed": "打开终端失败"
+      "launchFailed": "打开终端失败",
+      "launchConfirmHint": "终端提示找不到 hermes 或缺少 web 依赖时，先运行 pip install hermes-agent[web]"
     },
     "memory": {
       "disabledHint": "在重新启用前 Hermes 会跳过此记忆",
@@ -3499,7 +3508,7 @@
       "footer": "记录只存在这台电脑上，保留 {{days}} 天，不含原值。",
       "clear": "清空记录",
       "clearConfirmTitle": "清空脱敏记录",
-      "clearConfirmBody": "会删除这台电脑上的全部脱敏记录（只有数量和类别，不含原值），不影响脱敏本身。",
+      "clearConfirmBody": "会删除这台电脑上的全部脱敏记录（只有数量和类别，不含原值）。",
       "heroTitle": "没让上游看到的",
       "heroSubtitle": "每个请求离开这台电脑前在本机脱敏，回复里再换回原样",
       "maskedUnit": "处已脱敏",
@@ -3563,7 +3572,8 @@
         "SERIAL": "序列号",
         "TERM": "自定义词",
         "CUSTOM": "自定义规则"
-      }
+      },
+      "clearConfirmAssurance": "脱敏本身不受影响，照常进行。"
     },
     "accountSettings": {
       "title": "账户",

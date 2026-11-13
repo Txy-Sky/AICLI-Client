@@ -319,6 +319,7 @@ function PiInstructionFileEditor({
         message={t("pi.prompts.activateOverrideMessage", {
           filename: file.filename,
         })}
+        assurance={t("pi.prompts.activateOverrideAssurance")}
         confirmText={t("pi.prompts.saveAndConfigure")}
         variant="info"
         zIndex="top"

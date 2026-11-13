@@ -1078,6 +1078,8 @@ function App() {
           isOpen={launchDashboardOpen}
           title={t("hermes.webui.launchConfirmTitle")}
           message={t("hermes.webui.launchConfirmMessage")}
+          code="hermes dashboard"
+          hint={t("hermes.webui.launchConfirmHint")}
           confirmText={t("hermes.webui.launchConfirmAction")}
           variant="info"
           onConfirm={() => {

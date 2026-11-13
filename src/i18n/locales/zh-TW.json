@@ -153,15 +153,18 @@
     },
     "unifyCodexHistory": {
       "title": "統一 Codex 會話歷史",
-      "message": "開啟後，Codex CLI 的 resume 清單會把官方訂閱與第三方的會話合併顯示（Codex 桌面版更新後已經可以顯示全部會話，不受影響）。注意：跨供應商繼續舊會話時，可能因對方後端無法解密 encrypted_content 推理內容而失敗。\n\n可選擇同時把現有官方會話歷史遷入共享清單（遷移前自動備份到 ~/.aicli-client/backups，關閉開關時可選擇恢復）。",
+      "message": "Codex CLI 的 resume 清單會把官方訂閱與第三方的會話合併顯示；Codex 桌面版已經能顯示全部會話，不受影響。",
       "migrateExisting": "同時遷入現有官方會話歷史",
-      "confirm": "我已了解，繼續開啟"
+      "confirm": "我已了解，繼續開啟",
+      "note": "跨供應商繼續舊會話時，可能因對方後端無法解密 encrypted_content 推理內容而失敗。",
+      "migrateHint": "遷移前自動備份到 ~/.aicli-client/backups，關閉開關時可選擇恢復。"
     },
     "unifyCodexHistoryOff": {
       "title": "關閉統一會話歷史",
-      "message": "關閉後，Codex CLI 中官方訂閱與第三方將恢復各自獨立的會話清單（桌面版仍顯示全部會話）。開啟期間產生的會話因無法區分來源，將留在第三方歷史中，CLI 在官方訂閱下將看不到它們。",
+      "message": "Codex CLI 中官方訂閱與第三方恢復各自獨立的會話清單；桌面版仍顯示全部會話。",
       "restoreBackup": "把開啟時遷入的官方會話還原回官方歷史（按備份精確還原）",
-      "confirm": "關閉"
+      "confirm": "關閉",
+      "note": "開啟期間產生的會話無法區分來源，會留在第三方歷史中，CLI 在官方訂閱下看不到它們。"
     },
     "usage": {
       "title": "設定用量查詢",
@@ -751,7 +754,7 @@
       "blankInstruction": "請輸入非空白內容；不想用了就點左下角「刪除檔案」",
       "saveAndConfigure": "儲存並設定",
       "activateOverrideTitle": "設定 {{filename}}？",
-      "activateOverrideMessage": "建立 {{filename}} 會取代 Pi 內建基礎提示。上下文、AGENTS.md 與 Skills 等仍由 Pi 依自身規則加入。",
+      "activateOverrideMessage": "建立 {{filename}}，取代 Pi 內建的基礎提示。",
       "fileSaved": "{{filename}} 已儲存",
       "saveFailed": "儲存 Pi 指示檔案失敗",
       "deleteFailed": "刪除 Pi 指示檔案失敗",
@@ -806,7 +809,8 @@
       "copiedCommand": "已複製 /{{slug}}",
       "templateDeletedUndo": "已刪除 /{{slug}}，Pi 裡不再有這個命令",
       "templateDeletedSub": "復原會把 prompts/{{slug}}.md 原樣寫回。",
-      "templateRestored": "已寫回 ~/.pi/agent/prompts/{{slug}}.md"
+      "templateRestored": "已寫回 ~/.pi/agent/prompts/{{slug}}.md",
+      "activateOverrideAssurance": "上下文、AGENTS.md 與 Skills 等仍由 Pi 依自身規則加入。"
     }
   },
   "sessionManager": {
@@ -1169,11 +1173,13 @@
       "warning": "重建前會自動備份資料庫。若來源 JSONL 已刪除，對應歷史將無法重新匯入。",
       "action": "重建 Codex 用量",
       "confirmTitle": "確認重建 Codex 用量",
-      "confirmMessage": "此操作會清除現有 Codex 工作階段明細與彙總，再從本機 Codex 日誌重新匯入。\n\n已刪除日誌對應的歷史將遺失；缺少父 rollout 的 fork 會暫緩匯入。",
+      "confirmMessage": "清除現有 Codex 工作階段明細與彙總，再從本機 Codex 日誌重新匯入。",
       "confirmAction": "備份並重建",
       "completed": "重建完成：匯入 {{imported}} 筆，錯誤 {{errors}}，疑似重複 {{suspected}}，暫緩檔案 {{deferred}}",
       "failed": "Codex 用量重建失敗：{{error}}",
-      "actionEllipsis": "重建 Codex 用量"
+      "actionEllipsis": "重建 Codex 用量",
+      "confirmAssurance": "重建前自動備份資料庫，可以從備份還原。",
+      "confirmNote": "已刪除日誌對應的歷史會遺失；缺少父 rollout 的 fork 會暫緩匯入。"
     },
     "totalRecords": "共 {{total}} 筆紀錄",
     "pageSize": "每頁 {{count}} 筆",
@@ -1192,7 +1198,7 @@
     "cacheReadCost": "快取命中",
     "cacheWriteCost": "快取建立",
     "deleteConfirmTitle": "確認刪除",
-    "deleteConfirmDesc": "確定要刪除此模型定價設定嗎？此操作無法復原。",
+    "deleteConfirmDesc": "這筆模型定價會被刪除，無法復原。",
     "queryFailed": "查詢失敗",
     "refreshUsage": "重新整理用量",
     "planUsage": "方案用量",
@@ -1281,7 +1287,7 @@
       "enabled": "已開啟",
       "disabled": "已關閉",
       "enableConfirmTitle": "開啟自動同步定價？",
-      "enableConfirmMessage": "開啟後，AICLI Client 會在啟動時定期從 models.dev 更新所選模型的價格（最多每 6 小時一次）。相同模型 ID 的軟體內建價格和手動設定價格都會被覆寫。",
+      "enableConfirmMessage": "AICLI Client 會在啟動時定期從 models.dev 更新所選模型的價格，最多每 6 小時一次。",
       "enableConfirmAction": "開啟自動同步",
       "configure": "選擇模型",
       "configureTitle": "選擇自動同步定價的模型",
@@ -1307,7 +1313,8 @@
       "reloadLocalFile": "重新載入檔案",
       "localFileReloaded": "本機定價檔案已重新載入",
       "localFileReloadFailed": "重新載入本機定價檔案失敗：{{error}}",
-      "syncNow": "立即同步"
+      "syncNow": "立即同步",
+      "enableConfirmNote": "相同模型 ID 的軟體內建價格和手動設定的價格都會被覆寫。"
     },
     "cacheReadCostPerMillion": "快取讀取成本 (每百萬 tokens, USD)",
     "cacheCreationCostPerMillion": "快取寫入成本 (每百萬 tokens, USD)",
@@ -1822,7 +1829,7 @@
     "noSnapshotForScope": "本側未儲存",
     "delete": "刪除",
     "deleteConfirmTitle": "確認刪除",
-    "deleteConfirmMessage": "確定要刪除專案 \"{{name}}\" 嗎？不會改動任何現有設定。",
+    "deleteConfirmMessage": "專案「{{name}}」會被刪除。",
     "createSuccess": "專案已建立",
     "createFailed": "建立專案失敗: {{detail}}",
     "updateSuccess": "專案已更新",
@@ -1832,7 +1839,8 @@
     "applySuccess": "專案已套用",
     "applyFailed": "套用專案失敗: {{detail}}",
     "applyWarnings": "專案已套用，{{warningCount}} 條警告：\n{{details}}",
-    "clearSuccess": "已切換為不使用專案"
+    "clearSuccess": "已切換為不使用專案",
+    "deleteConfirmAssurance": "不會改動任何現有設定。"
   },
   "workspace": {
     "title": "Workspace 檔案管理",
@@ -1864,7 +1872,7 @@
       "deleteSuccess": "每日記憶檔案已刪除",
       "deleteFailed": "刪除每日記憶檔案失敗",
       "confirmDeleteTitle": "刪除每日記憶",
-      "confirmDeleteMessage": "確定刪除 {{date}} 的每日記憶嗎？此操作不可復原。",
+      "confirmDeleteMessage": "{{date}} 的每日記憶會被刪除，無法復原。",
       "searchPlaceholder": "搜尋全文內容...",
       "searchScopeHint": "全文搜尋所有每日記憶 ⌘F",
       "searchCloseHint": "Esc 關閉",
@@ -1999,10 +2007,11 @@
       "offline": "Hermes Web UI 未啟動，請先執行 `hermes dashboard` 啟動服務。",
       "openFailed": "開啟 Hermes Web UI 失敗",
       "launchConfirmTitle": "Hermes Dashboard 未啟動",
-      "launchConfirmMessage": "是否開啟終端機並執行 `hermes dashboard` 啟動服務？\n\n啟動完成後會自動開啟瀏覽器。\n\n若終端機提示找不到 hermes 或缺少 web 相依套件，請先執行：\npip install hermes-agent[web]",
+      "launchConfirmMessage": "開啟終端機執行下面的指令，啟動後會自動開啟瀏覽器。",
       "launchConfirmAction": "開啟終端機並啟動",
       "launching": "已在終端機啟動 hermes dashboard",
-      "launchFailed": "開啟終端機失敗"
+      "launchFailed": "開啟終端機失敗",
+      "launchConfirmHint": "終端機提示找不到 hermes 或缺少 web 相依套件時，先執行 pip install hermes-agent[web]"
     },
     "memory": {
       "disabledHint": "在重新啟用前 Hermes 會跳過此記憶",
@@ -3500,7 +3509,7 @@
       "footer": "紀錄只存在這台電腦上，保留 {{days}} 天，不含原值。",
       "clear": "清空紀錄",
       "clearConfirmTitle": "清空遮蔽紀錄",
-      "clearConfirmBody": "會刪除這台電腦上的全部遮蔽紀錄（只有數量和類別，不含原值），不影響遮蔽本身。",
+      "clearConfirmBody": "會刪除這台電腦上的全部遮蔽紀錄（只有數量和類別，不含原值）。",
       "heroTitle": "沒讓上游看到的",
       "heroSubtitle": "每個請求離開這台電腦前在本機遮蔽，回覆裡再換回原樣",
       "maskedUnit": "處已遮蔽",
@@ -3564,7 +3573,8 @@
         "SERIAL": "序號",
         "TERM": "自訂詞",
         "CUSTOM": "自訂規則"
-      }
+      },
+      "clearConfirmAssurance": "遮蔽本身不受影響，照常進行。"
     },
     "accountSettings": {
       "title": "帳戶",

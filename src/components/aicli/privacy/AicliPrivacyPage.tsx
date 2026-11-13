@@ -267,6 +267,7 @@ export function AicliPrivacyPage() {
         isOpen={confirmClear}
         title={t("aicli.privacyPage.clearConfirmTitle")}
         message={t("aicli.privacyPage.clearConfirmBody")}
+        assurance={t("aicli.privacyPage.clearConfirmAssurance")}
         confirmText={t("aicli.privacyPage.clear")}
         variant="destructive"
         onConfirm={() => {

@@ -153,15 +153,18 @@
     },
     "unifyCodexHistory": {
       "title": "Birleşik Codex oturum geçmişi",
-      "message": "Etkinleştirildiğinde Codex CLI’nin devam edilebilir oturum listesinde resmî abonelik ve üçüncü taraf oturumları birlikte görünür (Codex masaüstü uygulaması yakın tarihli bir güncellemeden beri tüm oturumları gösterebilir ve bu ayardan etkilenmez). Not: Diğer arka uç encrypted_content içindeki akıl yürütme verilerinin şifresini çözemediği için eski bir oturuma farklı bir sağlayıcıyla devam etmek başarısız olabilir.\n\nMevcut resmî oturum geçmişinizi de paylaşılan listeye taşıyabilirsiniz (önce ~/.aicli-client/backups konumuna yedeklenir; bu ayarı kapatırken geri yükleyebilirsiniz).",
+      "message": "Codex CLI'nin resume listesi resmî abonelik ve üçüncü taraf oturumlarını birlikte gösterir; Codex masaüstü uygulaması zaten tüm oturumları gösterir ve etkilenmez.",
       "migrateExisting": "Ayrıca mevcut resmi oturum geçmişini taşıyın",
-      "confirm": "Anladım, etkinleştir"
+      "confirm": "Anladım, etkinleştir",
+      "note": "Diğer arka uç encrypted_content akıl yürütmesinin şifresini çözemediği için eski bir oturuma farklı sağlayıcıyla devam etmek başarısız olabilir.",
+      "migrateHint": "Önce ~/.aicli-client/backups konumuna yedeklenir; bu ayarı kapatırken geri yükleyebilirsiniz."
     },
     "unifyCodexHistoryOff": {
       "title": "Birleşik oturum geçmişini kapat",
-      "message": "Kapatıldığında Codex CLI, resmi abonelik ve üçüncü taraf sağlayıcılar için ayrı oturum listelerine geri döner (masaüstü uygulaması tüm oturumları göstermeye devam eder). Bu açıkken oluşturulan oturumlar birbirinden ayrılamaz, dolayısıyla üçüncü taraf geçmişinde kalırlar ve CLI bunları resmi abonelik altında göstermez.",
+      "message": "Codex CLI, resmî abonelik ve üçüncü taraf sağlayıcılar için ayrı oturum listelerine döner; masaüstü uygulaması tüm oturumları göstermeye devam eder.",
       "restoreBackup": "Etkinleştirme zamanında taşınan resmi oturumları resmi geçmişe geri yükleyin (yedekten tam geri yükleme)",
-      "confirm": "Kapat"
+      "confirm": "Kapat",
+      "note": "Bu açıkken oluşturulan oturumlar ayırt edilemez; üçüncü taraf geçmişinde kalır ve CLI bunları resmî abonelik altında göstermez."
     },
     "usage": {
       "title": "Kullanım Sorgusunu Yapılandır",
@@ -750,7 +753,7 @@
       "blankInstruction": "Boş olmayan bir içerik girin. Kullanmayı durdurmak için sol alttaki Dosyayı sil'e tıklayın",
       "saveAndConfigure": "Kaydet ve yapılandır",
       "activateOverrideTitle": "{{filename}} yapılandırılsın mı?",
-      "activateOverrideMessage": "{{filename}} oluşturmak, Pi'nin yerleşik temel isteminin yerine geçer. Pi hâlâ kendi kurallarına göre içerik, AGENTS.md, Beceriler ve diğer kaynakları eklemeye devam ediyor.",
+      "activateOverrideMessage": "{{filename}} oluşturulur ve Pi'nin yerleşik temel isteminin yerini alır.",
       "fileSaved": "{{filename}} kaydedildi",
       "saveFailed": "Pi talimat dosyası kaydedilemedi",
       "deleteFailed": "Pi talimat dosyası silinemedi",
@@ -805,7 +808,8 @@
       "copiedCommand": "Kopyalandı /{{slug}}",
       "templateDeletedUndo": "Silindi /{{slug}}; Pi artık bu komuta sahip değil",
       "templateDeletedSub": "Geri al, istemleri/{{slug}}.md dosyasını olduğu gibi geri yazar.",
-      "templateRestored": "~/.pi/agent/prompts/{{slug}}.md geri yazdı"
+      "templateRestored": "~/.pi/agent/prompts/{{slug}}.md geri yazdı",
+      "activateOverrideAssurance": "Pi bağlamı, AGENTS.md'yi, Becerileri ve diğer kaynakları kendi kurallarına göre eklemeye devam eder."
     }
   },
   "sessionManager": {
@@ -1168,11 +1172,13 @@
       "warning": "Öncelikle veritabanı yedeklenir. Kaynağı JSONL silinen geçmiş yeniden içe aktarılamaz.",
       "action": "Codex Kullanımını Yeniden Oluşturun",
       "confirmTitle": "Codex kullanımı yeniden oluşturulsun mu?",
-      "confirmMessage": "Bu, mevcut Codex oturum ayrıntılarını ve birleştirmeları temizler, ardından bunları yerel Codex günlüklerinden tekrar içe aktarır.\n\nSilinen günlüklerle geçmiş kaybolacak. Ana kullanıma sunumu eksik olan çatallar ertelenecektir.",
+      "confirmMessage": "Mevcut Codex oturum ayrıntılarını ve özetlerini temizler, ardından yerel Codex günlüklerinden yeniden içe aktarır.",
       "confirmAction": "Yedekleme ve Yeniden Oluşturma",
       "completed": "Yeniden oluşturma tamamlandı: {{imported}} içe aktarıldı, {{errors}} hataları, {{suspected}} şüpheli kopyalar, {{deferred}} ertelenmiş dosyalar",
       "failed": "Codex kullanımı yeniden oluşturulamadı: {{error}}",
-      "actionEllipsis": "Codex Kullanımını Yeniden Oluşturun"
+      "actionEllipsis": "Codex Kullanımını Yeniden Oluşturun",
+      "confirmAssurance": "Veritabanı önce yedeklenir ve yedekten geri yüklenebilir.",
+      "confirmNote": "Günlükleri silinmiş geçmiş kaybolur; ana rollout'u eksik çatallar ertelenir."
     },
     "totalRecords": "Toplam {{total}} kayıt",
     "goToPage": "Git",
@@ -1189,7 +1195,7 @@
     "cacheReadCost": "Önbellek İsabeti",
     "cacheWriteCost": "Önbellek Oluşturma",
     "deleteConfirmTitle": "Silmeyi Onayla",
-    "deleteConfirmDesc": "Bu model fiyatını silmek istediğinizden emin misiniz? Bu eylem geri alınamaz.",
+    "deleteConfirmDesc": "Bu model fiyatı silinecek. Bu geri alınamaz.",
     "queryFailed": "Sorgu başarısız oldu",
     "refreshUsage": "Kullanımı yenile",
     "planUsage": "Kullanım planı",
@@ -1278,7 +1284,7 @@
       "enabled": "Etkin",
       "disabled": "Devre dışı",
       "enableConfirmTitle": "Otomatik fiyatlandırma eşitlemeu etkinleştirilsin mi?",
-      "enableConfirmMessage": "Etkinleştirmenin ardından AICLI Client, seçili modellerin fiyatlarını başlatıldığında models.dev'den periyodik olarak güncelleyecektir (en fazla 6 saatte bir). Aynı model kimliğine sahip yerleşik ve manuel olarak yapılandırılmış fiyatların üzerine yazılacaktır.",
+      "enableConfirmMessage": "AICLI Client başlatıldığında seçili modellerin fiyatlarını models.dev'den günceller (en fazla 6 saatte bir).",
       "enableConfirmAction": "Otomatik eşitlemeu etkinleştir",
       "configure": "Modelleri seçin",
       "configureTitle": "Otomatik fiyatlandırma eşitlemeu için modelleri seçin",
@@ -1304,7 +1310,8 @@
       "reloadLocalFile": "Dosyayı yeniden yükle",
       "localFileReloaded": "Yerel fiyatlandırma dosyası yeniden yüklendi",
       "localFileReloadFailed": "Yerel fiyatlandırma dosyası yeniden yüklenemedi: {{error}}",
-      "syncNow": "Şimdi eşitle et"
+      "syncNow": "Şimdi eşitle et",
+      "enableConfirmNote": "Aynı model kimliğine sahip yerleşik ve elle ayarlanmış fiyatların üzerine yazılır."
     },
     "cacheReadCostPerMillion": "Önbellek Okuma Maliyeti (milyon token başına, USD)",
     "cacheCreationCostPerMillion": "Önbellek Yazma Maliyeti (milyon token başına, USD)",
@@ -1821,7 +1828,7 @@
     "noSnapshotForScope": "Bu uygulama için henüz kaydedilmedi",
     "delete": "Sil",
     "deleteConfirmTitle": "Silmeyi Onayla",
-    "deleteConfirmMessage": "\"{{name}}\" projesini silmek istediğinizden emin misiniz? Mevcut yapılandırmanız değişmeyecek.",
+    "deleteConfirmMessage": "\"{{name}}\" projesi silinecek.",
     "createSuccess": "Proje oluşturuldu",
     "createFailed": "Proje oluşturulamadı: {{detail}}",
     "updateSuccess": "Proje güncellendi",
@@ -1831,7 +1838,8 @@
     "applySuccess": "Uygulanan proje",
     "applyFailed": "Proje uygulanamadı: {{detail}}",
     "applyWarnings": "{{warningCount}} uyarı(lar)ıyla uygulanan proje:\n{{details}}",
-    "clearSuccess": "Hiçbir projeye geçilmedi"
+    "clearSuccess": "Hiçbir projeye geçilmedi",
+    "deleteConfirmAssurance": "Mevcut yapılandırmanız değişmeyecek."
   },
   "workspace": {
     "title": "Çalışma Alanı Dosyaları",
@@ -1863,7 +1871,7 @@
       "deleteSuccess": "Günlük hafıza dosyası silindi",
       "deleteFailed": "Günlük hafıza dosyası silinemedi",
       "confirmDeleteTitle": "Günlük Hafızayı Sil",
-      "confirmDeleteMessage": "{{date}} için günlük hafıza silinsin mi? Bu geri alınamaz.",
+      "confirmDeleteMessage": "{{date}} için günlük hafıza silinecek. Bu geri alınamaz.",
       "searchPlaceholder": "Tüm içeriği arayın...",
       "searchScopeHint": "Tüm günlük anılarda tam metin araması. ⌘F",
       "searchCloseHint": "Kapatmak için Esc",
@@ -1998,10 +2006,11 @@
       "offline": "Hermes Web kullanıcı arayüzü çalışmıyor. Önce `hermes dashboard` ile başlayın.",
       "openFailed": "Hermes Web kullanıcı arayüzü açılamadı",
       "launchConfirmTitle": "Hermes Kontrol Paneli çalışmıyor",
-      "launchConfirmMessage": "Bir terminal açın ve şimdi `hermes dashboard` ile başlatılsın mı?\n\nBaşlatma tamamlandığında tarayıcı otomatik olarak açılacaktır.\n\nTerminal, `hermes`'nin bulunamadığını veya web ekstralarının eksik olduğunu bildirirse önce şunu çalıştırın:\npip install hermes-agent[web]",
+      "launchConfirmMessage": "Bir terminal açıp aşağıdaki komutu çalıştırın; başladığında tarayıcı otomatik açılır.",
       "launchConfirmAction": "Terminali aç ve başlat",
       "launching": "Bir terminalde `hermes dashboard` başlatıldı.",
-      "launchFailed": "Terminal açılamadı"
+      "launchFailed": "Terminal açılamadı",
+      "launchConfirmHint": "Terminal hermes'in bulunamadığını veya web ekstralarının eksik olduğunu söylerse önce pip install hermes-agent[web] çalıştırın."
     },
     "memory": {
       "disabledHint": "Hermes yeniden etkinleştirilene kadar bu belleği atlayacak",
@@ -3495,7 +3504,7 @@
       "footer": "Kayıtlar yalnızca bu bilgisayarda {{days}} gün tutulur ve özgün değerleri içermez.",
       "clear": "Kayıtları temizle",
       "clearConfirmTitle": "Maskeleme kayıtlarını temizle",
-      "clearConfirmBody": "Bu bilgisayardaki tüm maskeleme kayıtlarını siler (yalnızca sayılar ve türler, özgün değer yok). Maskelemenin kendisi etkilenmez.",
+      "clearConfirmBody": "Bu bilgisayardaki tüm maskeleme kayıtlarını siler (yalnızca sayılar ve türler, özgün değer yok).",
       "heroTitle": "Üst hizmetten saklananlar",
       "heroSubtitle": "Her istek bu bilgisayardan çıkmadan önce maskelenir ve yanıtta geri konur",
       "maskedUnit": "değer maskelendi",
@@ -3559,7 +3568,8 @@
         "SERIAL": "Seri numarası",
         "TERM": "Özel sözcük",
         "CUSTOM": "Özel kural"
-      }
+      },
+      "clearConfirmAssurance": "Maskelemenin kendisi etkilenmez ve çalışmaya devam eder."
     },
     "accountSettings": {
       "title": "Hesap",

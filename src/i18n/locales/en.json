@@ -153,15 +153,18 @@
     },
     "unifyCodexHistory": {
       "title": "Unified Codex session history",
-      "message": "When enabled, the Codex CLI resume list shows official subscription and third-party sessions together (the Codex desktop app can show all sessions since a recent update and is unaffected). Note: resuming an old session across providers may fail because the other backend cannot decrypt its encrypted_content reasoning.\n\nYou can also migrate your existing official session history into the shared list (backed up to ~/.aicli-client/backups first; you can restore it when turning this off).",
+      "message": "The Codex CLI resume list shows official subscription and third-party sessions together; the Codex desktop app already shows all sessions and is unaffected.",
       "migrateExisting": "Also migrate existing official session history",
-      "confirm": "I understand, enable"
+      "confirm": "I understand, enable",
+      "note": "Resuming an old session across providers may fail because the other backend cannot decrypt its encrypted_content reasoning.",
+      "migrateHint": "Backed up to ~/.aicli-client/backups first; you can restore it when turning this off."
     },
     "unifyCodexHistoryOff": {
       "title": "Turn off unified session history",
-      "message": "When turned off, the Codex CLI goes back to separate session lists for the official subscription and third-party providers (the desktop app still shows all sessions). Sessions created while this was on can't be told apart, so they stay in the third-party history and the CLI won't show them under the official subscription.",
+      "message": "The Codex CLI goes back to separate session lists for the official subscription and third-party providers; the desktop app still shows all sessions.",
       "restoreBackup": "Restore the official sessions migrated at enable time back to the official history (exact restore from backup)",
-      "confirm": "Turn off"
+      "confirm": "Turn off",
+      "note": "Sessions created while this was on can't be told apart; they stay in the third-party history and the CLI won't show them under the official subscription."
     },
     "usage": {
       "title": "Configure Usage Query",
@@ -750,7 +753,7 @@
       "blankInstruction": "Enter some non-blank content. To stop using it, click Delete file at the bottom left",
       "saveAndConfigure": "Save and configure",
       "activateOverrideTitle": "Configure {{filename}}?",
-      "activateOverrideMessage": "Creating {{filename}} replaces Pi's built-in base prompt. Pi still adds context, AGENTS.md, Skills, and other resources according to its own rules.",
+      "activateOverrideMessage": "Creates {{filename}}, replacing Pi's built-in base prompt.",
       "fileSaved": "{{filename}} saved",
       "saveFailed": "Failed to save the Pi instruction file",
       "deleteFailed": "Failed to delete the Pi instruction file",
@@ -805,7 +808,8 @@
       "copiedCommand": "Copied /{{slug}}",
       "templateDeletedUndo": "Deleted /{{slug}}; Pi no longer has this command",
       "templateDeletedSub": "Undo writes prompts/{{slug}}.md back as it was. ",
-      "templateRestored": "Wrote ~/.pi/agent/prompts/{{slug}}.md back"
+      "templateRestored": "Wrote ~/.pi/agent/prompts/{{slug}}.md back",
+      "activateOverrideAssurance": "Pi still adds context, AGENTS.md, Skills and other resources by its own rules."
     }
   },
   "sessionManager": {
@@ -1168,11 +1172,13 @@
       "warning": "The database is backed up first. History whose source JSONL has been deleted cannot be re-imported.",
       "action": "Rebuild Codex Usage",
       "confirmTitle": "Rebuild Codex usage?",
-      "confirmMessage": "This clears existing Codex session details and rollups, then imports them again from local Codex logs.\n\nHistory with deleted logs will be lost. Forks whose parent rollout is missing will be deferred.",
+      "confirmMessage": "Clears existing Codex session details and rollups, then imports them again from local Codex logs.",
       "confirmAction": "Back Up and Rebuild",
       "completed": "Rebuild complete: {{imported}} imported, {{errors}} errors, {{suspected}} suspected duplicates, {{deferred}} deferred files",
       "failed": "Codex usage rebuild failed: {{error}}",
-      "actionEllipsis": "Rebuild Codex Usage"
+      "actionEllipsis": "Rebuild Codex Usage",
+      "confirmAssurance": "The database is backed up first and can be restored from the backup.",
+      "confirmNote": "History whose logs were deleted will be lost; forks whose parent rollout is missing are deferred."
     },
     "totalRecords": "{{total}} records total",
     "pageSize": "{{count}} per page",
@@ -1191,7 +1197,7 @@
     "cacheReadCost": "Cache Hit",
     "cacheWriteCost": "Cache Creation",
     "deleteConfirmTitle": "Confirm Delete",
-    "deleteConfirmDesc": "Are you sure you want to delete this model pricing? This action cannot be undone.",
+    "deleteConfirmDesc": "This model pricing will be deleted. This cannot be undone.",
     "queryFailed": "Query failed",
     "refreshUsage": "Refresh usage",
     "planUsage": "Plan usage",
@@ -1280,7 +1286,7 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "enableConfirmTitle": "Enable automatic pricing sync?",
-      "enableConfirmMessage": "After enabling, AICLI Client will periodically update prices for the selected models from models.dev when it launches (at most once every 6 hours). Built-in and manually configured prices with the same model ID will be overwritten.",
+      "enableConfirmMessage": "AICLI Client will update prices for the selected models from models.dev when it launches, at most once every 6 hours.",
       "enableConfirmAction": "Enable automatic sync",
       "configure": "Choose models",
       "configureTitle": "Choose models for automatic pricing sync",
@@ -1306,7 +1312,8 @@
       "reloadLocalFile": "Reload file",
       "localFileReloaded": "Local pricing file reloaded",
       "localFileReloadFailed": "Failed to reload local pricing file: {{error}}",
-      "syncNow": "Sync now"
+      "syncNow": "Sync now",
+      "enableConfirmNote": "Built-in and manually set prices with the same model ID will be overwritten."
     },
     "cacheReadCostPerMillion": "Cache Read Cost (per million tokens, USD)",
     "cacheCreationCostPerMillion": "Cache Write Cost (per million tokens, USD)",
@@ -1821,7 +1828,7 @@
     "noSnapshotForScope": "Not saved for this app yet",
     "delete": "Delete",
     "deleteConfirmTitle": "Confirm Delete",
-    "deleteConfirmMessage": "Are you sure you want to delete project \"{{name}}\"? Your current configuration will not be changed.",
+    "deleteConfirmMessage": "Project \"{{name}}\" will be deleted.",
     "createSuccess": "Project created",
     "createFailed": "Failed to create project: {{detail}}",
     "updateSuccess": "Project updated",
@@ -1831,7 +1838,8 @@
     "applySuccess": "Project applied",
     "applyFailed": "Failed to apply project: {{detail}}",
     "applyWarnings": "Project applied with {{warningCount}} warning(s):\n{{details}}",
-    "clearSuccess": "Switched to no project"
+    "clearSuccess": "Switched to no project",
+    "deleteConfirmAssurance": "Your current configuration will not be changed."
   },
   "workspace": {
     "title": "Workspace Files",
@@ -1863,7 +1871,7 @@
       "deleteSuccess": "Daily memory file deleted",
       "deleteFailed": "Failed to delete daily memory file",
       "confirmDeleteTitle": "Delete Daily Memory",
-      "confirmDeleteMessage": "Delete the daily memory for {{date}}? This cannot be undone.",
+      "confirmDeleteMessage": "The daily memory for {{date}} will be deleted. This cannot be undone.",
       "searchPlaceholder": "Search full content...",
       "searchScopeHint": "Full-text search across all daily memories. ⌘F",
       "searchCloseHint": "Esc to close",
@@ -1998,10 +2006,11 @@
       "offline": "Hermes Web UI is not running. Start it with `hermes dashboard` first.",
       "openFailed": "Failed to open Hermes Web UI",
       "launchConfirmTitle": "Hermes Dashboard is not running",
-      "launchConfirmMessage": "Open a terminal and start it now with `hermes dashboard`?\n\nThe browser will open automatically once startup completes.\n\nIf the terminal reports that `hermes` cannot be found or the web extras are missing, run first:\npip install hermes-agent[web]",
+      "launchConfirmMessage": "Open a terminal and run the command below; the browser opens automatically once it starts.",
       "launchConfirmAction": "Open terminal & launch",
       "launching": "Started `hermes dashboard` in a terminal.",
-      "launchFailed": "Failed to open terminal"
+      "launchFailed": "Failed to open terminal",
+      "launchConfirmHint": "If the terminal says hermes is not found or the web extras are missing, run pip install hermes-agent[web] first."
     },
     "memory": {
       "disabledHint": "Hermes will skip this memory until re-enabled",
@@ -3499,7 +3508,7 @@
       "footer": "Records stay on this computer for {{days}} days and never hold the original values.",
       "clear": "Clear records",
       "clearConfirmTitle": "Clear masking records",
-      "clearConfirmBody": "Deletes every masking record on this computer (counts and kinds only, no original values). Masking itself is not affected.",
+      "clearConfirmBody": "Deletes every masking record on this computer (counts and kinds only, no original values).",
       "heroTitle": "Kept from the upstream",
       "heroSubtitle": "Each request is masked on this computer before it leaves and restored in the reply",
       "maskedUnit": "values masked",
@@ -3563,7 +3572,8 @@
         "SERIAL": "Serial number",
         "TERM": "Custom word",
         "CUSTOM": "Custom rule"
-      }
+      },
+      "clearConfirmAssurance": "Masking itself is not affected and keeps working."
     },
     "accountSettings": {
       "title": "Account",

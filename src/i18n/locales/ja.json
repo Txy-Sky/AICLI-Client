@@ -153,15 +153,18 @@
     },
     "unifyCodexHistory": {
       "title": "Codex セッション履歴を統一",
-      "message": "オンにすると、Codex CLI の resume 一覧に公式サブスクリプションとサードパーティのセッションがまとめて表示されます（Codex デスクトップ版はアップデートで全セッションを表示できるようになったため影響しません）。注意：プロバイダーをまたいで古いセッションを再開すると、相手のバックエンドが encrypted_content の推論内容を復号できず失敗する場合があります。\n\n既存の公式セッション履歴を共有一覧へ移行することもできます（移行前に ~/.aicli-client/backups へ自動バックアップし、オフにする際に復元を選べます）。",
+      "message": "Codex CLI の resume 一覧に公式サブスクリプションとサードパーティのセッションがまとめて表示されます。Codex デスクトップ版はすでに全セッションを表示できるため影響しません。",
       "migrateExisting": "既存の公式セッション履歴も移行する",
-      "confirm": "理解しました、オンにする"
+      "confirm": "理解しました、オンにする",
+      "note": "プロバイダーをまたいで古いセッションを再開すると、相手のバックエンドが encrypted_content の推論内容を復号できず失敗する場合があります。",
+      "migrateHint": "移行前に ~/.aicli-client/backups へ自動バックアップし、オフにする際に復元を選べます。"
     },
     "unifyCodexHistoryOff": {
       "title": "セッション履歴の統一をオフにする",
-      "message": "オフにすると、Codex CLI では公式サブスクリプションとサードパーティのセッション一覧が再び別々になります（デスクトップ版は引き続き全セッションを表示）。オンの間に作成されたセッションは出所を区別できないためサードパーティ側の履歴に残り、CLI では公式サブスクリプション利用時に表示されません。",
+      "message": "Codex CLI では公式サブスクリプションとサードパーティのセッション一覧が再び別々になります。デスクトップ版は引き続き全セッションを表示します。",
       "restoreBackup": "オンにした際に移行した公式セッションを公式履歴へ復元する（バックアップから正確に復元）",
-      "confirm": "オフにする"
+      "confirm": "オフにする",
+      "note": "オンの間に作成されたセッションは出所を区別できないためサードパーティ側の履歴に残り、公式サブスクリプション利用時の CLI には表示されません。"
     },
     "usage": {
       "title": "使用量クエリの設定",
@@ -750,7 +753,7 @@
       "blankInstruction": "空白以外の内容を入力してください。使わない場合は左下の「ファイルを削除」を押してください",
       "saveAndConfigure": "保存して設定",
       "activateOverrideTitle": "{{filename}} を設定しますか？",
-      "activateOverrideMessage": "{{filename}} を作成すると Pi の組み込み基本プロンプトが置換されます。コンテキスト、AGENTS.md、Skills などは Pi の規則に従って引き続き追加されます。",
+      "activateOverrideMessage": "{{filename}} を作成し、Pi の組み込み基本プロンプトを置き換えます。",
       "fileSaved": "{{filename}} を保存しました",
       "saveFailed": "Pi 指示ファイルを保存できませんでした",
       "deleteFailed": "Pi 指示ファイルを削除できませんでした",
@@ -805,7 +808,8 @@
       "copiedCommand": "/{{slug}} をコピーしました",
       "templateDeletedUndo": "/{{slug}} を削除しました。Pi からこのコマンドはなくなります",
       "templateDeletedSub": "元に戻すと prompts/{{slug}}.md をそのまま書き戻します。",
-      "templateRestored": "~/.pi/agent/prompts/{{slug}}.md を書き戻しました"
+      "templateRestored": "~/.pi/agent/prompts/{{slug}}.md を書き戻しました",
+      "activateOverrideAssurance": "コンテキスト、AGENTS.md、Skills などは Pi の規則に従って引き続き追加されます。"
     }
   },
   "sessionManager": {
@@ -1168,11 +1172,13 @@
       "warning": "最初にデータベースを自動バックアップします。元の JSONL が削除済みの履歴は再インポートできません。",
       "action": "Codex 使用量を再構築",
       "confirmTitle": "Codex 使用量を再構築しますか？",
-      "confirmMessage": "既存の Codex セッション明細と集計を削除し、ローカルの Codex ログから再インポートします。\n\n削除済みログの履歴は失われます。親 rollout がない fork は保留されます。",
+      "confirmMessage": "既存の Codex セッション明細と集計を削除し、ローカルの Codex ログから再インポートします。",
       "confirmAction": "バックアップして再構築",
       "completed": "再構築完了：{{imported}} 件インポート、{{errors}} 件エラー、重複候補 {{suspected}} 件、保留ファイル {{deferred}} 件",
       "failed": "Codex 使用量の再構築に失敗しました：{{error}}",
-      "actionEllipsis": "Codex 使用量を再構築"
+      "actionEllipsis": "Codex 使用量を再構築",
+      "confirmAssurance": "再構築前にデータベースを自動バックアップし、バックアップから復元できます。",
+      "confirmNote": "削除済みログの履歴は失われます。親 rollout がない fork は保留されます。"
     },
     "totalRecords": "全 {{total}} 件",
     "pageSize": "{{count}} 件/ページ",
@@ -1191,7 +1197,7 @@
     "cacheReadCost": "キャッシュヒット",
     "cacheWriteCost": "キャッシュ作成",
     "deleteConfirmTitle": "削除の確認",
-    "deleteConfirmDesc": "このモデル料金を削除しますか？この操作は元に戻せません。",
+    "deleteConfirmDesc": "このモデル料金を削除します。元に戻せません。",
     "queryFailed": "照会に失敗しました",
     "refreshUsage": "利用状況を更新",
     "planUsage": "プラン利用状況",
@@ -1280,7 +1286,7 @@
       "enabled": "有効",
       "disabled": "無効",
       "enableConfirmTitle": "料金の自動同期を有効にしますか？",
-      "enableConfirmMessage": "有効にすると、AICLI Client の起動時に models.dev から選択したモデルの料金を定期的に更新します（最大 6 時間に 1 回）。同じモデル ID の内蔵料金と手動設定した料金は上書きされます。",
+      "enableConfirmMessage": "AICLI Client の起動時に models.dev から選択したモデルの料金を更新します（最大 6 時間に 1 回）。",
       "enableConfirmAction": "自動同期を有効にする",
       "configure": "モデルを選択",
       "configureTitle": "料金を自動同期するモデルを選択",
@@ -1306,7 +1312,8 @@
       "reloadLocalFile": "ファイルを再読み込み",
       "localFileReloaded": "ローカル料金ファイルを再読み込みしました",
       "localFileReloadFailed": "ローカル料金ファイルの再読み込みに失敗しました：{{error}}",
-      "syncNow": "今すぐ同期"
+      "syncNow": "今すぐ同期",
+      "enableConfirmNote": "同じモデル ID の内蔵料金と手動設定した料金は上書きされます。"
     },
     "cacheReadCostPerMillion": "キャッシュ読み取りコスト（100万トークンあたり、USD）",
     "cacheCreationCostPerMillion": "キャッシュ書き込みコスト（100万トークンあたり、USD）",
@@ -1821,7 +1828,7 @@
     "noSnapshotForScope": "このアプリ側は未保存",
     "delete": "削除",
     "deleteConfirmTitle": "削除の確認",
-    "deleteConfirmMessage": "プロジェクト「{{name}}」を削除してもよろしいですか？現在の設定は変更されません。",
+    "deleteConfirmMessage": "プロジェクト「{{name}}」を削除します。",
     "createSuccess": "プロジェクトを作成しました",
     "createFailed": "プロジェクトの作成に失敗しました: {{detail}}",
     "updateSuccess": "プロジェクトを更新しました",
@@ -1831,7 +1838,8 @@
     "applySuccess": "プロジェクトを適用しました",
     "applyFailed": "プロジェクトの適用に失敗しました: {{detail}}",
     "applyWarnings": "プロジェクトを適用しました（警告 {{warningCount}} 件）：\n{{details}}",
-    "clearSuccess": "プロジェクトを使用しない状態に切り替えました"
+    "clearSuccess": "プロジェクトを使用しない状態に切り替えました",
+    "deleteConfirmAssurance": "現在の設定は変更されません。"
   },
   "workspace": {
     "title": "ワークスペースファイル",
@@ -1863,7 +1871,7 @@
       "deleteSuccess": "デイリーメモリーファイルを削除しました",
       "deleteFailed": "デイリーメモリーファイルの削除に失敗しました",
       "confirmDeleteTitle": "デイリーメモリーを削除",
-      "confirmDeleteMessage": "{{date}} のデイリーメモリーを削除しますか？この操作は取り消せません。",
+      "confirmDeleteMessage": "{{date}} のデイリーメモリーを削除します。この操作は取り消せません。",
       "searchPlaceholder": "全文検索...",
       "searchScopeHint": "すべてのデイリーメモリーを全文検索 ⌘F",
       "searchCloseHint": "Escで閉じる",
@@ -1998,10 +2006,11 @@
       "offline": "Hermes Web UI が起動していません。まず `hermes dashboard` を実行してください。",
       "openFailed": "Hermes Web UI を開けませんでした",
       "launchConfirmTitle": "Hermes Dashboard が起動していません",
-      "launchConfirmMessage": "ターミナルを開いて `hermes dashboard` を実行しますか？\n\n起動完了後、ブラウザが自動的に開きます。\n\nターミナルに `hermes` が見つからない、または web 依存が不足するというエラーが表示される場合は、まず次を実行してください：\npip install hermes-agent[web]",
+      "launchConfirmMessage": "ターミナルを開いて下のコマンドを実行します。起動後、ブラウザが自動的に開きます。",
       "launchConfirmAction": "ターミナルを開いて起動",
       "launching": "ターミナルで hermes dashboard を起動しました。",
-      "launchFailed": "ターミナルを開けませんでした"
+      "launchFailed": "ターミナルを開けませんでした",
+      "launchConfirmHint": "hermes が見つからない、または web 依存が不足すると表示された場合は、先に pip install hermes-agent[web] を実行してください。"
     },
     "memory": {
       "disabledHint": "再度有効化するまで Hermes はこの記憶をスキップします",
@@ -3499,7 +3508,7 @@
       "footer": "記録はこのコンピューターにのみ {{days}} 日間保存され、元の値は含みません。",
       "clear": "記録を消去",
       "clearConfirmTitle": "マスキング記録を消去",
-      "clearConfirmBody": "このコンピューター上のマスキング記録（件数と種類のみ、元の値なし）をすべて削除します。マスキング自体には影響しません。",
+      "clearConfirmBody": "このコンピューター上のマスキング記録（件数と種類のみ、元の値なし）をすべて削除します。",
       "heroTitle": "上流に見せなかったもの",
       "heroSubtitle": "各リクエストはこのコンピューターを出る前にマスクされ、返答で元に戻ります",
       "maskedUnit": "件をマスク",
@@ -3563,7 +3572,8 @@
         "SERIAL": "シリアル番号",
         "TERM": "カスタム語",
         "CUSTOM": "カスタムルール"
-      }
+      },
+      "clearConfirmAssurance": "マスキング自体には影響せず、そのまま動作します。"
     },
     "accountSettings": {
       "title": "アカウント",
