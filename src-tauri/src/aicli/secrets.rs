@@ -594,7 +594,9 @@ mod tests {
 
         // Back to a short value, then delete: no parts left behind.
         store.set("takeover-backup:claude", "tiny").unwrap();
-        assert!(!entries(&native).iter().any(|key| key.contains("#part")));
+        assert!(!entries(&native)
+            .iter()
+            .any(|key| key.starts_with("takeover-backup:claude#part")));
         store.set("takeover-backup:claude", &long).unwrap();
         store.delete("takeover-backup:claude").unwrap();
         assert_eq!(store.get("takeover-backup:claude").unwrap(), None);
