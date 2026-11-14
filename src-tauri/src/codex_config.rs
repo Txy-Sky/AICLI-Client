@@ -2384,6 +2384,23 @@ fn is_codex_official_mirror(entry: &Value, model: &str, official: &Value) -> boo
 
 /// The catalog for one provider's models: its official vendor catalog when the
 /// gateway ships one, otherwise the profile's template.
+/// A row's own picker settings win over whatever its entry was built from (the neutral
+/// template, an official OpenAI entry or a vendor's): an explicit description, and
+/// `hidden` (`visibility: hide`). Official entries are otherwise forced to `list`, which
+/// put AICLI's hidden `codex-auto-review` (an official model) back in `/model` and turned
+/// it into "quick auto modes + All models".
+fn apply_codex_spec_overrides(entry: &mut Value, spec: &CodexCatalogModelSpec) {
+    let Some(obj) = entry.as_object_mut() else {
+        return;
+    };
+    if let Some(description) = spec.description.as_deref() {
+        obj.insert("description".to_string(), json!(description));
+    }
+    if spec.hidden {
+        obj.insert("visibility".to_string(), json!("hide"));
+    }
+}
+
 fn codex_catalog_from_specs_for_row(
     specs: &[CodexCatalogModelSpec],
     config_text: &str,
@@ -2401,6 +2418,7 @@ fn codex_catalog_from_specs_for_row(
             .enumerate()
             .map(|(index, spec)| {
                 let mut entry = codex_vendor_catalog_model_entry(&vendor_models, spec, index);
+                apply_codex_spec_overrides(&mut entry, spec);
                 if windows.window.is_some()
                     || windows.limit.is_some()
                     || spec.context_window.is_some()
@@ -2459,6 +2477,7 @@ fn codex_catalog_from_specs_for_row(
                     default_context_window,
                 ),
             };
+            apply_codex_spec_overrides(&mut entry, spec);
             // A changed window needs a matching compaction threshold in single-provider
             // catalogs too. Otherwise an official/template threshold can stay at 244800
             // even after the user requests 1M. Keep untouched official defaults intact.
@@ -5223,6 +5242,41 @@ wire_api = "responses"
         assert_eq!(entries[2]["visibility"], "hide");
         // 顺序即传入顺序（priority 递增），AICLI 已按厂商排好
         assert!(entries[0]["priority"].as_u64() < entries[1]["priority"].as_u64());
+    }
+
+    /// 走官方条目的模型（`codex-auto-review`、GPT 系列）同样听行里的「隐藏」和说明：官方
+    /// 路径原先一律设成 list、照搬官方英文说明，AICLI 要隐藏的 codex-auto-review 回到了
+    /// /model，把它变成「快捷自动模式 + All models」（负责人 2026-11-14 Windows 实测）。
+    #[test]
+    fn official_entries_take_the_rows_hidden_and_description() {
+        let mut rows = official_gpt_rows();
+        rows.extend(
+            normalize_codex_native_rows(vec![official_gpt_row(
+                "codex-auto-review",
+                "review prompt",
+            )])
+            .unwrap(),
+        );
+        let entries = with_official_models(rows, || {
+            catalog_for(
+                json!([
+                    { "model": "gpt-6-sol", "description": "后台写的说明 · vip ×1" },
+                    { "model": "gpt-5.5" },
+                    { "model": "codex-auto-review", "description": "Codex 自动审批用", "hidden": true },
+                ]),
+                "",
+                CodexCatalogToolProfile::NativeResponses,
+            )
+        });
+        // 官方提示词照旧保留（照搬官方条目的原因）
+        assert_eq!(entries[0]["base_instructions"], "GPT-6 Sol prompt");
+        assert_eq!(entries[0]["description"], "后台写的说明 · vip ×1");
+        assert_eq!(entries[0]["visibility"], "list");
+        // 没给说明的官方条目仍是官方的
+        assert_eq!(entries[1]["visibility"], "list");
+        assert_eq!(entries[2]["slug"], "codex-auto-review");
+        assert_eq!(entries[2]["visibility"], "hide");
+        assert_eq!(entries[2]["description"], "Codex 自动审批用");
     }
 
     #[test]
