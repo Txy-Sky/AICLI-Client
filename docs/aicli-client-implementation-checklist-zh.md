@@ -963,7 +963,6 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - `grep -rln 'CopilotAuth\|CodexOAuth\|XaiOAuth\|kimi_oauth\|claude_account' src-tauri/src` 无结果，例外写入第 13 节。
   - `cargo nextest` 通过；`transform*`、`streaming*` 相关测试数量**不减少**（前后对比，写入证据）。
   - `src-tauri/tests/provider_*.rs` 删除或改写，写明原因。
-- 证据：
 - 证据：2026-11-10 完成（按当日负责人决定收窄，第 13 节）。第 4 组：init_default_official_providers 删（C3-02 已取代启动播种），测试改用 seed_official_providers_for_app，golden 35 项快照逐字节不变；providers_seed.rs 与 ensure_official_seed_by_id 保留（官方登录链路在用）。第 5 组：24 个对外命令（CRUD/编辑器/排序/universal/测速端点/usage 脚本测试/终端/import 包装）+ lib.rs 注册删除；codex_terminal.rs 整文件与 open_provider_terminal 级联、update_pi_provider_usage_script 删除；queryProviderUsage 转为 pub(crate)（托盘在用，G-04 删）；switch_provider、ensure_*、只读命令、账号链路全部保留。第 6 组部分：usage_script.rs 保留（Pi/OMP Provider 模型与用量查询仍引用）。前端同步删死包装（mutations 缩减、vscode.ts 删除）。aicli-check.sh 全过（typecheck、prettier、前端 1349、build、fmt、clippy -D warnings、Rust 4666 passed / 13 skipped）；transform/streaming 测试 757→757 名单逐一相同。删除/改写测试及原因见证据文件。详见 docs/aicli-evidence/G-03.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ### G-04 设置和托盘清理
@@ -971,7 +970,6 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - 修改：托盘（`tray.rs`、`tray_panel.rs`）去掉供应商切换菜单，改为：打开主窗口、当前线路（可切换）、打开官方网站（`branding.ts` 的 `WEBSITE_URL`，负责人 2026-11-10 新增）、退出。`settings.rs` 去掉不再使用的字段。`Settings` 的 WebDAV、S3 同步：**移除**（`commands/webdav_sync.rs`、`s3_sync.rs`、`services/s3*.rs`），因为这些会把数据库同步到外部。
 - 修改补充（负责人 2026-11-10）：官方账号后端保留（见 G-03 决定），但托盘仍按方案 A 收口：供应商/账号信息在托盘不可见，不提供面板选项。
 - 验收：检查通过；`grep -n 'providers' src-tauri/src/tray.rs` 只剩内部调用或无结果。
-- 证据：
 - 证据：2026-11-10 完成（方案 A + 官网入口，第 13 节）。tray.rs 重写（4955→462 行）：打开主窗口 / 线路子菜单（三线单选、未绑定禁用，切线路广播 aicli-line-changed）/ 轻量模式 / 打开官方网站（WEBSITE_URL）/ 退出；托盘面板（tray_panel.rs + src/tray-panel/）、供应商菜单、问题圆点、用量刷新、TrayNavigation 全删；「托盘样式」设置与 native_tray_menu 字段删除。WebDAV/S3 整体移除：commands/services/settings 字段/前端 UI 与监听/i18n 六组键（B-07 白名单扩充，本地基线比对通过）；sync_protocol 缩为 sync_mutex。验收 grep providers tray.rs 无结果；aicli-check.sh 全过（前端 1283、Rust 4482 passed / 10 skipped）。详见 docs/aicli-evidence/G-04.txt | https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
 
 ### G-GATE 阶段 G 门禁
@@ -1006,14 +1004,14 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | 编号 | 客户端 | 写入器 | 状态 | 证据 |
 |---|---|---|---|---|
 | J-02 | OpenCode | `opencode_config.rs` | [!] | 后端完成：验收 1、2 通过（15f584ef，`J-02-opencode-unit` 2 passed，CI run 43015679721 success）；界面已开放接管按钮（859b08be，CI run 43024563886 success）；验收 3（真实 OpenCode）未做，交接单 `docs/aicli-handover/J-02.md`，见第 12 节。`docs/aicli-evidence/J-02.txt` |
-| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [ ] | |
-| J-04 | Hermes | `hermes_config.rs::set_provider` | [ ] | |
-| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [ ] | |
-| J-06 | Mcode | `mcode_config.rs` | [ ] | |
-| J-07 | Kimi | `kimi_config.rs` | [ ] | |
-| J-08 | DSH | `dsh_config.rs` | [ ] | |
-| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [ ] | |
-| J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [ ] | |
+| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-04 | Hermes | `hermes_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-06 | Mcode | `mcode_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-07 | Kimi | `kimi_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-08 | DSH | `dsh_config.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [!] | 结论：暂不支持接管。agy 只从进程环境读地址和密钥，没有可接管的配置文件；按第 0.6 节第 14 条不改写其 settings.json，不加入 `TIER2_SUPPORTED`，`take_over` 返回 Unsupported（6a02490b，`J-10-unit` 1 passed，CI run 43538734489 success）。界面保持「暂不支持」，名单写入 README 属 J-GATE。`docs/aicli-evidence/J-03_J-10.txt` |
 
 ### J-GATE 阶段 J 门禁
 - [ ] 完成
@@ -1066,6 +1064,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
+| J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | ① 负责人决定这 7 个客户端是否照 J-02 先开放接管按钮再验收。② H-02 测试机按交接单逐个验收。 |
+| J-10（Agy 结论） | agy 只从进程环境读地址和密钥，没有配置文件能让它指向本地代理。 | 按第 0.6 节第 14 条选不改写其 settings.json 的方案，结论为暂不支持接管，单测断言 Unsupported。 | 负责人确认这个结论；如需支持，只能做「从应用打开终端并注入环境变量」的方式，属于新功能。 |
 | J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | ① 已决定并执行：负责人于 2026-11-11 决定现在把 OpenCode 加入界面的可接管列表（e2026a6d、859b08be，CI run 43024563886 success），真实客户端不通过再回退。② **仍待执行**：H-02 测试机按 `docs/aicli-handover/J-02.md` 做真实客户端验收。 |
 | J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
 | G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 第 3 项与翻译键已关闭：负责人于 2026-11-11 决定名称扫描只查用户可见部分、残留供应商键清掉、OAuth 认证模式文案保留；已按此执行（09fa60cc）并重跑通过。第 1 项：负责人于 2026-11-11 决定界面走查截图先跳过，门禁放行；该项未做，留到 K-04 交付摘要列出。已关闭。 |
@@ -1096,6 +1096,10 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| K-01～K-03（合并提交与验收） | 各项分别提交；相互依赖的项不合并验收。 | K-01 端到端流程、K-02 密钥扫描、K-03 `~/.cc-switch` 校验共用同一次 rc.34 夹具运行（K-02/K-03 在 K-01 跑完的同一个临时 HOME 上检查），在一个提交里落地、同一个 run 验收。 | 三者检查的是同一次运行留下的状态，拆开要重复启动整套环境三次；结论仍按项分别记录。 |
+| K-01（线路地址的测试覆盖） | 清单未规定端到端如何指向测试环境。 | 新增 `Line::origin()`：只有开启 `test-hooks` 特性时读 `AICLI_TEST_LINE_ORIGIN`，正式构建恒为固定 `base_url`；newapi、种子 provider、Codex 目录改经 `origin()` 读取。 | 线路是写死的常量，不加覆盖就无法让真实的绑定流程连到本地 rc.34。 |
+| K-02（扫描范围） | 扫描应用日志、崩溃日志。 | 扫描运行所用临时 HOME 下的全部文件（含 SQLite，按字节）和探针的全部输出；探针进程不初始化 Tauri 文件日志，所以没有应用日志文件可扫。gitleaks 只扫本仓库 merge-base(main)..HEAD（另一仓库 new-api 本项目不改）。 | 端到端在无界面的探针里运行。 |
+| J-08（DSH 凭据引用名） | — | DSH 写入器把本地令牌存为 `CC_SWITCH_DSH_AICLI` 引用，名字沿用 cc-switch 前缀，用户在 `~/.dsh/.credentials.yaml` 里能看到。未改名。 | 改名要兼容用户已有的 `CC_SWITCH_DSH_*` 引用，属于 DSH 写入器的行为变化，由负责人决定。 |
 | C1-02 → Windows 凭据大小（2026-11-12 实机问题） | 凭据存系统凭据库，不可用时降级到 `~/.aicli-client/secrets.json`；文件存在即视为已降级。 | 系统凭据库一侧超过 1000 字符的值拆成 `<键>#part<i>` 多条存，读时拼回（短值写法不变，旧数据照读）。文件模式下，若本进程里系统凭据库还没失败过，文件里没有的键再到系统凭据库里读，删除时两边都删。 | Windows 凭据管理器每条最多 2560 字节；接管备份远超，写失败后降级到文件，重启后只在文件里找访问令牌，显示「令牌失效」。已处于这种状态的安装升级后能读回原令牌。 |
 | G-04 → 保存设置（2026-11-12 实机问题） | G-04 删除托盘样式设置。 | 补回 `save_settings` 中被一并删掉的写回设置（`store_settings`），加回归测试。 | 之后通过 `save_settings` 的设置都没落盘：欢迎提示点「我知道了」关不掉，其他设置重启后丢失。 |
 | B-08 → 正式图标 | 用 `pnpm tauri icon` 从自制的纯色 `AI` 字样 PNG 生成全部图标（占位）。 | 负责人 2026-11-12 提供原图 `assets/aicli-logo.png`（1254×1254，白底）。`scripts/aicli-icons.py`（只用标准库）生成 `scripts/assets/aicli-icon-source.png`（白色圆角方块 + 居中 logo）、应用内 `src/assets/icons/aicli-logo.png`、macOS 菜单栏模板图和 DMG 背景；`pnpm tauri icon` 由源图生成其余全部尺寸。删除占位脚本和占位图。CI 的 B-08 步骤改为跑这套流程后 `git diff --exit-code`，仍要求逐字节可重现。 | 占位图标换成正式 logo；可重现性检查保留。 |
