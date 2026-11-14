@@ -60,6 +60,7 @@ case "$set_name" in
     item E-04-unit aicli::privacy::walker::tests
     item E-04-tool-args aicli::privacy::walker::tests::every_tool_calls_arguments_are_masked
     item E-03-sk-keys aicli::privacy::rules::fieldvalue::tests::not_a_slug aicli::privacy::rules::redact::tests::lower_case_sk_keys_masked_and_slugs_kept
+    item E-05-keepalive aicli::privacy::stream::tests::placeholder_held_across_keepalive
     item E-05-unit aicli::privacy::stream::tests
     item E-06-unit aicli::privacy::layer::tests
     item E-08-unit aicli::privacy::rules::zhname

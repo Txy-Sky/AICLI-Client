@@ -458,3 +458,93 @@ fn fault_in_finish_releases_raw_buffer() {
     assert!(r.finish().is_empty());
     assert!(r.engine_failed());
 }
+
+/// 移植 Magpie `TestWriterHeldAcrossKeepalive`（76f00399c，#5287）：工具参数里的占位符被
+/// 切成两段，中间夹一个 keepalive（Anthropic ping、Responses response.in_progress），在
+/// 占位符里的每个位置切开都要还原完整。修复前 keepalive 让扣留段带着半个占位符原样放出，
+/// 客户端拼出的参数里留下 {{SECRET_…}} 或孤立的 {。
+#[test]
+fn placeholder_held_across_keepalive() {
+    let v = "Alte magpie-*-Keys dieses Kontos werden gelöscht; manuelle Keys und Keys anderer Konten bleiben „erhalten\".";
+    let mut e = engine();
+    let p = e.mask("SECRET", v);
+    let anthropic = |s: &str| {
+        let d = serde_json::json!({"type": "content_block_delta", "index": 1,
+            "delta": {"type": "input_json_delta", "partial_json": s}});
+        format!("event: content_block_delta\ndata: {d}\n\n")
+    };
+    let responses = |typ: &'static str| {
+        move |s: &str| {
+            let d =
+                serde_json::json!({"type": typ, "item_id": "fc_1", "output_index": 1, "delta": s});
+            format!("event: {typ}\ndata: {d}\n\n")
+        }
+    };
+    let ping = "event: ping\ndata: {\"type\": \"ping\"}\n\n";
+    let in_progress = "event: response.in_progress\ndata: {\"type\":\"response.in_progress\",\"sequence_number\":7,\"response\":{\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"in_progress\",\"model\":\"gpt-5.5\",\"output\":[]}}\n\n";
+    // 客户端从各事件拼出来的内容
+    let partial = |d: &str| -> String {
+        let x: serde_json::Value = serde_json::from_str(d).unwrap_or_default();
+        match &x["delta"] {
+            serde_json::Value::String(s) => s.clone(),
+            other => other["partial_json"].as_str().unwrap_or("").to_string(),
+        }
+    };
+    let args = format!(r#"{{"file_path":"/x/index.mjs","new_string":"de: \"{p}\","}}"#);
+    let patch = format!("*** Update File: index.mjs\n+            de: \"{p}\",\n");
+    let fn_args = responses("response.function_call_arguments.delta");
+    let custom = responses("response.custom_tool_call_input.delta");
+    type Event<'a> = &'a dyn Fn(&str) -> String;
+    let cases: [(&str, &str, &String, Event, bool); 3] = [
+        ("anthropic ping", ping, &args, &anthropic as Event, true),
+        (
+            "responses in_progress",
+            in_progress,
+            &args,
+            &fn_args as Event,
+            true,
+        ),
+        (
+            "responses custom tool in_progress",
+            in_progress,
+            &patch,
+            &custom as Event,
+            false,
+        ),
+    ];
+    for (name, keep, body, ev, is_json) in cases {
+        let at = body.find(&p).unwrap();
+        for cut in at + 1..at + p.len() {
+            let mut r = StreamRestorer::new(&e);
+            let mut out = Vec::new();
+            for event in [ev(&body[..cut]), keep.to_string(), ev(&body[cut..])] {
+                out.extend_from_slice(&r.push(event.as_bytes()));
+            }
+            out.extend_from_slice(&r.finish());
+            let out = text(out);
+            let mut got = String::new();
+            let mut n = 0;
+            for event in out.split("\n\n") {
+                let Some((_, d)) = event.split_once("data: ") else {
+                    continue;
+                };
+                n += 1;
+                if d.contains("\"delta\"") {
+                    got.push_str(&partial(d));
+                }
+            }
+            assert_eq!(n, 3, "{name} at {cut}: {out}");
+            if is_json {
+                let parsed: serde_json::Value = serde_json::from_str(&got)
+                    .unwrap_or_else(|error| panic!("{name} cut at {cut}: {got:?}: {error}"));
+                assert_eq!(
+                    parsed["new_string"].as_str(),
+                    Some(format!("de: \"{v}\",").as_str()),
+                    "{name} cut at {cut}: {got:?}"
+                );
+            } else {
+                assert_eq!(got, body.replacen(&p, v, 1), "{name} cut at {cut}");
+            }
+        }
+    }
+}

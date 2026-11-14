@@ -264,6 +264,14 @@ impl<'a> StreamRestorer<'a> {
             }));
             return out;
         };
+        if self.pending.is_some() && waiting(&name, &data) {
+            // Magpie 76f00399c（#5287）：两段文字之间的 keepalive 先放出，扣留的那段继续等
+            // 下文。原先 keepalive 上下文不同，扣留段带着占位符开头原样放出，下一段带着剩下
+            // 一半，两段都还原不了；Claude Code 的 Write/Edit 会把 {{SECRET_…}} 写进文件。
+            let restored = self.with_engine(|engine| walker::restore_json(&data, engine));
+            out.push_str(&rebuild(pre.as_str(), &restored, post.as_str()));
+            return out;
+        }
         let ctx = format!("{name}|{}", event_ctx(&data));
         // 上一事件结尾的占位符开头：上下文与路径相同则移过来继续
         let mut carry = String::new();
@@ -339,6 +347,25 @@ impl<'a> StreamRestorer<'a> {
             None => String::new(),
         }
     }
+}
+
+/// waitEvents（Magpie 76f00399c）：模型慢时流里发的、与回答内容无关的事件——Anthropic 的
+/// ping（会夹在工具参数中间发）、Responses 的 keepalive、response.in_progress 和
+/// response.queued。
+const WAIT_EVENTS: &[&str] = &[
+    "ping",
+    "keepalive",
+    "response.in_progress",
+    "response.queued",
+];
+
+/// waiting（Magpie）：事件 name、数据 data 是 WAIT_EVENTS 之一（看 data 的 type，没有时看事件名）。
+fn waiting(name: &str, data: &str) -> bool {
+    let mut typ = walker::type_of(data);
+    if typ.is_empty() {
+        typ = name.to_string();
+    }
+    WAIT_EVENTS.contains(&typ.as_str())
 }
 
 /// commentLines（Magpie）：b 开头的整行注释（`: keepalive`）与空行的
