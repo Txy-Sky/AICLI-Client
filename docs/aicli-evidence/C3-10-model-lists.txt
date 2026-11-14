@@ -32,3 +32,15 @@ Codex 目录 = 配置集模型且无 sk-；选择器两种形态且契约摘要�
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/43564355142
 
 未做：真实 Claude Code / Codex 读取新选择器和目录（交 Windows 测试机复测）；Codex 目录窗口数据。
+
+## 3. 排序与说明（4ac68a84，负责人 2026-11-13 选定）
+
+排序：配置集模型按厂商分组再按名字（Claude、GPT/o 系列、Gemini、Grok、DeepSeek、通义千问、GLM、
+Kimi、MiniMax、豆包、其他）；Claude Code 自带行（保留时）仍在最前。
+说明：首选分组与倍率、可回退分组数、能力标签，如「首选 vip ×1 · 还可走 2 个分组 · tools · vision」；
+倍率未知不写倍率；标签按目录原样；跟随应用语言（zh、zh-TW、en、ja、tr），换语言后下次刷新生效。
+Codex 目录生成器新增可选 description（未给时仍用显示名）。
+CI：4ac68a84 | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed（含 aicli::picker::tests 3、
+catalog_entry_takes_an_explicit_description）、C3-10-unit 15 passed；job `A3-01 baseline (Linux)`：
+Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43594191653
