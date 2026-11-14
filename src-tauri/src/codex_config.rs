@@ -1330,8 +1330,12 @@ fn codex_catalog_model_entry(
     let display_name = spec.display_name.as_deref().unwrap_or(&spec.model);
     let context_window = spec.context_window.unwrap_or(default_context_window);
     entry_obj.insert("slug".to_string(), json!(spec.model));
-    // Explicitly configured models must be listed even when the cached template is hidden.
-    entry_obj.insert("visibility".to_string(), json!("list"));
+    // Explicitly configured models must be listed even when the cached template is hidden,
+    // unless the row asks to be kept out of the picker.
+    entry_obj.insert(
+        "visibility".to_string(),
+        json!(if spec.hidden { "hide" } else { "list" }),
+    );
     entry_obj.insert("display_name".to_string(), json!(display_name));
     entry_obj.insert(
         "description".to_string(),
@@ -1428,6 +1432,10 @@ struct CodexCatalogModelSpec {
     /// Explicit value only: the picker's line under the name. Falls back to
     /// the display name (AICLI writes the route profile's group and tags).
     description: Option<String>,
+    /// Listed in the catalog but not in Codex's `/model` (`visibility: hide`):
+    /// AICLI keeps Codex's own `codex-auto-*` models this way, since any listed
+    /// one turns `/model` into "quick auto modes + All models".
+    hidden: bool,
     /// Explicit user value only. Entries fall back to the model id — except
     /// official vendor catalog entries, which keep the vendor's display name.
     display_name: Option<String>,
@@ -1553,9 +1561,14 @@ fn codex_catalog_model_specs(settings: &Value) -> Vec<CodexCatalogModelSpec> {
             .map(str::trim)
             .filter(|text| !text.is_empty())
             .map(str::to_string);
+        let hidden = model_config
+            .get("hidden")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
         specs.push(CodexCatalogModelSpec {
             model: model.to_string(),
             description,
+            hidden,
             display_name,
             context_window,
             supports_parallel_tool_calls,
@@ -2506,6 +2519,7 @@ fn codex_published_specs(settings: &Value, config_text: &str) -> Vec<CodexCatalo
         .map(|model| {
             vec![CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model,
                 ..CodexCatalogModelSpec::default()
             }]
@@ -3892,6 +3906,7 @@ experimental_bearer_token = "stale-table-key"
         fill_template_fields_from_static(&mut template);
         let specs = vec![CodexCatalogModelSpec {
             description: None,
+            hidden: false,
             model: "k3".to_string(),
             display_name: Some("Kimi K3".to_string()),
             context_window: Some(262_144),
@@ -4414,6 +4429,7 @@ experimental_bearer_token = "stale-table-key"
         let specs = vec![
             CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model: "gpt-5.4".to_string(),
                 display_name: Some("GPT 5.4".to_string()),
                 context_window: Some(128_000),
@@ -4425,6 +4441,7 @@ experimental_bearer_token = "stale-table-key"
             },
             CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model: "qwen/qwen3-coder-plus".to_string(),
                 display_name: Some("Qwen3 Coder Plus".to_string()),
                 context_window: Some(128_000),
@@ -4436,6 +4453,7 @@ experimental_bearer_token = "stale-table-key"
             },
             CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model: "glm-5.2v".to_string(),
                 display_name: Some("GLM 5.2V".to_string()),
                 context_window: Some(128_000),
@@ -4447,6 +4465,7 @@ experimental_bearer_token = "stale-table-key"
             },
             CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model: "deepseek-v4-flash".to_string(),
                 display_name: Some("Explicit Visual Override".to_string()),
                 context_window: Some(128_000),
@@ -4458,6 +4477,7 @@ experimental_bearer_token = "stale-table-key"
             },
             CodexCatalogModelSpec {
                 description: None,
+                hidden: false,
                 model: "custom-text-alias".to_string(),
                 display_name: Some("Explicit Text Override".to_string()),
                 context_window: Some(128_000),
@@ -4770,6 +4790,7 @@ wire_api = "responses"
         let template = load_codex_native_responses_template();
         let specs = vec![CodexCatalogModelSpec {
             description: None,
+            hidden: false,
             model: "x".to_string(),
             display_name: Some("x".to_string()),
             context_window: Some(128_000),
@@ -5189,6 +5210,7 @@ wire_api = "responses"
             json!([
                 { "model": "deepseek-v4", "displayName": "deepseek-v4", "description": "首选 g-cheap ×0.5 · tools" },
                 { "model": "plain-model" },
+                { "model": "codex-auto-review", "hidden": true },
             ]),
             "",
             CodexCatalogToolProfile::NativeResponses,
@@ -5196,6 +5218,9 @@ wire_api = "responses"
         assert_eq!(entries[0]["description"], "首选 g-cheap ×0.5 · tools");
         assert_eq!(entries[0]["display_name"], "deepseek-v4");
         assert_eq!(entries[1]["description"], "plain-model");
+        // AICLI 把 Codex 自己的 codex-auto-* 留在目录里但不进 /model
+        assert_eq!(entries[1]["visibility"], "list");
+        assert_eq!(entries[2]["visibility"], "hide");
         // 顺序即传入顺序（priority 递增），AICLI 已按厂商排好
         assert!(entries[0]["priority"].as_u64() < entries[1]["priority"].as_u64());
     }

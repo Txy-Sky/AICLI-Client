@@ -510,6 +510,8 @@ pub(crate) fn prepare_projection(
         AppType::Claude => {
             let options = picker_rows(db, app, snapshot, &models)?
                 .into_iter()
+                // Codex 自己的 codex-auto-* 不列进 Claude Code
+                .filter(|row| !row.hidden)
                 .map(|row| {
                     super::alias::encode(app, &row.public, Some(db))
                         .map(|id| crate::provider::AicliPickerOption {
@@ -539,6 +541,8 @@ pub(crate) fn prepare_projection(
                         "model": row.public,
                         "displayName": row.public,
                         "description": row.description,
+                        // codex-auto-* 留在目录里给 Codex 自动审批用，不进选择器
+                        "hidden": row.hidden,
                     }))
                     .collect::<Vec<_>>(),
             });
@@ -1333,20 +1337,34 @@ mod tests {
             .get_provider_by_id("aicli-main", app.as_str())
             .unwrap()
             .unwrap();
-        let mut models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
+        let models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
         assert!(!models.is_empty());
-        super::super::picker::sort_models(&mut models);
+        let catalog = snap.catalog.as_ref().unwrap();
+        let in_order = |names: &[String]| {
+            names.windows(2).all(|pair| {
+                super::super::picker::sort_key(&pair[0], catalog)
+                    <= super::super::picker::sort_key(&pair[1], catalog)
+            })
+        };
         let row = prepare_projection(&state.db, &app, &snap, seed.clone()).unwrap();
         let picker = row.meta.unwrap().aicli_claude_picker.unwrap();
-        // 按厂商分组再按名字；id 是 C2-02 别名；每行有说明（不再是统一的 "AICLI"）
-        assert_eq!(
-            picker
-                .options
-                .iter()
-                .map(|o| o.label.clone())
-                .collect::<Vec<_>>(),
-            models
-        );
+        // 推荐在前、生图视频在后、其余按厂商再按名字；codex-auto-* 不列；id 是 C2-02 别名；
+        // 每行有说明（不再是统一的 "AICLI"）
+        let labels = picker
+            .options
+            .iter()
+            .map(|o| o.label.clone())
+            .collect::<Vec<_>>();
+        let mut expected = models
+            .iter()
+            .filter(|m| !super::super::picker::is_codex_auto(m))
+            .cloned()
+            .collect::<Vec<_>>();
+        expected.sort();
+        let mut got = labels.clone();
+        got.sort();
+        assert_eq!(got, expected);
+        assert!(in_order(&labels), "{labels:?}");
         for option in &picker.options {
             assert_eq!(
                 option.id,
@@ -1369,7 +1387,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let mut models = routable_models(&state.db, &app, &snap, "openai-response").unwrap();
-        super::super::picker::sort_models(&mut models);
+        models.sort();
         let row = prepare_projection(&state.db, &app, &snap, seed).unwrap();
         let entries = row.settings_config["modelCatalog"]["models"]
             .as_array()
@@ -1379,7 +1397,18 @@ mod tests {
             .iter()
             .map(|m| m["model"].as_str().unwrap().to_owned())
             .collect::<Vec<_>>();
-        assert_eq!(listed, models);
+        assert!(in_order(&listed), "{listed:?}");
+        let mut all = listed.clone();
+        all.sort();
+        // Codex 的目录保留全部模型（codex-auto-* 也在，只是标成不显示）
+        assert_eq!(all, models);
+        for entry in &entries {
+            let name = entry["model"].as_str().unwrap();
+            assert_eq!(
+                entry["hidden"].as_bool(),
+                Some(super::super::picker::is_codex_auto(name))
+            );
+        }
         assert!(entries
             .iter()
             .all(|m| m["description"].as_str().is_some_and(|d| !d.is_empty())));
