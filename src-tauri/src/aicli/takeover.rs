@@ -384,12 +384,13 @@ pub async fn startup(state: &AppState, store: &dyn SecretStore) -> Result<(), Ta
 
 /// The public models of the client's selected profile that can be reached over
 /// `protocol`, sorted. An empty list is an error: nothing could be projected.
-fn routable_models(
+/// The route profile a client's takeover uses: `app` binding > `global` binding >
+/// active profile > recommended.
+fn selected_profile(
     db: &crate::Database,
     app: &AppType,
     snapshot: &super::runtime::RoutesSnapshot,
-    protocol: &str,
-) -> Result<Vec<String>, TakeoverError> {
+) -> Result<String, TakeoverError> {
     let mut selected = None;
     {
         let conn = db.conn.lock().map_err(|_| TakeoverError::State)?;
@@ -407,9 +408,40 @@ fn routable_models(
             }
         }
     }
-    let selected = selected
+    Ok(selected
         .or_else(|| snapshot.active_profile_id.clone())
-        .unwrap_or_else(|| "recommended".into());
+        .unwrap_or_else(|| "recommended".into()))
+}
+
+/// Picker rows (vendor order, description) for the models `routable_models` gives.
+fn picker_rows(
+    db: &crate::Database,
+    app: &AppType,
+    snapshot: &super::runtime::RoutesSnapshot,
+    models: &[String],
+) -> Result<Vec<super::picker::PickerModel>, TakeoverError> {
+    let selected = selected_profile(db, app, snapshot)?;
+    let routes = snapshot
+        .profiles
+        .get(&selected)
+        .map(|entry| entry.compiled.routes.as_slice())
+        .unwrap_or_default();
+    let catalog = snapshot.catalog.as_ref().ok_or(TakeoverError::NoModels)?;
+    Ok(super::picker::picker_models(
+        models,
+        routes,
+        catalog,
+        &crate::tray::tray_language(),
+    ))
+}
+
+fn routable_models(
+    db: &crate::Database,
+    app: &AppType,
+    snapshot: &super::runtime::RoutesSnapshot,
+    protocol: &str,
+) -> Result<Vec<String>, TakeoverError> {
+    let selected = selected_profile(db, app, snapshot)?;
     let entry = snapshot
         .profiles
         .get(&selected)
@@ -476,11 +508,15 @@ pub(crate) fn prepare_projection(
         // Claude Code 的 `/model` 列出配置集的全部模型（`modelPicker`，由模式控制器写入），
         // id 用 C2-02 的别名；自带的 Opus / Sonnet / Haiku 行按设置保留或隐藏。
         AppType::Claude => {
-            let options = models
-                .iter()
-                .map(|model| {
-                    super::alias::encode(app, model, Some(db))
-                        .map(|id| (id, model.clone()))
+            let options = picker_rows(db, app, snapshot, &models)?
+                .into_iter()
+                .map(|row| {
+                    super::alias::encode(app, &row.public, Some(db))
+                        .map(|id| crate::provider::AicliPickerOption {
+                            id,
+                            label: row.public,
+                            description: row.description,
+                        })
                         .map_err(|_| TakeoverError::State)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
@@ -495,10 +531,15 @@ pub(crate) fn prepare_projection(
         // Codex 的 `/model` 读 `model_catalog_json` 指向的目录：沿用路由投影按行里的
         // `modelCatalog.models` 生成目录的现有逻辑，数据源换成配置集。
         AppType::Codex => {
+            let rows = picker_rows(db, app, snapshot, &models)?;
             provider.settings_config["modelCatalog"] = serde_json::json!({
-                "models": models
+                "models": rows
                     .iter()
-                    .map(|model| serde_json::json!({ "model": model, "displayName": model }))
+                    .map(|row| serde_json::json!({
+                        "model": row.public,
+                        "displayName": row.public,
+                        "description": row.description,
+                    }))
                     .collect::<Vec<_>>(),
             });
             return Ok(provider);
@@ -1292,25 +1333,29 @@ mod tests {
             .get_provider_by_id("aicli-main", app.as_str())
             .unwrap()
             .unwrap();
-        let models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
+        let mut models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
         assert!(!models.is_empty());
-        let expected = models
-            .iter()
-            .map(|m| {
-                (
-                    super::super::alias::encode(&app, m, Some(&state.db)).unwrap(),
-                    m.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
+        super::super::picker::sort_models(&mut models);
         let row = prepare_projection(&state.db, &app, &snap, seed.clone()).unwrap();
         let picker = row.meta.unwrap().aicli_claude_picker.unwrap();
-        assert_eq!(picker.options, expected);
+        // 按厂商分组再按名字；id 是 C2-02 别名；每行有说明（不再是统一的 "AICLI"）
+        assert_eq!(
+            picker
+                .options
+                .iter()
+                .map(|o| o.label.clone())
+                .collect::<Vec<_>>(),
+            models
+        );
+        for option in &picker.options {
+            assert_eq!(
+                option.id,
+                super::super::alias::encode(&app, &option.label, Some(&state.db)).unwrap()
+            );
+            assert!(option.id.starts_with("aicli-claude-"));
+            assert!(!option.description.is_empty());
+        }
         assert!(picker.keep_builtin, "kept by default");
-        assert!(picker
-            .options
-            .iter()
-            .all(|(id, _)| id.starts_with("aicli-claude-")));
 
         crate::settings::set_aicli_claude_keep_builtin_models(false).unwrap();
         let row = prepare_projection(&state.db, &app, &snap, seed).unwrap();
@@ -1323,15 +1368,21 @@ mod tests {
             .get_provider_by_id("aicli-main", app.as_str())
             .unwrap()
             .unwrap();
-        let models = routable_models(&state.db, &app, &snap, "openai-response").unwrap();
+        let mut models = routable_models(&state.db, &app, &snap, "openai-response").unwrap();
+        super::super::picker::sort_models(&mut models);
         let row = prepare_projection(&state.db, &app, &snap, seed).unwrap();
-        let listed = row.settings_config["modelCatalog"]["models"]
+        let entries = row.settings_config["modelCatalog"]["models"]
             .as_array()
             .unwrap()
+            .clone();
+        let listed = entries
             .iter()
             .map(|m| m["model"].as_str().unwrap().to_owned())
             .collect::<Vec<_>>();
         assert_eq!(listed, models);
+        assert!(entries
+            .iter()
+            .all(|m| m["description"].as_str().is_some_and(|d| !d.is_empty())));
         assert!(!row.settings_config.to_string().contains("sk-"));
     }
 

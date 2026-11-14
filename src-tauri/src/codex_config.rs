@@ -1333,7 +1333,10 @@ fn codex_catalog_model_entry(
     // Explicitly configured models must be listed even when the cached template is hidden.
     entry_obj.insert("visibility".to_string(), json!("list"));
     entry_obj.insert("display_name".to_string(), json!(display_name));
-    entry_obj.insert("description".to_string(), json!(display_name));
+    entry_obj.insert(
+        "description".to_string(),
+        json!(spec.description.as_deref().unwrap_or(display_name)),
+    );
     entry_obj.insert("context_window".to_string(), json!(context_window));
     entry_obj.insert("max_context_window".to_string(), json!(context_window));
     entry_obj.insert("priority".to_string(), json!(1000 + priority));
@@ -1422,6 +1425,9 @@ fn codex_catalog_model_entry(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CodexCatalogModelSpec {
     model: String,
+    /// Explicit value only: the picker's line under the name. Falls back to
+    /// the display name (AICLI writes the route profile's group and tags).
+    description: Option<String>,
     /// Explicit user value only. Entries fall back to the model id — except
     /// official vendor catalog entries, which keep the vendor's display name.
     display_name: Option<String>,
@@ -1541,8 +1547,15 @@ fn codex_catalog_model_specs(settings: &Value) -> Vec<CodexCatalogModelSpec> {
             .filter(|level| !level.is_empty())
             .map(str::to_string);
 
+        let description = model_config
+            .get("description")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(str::to_string);
         specs.push(CodexCatalogModelSpec {
             model: model.to_string(),
+            description,
             display_name,
             context_window,
             supports_parallel_tool_calls,
@@ -2069,7 +2082,10 @@ fn codex_vendor_catalog_model_entry(
         let display_name = spec.display_name.as_deref().unwrap_or(&spec.model);
         entry_obj.insert("slug".to_string(), json!(spec.model));
         entry_obj.insert("display_name".to_string(), json!(display_name));
-        entry_obj.insert("description".to_string(), json!(display_name));
+        entry_obj.insert(
+            "description".to_string(),
+            json!(spec.description.as_deref().unwrap_or(display_name)),
+        );
         entry_obj.insert("priority".to_string(), json!(1000 + priority));
         // Unknown model: don't inherit the flagship entry's modalities —
         // resolve from the registry/fail-open logic instead, so a vision
@@ -2489,6 +2505,7 @@ fn codex_published_specs(settings: &Value, config_text: &str) -> Vec<CodexCatalo
     codex_top_level_model(config_text)
         .map(|model| {
             vec![CodexCatalogModelSpec {
+                description: None,
                 model,
                 ..CodexCatalogModelSpec::default()
             }]
@@ -3874,6 +3891,7 @@ experimental_bearer_token = "stale-table-key"
         let mut template = json!({ "slug": "gpt-5.5" });
         fill_template_fields_from_static(&mut template);
         let specs = vec![CodexCatalogModelSpec {
+            description: None,
             model: "k3".to_string(),
             display_name: Some("Kimi K3".to_string()),
             context_window: Some(262_144),
@@ -4395,6 +4413,7 @@ experimental_bearer_token = "stale-table-key"
         });
         let specs = vec![
             CodexCatalogModelSpec {
+                description: None,
                 model: "gpt-5.4".to_string(),
                 display_name: Some("GPT 5.4".to_string()),
                 context_window: Some(128_000),
@@ -4405,6 +4424,7 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
                 model: "qwen/qwen3-coder-plus".to_string(),
                 display_name: Some("Qwen3 Coder Plus".to_string()),
                 context_window: Some(128_000),
@@ -4415,6 +4435,7 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
                 model: "glm-5.2v".to_string(),
                 display_name: Some("GLM 5.2V".to_string()),
                 context_window: Some(128_000),
@@ -4425,6 +4446,7 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
                 model: "deepseek-v4-flash".to_string(),
                 display_name: Some("Explicit Visual Override".to_string()),
                 context_window: Some(128_000),
@@ -4435,6 +4457,7 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
                 model: "custom-text-alias".to_string(),
                 display_name: Some("Explicit Text Override".to_string()),
                 context_window: Some(128_000),
@@ -4746,6 +4769,7 @@ wire_api = "responses"
     fn proxy_catalog_profiles_keep_apply_patch_and_disable_original_image_detail() {
         let template = load_codex_native_responses_template();
         let specs = vec![CodexCatalogModelSpec {
+            description: None,
             model: "x".to_string(),
             display_name: Some("x".to_string()),
             context_window: Some(128_000),
@@ -5156,6 +5180,24 @@ wire_api = "responses"
             .as_array()
             .unwrap()
             .clone()
+    }
+
+    /// AICLI 给每个模型写一行说明（首选分组、倍率、标签）；没给说明的条目仍用显示名。
+    #[test]
+    fn catalog_entry_takes_an_explicit_description() {
+        let entries = catalog_for(
+            json!([
+                { "model": "deepseek-v4", "displayName": "deepseek-v4", "description": "首选 g-cheap ×0.5 · tools" },
+                { "model": "plain-model" },
+            ]),
+            "",
+            CodexCatalogToolProfile::NativeResponses,
+        );
+        assert_eq!(entries[0]["description"], "首选 g-cheap ×0.5 · tools");
+        assert_eq!(entries[0]["display_name"], "deepseek-v4");
+        assert_eq!(entries[1]["description"], "plain-model");
+        // 顺序即传入顺序（priority 递增），AICLI 已按厂商排好
+        assert!(entries[0]["priority"].as_u64() < entries[1]["priority"].as_u64());
     }
 
     #[test]

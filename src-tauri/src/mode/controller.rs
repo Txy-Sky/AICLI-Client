@@ -294,12 +294,12 @@ fn aicli_picker_models(picker: &crate::provider::AicliClaudePicker) -> Vec<Stack
     picker
         .options
         .iter()
-        .map(|(id, model)| StackModel {
-            id: id.clone(),
-            upstream: model.clone(),
-            name: model.clone(),
-            display_name: model.clone(),
-            description: "AICLI".to_string(),
+        .map(|option| StackModel {
+            id: option.id.clone(),
+            upstream: option.label.clone(),
+            name: option.label.clone(),
+            display_name: option.label.clone(),
+            description: option.description.clone(),
             one_m: false,
             window: stack::CLAUDE_DEFAULT_WINDOW,
         })
@@ -2163,15 +2163,23 @@ mod tests {
         let route = stack_member("aicli-main", json!({}));
         let picker = crate::provider::AicliClaudePicker {
             options: vec![
-                ("aicli-claude-gpt-6.1-sol".into(), "gpt-6.1-sol".into()),
-                ("aicli-claude-deepseek-v4".into(), "deepseek-v4".into()),
+                crate::provider::AicliPickerOption {
+                    id: "aicli-claude-gpt-6.1-sol".into(),
+                    label: "gpt-6.1-sol".into(),
+                    description: "首选 vip ×1 · tools".into(),
+                },
+                crate::provider::AicliPickerOption {
+                    id: "aicli-claude-deepseek-v4".into(),
+                    label: "deepseek-v4".into(),
+                    description: "首选 g-cheap ×0.5".into(),
+                },
             ],
             keep_builtin: true,
         };
         let models = aicli_picker_models(&picker);
         let rows = json!([
-            { "model": "aicli-claude-gpt-6.1-sol", "label": "gpt-6.1-sol", "description": "AICLI" },
-            { "model": "aicli-claude-deepseek-v4", "label": "deepseek-v4", "description": "AICLI" },
+            { "model": "aicli-claude-gpt-6.1-sol", "label": "gpt-6.1-sol", "description": "首选 vip ×1 · tools" },
+            { "model": "aicli-claude-deepseek-v4", "label": "deepseek-v4", "description": "首选 g-cheap ×0.5" },
         ]);
         let mut keys = Vec::new();
         for (keep, expected) in [

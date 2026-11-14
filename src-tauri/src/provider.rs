@@ -407,10 +407,21 @@ pub enum ClaudeDesktopMode {
 /// AICLI 接管 Claude Code 时 `/model` 的内容（见 [`ProviderMeta::aicli_claude_picker`]）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AicliClaudePicker {
-    /// `(写给 Claude Code 的模型 id, 显示名)`：id 是 C2-02 的别名 `aicli-claude-<模型>`。
-    pub options: Vec<(String, String)>,
+    /// 按厂商分组再按名字排好的行（`aicli::picker`）。
+    pub options: Vec<AicliPickerOption>,
     /// 保留 Claude Code 自带的 Opus / Sonnet / Haiku 等行（排在前面）。
     pub keep_builtin: bool,
+}
+
+/// `/model` 的一行。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AicliPickerOption {
+    /// 写给 Claude Code 的模型 id：C2-02 的别名 `aicli-claude-<模型>`。
+    pub id: String,
+    /// 显示名：配置集的公开模型名。
+    pub label: String,
+    /// 名字下面那行：首选分组与倍率、可回退分组数、能力标签。
+    pub description: String,
 }
 
 /// Claude Desktop 本地路由模式下暴露给 Desktop 的安全模型路由。
