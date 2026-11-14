@@ -106,6 +106,16 @@ fn files(app: &AppType) -> Result<Vec<PathBuf>, TakeoverError> {
         AppType::Pi => {
             vec![crate::pi_config::get_pi_models_path().map_err(|_| TakeoverError::Client)?]
         }
+        // DSH keeps the provider in every profile and its key in the shared
+        // credentials file; all of them are backed up whether or not they exist.
+        AppType::Dsh => ["web", "desktop", "headless", "acp"]
+            .into_iter()
+            .map(crate::dsh_config::profile_path)
+            .chain([crate::dsh_config::credentials_path()])
+            .collect(),
+        AppType::Omp => {
+            vec![crate::omp_config::get_omp_models_path().map_err(|_| TakeoverError::Client)?]
+        }
         _ => return Err(TakeoverError::Unsupported),
     })
 }
@@ -683,6 +693,35 @@ fn write_tier2_provider(
             }
             Ok(())
         }
+        AppType::Dsh => crate::dsh_config::set_provider(
+            id,
+            json!({
+                "name": "AICLI",
+                "api": "openai-completions",
+                "options": { "baseURL": base, "apiKey": token },
+                "models": keyed(&|_| json!({})),
+            }),
+        ),
+        AppType::Omp => {
+            use crate::omp_config::{change_and_commit, Change};
+            let node = json!({
+                "baseUrl": base,
+                "apiKey": token,
+                "api": "openai-completions",
+                "models": models
+                    .iter()
+                    .map(|model| json!({ "id": model, "name": model }))
+                    .collect::<Vec<_>>(),
+            });
+            crate::omp_config::validate_provider(id, &node)?;
+            let replaced = change_and_commit(id, Some(&node), Change::ReplaceIfPresent, |old| {
+                Ok(old.is_some())
+            })?;
+            if !replaced {
+                change_and_commit(id, Some(&node), Change::Insert, |_| Ok(()))?;
+            }
+            Ok(())
+        }
         _ => Err(crate::error::AppError::Config(
             "Client has no AICLI takeover".into(),
         )),
@@ -1078,6 +1117,14 @@ mod tests {
                 "{\n  \"providers\": {\n    \"mine\": { \"baseUrl\": \"https://keep.example/v1\" }\n  }\n}\n",
                 "keep.example",
             ),
+            AppType::Dsh => (
+                "# mine\n- id: llm-pi-ai\n  config:\n    providers:\n      mine:\n        name: KeepMe\n        api: openai-completions\n        options:\n          baseURL: https://keep.example/v1\n",
+                "keep.example",
+            ),
+            AppType::Omp => (
+                "providers:\n  mine:\n    baseUrl: https://keep.example/v1\n    apiKey: keep-key\n",
+                "keep.example",
+            ),
             _ => unreachable!(),
         }
     }
@@ -1090,6 +1137,8 @@ mod tests {
             AppType::Mcode,
             AppType::Kimi,
             AppType::Pi,
+            AppType::Omp,
+            AppType::Dsh,
         ] {
             for seeded in [false, true] {
                 let _home = Home::new();
@@ -1098,7 +1147,6 @@ mod tests {
                 let name = app.as_str();
                 let (original, marker) = tier2_original(&app);
                 let paths = files(&app).unwrap();
-                assert_eq!(paths.len(), 1, "{name}");
                 if seeded {
                     std::fs::create_dir_all(paths[0].parent().unwrap()).unwrap();
                     std::fs::write(&paths[0], original).unwrap();
@@ -1173,7 +1221,7 @@ mod tests {
             .iter()
             .all(Option::is_none));
         // 还没通过 J 阶段验收的 Tier 2 客户端不提供接管。
-        for app in [AppType::Dsh, AppType::Omp, AppType::Agy] {
+        for app in [AppType::Agy] {
             assert_eq!(
                 take_over(&state, &store, &app, false).await,
                 Err(TakeoverError::Unsupported),

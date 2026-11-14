@@ -10,13 +10,19 @@
 use crate::app_config::AppType;
 
 /// Tier 2 clients whose takeover and restore are implemented.
-pub const TIER2_SUPPORTED: [AppType; 6] = [
+///
+/// Antigravity CLI (`agy`) is not here: it reads its endpoint and key only from
+/// the process environment, so no config file can point it at the local proxy,
+/// and AICLI never rewrites its real `settings.json` (J-10).
+pub const TIER2_SUPPORTED: [AppType; 8] = [
     AppType::OpenCode,
     AppType::OpenClaw,
     AppType::Hermes,
     AppType::Pi,
     AppType::Mcode,
     AppType::Kimi,
+    AppType::Dsh,
+    AppType::Omp,
 ];
 
 pub fn is_tier2(app: &AppType) -> bool {
