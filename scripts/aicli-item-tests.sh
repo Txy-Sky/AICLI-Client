@@ -58,6 +58,7 @@ case "$set_name" in
     item E-03-unit aicli::privacy::rules::redact::tests aicli::privacy::rules::phone aicli::privacy::rules::more aicli::privacy::rules::ids aicli::privacy::rules::known aicli::privacy::rules::rules aicli::privacy::rules::scrub
     item E-03-fuzz aicli::privacy::fuzz_tests
     item E-04-unit aicli::privacy::walker::tests
+    item E-04-tool-args aicli::privacy::walker::tests::every_tool_calls_arguments_are_masked
     item E-05-unit aicli::privacy::stream::tests
     item E-06-unit aicli::privacy::layer::tests
     item E-08-unit aicli::privacy::rules::zhname

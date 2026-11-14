@@ -427,3 +427,103 @@ fn json_escape_go_parity() {
     assert_eq!(json_escape("héllo"), "héllo"); // 非 ASCII 原样
     assert_eq!(json_escape("<>&"), "<>&"); // 不转义 HTML
 }
+
+// ---- 每一种工具调用的参数都按工具参数处理（Magpie d7714b3f3） ----
+
+/// 移植 Magpie `TestEveryToolCallsArgumentsAreMasked`：15 种调用形态，参数里放在
+/// 协议豁免键名下的手机号（data）、密钥（url 查询串）、卡号（customer_id）、
+/// 邮箱（signature）都必须遮盖；调用自己的 id、name、server_name 保持原样。
+/// 修复前 mcp_tool_use、Chat tool_calls / function_call 和 8 种 Responses *_call
+/// 都原样发出。
+#[test]
+fn every_tool_calls_arguments_are_masked() {
+    let key = ["sk-", "ant-api03-", "abcdefghijklmnopqrstuvwxyz0123456789"].concat();
+    let phone = "13800138000";
+    let card = "4111 1111 1111 1111";
+    let mail = ["rina.k", "@", "fastmail.com"].concat();
+    let args = format!(
+        r#"{{"data":"call {phone}","url":"https://hooks.acme.io/?k={key}","customer_id":"{card}","signature":"mail {mail}"}}"#
+    );
+    let gone = [
+        phone.to_string(),
+        key.clone(),
+        card.to_string(),
+        mail.clone(),
+    ];
+
+    let anthropic = |typ: &str| {
+        format!(
+            r#"{{"messages":[{{"role":"assistant","content":[{{"type":"{typ}","id":"toolu_1","name":"send","server_name":"acme","input":{args}}}]}}]}}"#
+        )
+    };
+    let responses = |typ: &str, field: &str| {
+        format!(
+            r#"{{"input":[{{"type":"{typ}","call_id":"call_1","name":"send","{field}":{args}}}]}}"#
+        )
+    };
+    let mut cases: Vec<(String, String)> = vec![
+        (
+            "chat tool_calls".into(),
+            format!(
+                r#"{{"messages":[{{"role":"assistant","tool_calls":[{{"id":"call_1","type":"function","function":{{"name":"send","arguments":{args}}}}}]}}]}}"#
+            ),
+        ),
+        (
+            "chat function_call".into(),
+            format!(
+                r#"{{"messages":[{{"role":"assistant","function_call":{{"name":"send","arguments":{args}}}}}]}}"#
+            ),
+        ),
+        (
+            "gemini functionCall".into(),
+            format!(
+                r#"{{"contents":[{{"role":"model","parts":[{{"functionCall":{{"name":"send","args":{args}}}}}]}}]}}"#
+            ),
+        ),
+        (
+            "gemini function_call".into(),
+            format!(
+                r#"{{"contents":[{{"role":"model","parts":[{{"function_call":{{"name":"send","args":{args}}}}}]}}]}}"#
+            ),
+        ),
+    ];
+    for typ in ["tool_use", "server_tool_use", "mcp_tool_use"] {
+        cases.push((format!("anthropic {typ}"), anthropic(typ)));
+    }
+    for (typ, field) in [
+        ("function_call", "arguments"),
+        ("mcp_call", "arguments"),
+        ("tool_search_call", "arguments"),
+        ("custom_tool_call", "input"),
+        ("local_shell_call", "action"),
+        ("shell_call", "action"),
+        ("computer_call", "action"),
+        ("apply_patch_call", "operation"),
+    ] {
+        cases.push((format!("responses {typ}"), responses(typ, field)));
+    }
+    assert_eq!(cases.len(), 15);
+
+    for (name, body) in &cases {
+        let mut e = engine();
+        let (out, _) = mask_json(body, &opts(), &mut e);
+        for value in &gone {
+            assert!(
+                !out.contains(value.as_str()),
+                "{name}: {value:?} went out: {out}"
+            );
+        }
+        for kept in [
+            r#""call_1""#,
+            r#""toolu_1""#,
+            r#""name":"send""#,
+            r#""server_name":"acme""#,
+        ] {
+            if body.contains(kept) {
+                assert!(out.contains(kept), "{name}: {kept} changed: {out}");
+            }
+        }
+        // 还原后与原文逐字节一致
+        assert_eq!(&restore_json(&out, &e), body, "{name}");
+    }
+}

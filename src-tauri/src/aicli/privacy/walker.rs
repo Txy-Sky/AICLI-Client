@@ -139,10 +139,12 @@ pub(crate) fn scan(body: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
     let mut found = false;
     for k in SIGNATURE_KEYS
         .iter()
-        .chain(["tool_use", "functionCall", "function_call"].iter())
+        .chain(["functionCall", "function_call", "arguments"].iter())
     {
         found = found || body.contains(&format!("\"{k}\""));
     }
+    // 以它结尾的类型（mcp_tool_use、custom_tool_call），前面没有引号
+    found = found || body.contains("tool_use\"") || body.contains("_call\"");
     for k in DEF_KEYS {
         found = found || body.contains(&format!("\"{k}\""));
     }
@@ -164,9 +166,7 @@ pub(crate) fn scan(body: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
                 }
                 let t = m.get("type").and_then(Value::as_str).unwrap_or("");
                 for (k, c) in m {
-                    if k == "input" && (t == "tool_use" || t == "server_tool_use")
-                        || k == "args" && (key == "functionCall" || key == "function_call")
-                    {
+                    if tool_args(t, key, k) {
                         args.push(join(path, k));
                         continue;
                     }
@@ -183,6 +183,28 @@ pub(crate) fn scan(body: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
     }
     visit(&v, "", "", &mut signed, &mut args);
     (signed, args, defs)
+}
+
+/// toolArgs（Magpie d7714b3f3）：类型为 t、位于 key 之下的对象里，k 下的值是模型
+/// 写给工具执行的参数，各协议一视同仁：Anthropic 所有 *_tool_use（tool_use、
+/// server_tool_use、mcp_tool_use）的 input；Responses 所有 *_call（function_call、
+/// mcp_call、custom_tool_call、tool_search_call、local_shell_call、shell_call、
+/// computer_call、apply_patch_call）的 arguments、input、action、operation；
+/// Chat Completions / Ollama 工具调用的 function.arguments 与旧式 function_call 的
+/// arguments；Gemini functionCall 的 args。原来只认 tool_use 和 server_tool_use，
+/// 其余调用参数里协议的键名豁免（data、url、signature、*_id）照样生效，手机号、
+/// 卡号、密钥原样发出。调用自己的 id、name、server_name 是参数的兄弟键，不受影响。
+fn tool_args(t: &str, key: &str, k: &str) -> bool {
+    if t.ends_with("tool_use") {
+        return k == "input";
+    }
+    if t.ends_with("_call") {
+        return matches!(k, "arguments" | "input" | "action" | "operation");
+    }
+    if matches!(key, "function" | "functionCall" | "function_call") {
+        return k == "arguments" || k == "args";
+    }
+    false
 }
 
 /// definitions（Magpie）：请求 v 里代理定义而非对模型说的路径——请求
