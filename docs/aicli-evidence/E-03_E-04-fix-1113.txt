@@ -41,3 +41,21 @@ job `A3-01 baseline (Linux)`：Rust 4547 passed / 9 skipped（较 791dd97a 增 3
 - E-03 的 golden 对照工具（tools/magpie_golden，#[ignore] 测试）未重跑：需要本机同时编译 Rust
   和 Go，审查方机器不编译 Rust。语料里补一批全小写、纯十六进制的密钥样本后再跑一次。
 - Magpie f11bf27 之后的其他规则修复尚未逐条核对（见 2026-11-13 调研）。
+
+## 3. keepalive 冲掉扣留的半个占位符（E-05，a75853cb）
+
+现象：流式还原扣留以占位符开头结尾的事件，等同一路径的下一段拼接。中间夹一个 keepalive
+（Anthropic 的 ping，模型慢时会夹在工具参数中间；Responses 的 keepalive、response.in_progress、
+response.queued）时，因上下文不同，扣留段带着半个占位符原样放出，下一段带着另一半，两段都
+还原不了。经 Claude Code 的 Write/Edit 会把 {{SECRET_…}} 或孤立的 { 写进用户文件。
+修复：移植 Magpie 76f00399c（MIT，#5287）：这类事件先放出，扣留段继续等下文。Chat 的
+keepalive 是 SSE 注释行，本来就在事件之间原样透传；Gemini 没有 keepalive。
+测试：stream::tests::placeholder_held_across_keepalive，移植 Magpie TestWriterHeldAcrossKeepalive：
+Anthropic input_json_delta 夹 ping、Responses function_call_arguments.delta 与
+custom_tool_call_input.delta 夹 response.in_progress，占位符内部每个字节位置切开；客户端拼出的
+参数含真实值，三个事件都输出。
+
+CI：a75853cb | job `Rust item tests (Linux)`：E-05-keepalive 1 passed；E-05-unit 16、E-06-e2e 20、
+E-04-unit 23、E-03-unit 74 passed；job `A3-01 baseline (Linux)`：Rust 4548 passed / 9 skipped，
+前端 130 文件全过；五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43558222357
+未做：没有在 AICLI 里把修复撤掉确认测试变红（Magpie 原提交记录了撤掉修复后两条测试都红）。
