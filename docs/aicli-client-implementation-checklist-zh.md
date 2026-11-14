@@ -1096,6 +1096,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| E-03（验收后发现，2026-11-13）→ sk- 规则的判断函数 | 规则逐个移植 Magpie，golden 对照差异为 0。 | `not_a_slug` 原先不是 Magpie 的 `notASlug`，全小写 sk- 密钥（DeepSeek、OpenRouter、小写 sk-ant）不遮。9312ff43 逐行移植，加两条测试；CI run 43556634118 success。golden 语料 20 条 sk- 都带大写，未覆盖到。 | 调研 Magpie 新版、移植 d7714b3f3 的测试时发现。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |
+| E-04（验收后发现，2026-11-13）→ 工具调用参数 | 必须扫描的工具参数：tool_use.input、functionCall.args。 | 移植 Magpie d7714b3f3：所有 *_tool_use 的 input、所有 *_call 的 arguments/input/action/operation、Chat 的 function.arguments 都按工具参数处理（cd8678b8，15 种形态测试；CI run 43556634118 success）。 | 原范围漏掉 mcp_tool_use、Responses *_call、Chat tool_calls 对象形参数，参数里的豁免键名下的敏感值原样上发。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |
 | J-03～J-09（先开放按钮再做真实客户端验收） | 真实客户端不通过的客户端在 UI 中显示「暂不支持」，不提供接管按钮。 | 真实客户端验收之前就把 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、OMP 加入界面的可接管列表（前端 `AICLI_TIER2_APPS`，7ac4a425，CI run 43552140606 success）；OpenClaw、Hermes 从「其他客户端」移入列表，点名字仍进入专属页。验收不通过时撤掉按钮并从 `TIER2_SUPPORTED` 去掉。 | 负责人 2026-11-13 决定，理由同 J-02：测试机需要通过界面触发接管才能做验收。 |
 | K-01～K-03（合并提交与验收） | 各项分别提交；相互依赖的项不合并验收。 | K-01 端到端流程、K-02 密钥扫描、K-03 `~/.cc-switch` 校验共用同一次 rc.34 夹具运行（K-02/K-03 在 K-01 跑完的同一个临时 HOME 上检查），在一个提交里落地、同一个 run 验收。 | 三者检查的是同一次运行留下的状态，拆开要重复启动整套环境三次；结论仍按项分别记录。 |
 | K-01（线路地址的测试覆盖） | 清单未规定端到端如何指向测试环境。 | 新增 `Line::origin()`：只有开启 `test-hooks` 特性时读 `AICLI_TEST_LINE_ORIGIN`，正式构建恒为固定 `base_url`；newapi、种子 provider、Codex 目录改经 `origin()` 读取。 | 线路是写死的常量，不加覆盖就无法让真实的绑定流程连到本地 rc.34。 |

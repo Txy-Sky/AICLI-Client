@@ -1,0 +1,43 @@
+E-03 / E-04 验收后修复（2026-11-13，Magpie 新版调研时发现）
+
+## 1. 工具调用参数（E-04，cd8678b8）
+
+现象：scan 只把 tool_use / server_tool_use 的 input 和 Gemini functionCall 的 args 当作工具参数。
+其余调用（Anthropic mcp_tool_use；Responses function_call、mcp_call、tool_search_call、
+custom_tool_call、local_shell_call、shell_call、computer_call、apply_patch_call；Chat
+tool_calls[].function.arguments 与旧式 function_call 以对象形式出现时）参数里，协议键名豁免
+（data、url、signature、*_id）照样生效，模型写在这些键下的手机号、密钥、卡号、邮箱原样上发。
+只有 mcp_tool_use 的请求体还会因预检查找不到 "tool_use" 而整段跳过。
+修复：移植 Magpie d7714b3f3（MIT）的 toolArgs 分类与预检查；调用自身的 id、name、server_name
+不变。Magpie 之后的 functionResponse 改动（45385f0ee，工具结果按字段名遮盖）是另一项功能，未移植。
+测试：walker::tests::every_tool_calls_arguments_are_masked，移植 Magpie
+TestEveryToolCallsArgumentsAreMasked 的 15 种形态，另加还原逐字节一致。
+第一次 CI（run 43555581496）：15 种形态的手机号、卡号、邮箱都已遮盖，仅 URL 里的小写
+sk-ant 密钥漏出，引出第 2 项。
+
+## 2. 全小写 sk- 密钥（E-03，9312ff43）
+
+现象：sk- 规则的 ok 判断 not_a_slug 不是 Magpie 的 notASlug，而是另一套启发式（数字挨大写、
+或连续 8 个辅音）。全小写的密钥——DeepSeek 的 sk- 加 32 位十六进制、OpenRouter 的 sk-or-v1- 加
+64 位、小写的 sk-ant-api03-…——都判为普通词，前面没有 api_key=、*_KEY= 之类字段名时原样上发。
+E-03 的 522 条 golden 对照没有暴露：语料里 20 条 sk- 样本都带大写字母。
+修复：not_a_slug 按 Magpie redact.go 的 notASlug 逐行移植（含大写，或 sk- 后只剩十六进制，或
+连字符/下划线之间 16 位以上）；Magpie 的两处调用（sk- 规则、skill 名判断）在这里也是这两处。
+SK hynix 文章地址这类小写单词串仍不遮。
+测试：fieldvalue::tests::not_a_slug_matches_magpie（每条判据与反例）、
+redact::tests::lower_case_sk_keys_masked_and_slugs_kept（三种密钥在纯文本里遮盖，文章地址保留）。
+
+## CI
+
+9312ff43 | job `Rust item tests (Linux)`：
+- E-04-tool-args 1 passed；E-03-sk-keys 3 passed
+- E-03-unit 74 passed（expected.json、false_positives.json 全过）；E-04-unit 23；E-05-unit 15；
+  E-06-e2e 20 passed
+job `A3-01 baseline (Linux)`：Rust 4547 passed / 9 skipped（较 791dd97a 增 3），前端 130 文件全过。
+五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43556634118
+
+## 未做 / 后续
+
+- E-03 的 golden 对照工具（tools/magpie_golden，#[ignore] 测试）未重跑：需要本机同时编译 Rust
+  和 Go，审查方机器不编译 Rust。语料里补一批全小写、纯十六进制的密钥样本后再跑一次。
+- Magpie f11bf27 之后的其他规则修复尚未逐条核对（见 2026-11-13 调研）。
