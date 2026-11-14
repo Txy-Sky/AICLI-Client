@@ -1,0 +1,17 @@
+# K-02: gitleaks runs on this branch's commits with its default rules.
+# The paths below hold the privacy engine's test material, which must contain
+# secret-shaped values: synthetic corpora, golden fixtures and the fixed HMAC
+# key of the Magpie golden tool. Each was reviewed as made up (hand-typed key
+# bodies, JWT parts that are not valid base64, token shapes no vendor issues).
+# Anything outside these paths still fails the scan.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Privacy engine test corpora and golden fixtures (reviewed synthetic values, K-02)"
+paths = [
+  '''^src-tauri/tests/fixtures/privacy/''',
+  '''^tools/magpie_golden/''',
+  '''^scripts/aicli-poc/(corpus_e07\.jsonl|gen_corpus_e07\.py)$''',
+  '''^src-tauri/src/aicli/privacy/stream/tests\.rs$''',
+]
