@@ -57,35 +57,26 @@ fn skill_slug(v: &str) -> bool {
         .is_match(v)
 }
 
-/// 随机串特征（Magpie `notASlug`）：有数字夹大写字母，或 8 位以上无元音片段。
+/// notASlug（Magpie redact.go，逐行移植）：小写单词用连字符连起来的（文章地址里的
+/// sk-hynix-third-quarter-profit）不是密钥；密钥的字符是随机的——含大写字母，或去掉
+/// sk- 后只剩十六进制数字（DeepSeek 的 sk- 加 32 位十六进制、小写 UUID），或连字符/
+/// 下划线之间有一段 16 位以上（OpenRouter 的 sk-or-v1- 加 64 位）。
+///
+/// 原先这里是「数字挨着大写字母、或连续 8 个辅音」的另一套启发式，并非 Magpie 的
+/// 函数：全小写的 sk- 密钥（DeepSeek、OpenRouter、小写的 sk-ant-…）被当成普通词放过，
+/// 原样发给上游。
 pub(crate) fn not_a_slug(v: &str) -> bool {
-    let b = v.as_bytes();
-    let mut digit_upper = false;
-    let mut i = 0;
-    while i + 1 < b.len() {
-        if b[i].is_ascii_uppercase() && b[i + 1].is_ascii_digit()
-            || b[i].is_ascii_digit() && b[i + 1].is_ascii_uppercase()
-        {
-            digit_upper = true;
-        }
-        i += 1;
-    }
-    if digit_upper {
+    if v.bytes().any(|c| c.is_ascii_uppercase()) {
         return true;
     }
-    // 8 个连续辅音（无元音）→ 随机串
-    let mut run = 0;
-    for &c in b {
-        if c.is_ascii_alphabetic() && !b"aeiouAEIOU".contains(&c) {
-            run += 1;
-            if run >= 8 {
-                return true;
-            }
-        } else {
-            run = 0;
-        }
+    let rest = v.strip_prefix("sk-").unwrap_or(v);
+    if !rest
+        .chars()
+        .any(|r| r != '-' && r != '_' && !r.is_ascii_digit() && !('a'..='f').contains(&r))
+    {
+        return true;
     }
-    false
+    v.split(['-', '_']).any(|w| w.len() >= 16)
 }
 
 /// 行号引用（Magpie `lineRefRe`）：L643、L643-669、643:12。
@@ -328,5 +319,25 @@ mod tests {
     fn not_a_slug_shape() {
         assert!(not_a_slug("Xk9dMz2Qa7bC"));
         assert!(!not_a_slug("hunter2secret"));
+    }
+
+    /// Magpie notASlug 的判据逐条：大写、去掉 sk- 后纯十六进制、16 位以上的一段；
+    /// 小写单词连字符串不算。
+    #[test]
+    fn not_a_slug_matches_magpie() {
+        let hex32 = ["sk-", "3f9a1c0b7e2d4a6f", "8b1c3d5e7f9a0b2c"].concat();
+        let openrouter = ["sk-or-v1-", &"0a1b2c3d".repeat(8)].concat();
+        let lower_ant = ["sk-ant-api03-", "abcdefghijklmnopqrstuvwxyz0123456789"].concat();
+        let lower_uuid = ["sk-", "1b4e28ba-2fa1-11d2-883f-0016d3cca427"].concat();
+        assert!(not_a_slug(&hex32), "DeepSeek shape");
+        assert!(not_a_slug(&openrouter), "OpenRouter shape");
+        assert!(not_a_slug(&lower_ant), "a 16+ run between hyphens");
+        assert!(not_a_slug(&lower_uuid), "hex digits alone");
+        assert!(not_a_slug("sk-proj-Ab3dEf9hIjK1mNoPqRsT"), "a capital");
+        assert!(
+            !not_a_slug("sk-hynix-third-quarter-profit"),
+            "an article slug"
+        );
+        assert!(!not_a_slug("sk-learn-model-selection-guide"), "words");
     }
 }

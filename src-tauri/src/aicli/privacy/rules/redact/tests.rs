@@ -130,6 +130,28 @@ fn api_key_masked() {
     assert!(!out.contains(&key), "key must not appear: {out}");
 }
 
+/// 全小写的 sk- 密钥（DeepSeek、OpenRouter、小写的 sk-ant-…）单独出现在文字里也要
+/// 遮盖；sk-hynix 这种文章地址里的小写单词串不算密钥（Magpie notASlug）。
+#[test]
+fn lower_case_sk_keys_masked_and_slugs_kept() {
+    let keys = [
+        ["sk-", "3f9a1c0b7e2d4a6f", "8b1c3d5e7f9a0b2c"].concat(),
+        ["sk-or-v1-", &"0a1b2c3d".repeat(8)].concat(),
+        ["sk-ant-api03-", "abcdefghijklmnopqrstuvwxyz0123456789"].concat(),
+    ];
+    for key in &keys {
+        let mut e = engine();
+        let text = format!("export it: {key} then run");
+        let (out, n) = mask(&text, &opts(), &mut e);
+        assert_eq!(n, 1, "one mask expected: {out}");
+        assert!(!out.contains(key.as_str()), "key must not appear: {out}");
+    }
+    let mut e = engine();
+    let slug = "https://www.cnbc.com/2026/10/22/sk-hynix-third-quarter-profit.html";
+    let (out, _) = mask(slug, &opts(), &mut e);
+    assert!(out.contains("sk-hynix-third-quarter-profit"), "{out}");
+}
+
 #[test]
 fn jwt_masked() {
     let mut e = engine();
