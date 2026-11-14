@@ -64,3 +64,12 @@ https://github.com/Txy-Sky/AICLI-Client/actions/runs/43598672330
 Release 演练 run 43600459821（b84276a9，未签名），全部 job success，「Publish GitHub Release」跳过。
 Windows 便携版 aicli-client.exe 含「Codex 自动审批用」文案，确认是本轮代码。
 线上 /api/pricing 复查：「推荐」标签已出现在 claude-opus-5-5（负责人打标签后接口有缓存延迟）。
+
+## 6. 说明行采用 new-api 模型描述（09c9276b，负责人 2026-11-14）
+
+线上 /api/pricing（只读）62 个模型中 43 个有 description。说明行：文本模型「<描述> · vip ×1」，推荐
+「⭐ 推荐 · <描述> · vip ×1」，生图/视频「生图模型，不能当主聊天模型 · <描述>」；无描述时沿用原格式。
+空白与换行压成单个空格，超过 60 字截断加「…」。
+CI：09c9276b | job `Rust item tests (Linux)`：C3-10-model-lists 8 passed；job `A3-01 baseline (Linux)`：
+Rust 4556 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43604540998
