@@ -157,6 +157,23 @@ async fn main() {
     copy.source = "system_copy".into();
     copy.preset_id = Some("low_cost".into());
     copy.revision = 0;
+    // As the editor's "confirm all by group order": a model in more than one
+    // selected group is a conflict the user confirms before saving.
+    let pending: Vec<String> = catalog
+        .models
+        .iter()
+        .filter(|(name, model)| {
+            !copy.body.resolved_conflicts.contains(name)
+                && model
+                    .groups
+                    .iter()
+                    .filter(|group| copy.body.selected_groups.contains(group))
+                    .count()
+                    > 1
+        })
+        .map(|(name, _)| name.clone())
+        .collect();
+    copy.body.resolved_conflicts.extend(pending);
     let saved = services
         .save_profile(copy)
         .unwrap_or_else(|error| report.fail("profile", format!("save: {}", error.code)));
