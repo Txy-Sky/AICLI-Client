@@ -1004,13 +1004,13 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | 编号 | 客户端 | 写入器 | 状态 | 证据 |
 |---|---|---|---|---|
 | J-02 | OpenCode | `opencode_config.rs` | [!] | 后端完成：验收 1、2 通过（15f584ef，`J-02-opencode-unit` 2 passed，CI run 43015679721 success）；界面已开放接管按钮（859b08be，CI run 43024563886 success）；验收 3（真实 OpenCode）未做，交接单 `docs/aicli-handover/J-02.md`，见第 12 节。`docs/aicli-evidence/J-02.txt` |
-| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-04 | Hermes | `hermes_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-06 | Mcode | `mcode_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-07 | Kimi | `kimi_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-08 | DSH | `dsh_config.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做，界面仍为「即将支持」，交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-04 | Hermes | `hermes_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-06 | Mcode | `mcode_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-07 | Kimi | `kimi_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-08 | DSH | `dsh_config.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
 | J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [!] | 结论：暂不支持接管。agy 只从进程环境读地址和密钥，没有可接管的配置文件；按第 0.6 节第 14 条不改写其 settings.json，不加入 `TIER2_SUPPORTED`，`take_over` 返回 Unsupported（6a02490b，`J-10-unit` 1 passed，CI run 43538734489 success）。界面保持「暂不支持」，名单写入 README 属 J-GATE。`docs/aicli-evidence/J-03_J-10.txt` |
 
 ### J-GATE 阶段 J 门禁
@@ -1064,7 +1064,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | ① 负责人决定这 7 个客户端是否照 J-02 先开放接管按钮再验收。② H-02 测试机按交接单逐个验收。 |
+| J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | ① 已决定并执行：负责人于 2026-11-13 决定照 J-02 先开放这 7 个客户端的接管按钮，真实客户端不通过再回退。② **仍待执行**：H-02 测试机按交接单逐个验收。 |
 | J-10（Agy 结论） | agy 只从进程环境读地址和密钥，没有配置文件能让它指向本地代理。 | 按第 0.6 节第 14 条选不改写其 settings.json 的方案，结论为暂不支持接管，单测断言 Unsupported。 | 负责人确认这个结论；如需支持，只能做「从应用打开终端并注入环境变量」的方式，属于新功能。 |
 | J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | ① 已决定并执行：负责人于 2026-11-11 决定现在把 OpenCode 加入界面的可接管列表（e2026a6d、859b08be，CI run 43024563886 success），真实客户端不通过再回退。② **仍待执行**：H-02 测试机按 `docs/aicli-handover/J-02.md` 做真实客户端验收。 |
 | J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
@@ -1096,6 +1096,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| J-03～J-09（先开放按钮再做真实客户端验收） | 真实客户端不通过的客户端在 UI 中显示「暂不支持」，不提供接管按钮。 | 真实客户端验收之前就把 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、OMP 加入界面的可接管列表（前端 `AICLI_TIER2_APPS`，7ac4a425，CI run 43552140606 success）；OpenClaw、Hermes 从「其他客户端」移入列表，点名字仍进入专属页。验收不通过时撤掉按钮并从 `TIER2_SUPPORTED` 去掉。 | 负责人 2026-11-13 决定，理由同 J-02：测试机需要通过界面触发接管才能做验收。 |
 | K-01～K-03（合并提交与验收） | 各项分别提交；相互依赖的项不合并验收。 | K-01 端到端流程、K-02 密钥扫描、K-03 `~/.cc-switch` 校验共用同一次 rc.34 夹具运行（K-02/K-03 在 K-01 跑完的同一个临时 HOME 上检查），在一个提交里落地、同一个 run 验收。 | 三者检查的是同一次运行留下的状态，拆开要重复启动整套环境三次；结论仍按项分别记录。 |
 | K-01（线路地址的测试覆盖） | 清单未规定端到端如何指向测试环境。 | 新增 `Line::origin()`：只有开启 `test-hooks` 特性时读 `AICLI_TEST_LINE_ORIGIN`，正式构建恒为固定 `base_url`；newapi、种子 provider、Codex 目录改经 `origin()` 读取。 | 线路是写死的常量，不加覆盖就无法让真实的绑定流程连到本地 rc.34。 |
 | K-02（扫描范围） | 扫描应用日志、崩溃日志。 | 扫描运行所用临时 HOME 下的全部文件（含 SQLite，按字节）和探针的全部输出；探针进程不初始化 Tauri 文件日志，所以没有应用日志文件可扫。gitleaks 只扫本仓库 merge-base(main)..HEAD（另一仓库 new-api 本项目不改）。 | 端到端在无界面的探针里运行。 |
@@ -1220,8 +1221,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   不是测量结论）、C4-05（按同一决定不启用）。
 - 阻塞 9 项，全部是 J 阶段真实客户端验收 + 1 个门禁：
   J-02 OpenCode（界面已开放，等测试机）；J-03～J-09 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、
-  OMP（后端与逐字节还原 CI 通过，界面仍「即将支持」，等负责人决定是否先开放按钮、再由测试机
-  验收）；J-10 Agy（结论暂不支持接管，等负责人确认）。J-GATE 未过：依赖以上结论，且需把暂不
+  OMP（后端与逐字节还原 CI 通过；负责人 2026-11-13 决定先开放接管按钮，等测试机验收）；J-10 Agy（结论暂不支持接管，等负责人确认）。J-GATE 未过：依赖以上结论，且需把暂不
   支持名单写入 README。交接单 docs/aicli-handover/J-02.md、J-03-J-09.md。
 - G-GATE 第 1 项（界面走查截图）按负责人 2026-11-11 决定跳过，未做，不是已验证。
 
@@ -1237,7 +1237,7 @@ source-reference、magpie_golden。
 确认）；H-06 更新器签名与清单地址；H-07 法务确认 Magpie/jieba 声明；H-08 线上 RetryTimes；
 L-01～L-08 安装包、三条线路实测、后台设置、实扣对账、法务、new-api 升级回归。
 
-待负责人决定：① J-03～J-09 是否照 J-02 先开放接管按钮；② J-10 Agy 结论；③ DSH 凭据引用名
+待负责人决定：① （已决定：J-03～J-09 先开放接管按钮，2026-11-13）；② J-10 Agy 结论；③ DSH 凭据引用名
 CC_SWITCH_DSH_* 是否改名（第 13 节）；④ 合并到 main 前需改 CONTRIBUTING 与第 0.6 节「不合并到
 main」的规定。
 ```
