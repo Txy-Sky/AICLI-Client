@@ -731,9 +731,20 @@ jobs:
           tar -xzf "$tools/$archive" -C "$tools" gitleaks
           git fetch --no-tags origin main:refs/remotes/origin/main
           base=$(git merge-base origin/main HEAD)
-          "$tools/gitleaks" git --no-banner --redact --log-opts="$base..HEAD" \
+          # .gitleaksignore at the repo root lists findings reviewed as test
+          # fixtures (by fingerprint); everything else fails the step.
+          "$tools/gitleaks" git --no-banner --redact --exit-code 0 --log-opts="$base..HEAD" \
             --report-format json --report-path "$tools/report.json" . \
             2>&1 | tee "$RUNNER_TEMP/aicli-evidence/K-02-gitleaks.txt"
+          # --redact removes the values; only where each finding is goes to the log.
+          python3 - "$tools/report.json" <<'PY' | tee -a "$RUNNER_TEMP/aicli-evidence/K-02-gitleaks.txt"
+          import json, sys
+          findings = json.load(open(sys.argv[1]))
+          for f in findings:
+              print(f"K-02 gitleaks finding: {f['Fingerprint']} rule={f['RuleID']}")
+          print(f"K-02 gitleaks: {len(findings)} finding(s) not in .gitleaksignore")
+          sys.exit(1 if findings else 0)
+          PY
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
