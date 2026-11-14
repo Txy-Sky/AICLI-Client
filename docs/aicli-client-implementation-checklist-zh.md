@@ -1023,27 +1023,27 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## K. 阶段 K：最终回归（模型可完成部分）
 
 ### K-01 全量检查
-- [ ] 完成
+- [x] 完成
 - 修改：新增 `tests/aicli-testenv/e2e.sh`，走完：绑定 → 目录 → 配置集 → 取得 Token → 发请求 → 查账 → 解绑。
 - 验收：`scripts/aicli-check.sh` 通过；`e2e.sh` 通过；对测试环境 MySQL 开启通用查询日志，确认客户端全程没有连接数据库（只有 new-api 自己的连接）。
-- 证据：
+- 证据：791dd97a（实现 4d936c03，修正 4ffadfb7、1e9db2aa）| job `A6 test environment (Linux)` 的 K-01 步骤：`bash tests/aicli-testenv/e2e.sh`（运行 `aicli-e2e-probe`）；job `A3-01 baseline (Linux)`：`scripts/aicli-check.sh` | 绑定→目录→配置集→接管取 Token（2 个 aicli:）→经代理请求 200、app_type=opencode→服务端账单回填（g-cheap，billed_quota 17，line main）→解绑（配置还原、Token 剩 0）全部 PASS；MySQL 通用查询日志只有 new-api（172.18.0.5）连接，另 1 次为 mysql 容器自身健康检查的 127.0.0.1；Rust 4544 passed / 9 skipped，前端 130 文件全部通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43547323538。`docs/aicli-evidence/K.txt`
 
 ### K-02 密钥扫描
-- [ ] 完成
+- [x] 完成
 - 修改：新增 `scripts/aicli-secret-scan.sh`：在运行 e2e 的临时 HOME 下，用植入的金丝雀值（假 `sk-canary...`、假访问令牌、隐私假密钥）搜索 `~/.aicli-client`（SQLite 用 `strings`）、应用日志、崩溃日志、所有客户端配置。同时用 `gitleaks` 或 `trufflehog` 扫描两个仓库的新增提交。
 - 验收：`sk-` 和访问令牌金丝雀在配置目录中**只出现在** `secrets.json`（回退模式）或 Keychain；客户端配置和日志中出现次数为 0。扫描结果无新增发现。
-- 证据：
+- 证据：791dd97a（实现 4d936c03，修正 9a7eea10、791dd97a）| job `A6 test environment (Linux)`：K-01 步骤内 `scripts/aicli-secret-scan.sh`，K-02 步骤 gitleaks 8.30.1 `git --log-opts=merge-base..HEAD --config .gitleaks.toml` | HOME 内访问令牌与托管密钥 0 处（规则：只许在 secrets.json），隐私金丝雀 0 处，探针输出 0 处；gitleaks 367 个提交 no leaks（126 处隐私测试夹具逐条核对为编造值后按路径放行，第 13 节）| https://github.com/Txy-Sky/AICLI-Client/actions/runs/43547323538。`docs/aicli-evidence/K.txt`
 
 ### K-03 隔离检查
-- [ ] 完成
+- [x] 完成
 - 验收：运行全流程前后，对临时 HOME 下预先放置的 `~/.cc-switch` 目录做校验和，**完全相同**。`grep -rn 'farion1231\|ccswitch\|dl.ccswitch' src-tauri/tauri.conf.json src-tauri/Info.plist src-tauri/wix package.json` 无结果。安装包内容（`pnpm tauri build` 的 Linux 产物）不含 Maskit、`source-reference`、`tools/magpie_golden`。
-- 证据：
+- 证据：791dd97a | job `A6 test environment (Linux)` 的 K-01 步骤：临时 HOME 预置 `~/.cc-switch`，全流程前后目录摘要相同；本机 2026-11-13 品牌 grep 无结果；Release 演练 run 43360620353（21d1b479）的 Linux .deb 只含主程序、desktop 文件、三个图标，按字节查 maskit/source-reference/magpie_golden 均 0 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43547323538。`docs/aicli-evidence/K.txt`
 
 ### K-04 整理偏差和阻塞
-- [ ] 完成
+- [x] 完成
 - 修改：逐条核对第 12、13 节，把未解决项列入"交付摘要"。
 - 验收：所有 `[!]` 都能在第 12 节找到；没有无证据的 `[x]`（用 `grep -n '证据：$'` 检查已勾选项）。
-- 证据：
+- 证据：G-03、G-04 两行空的重复证据行已删，复查无空证据的 [x]；[!] 只有 J-02～J-10，第 12 节均有对应行；第 14 节交付摘要改写为当前状态。`docs/aicli-evidence/K.txt`
 
 ---
 
@@ -1207,6 +1207,42 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | C3-08（本地鉴权接线） | token_for(app) 示例未显式携带数据库；旧真实 HTTP 回归携带的是上游伪凭证。 | token_for 显式注入调用方 Database；旧种子与 inline-thinking HTTP 夹具改用同库生成的本地令牌，原转换、路径及状态码断言全部保留。 | 第 0.6 节隔离测试预授权；不绕过中间件。29aad72e 完整 CI success，失败历史见 C3-08.txt。 |
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
+
+当前状态（2026-11-13，K-04 整理）：
+
+```text
+分支：feat/aicli-client-v1。最近一次完整验收 791dd97a，AICLI Acceptance 五个 job 全部 success
+（run 43547323538）：Rust 4544 passed / 9 skipped，前端 130 个测试文件全部通过。
+
+模型可完成部分：除 J 阶段真实客户端验收外全部完成。
+- 完成 73 项（A～H 各阶段、C5-GATE、E/F/G 阶段与门禁、J-01、K-01～K-04）。
+- 跳过 2 项（负责人决定）：A5-01（180 秒语义未测，main/global 流式总时长按决定取 600s，
+  不是测量结论）、C4-05（按同一决定不启用）。
+- 阻塞 9 项，全部是 J 阶段真实客户端验收 + 1 个门禁：
+  J-02 OpenCode（界面已开放，等测试机）；J-03～J-09 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、
+  OMP（后端与逐字节还原 CI 通过，界面仍「即将支持」，等负责人决定是否先开放按钮、再由测试机
+  验收）；J-10 Agy（结论暂不支持接管，等负责人确认）。J-GATE 未过：依赖以上结论，且需把暂不
+  支持名单写入 README。交接单 docs/aicli-handover/J-02.md、J-03-J-09.md。
+- G-GATE 第 1 项（界面走查截图）按负责人 2026-11-11 决定跳过，未做，不是已验证。
+
+端到端（K-01）：tests/aicli-testenv/e2e.sh 在独立 rc.34 环境走通绑定→目录→配置集→Token→
+经代理请求→服务端账单回填→解绑；MySQL 通用查询日志只有 new-api 连接。
+密钥（K-02）：服务端凭据只许在 secrets.json，隐私金丝雀不落盘，gitleaks 本分支 no leaks
+（隐私测试夹具按路径放行，见 .gitleaks.toml 和第 13 节）。
+隔离（K-03）：~/.cc-switch 前后摘要相同；品牌 grep 无结果；Linux 安装包不含 Maskit、
+source-reference、magpie_golden。
+
+人工项（第 1 节 HUMAN 与第 11 节 L，模型未代办）：H-03 macOS/Windows 测试机；H-05 图标源文件
+（负责人 2026-11-12 已提供 assets/aicli-logo.png 并已生成图标，H-05/L-01 是否勾选由负责人
+确认）；H-06 更新器签名与清单地址；H-07 法务确认 Magpie/jieba 声明；H-08 线上 RetryTimes；
+L-01～L-08 安装包、三条线路实测、后台设置、实扣对账、法务、new-api 升级回归。
+
+待负责人决定：① J-03～J-09 是否照 J-02 先开放接管按钮；② J-10 Agy 结论；③ DSH 凭据引用名
+CC_SWITCH_DSH_* 是否改名（第 13 节）；④ 合并到 main 前需改 CONTRIBUTING 与第 0.6 节「不合并到
+main」的规定。
+```
+
+以下为此前各阶段的进度记录，原样保留：
 
 ```text
 AICLI-Client 分支和最新提交：feat/aicli-client-v1；阶段性进度记录，未完成全量改造。最新提交由 git log -1 --format=%H 读取；最近完成项 C3-10 验收提交 95aa3cbc01cd352801212425e7d09c83e0a546c7（Actions run 41959620296，完整 CI success）；A6-03 独立重新验收与 A6-01 同一 SHA 两次完整通过记录保留。
