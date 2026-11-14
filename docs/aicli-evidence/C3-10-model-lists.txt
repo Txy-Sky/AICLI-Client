@@ -73,3 +73,14 @@ Windows 便携版 aicli-client.exe 含「Codex 自动审批用」文案，确认
 CI：09c9276b | job `Rust item tests (Linux)`：C3-10-model-lists 8 passed；job `A3-01 baseline (Linux)`：
 Rust 4556 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/43604540998
+
+## 7. Codex 官方条目也听行里的隐藏与说明（06a552e6，负责人 Windows 实测 Codex CLI 0.165.0）
+
+现象：实测目录里 codex-auto-review 为 visibility list、说明为 OpenAI 原文，hidden 总数 0；/model 仍是
+「Codex Auto Review + All models」。Codex 0.165（rust-v0.165.0 model-provider/src/provider.rs）读到
+model_catalog_json 即只用它，原因在目录：命中 OpenAI 官方列表的模型（codex-auto-review、GPT 系列）由
+codex_official_model_entry 生成，强制 list 并保留官方说明，行里的 hidden/description 只在模板路径生效。
+修复：apply_codex_spec_overrides 对模板、官方、厂商三条路径统一套用；官方提示词与工具不变。
+CI：06a552e6 | job `Rust item tests (Linux)`：C3-10-model-lists 9 passed（含
+official_entries_take_the_rows_hidden_and_description）；job `A3-01 baseline (Linux)`：Rust 4557 passed /
+9 skipped，前端 130 文件全过；五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43611880267
