@@ -139,6 +139,10 @@ struct Words {
     image: &'static str,
     video: &'static str,
     not_text: &'static str,
+    /// Short form after a media model's kind when its server description follows.
+    cannot_main: &'static str,
+    /// Joins a media model's kind and `cannot_main`.
+    comma: &'static str,
     codex_auto: &'static str,
 }
 
@@ -151,6 +155,8 @@ fn words(language: &str) -> Words {
             image: "生图模型",
             video: "视频模型",
             not_text: "不是文本模型，不能当主聊天模型",
+            cannot_main: "不能当主聊天模型",
+            comma: "，",
             codex_auto: "Codex 自动审批用",
         },
         "zh-TW" | "zh-HK" | "zh-Hant" => Words {
@@ -160,6 +166,8 @@ fn words(language: &str) -> Words {
             image: "生圖模型",
             video: "影片模型",
             not_text: "不是文字模型，不能當主聊天模型",
+            cannot_main: "不能當主聊天模型",
+            comma: "，",
             codex_auto: "Codex 自動審批用",
         },
         "ja" => Words {
@@ -169,6 +177,8 @@ fn words(language: &str) -> Words {
             image: "画像生成モデル",
             video: "動画生成モデル",
             not_text: "テキストモデルではないため、メインのチャットには使えません",
+            cannot_main: "メインのチャットには使えません",
+            comma: "、",
             codex_auto: "Codex の自動承認用",
         },
         "tr" => Words {
@@ -178,6 +188,8 @@ fn words(language: &str) -> Words {
             image: "Görsel modeli",
             video: "Video modeli",
             not_text: "metin modeli değil, ana sohbet modeli olarak kullanılamaz",
+            cannot_main: "ana sohbet modeli olarak kullanılamaz",
+            comma: ", ",
             codex_auto: "Codex otomatik onayı için",
         },
         _ => Words {
@@ -193,6 +205,8 @@ fn words(language: &str) -> Words {
             image: "Image model",
             video: "Video model",
             not_text: "not a text model, can't be the main chat model",
+            cannot_main: "can't be the main chat model",
+            comma: ", ",
             codex_auto: "For Codex's auto-review",
         },
     }
@@ -205,31 +219,74 @@ fn ratio_text(ratio: f64) -> String {
     format!("×{text}")
 }
 
-/// The line under a model.
+/// The server's own description of `model` (new-api's model description), on one line,
+/// cut to [`MAX_DESCRIPTION_CHARS`].
+fn server_description(model: &str, catalog: &Catalog) -> Option<String> {
+    let text = catalog
+        .models
+        .get(model)
+        .and_then(|entry| entry.pricing.get("description"))
+        .and_then(|value| value.as_str())?;
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.is_empty() {
+        return None;
+    }
+    if text.chars().count() <= MAX_DESCRIPTION_CHARS {
+        return Some(text);
+    }
+    let cut: String = text.chars().take(MAX_DESCRIPTION_CHARS).collect();
+    Some(format!("{}…", cut.trim_end()))
+}
+
+/// A server description longer than this many characters is cut with "…", so a picker
+/// row stays on one or two lines.
+const MAX_DESCRIPTION_CHARS: usize = 60;
+
+/// The first group and its ratio: `vip ×1`, or `vip` when the ratio is unknown.
+fn first_group(route: &ModelRoute, catalog: &Catalog) -> Option<String> {
+    let first = route.ordered_groups.first()?;
+    let ratio = catalog
+        .groups
+        .get(first)
+        .filter(|group| group.ratio_known)
+        .and_then(|group| group.ratio)
+        .filter(|ratio| ratio.is_finite());
+    Some(match ratio {
+        Some(ratio) => format!("{first} {}", ratio_text(ratio)),
+        None => first.clone(),
+    })
+}
+
+/// The line under a model (owner, 2026-11-14): the server's description when it has
+/// one — "⭐ 推荐 · <description> · vip ×1", a media model "生图模型，不能当主聊天模型 ·
+/// <description>" — else the first group, fallback groups and tags as before.
 pub(crate) fn describe(route: &ModelRoute, catalog: &Catalog, language: &str) -> String {
     let w = words(language);
     let kind = kind(&route.upstream_model, catalog);
-    match kind {
+    let server = server_description(&route.upstream_model, catalog);
+    let media = match kind {
         Kind::CodexAuto => return w.codex_auto.to_string(),
-        Kind::Image => return format!("{} · {}", w.image, w.not_text),
-        Kind::Video => return format!("{} · {}", w.video, w.not_text),
-        Kind::Recommended | Kind::Text => {}
+        Kind::Image => Some(w.image),
+        Kind::Video => Some(w.video),
+        Kind::Recommended | Kind::Text => None,
+    };
+    if let Some(media) = media {
+        return match server {
+            Some(text) => format!("{media}{}{} · {text}", w.comma, w.cannot_main),
+            None => format!("{media} · {}", w.not_text),
+        };
     }
     let mut parts = Vec::new();
     if kind == Kind::Recommended {
         parts.push(w.recommended.to_string());
     }
-    if let Some(first) = route.ordered_groups.first() {
-        let ratio = catalog
-            .groups
-            .get(first)
-            .filter(|group| group.ratio_known)
-            .and_then(|group| group.ratio)
-            .filter(|ratio| ratio.is_finite());
-        parts.push(match ratio {
-            Some(ratio) => format!("{} {first} {}", w.first, ratio_text(ratio)),
-            None => format!("{} {first}", w.first),
-        });
+    if let Some(text) = server {
+        parts.push(text);
+        parts.extend(first_group(route, catalog));
+        return parts.join(" · ");
+    }
+    if let Some(group) = first_group(route, catalog) {
+        parts.push(format!("{} {group}", w.first));
     }
     let more = route.ordered_groups.len().saturating_sub(1);
     if more > 0 {
@@ -305,6 +362,12 @@ mod tests {
             compat: BTreeMap::new(),
             pricing: json!({ "tags": tags }),
         };
+        let described = |tags: &str, description: &str| CatalogModel {
+            groups: vec!["vip".into()],
+            wire: BTreeMap::new(),
+            compat: BTreeMap::new(),
+            pricing: json!({ "tags": tags, "description": description }),
+        };
         Catalog {
             groups: BTreeMap::from([
                 ("vip".to_string(), group(Some(1.0))),
@@ -318,6 +381,25 @@ mod tests {
                 ("gpt-6.1-sol".to_string(), model("")),
                 ("kimi-k3".to_string(), model("")),
                 ("plain".to_string(), model("")),
+                (
+                    "claude-haiku-4-5".to_string(),
+                    described(
+                        "",
+                        "快速型 Claude，\n适合轻量智能体、办公任务与即时响应对话",
+                    ),
+                ),
+                (
+                    "gpt-5.6-luna".to_string(),
+                    described("推荐", "高性价比的 GPT-5.6，适合快速、高吞吐的负载"),
+                ),
+                (
+                    "muse-wonder-1.0".to_string(),
+                    described("", &"很长的描述".repeat(20)),
+                ),
+                (
+                    "grok-imagine-video".to_string(),
+                    described("", "面向提示词驱动的生成与编辑"),
+                ),
                 ("gpt-image-2".to_string(), model("生图")),
                 ("gemini-3-pro-image-preview".to_string(), model("")),
                 ("seedance-2.0-0826-720p".to_string(), model("")),
@@ -426,5 +508,36 @@ mod tests {
             "Codex 自动审批用"
         );
         assert_eq!(describe(&route("plain", &[]), &c, "zh"), "AICLI");
+    }
+
+    #[test]
+    fn server_descriptions_lead_and_the_group_follows() {
+        let c = catalog();
+        // 后台描述放最前，换行压成一行；分组倍率缩短放末尾
+        assert_eq!(
+            describe(&route("claude-haiku-4-5", &["vip", "g-cheap"]), &c, "zh"),
+            "快速型 Claude， 适合轻量智能体、办公任务与即时响应对话 · vip ×1"
+        );
+        assert_eq!(
+            describe(&route("gpt-5.6-luna", &["g-cheap"]), &c, "zh"),
+            "⭐ 推荐 · 高性价比的 GPT-5.6，适合快速、高吞吐的负载 · g-cheap ×0.5"
+        );
+        assert_eq!(
+            describe(&route("gpt-5.6-luna", &["odd"]), &c, "en"),
+            "⭐ Recommended · 高性价比的 GPT-5.6，适合快速、高吞吐的负载 · odd"
+        );
+        // 太长的描述截到 60 个字加省略号
+        let long = describe(&route("muse-wonder-1.0", &[]), &c, "zh");
+        assert_eq!(long.chars().count(), 61, "{long}");
+        assert!(long.ends_with('…'));
+        // 生图、视频模型：先说不能当主聊天模型，再接后台描述
+        assert_eq!(
+            describe(&route("grok-imagine-video", &["vip"]), &c, "zh"),
+            "视频模型，不能当主聊天模型 · 面向提示词驱动的生成与编辑"
+        );
+        assert_eq!(
+            describe(&route("grok-imagine-video", &["vip"]), &c, "en"),
+            "Video model, can't be the main chat model · 面向提示词驱动的生成与编辑"
+        );
     }
 }
