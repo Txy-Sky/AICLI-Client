@@ -58,3 +58,9 @@ veo-、kling）。线上目前无「推荐」标签，需负责人在后台打�
 CI：f4d6094e | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed、C3-10-unit 15 passed；
 job `A3-01 baseline (Linux)`：Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/43598672330
+
+## 5. 实测用安装包（负责人 2026-11-14 要求）
+
+Release 演练 run 43600459821（b84276a9，未签名），全部 job success，「Publish GitHub Release」跳过。
+Windows 便携版 aicli-client.exe 含「Codex 自动审批用」文案，确认是本轮代码。
+线上 /api/pricing 复查：「推荐」标签已出现在 claude-opus-5-5（负责人打标签后接口有缓存延迟）。
