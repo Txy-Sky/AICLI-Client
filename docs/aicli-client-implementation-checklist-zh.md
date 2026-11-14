@@ -1097,6 +1097,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| 第 0.6 节第 13 条 → 运行 release.yml（2026-11-14） | 禁止运行 `release.yml`。 | 负责人当面要求「更新一个最新的」，由模型以 workflow_dispatch 触发未签名演练 run 43589207909（3a153587），全部 job success，「Publish GitHub Release」跳过，Releases 页仍为空；未使用任何签名或发布类 secret。Windows 便携版中的 `aicli-client.exe` 含新命令 `aicli_set_claude_keep_builtin_models`，确认是该提交的构建。 | 负责人需要包含最新改动的安装包做 Windows 实测。 |
 | C3-10 → Claude Code / Codex 模型列表（负责人 2026-11-13） | 负责人 2026-11-04：Claude、Codex、Gemini 沿用现有投影，不变。 | Claude Code 的 `/model` 写入配置集全部模型（`modelPicker`，自带行按设置保留或隐藏，默认保留在前）；Codex 写模型目录（`model_catalog_json`）。配置集变化时重写，还原不变。Gemini 不变（e64f7d71，CI run 43564355142 success）。 | 负责人 Windows 实测：两个客户端只显示自带模型，要求列出全部。`docs/aicli-evidence/C3-10-model-lists.txt` |
 | C1-08 前端 → 从预设新建（2026-11-13） | 冲突需确认后才能保存。 | 前端「从预设新建」与后端 copy_preset 一致，复制时把多分组模型记为按分组顺序；之后新增的冲突仍需处理（e09fc4d4）。 | 负责人实测：预设复制后满屏冲突。`docs/aicli-evidence/C3-10-model-lists.txt` |
 | E-05（验收后发现，2026-11-13）→ keepalive 与扣留 | 流式事件级扣留，按上下文拼接。 | 移植 Magpie 76f00399c：ping、keepalive、response.in_progress、response.queued 先放出，扣留段继续等下文（a75853cb，逐字节切分测试；CI run 43558222357 success）。 | 原实现遇到 keepalive 放出扣留段，占位符被拆成两半无法还原，可能写进用户文件。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |
