@@ -44,3 +44,17 @@ CI：4ac68a84 | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed（含
 catalog_entry_takes_an_explicit_description）、C3-10-unit 15 passed；job `A3-01 baseline (Linux)`：
 Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/43594191653
+
+## 4. 推荐在前、生图视频在后、隐藏 codex-auto-*（f4d6094e，负责人 2026-11-14）
+
+现象：Codex 的 /model 显示「Codex Auto Review」和「All models」，配置集模型都在 All models 里。
+原因：线上目录（/api/pricing 只读确认）含 codex-auto-review；Codex（codex-rs tui
+chatwidget/model_popups.rs）只要列表里有 codex-auto-* 就把 /model 变成「快捷自动模式 + All models」。
+修复：codex-auto-* 在 Codex 目录中保留、visibility 设为 hide（自动审批仍可用），Claude Code 不列。
+顺序：推荐（后台标签「推荐」/recommended）→ 其余文本模型 → 生图 → 视频；段内按厂商再按名字。
+说明：推荐行以「⭐ 推荐」开头；生图/视频行写「不是文本模型，不能当主聊天模型」。生图/视频按标签
+（生图、视频、image、video 等）识别，无标签时按名字（gpt-image、-image、seedance、video、sora、
+veo-、kling）。线上目前无「推荐」标签，需负责人在后台打。
+CI：f4d6094e | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed、C3-10-unit 15 passed；
+job `A3-01 baseline (Linux)`：Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43598672330
