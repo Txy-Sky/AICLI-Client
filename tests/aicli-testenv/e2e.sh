@@ -52,9 +52,13 @@ with open(path, encoding="utf-8", errors="replace") as handle:
         match = re.search(r"\bConnect\s+\S+@(\S+)\s+on\b", line)
         if match:
             hosts[match.group(1)] = hosts.get(match.group(1), 0) + 1
-others = {h: n for h, n in hosts.items() if h not in newapi_ips}
-print(f"K-01 MySQL general log: connections by host {hosts}; new-api is {sorted(newapi_ips)}")
-if not hosts:
+# The mysql container's own healthcheck (mysqladmin ping -h 127.0.0.1) connects
+# over its loopback. The client runs on the host and the MySQL port is not
+# published, so any connection of the client's would show the network's gateway.
+loopback = {"127.0.0.1", "localhost", "::1"}
+others = {h: n for h, n in hosts.items() if h not in newapi_ips | loopback}
+print(f"K-01 MySQL general log: connections by host {hosts}; new-api is {sorted(newapi_ips)}; loopback is the mysql container's healthcheck")
+if not any(h in newapi_ips for h in hosts):
     print("K-01 MySQL general log: FAIL no connection logged (log not active?)")
     sys.exit(1)
 if others:

@@ -76,12 +76,14 @@ def test_whole_client_flow_and_secret_scan(disposable_user):
         canaries = json.loads(canaries_path.read_text())
         secrets += [canaries["access_token"], canaries["privacy_secret"], canaries["local_key"]]
         secrets += list(canaries.get("managed_keys") or [])
-    # Only the probe's own step lines reach the public job log.
-    for line in (result.stdout + result.stderr).splitlines():
-        if line.startswith("e2e: ") and all(value not in line for value in secrets):
-            print(line, flush=True)
     output = result.stdout + result.stderr
     leaked = [value for value in secrets if value and value in output]
+    # The public job log gets the probe's output with every known secret cut out.
+    shown = output
+    for value in sorted({v for v in secrets if v}, key=len, reverse=True):
+        shown = shown.replace(value, "<redacted>")
+    for line in shown.splitlines()[-80:]:
+        print("probe| " + line, flush=True)
     require(not leaked, "K-02: a secret reached the probe's output")
     require(result.returncode == 0, "K-01 end-to-end probe failed")
     steps = json.loads((workdir / "e2e.json").read_text())["steps"]
