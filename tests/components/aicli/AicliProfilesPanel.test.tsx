@@ -449,32 +449,24 @@ describe("AicliProfilesPanel — list", () => {
 });
 
 describe("AicliProfileEditor — conflicts and saving", () => {
-  it("cannot save with unresolved conflicts; confirming all in group order enables save", async () => {
+  it("a copy of a preset starts with its multi-group models confirmed by group order", async () => {
     respond({
       aicli_save_profile: (args: unknown) =>
         (args as { profile: AicliProfile }).profile,
     });
     open();
     const editor = await editFromPreset();
-    expect(within(editor).getByTestId("aicli-preview-shared")).toHaveAttribute(
-      "data-status",
-      "conflict",
-    );
-    expect(
-      within(editor).getByText("aicli.profiles.pendingConflicts"),
-    ).toBeInTheDocument();
-    const save = within(editor).getByRole("button", {
-      name: "aicli.profiles.save",
-    });
-    expect(save).toBeDisabled();
-
-    fireEvent.click(
-      within(editor).getByRole("button", { name: "aicli.profiles.confirmAll" }),
-    );
+    // 复制即确认预设的分组顺序（与后端 copy_preset 一致），不再满屏「冲突：未处理」
     expect(within(editor).getByTestId("aicli-preview-shared")).toHaveAttribute(
       "data-status",
       "confirmed",
     );
+    expect(
+      within(editor).queryByText("aicli.profiles.pendingConflicts"),
+    ).not.toBeInTheDocument();
+    const save = within(editor).getByRole("button", {
+      name: "aicli.profiles.save",
+    });
     expect(save).toBeEnabled();
     fireEvent.click(save);
     await waitFor(() =>

@@ -132,6 +132,7 @@ export function AicliProfilesPanel({
         preset,
         newProfileId(ids),
         t("aicli.profiles.copyName", { name: aicliProfileName(t, preset) }),
+        catalog.data,
       ),
     );
   };

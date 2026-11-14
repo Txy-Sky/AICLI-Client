@@ -243,24 +243,31 @@ export function newProfileId(existing: string[], now = Date.now()): string {
 }
 
 /** 从系统预设新建：复制预设内容为 system_copy，revision 0。 */
+/**
+ * 从预设新建：复制即确认预设的分组顺序（与后端 `ProfileStore::copy_preset` 一致），
+ * 预设里来自多个分组的模型记为「按分组顺序」，不再逐个显示为未处理的冲突。
+ * 之后用户自己加分组新产生的冲突仍要处理。
+ */
 export function copyPreset(
   preset: AicliProfile,
   id: string,
   name: string,
+  catalog: AicliCatalog | null | undefined,
 ): AicliProfile {
+  const body: AicliProfileBody = {
+    ...preset.body,
+    selected_groups: [...preset.body.selected_groups],
+    model_bindings: preset.body.model_bindings.map((item) => ({ ...item })),
+    resolved_conflicts: [...preset.body.resolved_conflicts],
+    excluded_models: [...(preset.body.excluded_models ?? [])],
+  };
   return {
     id,
     name,
     source: "system_copy",
     preset_id: preset.preset_id ?? preset.id,
     revision: 0,
-    body: {
-      ...preset.body,
-      selected_groups: [...preset.body.selected_groups],
-      model_bindings: preset.body.model_bindings.map((item) => ({ ...item })),
-      resolved_conflicts: [...preset.body.resolved_conflicts],
-      excluded_models: [...(preset.body.excluded_models ?? [])],
-    },
+    body: confirmAllByGroupOrder(body, catalog),
   };
 }
 

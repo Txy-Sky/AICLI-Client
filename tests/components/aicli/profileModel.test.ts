@@ -145,7 +145,7 @@ describe("profile model (mirrors backend validate)", () => {
       revision: 0,
       body: body(),
     };
-    const copy = copyPreset(preset, "user-1", "推荐（副本）");
+    const copy = copyPreset(preset, "user-1", "推荐（副本）", catalog);
     expect(copy).toMatchObject({
       id: "user-1",
       name: "推荐（副本）",
@@ -153,6 +153,10 @@ describe("profile model (mirrors backend validate)", () => {
       preset_id: "recommended",
       revision: 0,
     });
+    // 复制即按分组顺序确认：shared 来自 mid、cheap 两组，不再是未处理冲突
+    expect(copy.body.resolved_conflicts).toEqual(["shared"]);
+    expect(unresolvedConflicts(copy.body, catalog)).toEqual([]);
+    expect(preset.body.resolved_conflicts).toEqual([]);
     copy.body.selected_groups.push("vip");
     expect(preset.body.selected_groups).toEqual(["mid", "cheap"]);
     expect(newProfileId(["user-a"], 10)).toBe("user-a-1");
