@@ -80,6 +80,10 @@ export const aicliApi = {
 
   probeLines: (): Promise<AicliProbe[]> => invoke("aicli_probe_lines"),
 
+  /** 接管 Claude Code 时 /model 是否保留它自带的行；已接管时立即重写。 */
+  setClaudeKeepBuiltinModels: (keep: boolean): Promise<void> =>
+    invoke("aicli_set_claude_keep_builtin_models", { keep }),
+
   // ---- 配置集 ----
   getProfiles: (): Promise<AicliProfilesView> => invoke("aicli_get_profiles"),
 

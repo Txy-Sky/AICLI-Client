@@ -3414,6 +3414,8 @@
       "help": "接管后，客户端的请求经本机代理发往 AICLI，使用你的配置集和线路；停止接管会原样还原接管前的配置。",
       "summary": "个客户端已接管",
       "restoreHint": "停止接管即回到原来的用法（官方登录或你自己的设置）。",
+      "builtinModelsTitle": "/model 保留 Claude 自带的模型",
+      "builtinModelsHint": "打开时 /model 先列 Claude Code 自带的 Opus、Sonnet、Haiku 等，再列配置集的全部模型；关掉只列配置集的模型。",
       "proxyDown": "本地代理没有运行，已接管的客户端暂时无法发出请求。",
       "supportedTitle": "支持接管",
       "otherTitle": "其他客户端",

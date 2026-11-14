@@ -360,6 +360,8 @@ export interface Settings {
   launchOnStartup?: boolean;
   // 静默启动（程序启动时不显示主窗口）
   silentStartup?: boolean;
+  /** 接管 Claude Code 时 /model 是否保留自带的行（没设为保留）。只读：经专用命令写。 */
+  aicliClaudeKeepBuiltinModels?: boolean;
   // 是否启用主页面本地代理功能（默认关闭）
   enableLocalProxy?: boolean;
   // 是否在主页面显示 Stack 模式开关（默认关闭）。和 enableLocalProxy 二选一，只影响 Claude Code、Codex

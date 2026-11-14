@@ -3410,6 +3410,8 @@
       "help": "Devralınan istemci, isteklerini yerel proxy üzerinden AICLI'ye profiliniz ve hattınızla gönderir. Devralmayı durdurmak önceki yapılandırmayı olduğu gibi geri yükler.",
       "summary": "istemci devralındı",
       "restoreHint": "Önceki kullanımınıza (resmî oturum açma ya da kendi ayarlarınız) dönmek için devralmayı durdurun.",
+      "builtinModelsTitle": "/model içinde Claude'un kendi modellerini tut",
+      "builtinModelsHint": "Açıkken /model önce Claude Code'un kendi Opus, Sonnet, Haiku vb. modellerini, ardından rota profilinin tüm modellerini listeler. Kapalıyken yalnızca profilin modellerini listeler.",
       "proxyDown": "Yerel proxy çalışmıyor; devralınan istemciler şu an istek gönderemez.",
       "supportedTitle": "Devralınabilir",
       "otherTitle": "Diğer istemciler",

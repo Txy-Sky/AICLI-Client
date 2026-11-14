@@ -3414,6 +3414,8 @@
       "help": "A taken-over client sends its requests through the local proxy to AICLI, using your profile and line. Stopping the takeover restores the configuration exactly as it was.",
       "summary": "clients taken over",
       "restoreHint": "Stop the takeover to go back to how you used it before (official sign-in or your own settings).",
+      "builtinModelsTitle": "Keep Claude's built-in models in /model",
+      "builtinModelsHint": "On: /model lists Claude Code's own Opus, Sonnet, Haiku and so on first, then every model of the route profile. Off: only the route profile's models.",
       "proxyDown": "The local proxy is not running, so taken-over clients cannot send requests right now.",
       "supportedTitle": "Can be taken over",
       "otherTitle": "Other clients",

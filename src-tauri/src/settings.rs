@@ -388,6 +388,11 @@ pub struct AppSettings {
     /// 只对这台机器有意义，所以不放在会随云同步覆盖的 proxy_config 表里。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy_client_host: Option<String>,
+    /// 接管 Claude Code 时，`/model` 是否保留它自带的 Opus / Sonnet / Haiku 等行（排在前面，
+    /// 配置集的模型列在后面）。没设时为保留。只经 [`set_aicli_claude_keep_builtin_models`] 写，
+    /// 前端全量保存不透传。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aicli_claude_keep_builtin_models: Option<bool>,
 
     // ===== Skill 同步设置 =====
     /// Skill 同步方式：auto（默认，优先 symlink）、symlink、copy
@@ -490,6 +495,7 @@ impl Default for AppSettings {
             current_provider_hermes: None,
             current_provider_agy: None,
             proxy_client_host: None,
+            aicli_claude_keep_builtin_models: None,
             skill_sync_method: SyncMethod::default(),
             skill_storage_location: SkillStorageLocation::default(),
             backup_interval_hours: None,
@@ -978,6 +984,18 @@ pub fn set_proxy_client_host(host: &str) -> Result<(), AppError> {
     mutate_settings(|settings| {
         settings.proxy_client_host = (!host.is_empty()).then(|| host.to_string());
     })
+}
+
+/// 接管 Claude Code 时 `/model` 是否保留自带的行（见
+/// [`AppSettings::aicli_claude_keep_builtin_models`]），没设时为保留。
+pub fn aicli_claude_keep_builtin_models() -> bool {
+    get_settings()
+        .aicli_claude_keep_builtin_models
+        .unwrap_or(true)
+}
+
+pub fn set_aicli_claude_keep_builtin_models(keep: bool) -> Result<(), AppError> {
+    mutate_settings(|settings| settings.aicli_claude_keep_builtin_models = Some(keep))
 }
 
 /// 从文件重新加载设置到内存缓存

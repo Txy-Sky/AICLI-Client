@@ -1891,6 +1891,7 @@ pub fn run() {
             commands::aicli_get_routes,
             commands::aicli_list_lines,
             commands::aicli_select_line,
+            commands::aicli_set_claude_keep_builtin_models,
             commands::aicli_probe_lines,
             commands::aicli_get_profiles,
             commands::aicli_save_profile,

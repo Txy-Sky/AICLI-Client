@@ -47,6 +47,7 @@ case "$set_name" in
     item C3-08-unit aicli::local_auth::tests
     item C3-08-guard aicli_local_credentials
     item C3-10-unit aicli::takeover::tests
+    item C3-10-model-lists aicli::takeover::tests::claude_picker_and_codex_catalog_follow_the_profile mode::controller::tests::aicli_picker_lists_the_profile_and_keeps_built_in_rows_by_choice commands::settings::tests::save_settings_should_keep_the_aicli_claude_picker_choice
     item J-02-opencode-unit aicli::takeover::tests::tier2
     item J-03-J-09-unit aicli::takeover::tests::tier2_clients_write_only_the_local_provider_and_restore_exact_bytes
     item J-10-unit aicli::takeover::tests::tier2_takeover_needs_routable_models_and_a_supported_client

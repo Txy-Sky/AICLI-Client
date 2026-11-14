@@ -1435,6 +1435,22 @@ impl AicliServices {
             .map_err(AicliCommandError::from)
     }
 
+    /// 接管 Claude Code 时 `/model` 是否保留自带的行。保存后若 Claude Code 正被接管，立即按新
+    /// 设置重写它的 `/model`；没接管时下次接管生效。
+    pub async fn set_claude_keep_builtin_models(
+        &self,
+        keep: bool,
+    ) -> Result<(), AicliCommandError> {
+        crate::settings::set_aicli_claude_keep_builtin_models(keep)
+            .map_err(|error| AicliCommandError::invalid_input(error.to_string()))?;
+        if takeover::is_managed(&self.db, &AppType::Claude) {
+            crate::mode::controller::resync_route(&self.app_state, &AppType::Claude)
+                .await
+                .map_err(|_| AicliCommandError::from(takeover::TakeoverError::Client))?;
+        }
+        Ok(())
+    }
+
     pub async fn release_takeover(&self, app_id: String) -> Result<(), AicliCommandError> {
         let app = AppType::from_str(app_id.trim())
             .map_err(|error| AicliCommandError::invalid_input(error.to_string()))?;
@@ -1883,6 +1899,14 @@ pub async fn aicli_select_line(
     id: String,
 ) -> Result<(), AicliCommandError> {
     state.0.select_line(id)
+}
+
+#[tauri::command]
+pub async fn aicli_set_claude_keep_builtin_models(
+    state: State<'_, AicliState>,
+    keep: bool,
+) -> Result<(), AicliCommandError> {
+    state.0.set_claude_keep_builtin_models(keep).await
 }
 
 #[tauri::command]

@@ -210,6 +210,7 @@ fn claude_contract(
     route: &Provider,
     proxy_url: &str,
     stack: &[StackModel],
+    replace_builtin: bool,
     stack_default: Option<&StackModel>,
     others: &[&Provider],
     token: &str,
@@ -224,7 +225,7 @@ fn claude_contract(
         }),
         token,
     );
-    with_stack_models(&mut projection, stack);
+    with_stack_models(&mut projection, stack, replace_builtin);
     if !stack.is_empty() {
         let others: Vec<_> = others
             .iter()
@@ -246,7 +247,11 @@ const CLAUDE_MODEL_PICKER: &str = "modelPicker";
 /// 发布了 Stack 模型时：`/model` 换成 Stack 模型列表；`CLAUDE_CODE_MAX_CONTEXT_TOKENS` 改由
 /// Stack 模型决定，取非 1M 模型里最小的窗口（等于默认 200K 时不写）。四档别名也写成 Stack id，
 /// 同样受 MAX 约束；1M 的 Stack 模型不受 MAX 影响。没有发布 Stack 模型时契约和原来逐字节一致。
-fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
+fn with_stack_models(
+    projection: &mut ClaudeProjection,
+    stack: &[StackModel],
+    replace_builtin: bool,
+) {
     if stack.is_empty() {
         return;
     }
@@ -260,10 +265,15 @@ fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
             })
         })
         .collect();
-    projection.top.insert(
-        CLAUDE_MODEL_PICKER.to_string(),
-        json!({ "replaceBuiltInOptions": true, "options": options }),
-    );
+    let picker = if replace_builtin {
+        json!({ "replaceBuiltInOptions": true, "options": options })
+    } else {
+        // 不写 replaceBuiltInOptions：Claude Code 自带的行在前，这里的行接在后面。
+        json!({ "options": options })
+    };
+    projection
+        .top
+        .insert(CLAUDE_MODEL_PICKER.to_string(), picker);
     projection.exclusive.shift_remove(CLAUDE_MAX_CONTEXT_ENV);
     let smallest = stack
         .iter()
@@ -276,6 +286,24 @@ fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
             Value::String(window.to_string()),
         );
     }
+}
+
+/// AICLI 接管时 `/model` 列的配置集模型（[`crate::provider::AicliClaudePicker`]）。目录里没有
+/// 窗口数据，按 Claude Code 默认窗口记，不改 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`。
+fn aicli_picker_models(picker: &crate::provider::AicliClaudePicker) -> Vec<StackModel> {
+    picker
+        .options
+        .iter()
+        .map(|(id, model)| StackModel {
+            id: id.clone(),
+            upstream: model.clone(),
+            name: model.clone(),
+            display_name: model.clone(),
+            description: "AICLI".to_string(),
+            one_m: false,
+            window: stack::CLAUDE_DEFAULT_WINDOW,
+        })
+        .collect()
 }
 
 /// 关掉某个功能的兼容开关：任何一家要关，契约就关（值取第一个要关的那家的）。上游不支持的
@@ -423,8 +451,18 @@ async fn write_proxy(
     let unchanged = match app {
         AppType::Claude => {
             let members = published_members(state, app, &stack, route)?;
-            let published = stack::claude_published(&members);
-            let stack_default = stack::claude_route_default(&members);
+            let aicli_picker = route
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.aicli_claude_picker.as_ref());
+            let (published, replace_builtin) = match aicli_picker {
+                Some(picker) => (aicli_picker_models(picker), !picker.keep_builtin),
+                None => (stack::claude_published(&members), true),
+            };
+            let stack_default = match aicli_picker {
+                Some(_) => None,
+                None => stack::claude_route_default(&members),
+            };
             let others: Vec<&Provider> = members
                 .iter()
                 .filter(|member| !member.route)
@@ -434,6 +472,7 @@ async fn write_proxy(
                 route,
                 &proxy_url,
                 &published,
+                replace_builtin,
                 stack_default.as_ref(),
                 &others,
                 &crate::aicli::local_auth::token_for(&state.db, "claude").map_err(err)?,
@@ -2010,6 +2049,7 @@ mod tests {
             route,
             "http://127.0.0.1:15821",
             &stack,
+            true,
             default.as_ref(),
             others,
             PROXY_TOKEN_PLACEHOLDER,
@@ -2103,6 +2143,7 @@ mod tests {
             &route,
             "http://127.0.0.1:15821",
             &[],
+            true,
             None,
             &[&other],
             PROXY_TOKEN_PLACEHOLDER,
@@ -2115,12 +2156,58 @@ mod tests {
         );
     }
 
+    /// AICLI 接管 Claude Code：`/model` 列配置集的模型（AICLI 别名 id、模型名作显示名）。保留自带
+    /// 行时不写 `replaceBuiltInOptions`，自带的 Opus / Sonnet / Haiku 排在前面；关掉时写上。
+    #[test]
+    fn aicli_picker_lists_the_profile_and_keeps_built_in_rows_by_choice() {
+        let route = stack_member("aicli-main", json!({}));
+        let picker = crate::provider::AicliClaudePicker {
+            options: vec![
+                ("aicli-claude-gpt-6.1-sol".into(), "gpt-6.1-sol".into()),
+                ("aicli-claude-deepseek-v4".into(), "deepseek-v4".into()),
+            ],
+            keep_builtin: true,
+        };
+        let models = aicli_picker_models(&picker);
+        let rows = json!([
+            { "model": "aicli-claude-gpt-6.1-sol", "label": "gpt-6.1-sol", "description": "AICLI" },
+            { "model": "aicli-claude-deepseek-v4", "label": "deepseek-v4", "description": "AICLI" },
+        ]);
+        let mut keys = Vec::new();
+        for (keep, expected) in [
+            (true, json!({ "options": rows.clone() })),
+            (
+                false,
+                json!({ "replaceBuiltInOptions": true, "options": rows.clone() }),
+            ),
+        ] {
+            let (projection, contract) = claude_contract(
+                &route,
+                "http://127.0.0.1:15821",
+                &models,
+                !keep,
+                None,
+                &[],
+                PROXY_TOKEN_PLACEHOLDER,
+            );
+            assert_eq!(projection.top[CLAUDE_MODEL_PICKER], expected, "keep={keep}");
+            // 默认窗口不写 MAX，契约随选择变化（切换开关会重写客户端）
+            assert!(!projection.exclusive.contains_key(CLAUDE_MAX_CONTEXT_ENV));
+            keys.push(contract.key);
+        }
+        assert_ne!(
+            keys[0], keys[1],
+            "switching the choice rewrites Claude Code"
+        );
+    }
+
     /// 以 `live` 为底写入 `provider` 的代理契约，和进入代理时的补丁相同。
     fn takeover(live: &Value, provider: &Provider) -> Value {
         let (projection, _) = claude_contract(
             provider,
             "http://127.0.0.1:15821",
             &[],
+            true,
             None,
             &[],
             PROXY_TOKEN_PLACEHOLDER,

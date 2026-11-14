@@ -472,9 +472,40 @@ pub(crate) fn prepare_projection(
         _ => "openai-response",
     };
     let models = routable_models(db, app, snapshot, protocol)?;
-    // Claude/Codex/Gemini retain the existing projection path.
-    if !matches!(app, AppType::GrokBuild | AppType::ClaudeDesktop) {
-        return Ok(provider);
+    match app {
+        // Claude Code 的 `/model` 列出配置集的全部模型（`modelPicker`，由模式控制器写入），
+        // id 用 C2-02 的别名；自带的 Opus / Sonnet / Haiku 行按设置保留或隐藏。
+        AppType::Claude => {
+            let options = models
+                .iter()
+                .map(|model| {
+                    super::alias::encode(app, model, Some(db))
+                        .map(|id| (id, model.clone()))
+                        .map_err(|_| TakeoverError::State)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut meta = provider.meta.unwrap_or_default();
+            meta.aicli_claude_picker = Some(crate::provider::AicliClaudePicker {
+                options,
+                keep_builtin: crate::settings::aicli_claude_keep_builtin_models(),
+            });
+            provider.meta = Some(meta);
+            return Ok(provider);
+        }
+        // Codex 的 `/model` 读 `model_catalog_json` 指向的目录：沿用路由投影按行里的
+        // `modelCatalog.models` 生成目录的现有逻辑，数据源换成配置集。
+        AppType::Codex => {
+            provider.settings_config["modelCatalog"] = serde_json::json!({
+                "models": models
+                    .iter()
+                    .map(|model| serde_json::json!({ "model": model, "displayName": model }))
+                    .collect::<Vec<_>>(),
+            });
+            return Ok(provider);
+        }
+        // Gemini retains the existing projection path.
+        AppType::GrokBuild | AppType::ClaudeDesktop => {}
+        _ => return Ok(provider),
     }
     if *app == AppType::ClaudeDesktop {
         if models.len() > 200 {
@@ -852,7 +883,13 @@ pub(crate) fn watch_projection_changes(
                 continue;
             }
             previous = next;
-            for app in [AppType::GrokBuild, AppType::ClaudeDesktop] {
+            // Claude Code 的 /model、Codex 的模型目录也随配置集变化重写。
+            for app in [
+                AppType::GrokBuild,
+                AppType::ClaudeDesktop,
+                AppType::Claude,
+                AppType::Codex,
+            ] {
                 if is_managed(&state.db, &app)
                     && controller::resync_route(&state, &app).await.is_err()
                 {
@@ -1239,6 +1276,65 @@ mod tests {
         assert_eq!(choose_grok_model(&models[..1], None), Some("alpha"));
         assert_eq!(choose_grok_model(&[], None), None);
     }
+    /// 接管 Claude Code 时 `/model` 列配置集的全部模型（C2-02 别名），是否保留自带行跟设置走；
+    /// 接管 Codex 时种子行带上配置集模型，由路由投影生成 `model_catalog_json` 目录。
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn claude_picker_and_codex_catalog_follow_the_profile() {
+        let _home = Home::new();
+        let state = fixture().await;
+        let runtime = super::super::runtime::AicliRuntime::new(state.db.clone());
+        let snap = runtime.cached_projection().unwrap();
+
+        let app = AppType::Claude;
+        let seed = state
+            .db
+            .get_provider_by_id("aicli-main", app.as_str())
+            .unwrap()
+            .unwrap();
+        let models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
+        assert!(!models.is_empty());
+        let expected = models
+            .iter()
+            .map(|m| {
+                (
+                    super::super::alias::encode(&app, m, Some(&state.db)).unwrap(),
+                    m.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let row = prepare_projection(&state.db, &app, &snap, seed.clone()).unwrap();
+        let picker = row.meta.unwrap().aicli_claude_picker.unwrap();
+        assert_eq!(picker.options, expected);
+        assert!(picker.keep_builtin, "kept by default");
+        assert!(picker
+            .options
+            .iter()
+            .all(|(id, _)| id.starts_with("aicli-claude-")));
+
+        crate::settings::set_aicli_claude_keep_builtin_models(false).unwrap();
+        let row = prepare_projection(&state.db, &app, &snap, seed).unwrap();
+        crate::settings::set_aicli_claude_keep_builtin_models(true).unwrap();
+        assert!(!row.meta.unwrap().aicli_claude_picker.unwrap().keep_builtin);
+
+        let app = AppType::Codex;
+        let seed = state
+            .db
+            .get_provider_by_id("aicli-main", app.as_str())
+            .unwrap()
+            .unwrap();
+        let models = routable_models(&state.db, &app, &snap, "openai-response").unwrap();
+        let row = prepare_projection(&state.db, &app, &snap, seed).unwrap();
+        let listed = row.settings_config["modelCatalog"]["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["model"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(listed, models);
+        assert!(!row.settings_config.to_string().contains("sk-"));
+    }
+
     #[tokio::test]
     #[serial_test::serial]
     async fn projection_models_and_empty_profile_are_exact() {

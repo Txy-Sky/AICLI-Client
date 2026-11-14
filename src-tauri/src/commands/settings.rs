@@ -24,6 +24,9 @@ fn merge_settings_for_save(
     incoming.proxy_client_host = existing.proxy_client_host.clone();
     // 轻量模式状态只由进入 / 退出轻量模式时写，前端缓存里的值总是旧的。
     incoming.lightweight_mode = existing.lightweight_mode;
+    // Claude Code /model 是否保留自带行：只经 aicli_set_claude_keep_builtin_models 写（它还要
+    // 重写已接管的 Claude Code），全量保存带的是前端缓存里的旧值。
+    incoming.aicli_claude_keep_builtin_models = existing.aicli_claude_keep_builtin_models;
     incoming
 }
 
@@ -432,6 +435,18 @@ mod tests {
         let merged = merge_settings_for_save(AppSettings::default(), &existing);
 
         assert!(merged.lightweight_mode);
+    }
+
+    #[test]
+    fn save_settings_should_keep_the_aicli_claude_picker_choice() {
+        let existing = AppSettings {
+            aicli_claude_keep_builtin_models: Some(false),
+            ..AppSettings::default()
+        };
+
+        let merged = merge_settings_for_save(AppSettings::default(), &existing);
+
+        assert_eq!(merged.aicli_claude_keep_builtin_models, Some(false));
     }
 
     #[test]

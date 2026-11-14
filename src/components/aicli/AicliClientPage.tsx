@@ -11,6 +11,8 @@ import type { AppId } from "@/lib/api";
 import { aicliApi, isAicliCommandError } from "@/lib/api/aicli";
 import { aicliKeys } from "@/hooks/aicliKeys";
 import { useAicliAccount } from "@/hooks/useAicliAccount";
+import { useSettingsQuery } from "@/lib/query";
+import { Switch } from "@/components/ui/switch";
 import {
   useAicliCatalog,
   useAicliProfiles,
@@ -124,6 +126,26 @@ export function AicliClientPage({
   const catalog = useAicliCatalog(bound);
   const takeover = useAicliTakeoverStatus(bound && supported);
   const flow = useAicliTakeoverFlow(app, bound && supported);
+
+  // Claude Code 的 /model 是否保留它自带的行（没设为保留）。
+  const settings = useSettingsQuery();
+  const keepBuiltin = settings.data?.aicliClaudeKeepBuiltinModels ?? true;
+  const [savingBuiltin, setSavingBuiltin] = useState(false);
+  const [builtinError, setBuiltinError] = useState<string | null>(null);
+  const setKeepBuiltin = async (keep: boolean) => {
+    setSavingBuiltin(true);
+    setBuiltinError(null);
+    try {
+      await aicliApi.setClaudeKeepBuiltinModels(keep);
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+    } catch (error) {
+      setBuiltinError(
+        isAicliCommandError(error) ? error.message : String(error),
+      );
+    } finally {
+      setSavingBuiltin(false);
+    }
+  };
 
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -393,6 +415,32 @@ export function AicliClientPage({
                     : t("aicli.client.restoreHint")}
                 </span>
               </div>
+            </div>
+          )}
+          {app === "claude" && supported && bound && (
+            <div
+              data-testid="aicli-claude-builtin-models"
+              className="flex items-center justify-between gap-4 rounded-panel border border-border bg-surface px-4 py-3"
+            >
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-strong text-fg-1">
+                  {t("aicli.clients.builtinModelsTitle")}
+                </span>
+                <span className="text-caption text-fg-3">
+                  {t("aicli.clients.builtinModelsHint")}
+                </span>
+                {builtinError && (
+                  <span className="text-caption text-danger-text">
+                    {builtinError}
+                  </span>
+                )}
+              </div>
+              <Switch
+                checked={keepBuiltin}
+                disabled={savingBuiltin || settings.isLoading}
+                onCheckedChange={(value) => void setKeepBuiltin(value)}
+                aria-label={t("aicli.clients.builtinModelsTitle")}
+              />
             </div>
           )}
         </section>

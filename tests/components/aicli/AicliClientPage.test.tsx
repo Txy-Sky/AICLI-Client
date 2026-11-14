@@ -303,6 +303,34 @@ describe("AicliClientPage", () => {
     ).toBeDisabled();
   });
 
+  it("lets Claude Code keep or hide its built-in /model rows, kept by default", async () => {
+    respond({
+      get_settings: {},
+      aicli_set_claude_keep_builtin_models: undefined,
+    });
+    renderWithQueryClient(<AicliClientPage app="claude" />);
+    const row = await screen.findByTestId("aicli-claude-builtin-models");
+    const toggle = within(row).getByRole("switch");
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        "aicli_set_claude_keep_builtin_models",
+        { keep: false },
+      ),
+    );
+  });
+
+  it("shows the built-in /model switch only on Claude Code", async () => {
+    respond({ get_settings: {} });
+    renderWithQueryClient(<AicliClientPage app="codex" />);
+    await screen.findByTestId("aicli-client-page");
+    expect(
+      screen.queryByTestId("aicli-claude-builtin-models"),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not offer takeover for clients AICLI cannot take over", async () => {
     respond();
     renderWithQueryClient(<AicliClientPage app="agy" />);
