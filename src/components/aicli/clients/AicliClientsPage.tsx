@@ -43,7 +43,8 @@ import {
   useAicliTakeoverFlow,
 } from "../takeover/useAicliTakeoverFlow";
 
-/** 有自己专属页（工作区、配置、记忆）的客户端：还没有 AICLI 接管，但页面仍可进入。 */
+/** 有自己专属页（工作区、配置、记忆）的客户端：不能接管时单列一行，页面仍可进入；
+ *  能接管时和其他客户端一样在列表里，点名字进入同一个页面。 */
 const DEDICATED_PAGE_APPS: readonly AppId[] = ["openclaw", "hermes"];
 
 /** 列表四列：客户端 / 请求现在走哪里 / 停止接管后回到 / 开关。表头和每一行共用。 */
@@ -84,7 +85,10 @@ export function AicliClientsPage({
 
   const ordered = orderAppIds(appOrder).filter((app) => visibleApps[app]);
   const supported = ordered.filter((app) => AICLI_TAKEOVER_APPS.includes(app));
-  const dedicated = ordered.filter((app) => DEDICATED_PAGE_APPS.includes(app));
+  const dedicated = ordered.filter(
+    (app) =>
+      DEDICATED_PAGE_APPS.includes(app) && !AICLI_TAKEOVER_APPS.includes(app),
+  );
   const comingSoon = ordered.filter(
     (app) =>
       !AICLI_TAKEOVER_APPS.includes(app) && !DEDICATED_PAGE_APPS.includes(app),

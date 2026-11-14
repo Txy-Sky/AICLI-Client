@@ -283,8 +283,7 @@ describe("App integration with MSW", () => {
     await renderAppReady(App);
 
     await screen.findByTestId("aicli-home");
-    fireEvent.click(sidebarApp("nav.clients"));
-    fireEvent.click(await screen.findByTestId("aicli-client-other-openclaw"));
+    await enterClientPage("OpenClaw");
     // 首次启动提示是模态对话框，页面其余部分是 aria-hidden，所以带上 hidden
     const openclawTabs = await screen.findByRole("tablist", {
       name: "OpenClaw",
@@ -314,8 +313,7 @@ describe("App integration with MSW", () => {
       "openclaw-config-env",
     );
 
-    fireEvent.click(sidebarApp("nav.clients"));
-    fireEvent.click(await screen.findByTestId("aicli-client-other-hermes"));
+    await enterClientPage("Hermes");
     const hermesTabs = await screen.findByRole("tablist", {
       name: "Hermes",
       hidden: true,

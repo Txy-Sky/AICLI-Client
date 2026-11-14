@@ -9,14 +9,27 @@ import {
 } from "@/hooks/useAicliProfiles";
 
 /** 支持 AICLI 接管的客户端（后端 mode::controller::PROXY_APPS）。 */
+/** Tier 2 客户端：没有路由模式，各写一个走 Chat Completions 的 aicli 提供方。 */
+export const AICLI_TIER2_APPS: readonly AppId[] = [
+  "opencode",
+  "openclaw",
+  "hermes",
+  "pi",
+  "mcode",
+  "kimi",
+  "dsh",
+  "omp",
+];
+
 export const AICLI_TAKEOVER_APPS: readonly AppId[] = [
   "claude",
   "codex",
   "gemini",
   "grokbuild",
   "claude-desktop",
-  // J 阶段的 Tier 2 客户端：与后端 `aicli/tier.rs` 的 TIER2_SUPPORTED 保持一致
-  "opencode",
+  // J 阶段的 Tier 2 客户端：与后端 `aicli/tier.rs` 的 TIER2_SUPPORTED 保持一致。
+  // 负责人 2026-11-13 决定：真实客户端验收之前先开放按钮，不通过再撤回（J-02 同理）。
+  ...AICLI_TIER2_APPS,
 ];
 
 export type AicliTakeoverDisplay = "active" | "pending" | "inactive";

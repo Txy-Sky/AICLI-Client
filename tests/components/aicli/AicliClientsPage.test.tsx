@@ -144,8 +144,15 @@ describe("AicliClientsPage", () => {
       "aicli-client-card-gemini",
       "aicli-client-card-grokbuild",
       "aicli-client-card-opencode",
+      "aicli-client-card-openclaw",
+      "aicli-client-card-hermes",
+      "aicli-client-card-pi",
+      "aicli-client-card-mcode",
+      "aicli-client-card-kimi",
+      "aicli-client-card-dsh",
+      "aicli-client-card-omp",
     ]);
-    // 已接管 1 / 6
+    // 已接管 1 / 13
     expect(screen.getByText("aicli.clients.summary")).toBeInTheDocument();
   });
 
@@ -200,7 +207,7 @@ describe("AicliClientsPage", () => {
     );
   });
 
-  it("opens the client page from the card and dedicated pages from their row", async () => {
+  it("opens the client page from the card, dedicated-page clients included", async () => {
     respond();
     const { onOpenApp, onOpenApps } = renderPage();
     const claude = await screen.findByTestId("aicli-client-card-claude");
@@ -208,7 +215,14 @@ describe("AicliClientsPage", () => {
       within(claude).getByRole("button", { name: "aicli.clients.open" }),
     );
     expect(onOpenApp).toHaveBeenCalledWith("claude");
-    fireEvent.click(screen.getByTestId("aicli-client-other-openclaw"));
+    // OpenClaw 可接管后和其他客户端一样一行，不再单列「其他客户端」
+    expect(
+      screen.queryByTestId("aicli-client-other-openclaw"),
+    ).not.toBeInTheDocument();
+    const openclaw = screen.getByTestId("aicli-client-card-openclaw");
+    fireEvent.click(
+      within(openclaw).getByRole("button", { name: "aicli.clients.open" }),
+    );
     expect(onOpenApp).toHaveBeenCalledWith("openclaw");
     fireEvent.click(
       screen.getByRole("button", { name: "aicli.clients.installApps" }),
@@ -224,12 +238,14 @@ describe("AicliClientsPage", () => {
       .getAllByRole("listitem")
       .map((item) => item.textContent);
     // 图标 SVG 自带 <title>，textContent 里会再出现一次名字
-    expect(names.some((name) => name?.includes("Kimi Code"))).toBe(true);
-    // OpenCode 已可接管（J-02），不再列在这里
+    // Agy 只从环境变量读地址，不能接管（J-10）
+    expect(names.some((name) => name?.includes("Antigravity"))).toBe(true);
+    // OpenCode（J-02）和 Kimi 等 J-03～J-09 已可接管，不再列在这里
     expect(names.some((name) => name?.includes("OpenCode"))).toBe(false);
+    expect(names.some((name) => name?.includes("Kimi Code"))).toBe(false);
     expect(within(soon).queryByRole("button")).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("aicli-client-card-kimi"),
+      screen.queryByTestId("aicli-client-card-agy"),
     ).not.toBeInTheDocument();
   });
 
@@ -241,7 +257,7 @@ describe("AicliClientsPage", () => {
       screen.queryByTestId("aicli-client-card-codex"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("aicli-client-other-openclaw"),
+      screen.queryByTestId("aicli-client-card-openclaw"),
     ).not.toBeInTheDocument();
   });
 
@@ -267,7 +283,19 @@ describe("AicliClientsPage", () => {
         invokeMock.mock.calls
           .filter(([command]) => command === "aicli_take_over")
           .map(([, args]) => (args as { app: string }).app),
-      ).toEqual(["claude-desktop", "codex", "grokbuild", "opencode"]),
+      ).toEqual([
+        "claude-desktop",
+        "codex",
+        "grokbuild",
+        "opencode",
+        "openclaw",
+        "hermes",
+        "pi",
+        "mcode",
+        "kimi",
+        "dsh",
+        "omp",
+      ]),
     );
     expect(invokeMock).toHaveBeenCalledWith("aicli_take_over", {
       app: "codex",

@@ -4,9 +4,10 @@
 //! clients (J stage) only get one `aicli` provider written by their own config
 //! writer, pointing at the generic `/app/<client>/...` entry.
 //!
-//! This list is what the backend is able to do. The UI offers a takeover button
-//! for a Tier 2 client only after its real client passed the J acceptance
-//! (`AICLI_TAKEOVER_APPS` in the frontend); until then it stays "coming soon".
+//! This list is what the backend is able to do. The UI offers the same clients
+//! (`AICLI_TIER2_APPS` in the frontend): the owner decided (J-02 on 2026-11-11,
+//! the rest on 2026-11-13) to show the button before the real-client acceptance,
+//! and to take a client back to "coming soon" if its real client fails.
 use crate::app_config::AppType;
 
 /// Tier 2 clients whose takeover and restore are implemented.

@@ -161,6 +161,8 @@ describe("helpers", () => {
     expect(protocolForApp("gemini")).toBe("gemini");
     expect(protocolForApp("codex")).toBe("openai-response");
     expect(protocolForApp("opencode")).toBe("openai");
+    expect(protocolForApp("kimi")).toBe("openai");
+    expect(protocolForApp("dsh")).toBe("openai");
   });
 });
 
@@ -303,7 +305,7 @@ describe("AicliClientPage", () => {
 
   it("does not offer takeover for clients AICLI cannot take over", async () => {
     respond();
-    renderWithQueryClient(<AicliClientPage app="kimi" />);
+    renderWithQueryClient(<AicliClientPage app="agy" />);
     expect(
       await screen.findByText("aicli.client.unsupported"),
     ).toBeInTheDocument();
