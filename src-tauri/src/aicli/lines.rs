@@ -49,6 +49,30 @@ pub static LINES: [Line; 3] = [
     },
 ];
 
+impl Line {
+    /// The origin requests to this line go to. Always `base_url` in a shipped
+    /// build; with the `test-hooks` feature, `AICLI_TEST_LINE_ORIGIN` points every
+    /// line at one local test server (K-01 runs the whole flow against the
+    /// rc.34 fixture, never a public origin).
+    pub fn origin(&self) -> &'static str {
+        #[cfg(feature = "test-hooks")]
+        {
+            static OVERRIDE: std::sync::OnceLock<Option<&'static str>> = std::sync::OnceLock::new();
+            if let Some(origin) = OVERRIDE.get_or_init(|| {
+                std::env::var("AICLI_TEST_LINE_ORIGIN")
+                    .ok()
+                    .filter(|value| !value.is_empty())
+                    .map(|value| {
+                        &*Box::leak(value.trim_end_matches('/').to_owned().into_boxed_str())
+                    })
+            }) {
+                return origin;
+            }
+        }
+        self.base_url
+    }
+}
+
 pub fn line(id: &str) -> Option<&'static Line> {
     LINES.iter().find(|candidate| candidate.id == id)
 }

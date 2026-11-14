@@ -445,6 +445,7 @@ jobs:
           set -euo pipefail
           cargo build --manifest-path src-tauri/Cargo.toml --features test-hooks \
             --example aicli-newapi-probe --example aicli-cache-probe --example aicli-catalog-probe \
+            --example aicli-e2e-probe \
             2>&1 | tee "$RUNNER_TEMP/aicli-evidence/probes-build.txt"
       - name: A6-01 compose rc.34 environment and idempotent seed
         if: steps.coverage.outputs.testenv == 'true'
@@ -693,6 +694,46 @@ jobs:
             AICLI_TESTENV_ADMIN_USERNAME=admin \
             AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
             python3 -m pytest -q -s --tb=short tests/aicli-testenv/tests/test_cache_refresh.py 2>&1 | tee "$RUNNER_TEMP/aicli-evidence/C1-06-integration.txt"
+      - name: K-01 end-to-end flow, K-02 secret scan and K-03 ~/.cc-switch check
+        if: steps.coverage.outputs.testenv == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          project="aicli-k01-${GITHUB_RUN_ID}"
+          cleanup() {
+            docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+          docker compose -p "$project" -f tests/aicli-testenv/docker-compose.yml up -d
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:13000/api/status > /dev/null; then break; fi
+            sleep 2
+          done
+          AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            AICLI_TESTENV_ALICE_PASSWORD=ChangeMe_for_local_tests_123\! \
+            python3 tests/aicli-testenv/seed.py
+          AICLI_COMPOSE_PROJECT="$project" \
+            AICLI_TESTENV_BASE_URL=http://127.0.0.1:13000 \
+            AICLI_TESTENV_ADMIN_USERNAME=admin \
+            AICLI_TESTENV_ADMIN_PASSWORD=ChangeMe_for_local_tests_123\! \
+            bash tests/aicli-testenv/e2e.sh "$RUNNER_TEMP/aicli-evidence"
+      - name: K-02 gitleaks over this branch's commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$tools"
+          archive=gitleaks_8.30.1_linux_x64.tar.gz
+          curl -fsSL -o "$tools/$archive" "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/$archive"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $tools/$archive" | sha256sum -c -
+          tar -xzf "$tools/$archive" -C "$tools" gitleaks
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base=$(git merge-base origin/main HEAD)
+          "$tools/gitleaks" git --no-banner --redact --log-opts="$base..HEAD" \
+            --report-format json --report-path "$tools/report.json" . \
+            2>&1 | tee "$RUNNER_TEMP/aicli-evidence/K-02-gitleaks.txt"
       - name: Save acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7

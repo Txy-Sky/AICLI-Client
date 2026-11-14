@@ -538,7 +538,7 @@ pub(crate) fn prepare_projection(
             ("api_key".into(), toml::Value::String(token)),
             (
                 "base_url".into(),
-                toml::Value::String(super::lines::LINES[0].base_url.into()),
+                toml::Value::String(super::lines::LINES[0].origin().into()),
             ),
         ]);
         doc.insert(

@@ -52,7 +52,7 @@ impl NewApiClient {
         let selected = line(selected_line).ok_or(NewApiError::UnknownLine)?;
         let origins = std::iter::once(selected)
             .chain(LINES.iter().filter(|entry| entry.id != selected_line))
-            .map(|entry| Url::parse(entry.base_url).map_err(|_| NewApiError::InvalidInput))
+            .map(|entry| Url::parse(entry.origin()).map_err(|_| NewApiError::InvalidInput))
             .collect::<Result<_, _>>()?;
         Self::build(access_token, origins, false)
     }
@@ -443,7 +443,7 @@ pub async fn public_status(line_id: &str) -> Result<(u16, Value), NewApiError> {
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| NewApiError::Network)?;
-    let url = Url::parse(entry.base_url)
+    let url = Url::parse(entry.origin())
         .map_err(|_| NewApiError::InvalidInput)?
         .join("/api/status")
         .map_err(|_| NewApiError::InvalidInput)?;

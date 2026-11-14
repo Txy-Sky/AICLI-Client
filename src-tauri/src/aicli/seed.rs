@@ -14,11 +14,11 @@ fn base_provider(app: &AppType, line_id: &str) -> Result<Provider, AppError> {
     let line = line(line_id).ok_or_else(|| AppError::Config("Unknown AICLI line".into()))?;
     let settings = match app {
         AppType::Claude | AppType::ClaudeDesktop => {
-            json!({"env": {"ANTHROPIC_BASE_URL": line.base_url}})
+            json!({"env": {"ANTHROPIC_BASE_URL": line.origin()}})
         }
-        AppType::Codex => json!({"auth": {}, "base_url": line.base_url}),
-        AppType::GrokBuild => json!({"base_url": line.base_url}),
-        AppType::Gemini => json!({"env": {"GOOGLE_GEMINI_BASE_URL": line.base_url}}),
+        AppType::Codex => json!({"auth": {}, "base_url": line.origin()}),
+        AppType::GrokBuild => json!({"base_url": line.origin()}),
+        AppType::Gemini => json!({"env": {"GOOGLE_GEMINI_BASE_URL": line.origin()}}),
         _ => return Err(AppError::Config("App has no AICLI route mode".into())),
     };
     let mut provider = Provider::with_id(
