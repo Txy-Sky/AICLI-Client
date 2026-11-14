@@ -1096,6 +1096,8 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| C3-10 → Claude Code / Codex 模型列表（负责人 2026-11-13） | 负责人 2026-11-04：Claude、Codex、Gemini 沿用现有投影，不变。 | Claude Code 的 `/model` 写入配置集全部模型（`modelPicker`，自带行按设置保留或隐藏，默认保留在前）；Codex 写模型目录（`model_catalog_json`）。配置集变化时重写，还原不变。Gemini 不变（e64f7d71，CI run 43564355142 success）。 | 负责人 Windows 实测：两个客户端只显示自带模型，要求列出全部。`docs/aicli-evidence/C3-10-model-lists.txt` |
+| C1-08 前端 → 从预设新建（2026-11-13） | 冲突需确认后才能保存。 | 前端「从预设新建」与后端 copy_preset 一致，复制时把多分组模型记为按分组顺序；之后新增的冲突仍需处理（e09fc4d4）。 | 负责人实测：预设复制后满屏冲突。`docs/aicli-evidence/C3-10-model-lists.txt` |
 | E-05（验收后发现，2026-11-13）→ keepalive 与扣留 | 流式事件级扣留，按上下文拼接。 | 移植 Magpie 76f00399c：ping、keepalive、response.in_progress、response.queued 先放出，扣留段继续等下文（a75853cb，逐字节切分测试；CI run 43558222357 success）。 | 原实现遇到 keepalive 放出扣留段，占位符被拆成两半无法还原，可能写进用户文件。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |
 | E-03（验收后发现，2026-11-13）→ sk- 规则的判断函数 | 规则逐个移植 Magpie，golden 对照差异为 0。 | `not_a_slug` 原先不是 Magpie 的 `notASlug`，全小写 sk- 密钥（DeepSeek、OpenRouter、小写 sk-ant）不遮。9312ff43 逐行移植，加两条测试；CI run 43556634118 success。golden 语料 20 条 sk- 都带大写，未覆盖到。 | 调研 Magpie 新版、移植 d7714b3f3 的测试时发现。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |
 | E-04（验收后发现，2026-11-13）→ 工具调用参数 | 必须扫描的工具参数：tool_use.input、functionCall.args。 | 移植 Magpie d7714b3f3：所有 *_tool_use 的 input、所有 *_call 的 arguments/input/action/operation、Chat 的 function.arguments 都按工具参数处理（cd8678b8，15 种形态测试；CI run 43556634118 success）。 | 原范围漏掉 mcp_tool_use、Responses *_call、Chat tool_calls 对象形参数，参数里的豁免键名下的敏感值原样上发。`docs/aicli-evidence/E-03_E-04-fix-1113.txt` |

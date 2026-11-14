@@ -1,0 +1,34 @@
+C3-10 补充（2026-11-13，负责人 Windows 实测反馈）
+
+## 1. 从预设新建时满屏冲突（e09fc4d4）
+
+现象：多分组都有的模型算冲突；「从预设新建」打开编辑器即显示大量「冲突：未处理」，保存不可用。
+原因：后端 ProfileStore::copy_preset 把复制视为确认预设的分组顺序；前端 copyPreset 原样复制，
+未确认。修复：前端与后端一致，复制时把这些模型记为按分组顺序。之后新增分组产生的冲突照旧需处理，
+保存把关不变。前端测试本机全过（vitest 130 文件）。
+
+## 2. Claude Code / Codex 的 /model 只有自带模型（e64f7d71）
+
+现象：接管后 Claude Code、Codex 的模型选择器只显示自带模型。
+原因：C3-10（负责人 2026-11-04）决定 Claude、Codex、Gemini 沿用现有投影，接管只改地址；方案 v2
+第 4.5 节的模型发布未接入。C5-GATE 的「别名可见」用 /v1/models 验证，没看选择器。
+负责人 2026-11-13 决定：列出配置集全部模型；Claude Code 自带行由用户选择是否保留，默认保留且在前。
+实现：
+- Claude Code：prepare_projection 给种子行补临时字段（不落库）：配置集可路由模型及其 C2-02 别名
+  aicli-claude-<模型>；模式控制器复用 Stack 的 modelPicker 写入 settings.json（Claude Code
+  2.1.287 起支持）。保留自带行时不写 replaceBuiltInOptions（自带行在前），隐藏时写上。档位和
+  CLAUDE_CODE_MAX_CONTEXT_TOKENS 不变。
+- Codex：种子行带 modelCatalog.models，沿用路由投影生成目录文件并写 model_catalog_json。目录
+  没有窗口数据，条目按生成器默认 128K。
+- 配置集或目录变化时重写（投影监视加入 Claude、Codex）；停止接管照旧逐字节还原。
+- 设置 aicliClaudeKeepBuiltinModels（设备级 settings.json，未设 = 保留），只经
+  aicli_set_claude_keep_builtin_models 写，已接管时立即重写；全量保存保留该值。开关在 Claude Code
+  客户端页，五种语言。Gemini CLI 不变。
+
+CI：e64f7d71 | job `Rust item tests (Linux)`：C3-10-model-lists 3 passed（别名与默认保留、设置关、
+Codex 目录 = 配置集模型且无 sk-；选择器两种形态且契约摘要随选择变化；全量保存保留选择）；C3-10-unit
+15、J-02-opencode-unit 3、C4-02-unit 8 passed；job `A3-01 baseline (Linux)`：Rust 4551 passed /
+9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43564355142
+
+未做：真实 Claude Code / Codex 读取新选择器和目录（交 Windows 测试机复测）；Codex 目录窗口数据。
