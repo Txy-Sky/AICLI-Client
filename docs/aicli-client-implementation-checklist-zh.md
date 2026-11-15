@@ -1011,7 +1011,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | J-07 | Kimi | `kimi_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
 | J-08 | DSH | `dsh_config.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
 | J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [!] | 结论：暂不支持接管。agy 只从进程环境读地址和密钥，没有可接管的配置文件；按第 0.6 节第 14 条不改写其 settings.json，不加入 `TIER2_SUPPORTED`，`take_over` 返回 Unsupported（6a02490b，`J-10-unit` 1 passed，CI run 43538734489 success）。界面保持「暂不支持」，名单写入 README 属 J-GATE。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [x] | 结论：暂不支持接管（负责人于 2026-11-15 确认）。agy 只从进程环境读地址和密钥，没有可接管的配置文件；按第 0.6 节第 14 条不改写其 settings.json，不加入 `TIER2_SUPPORTED`，`take_over` 返回 Unsupported（6a02490b，`J-10-unit` 1 passed，CI run 43538734489 success）。界面保持「暂不支持」，名单写入 README 属 J-GATE。`docs/aicli-evidence/J-03_J-10.txt` |
 
 ### J-GATE 阶段 J 门禁
 - [ ] 完成
@@ -1064,9 +1064,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
-| 上下文窗口与 1M（2026-11-13，负责人：先记下，暂不做） | 所有客户端的窗口都是写死的：Claude Code 不告诉窗口（按其默认 200K），Codex、Grok、Tier 2 统一 128K，Desktop 标 `supports_1m: false`。原因是模型目录来自 `/api/pricing`，没有上下文窗口数据（C3-10 已记偏差）。1M 窗口的模型会被过早压缩，Claude Code 也选不到 `[1m]` 版本。 | 已比较三种数据来源：① 在 new-api 后台给模型打约定标签（如 `ctx-1m`、`ctx-200k`），客户端读标签，不改服务端代码，推荐；② 客户端按模型名内置窗口表；③ 用户在配置集里手填。拿到数据后：Claude Code 给 1M 的 Claude 模型多发一个 `[1m]` 版本，非 Claude 模型写 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`；Codex 目录写真实 `context_window`；Desktop、Grok、Tier 2 同样改成真实值。 | 负责人选数据来源（及标签写法），并确认线上渠道是否真的支持 1M（如 Claude 1M 需上游开通）；定了再排期。 |
+| 上下文窗口与 1M（2026-11-13，负责人：先记下，暂不做） | 所有客户端的窗口都是写死的：Claude Code 不告诉窗口（按其默认 200K），Codex、Grok、Tier 2 统一 128K，Desktop 标 `supports_1m: false`。原因是模型目录来自 `/api/pricing`，没有上下文窗口数据（C3-10 已记偏差）。1M 窗口的模型会被过早压缩，Claude Code 也选不到 `[1m]` 版本。 | 已比较三种数据来源：① 在 new-api 后台给模型打约定标签（如 `ctx-1m`、`ctx-200k`），客户端读标签，不改服务端代码，推荐；② 客户端按模型名内置窗口表；③ 用户在配置集里手填。拿到数据后：Claude Code 给 1M 的 Claude 模型多发一个 `[1m]` 版本，非 Claude 模型写 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`；Codex 目录写真实 `context_window`；Desktop、Grok、Tier 2 同样改成真实值。 | 已实现：2359c5ec 按 new-api 模型的窗口标签取上下文窗口，1M 模型在 Claude Code 中显示 `[1M]`（CI run 43684331496，记录提交 622e4afa）。负责人于 2026-11-15 确认已做好，本条关闭。已关闭。 |
 | J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | ① 已决定并执行：负责人于 2026-11-13 决定照 J-02 先开放这 7 个客户端的接管按钮，真实客户端不通过再回退。② **仍待执行**：H-02 测试机按交接单逐个验收。 |
-| J-10（Agy 结论） | agy 只从进程环境读地址和密钥，没有配置文件能让它指向本地代理。 | 按第 0.6 节第 14 条选不改写其 settings.json 的方案，结论为暂不支持接管，单测断言 Unsupported。 | 负责人确认这个结论；如需支持，只能做「从应用打开终端并注入环境变量」的方式，属于新功能。 |
+| J-10（Agy 结论） | agy 只从进程环境读地址和密钥，没有配置文件能让它指向本地代理。 | 按第 0.6 节第 14 条选不改写其 settings.json 的方案，结论为暂不支持接管，单测断言 Unsupported。 | 负责人于 2026-11-15 确认结论：暂不支持接管，界面保持「暂不支持」，名单写入 README 属 J-GATE。如需支持，只能做「从应用打开终端并注入环境变量」的方式，属于新功能，另行立项。已关闭。 |
 | J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | ① 已决定并执行：负责人于 2026-11-11 决定现在把 OpenCode 加入界面的可接管列表（e2026a6d、859b08be，CI run 43024563886 success），真实客户端不通过再回退。② **仍待执行**：H-02 测试机按 `docs/aicli-handover/J-02.md` 做真实客户端验收。 |
 | J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
 | G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 第 3 项与翻译键已关闭：负责人于 2026-11-11 决定名称扫描只查用户可见部分、残留供应商键清掉、OAuth 认证模式文案保留；已按此执行（09fa60cc）并重跑通过。第 1 项：负责人于 2026-11-11 决定界面走查截图先跳过，门禁放行；该项未做，留到 K-04 交付摘要列出。已关闭。 |
@@ -1107,7 +1107,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | K-01～K-03（合并提交与验收） | 各项分别提交；相互依赖的项不合并验收。 | K-01 端到端流程、K-02 密钥扫描、K-03 `~/.cc-switch` 校验共用同一次 rc.34 夹具运行（K-02/K-03 在 K-01 跑完的同一个临时 HOME 上检查），在一个提交里落地、同一个 run 验收。 | 三者检查的是同一次运行留下的状态，拆开要重复启动整套环境三次；结论仍按项分别记录。 |
 | K-01（线路地址的测试覆盖） | 清单未规定端到端如何指向测试环境。 | 新增 `Line::origin()`：只有开启 `test-hooks` 特性时读 `AICLI_TEST_LINE_ORIGIN`，正式构建恒为固定 `base_url`；newapi、种子 provider、Codex 目录改经 `origin()` 读取。 | 线路是写死的常量，不加覆盖就无法让真实的绑定流程连到本地 rc.34。 |
 | K-02（扫描范围） | 扫描应用日志、崩溃日志。 | 扫描运行所用临时 HOME 下的全部文件（含 SQLite，按字节）和探针的全部输出；探针进程不初始化 Tauri 文件日志，所以没有应用日志文件可扫。gitleaks 只扫本仓库 merge-base(main)..HEAD（另一仓库 new-api 本项目不改）。 | 端到端在无界面的探针里运行。 |
-| J-08（DSH 凭据引用名） | — | DSH 写入器把本地令牌存为 `CC_SWITCH_DSH_AICLI` 引用，名字沿用 cc-switch 前缀，用户在 `~/.dsh/.credentials.yaml` 里能看到。未改名。 | 改名要兼容用户已有的 `CC_SWITCH_DSH_*` 引用，属于 DSH 写入器的行为变化，由负责人决定。 |
+| J-08（DSH 凭据引用名） | — | DSH 写入器原把本地令牌存为 `CC_SWITCH_DSH_AICLI` 引用，名字沿用 cc-switch 前缀，用户在 `~/.dsh/.credentials.yaml` 里能看到。 | 负责人于 2026-11-15 决定改名并清理旧条目：新写入的引用为 `AICLI_DSH_<ID>`；保存某个 provider 时若它指向旧名 `CC_SWITCH_DSH_<ID>`，改指新名并从 `refs` 删除旧条目，但仍有其他 provider 引用该旧名时保留旧条目。只删与本 provider 同 ID 的旧名，其他 `refs` 和 `records` 不动；接管还原仍逐字节恢复原文件。单测 `legacy_cc_switch_ref_moves_to_aicli_name_unless_another_provider_uses_it`（f2d068ad，CI run 43712230227 五个 job 全部 success，该单测 PASS）。 |
 | C1-02 → Windows 凭据大小（2026-11-12 实机问题） | 凭据存系统凭据库，不可用时降级到 `~/.aicli-client/secrets.json`；文件存在即视为已降级。 | 系统凭据库一侧超过 1000 字符的值拆成 `<键>#part<i>` 多条存，读时拼回（短值写法不变，旧数据照读）。文件模式下，若本进程里系统凭据库还没失败过，文件里没有的键再到系统凭据库里读，删除时两边都删。 | Windows 凭据管理器每条最多 2560 字节；接管备份远超，写失败后降级到文件，重启后只在文件里找访问令牌，显示「令牌失效」。已处于这种状态的安装升级后能读回原令牌。 |
 | G-04 → 保存设置（2026-11-12 实机问题） | G-04 删除托盘样式设置。 | 补回 `save_settings` 中被一并删掉的写回设置（`store_settings`），加回归测试。 | 之后通过 `save_settings` 的设置都没落盘：欢迎提示点「我知道了」关不掉，其他设置重启后丢失。 |
 | B-08 → 正式图标 | 用 `pnpm tauri icon` 从自制的纯色 `AI` 字样 PNG 生成全部图标（占位）。 | 负责人 2026-11-12 提供原图 `assets/aicli-logo.png`（1254×1254，白底）。`scripts/aicli-icons.py`（只用标准库）生成 `scripts/assets/aicli-icon-source.png`（白色圆角方块 + 居中 logo）、应用内 `src/assets/icons/aicli-logo.png`、macOS 菜单栏模板图和 DMG 背景；`pnpm tauri icon` 由源图生成其余全部尺寸。删除占位脚本和占位图。CI 的 B-08 步骤改为跑这套流程后 `git diff --exit-code`，仍要求逐字节可重现。 | 占位图标换成正式 logo；可重现性检查保留。 |
@@ -1223,12 +1223,12 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 （run 43547323538）：Rust 4544 passed / 9 skipped，前端 130 个测试文件全部通过。
 
 模型可完成部分：除 J 阶段真实客户端验收外全部完成。
-- 完成 73 项（A～H 各阶段、C5-GATE、E/F/G 阶段与门禁、J-01、K-01～K-04）。
+- 完成 74 项（J-10 于 2026-11-15 确认；A～H 各阶段、C5-GATE、E/F/G 阶段与门禁、J-01、K-01～K-04）。
 - 跳过 2 项（负责人决定）：A5-01（180 秒语义未测，main/global 流式总时长按决定取 600s，
   不是测量结论）、C4-05（按同一决定不启用）。
-- 阻塞 9 项，全部是 J 阶段真实客户端验收 + 1 个门禁：
+- 阻塞 8 项，全部是 J 阶段真实客户端验收 + 1 个门禁：
   J-02 OpenCode（界面已开放，等测试机）；J-03～J-09 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、
-  OMP（后端与逐字节还原 CI 通过；负责人 2026-11-13 决定先开放接管按钮，等测试机验收）；J-10 Agy（结论暂不支持接管，等负责人确认）。J-GATE 未过：依赖以上结论，且需把暂不
+  OMP（后端与逐字节还原 CI 通过；负责人 2026-11-13 决定先开放接管按钮，等测试机验收）；J-10 Agy（暂不支持接管，负责人 2026-11-15 确认，已完成）。J-GATE 未过：依赖以上结论，且需把暂不
   支持名单写入 README。交接单 docs/aicli-handover/J-02.md、J-03-J-09.md。
 - G-GATE 第 1 项（界面走查截图）按负责人 2026-11-11 决定跳过，未做，不是已验证。
 
@@ -1244,8 +1244,8 @@ source-reference、magpie_golden。
 确认）；H-06 更新器签名与清单地址；H-07 法务确认 Magpie/jieba 声明；H-08 线上 RetryTimes；
 L-01～L-08 安装包、三条线路实测、后台设置、实扣对账、法务、new-api 升级回归。
 
-待负责人决定：① （已决定：J-03～J-09 先开放接管按钮，2026-11-13）；② J-10 Agy 结论；③ DSH 凭据引用名
-CC_SWITCH_DSH_* 是否改名（第 13 节）；⑤ 上下文窗口与 1M 的数据来源（第 12 节，暂不做）；④ 合并到 main 前需改 CONTRIBUTING 与第 0.6 节「不合并到
+待负责人决定：① （已决定：J-03～J-09 先开放接管按钮，2026-11-13）；②（已决定：J-10 Agy 暂不支持接管，2026-11-15）；③（已决定：DSH 凭据引用名改为
+AICLI_DSH_* 并清理同 ID 旧条目，2026-11-15，第 13 节）；⑤（已关闭：上下文窗口与 1M 已按窗口标签实现，2359c5ec，负责人 2026-11-15 确认）；④ 合并到 main 前需改 CONTRIBUTING 与第 0.6 节「不合并到
 main」的规定。
 ```
 
