@@ -7,6 +7,14 @@ AICLI Client 是面向 AI 编程客户端的桌面应用，使用 Tauri 2、Rust
 路线、账户绑定、隐私处理及客户端接管的目标和进度，分别见
 [改造方案](docs/aicli-client-redesign-plan-v2-zh.md)与[实施清单](docs/aicli-client-implementation-checklist-zh.md)。
 
+## Tier 2 客户端接管状态
+
+| 状态 | 客户端 |
+|---|---|
+| 支持，已用真实客户端试用 | OpenCode、Pi |
+| 可接管，等内测反馈 | OpenClaw、Hermes、MCode、Kimi、DSH、OMP |
+| 暂不支持 | Agy（只从进程环境变量读地址和密钥，没有可接管的配置文件） |
+
 ## 开发
 
 版本以 `.node-version`、`package.json` 的 `packageManager` 和 `rust-toolchain.toml` 为准。

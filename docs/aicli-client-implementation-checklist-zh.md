@@ -1003,20 +1003,20 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 编号 | 客户端 | 写入器 | 状态 | 证据 |
 |---|---|---|---|---|
-| J-02 | OpenCode | `opencode_config.rs` | [!] | 后端完成：验收 1、2 通过（15f584ef，`J-02-opencode-unit` 2 passed，CI run 43015679721 success）；界面已开放接管按钮（859b08be，CI run 43024563886 success）；验收 3（真实 OpenCode）未做，交接单 `docs/aicli-handover/J-02.md`，见第 12 节。`docs/aicli-evidence/J-02.txt` |
-| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-04 | Hermes | `hermes_config.rs::set_provider` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-06 | Mcode | `mcode_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-07 | Kimi | `kimi_config.rs` | [!] | 后端完成：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-08 | DSH | `dsh_config.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
-| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [!] | 后端完成：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；验收 3（真实客户端）未做；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`，见第 12 节。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-02 | OpenCode | `opencode_config.rs` | [x] | 负责人于 2026-11-15 用真实客户端试用，反馈没有问题（验收 3 由负责人执行；无日志，`proxy_request_logs` 的 `app_type` 未由模型单独核对）。后端：验收 1、2 通过（15f584ef，`J-02-opencode-unit` 2 passed，CI run 43015679721 success）；界面已开放接管按钮（859b08be，CI run 43024563886 success）；交接单 `docs/aicli-handover/J-02.md`。`docs/aicli-evidence/J-02.txt` |
+| J-03 | OpenClaw | `openclaw_config.rs::set_provider` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-04 | Hermes | `hermes_config.rs::set_provider` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-05 | Pi | `pi_config/` + `services/provider/pi.rs` | [x] | 负责人于 2026-11-15 用真实客户端试用，反馈没有问题（验收 3 由负责人执行；无日志，`proxy_request_logs` 的 `app_type` 未由模型单独核对）。后端：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-06 | Mcode | `mcode_config.rs` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-07 | Kimi | `kimi_config.rs` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（c58a3100，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-08 | DSH | `dsh_config.rs` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
+| J-09 | OMP | `omp_config.rs` + `services/provider/omp.rs` | [-] | 按负责人 2026-11-15 决定延后：用户少，验收 3 等内测反馈，接管按钮保持开放。后端：验收 1、2 通过（6a02490b，`J-03-J-09-unit` 1 passed，CI run 43538734489 success）；界面已开放接管（负责人 2026-11-13 决定；7ac4a425，CI run 43552140606 success），交接单 `docs/aicli-handover/J-03-J-09.md`。`docs/aicli-evidence/J-03_J-10.txt` |
 | J-10 | Agy | `agy_config.rs` + `services/provider/agy_direct.rs` | [x] | 结论：暂不支持接管（负责人于 2026-11-15 确认）。agy 只从进程环境读地址和密钥，没有可接管的配置文件；按第 0.6 节第 14 条不改写其 settings.json，不加入 `TIER2_SUPPORTED`，`take_over` 返回 Unsupported（6a02490b，`J-10-unit` 1 passed，CI run 43538734489 success）。界面保持「暂不支持」，名单写入 README 属 J-GATE。`docs/aicli-evidence/J-03_J-10.txt` |
 
 ### J-GATE 阶段 J 门禁
-- [ ] 完成
+- [x] 完成（负责人于 2026-11-15 决定的例外：J-03、J-04、J-06～J-09 的真实客户端验收延后到内测，标 `[-]`）。
 - 验收：9 个客户端都有明确结论（支持或暂不支持），UI 显示与结论一致；暂不支持的名单写入 README。支持率不设下限，但结论必须来自真实测试。
-- 证据：
+- 证据：J-02 OpenCode、J-05 Pi 由负责人用真实客户端试用通过；J-03、J-04、J-06～J-09 按负责人决定延后到内测，界面保持开放接管（7ac4a425）；J-10 Agy 暂不支持，`take_over` 返回 Unsupported，界面显示「暂不支持」。README「Tier 2 客户端接管状态」表列出三类名单。延后的六个不是已验证。
 
 ---
 
@@ -1065,9 +1065,9 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 | 项目编号 | 现象 | 已尝试 | 需要谁决定什么 |
 |---|---|---|---|
 | 上下文窗口与 1M（2026-11-13，负责人：先记下，暂不做） | 所有客户端的窗口都是写死的：Claude Code 不告诉窗口（按其默认 200K），Codex、Grok、Tier 2 统一 128K，Desktop 标 `supports_1m: false`。原因是模型目录来自 `/api/pricing`，没有上下文窗口数据（C3-10 已记偏差）。1M 窗口的模型会被过早压缩，Claude Code 也选不到 `[1m]` 版本。 | 已比较三种数据来源：① 在 new-api 后台给模型打约定标签（如 `ctx-1m`、`ctx-200k`），客户端读标签，不改服务端代码，推荐；② 客户端按模型名内置窗口表；③ 用户在配置集里手填。拿到数据后：Claude Code 给 1M 的 Claude 模型多发一个 `[1m]` 版本，非 Claude 模型写 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`；Codex 目录写真实 `context_window`；Desktop、Grok、Tier 2 同样改成真实值。 | 已实现：2359c5ec 按 new-api 模型的窗口标签取上下文窗口，1M 模型在 Claude Code 中显示 `[1M]`（CI run 43684331496，记录提交 622e4afa）。负责人于 2026-11-15 确认已做好，本条关闭。已关闭。 |
-| J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | ① 已决定并执行：负责人于 2026-11-13 决定照 J-02 先开放这 7 个客户端的接管按钮，真实客户端不通过再回退。② **仍待执行**：H-02 测试机按交接单逐个验收。 |
+| J-03～J-09（真实客户端） | 验收 3 要求安装各客户端真实版本并经代理发文本和工具调用请求。原因同 J-02：审查方机器无图形界面、无 node；且界面在真实客户端通过前不提供接管按钮，测试机没有入口。 | 后端接管与逐字节还原已由 CI 验收（J-03_J-10.txt）；交接单 `docs/aicli-handover/J-03-J-09.md`。 | 负责人于 2026-11-15 决定：J-05 Pi 已由负责人实测通过；其余六个用户少，验收 3 延后到内测反馈，标 `[-]`，接管按钮保持开放。已关闭。 |
 | J-10（Agy 结论） | agy 只从进程环境读地址和密钥，没有配置文件能让它指向本地代理。 | 按第 0.6 节第 14 条选不改写其 settings.json 的方案，结论为暂不支持接管，单测断言 Unsupported。 | 负责人于 2026-11-15 确认结论：暂不支持接管，界面保持「暂不支持」，名单写入 README 属 J-GATE。如需支持，只能做「从应用打开终端并注入环境变量」的方式，属于新功能，另行立项。已关闭。 |
-| J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | ① 已决定并执行：负责人于 2026-11-11 决定现在把 OpenCode 加入界面的可接管列表（e2026a6d、859b08be，CI run 43024563886 success），真实客户端不通过再回退。② **仍待执行**：H-02 测试机按 `docs/aicli-handover/J-02.md` 做真实客户端验收。 |
+| J-02（真实客户端） | 验收 3 要求安装真实 OpenCode，经代理发一个文本请求和一个工具调用请求。审查方机器是 2 GB 内存的 Linux，没有 node，无法编译或运行应用。另外清单规定真实客户端通过前界面不提供接管按钮，测试时没有触发接管的入口。 | 后端接管、还原、代理保活已实现并通过 CI（验收 1、2）；界面未改，OpenCode 仍为「即将支持」。 | 负责人于 2026-11-15 用真实 OpenCode 试用，反馈没有问题，J-02 标 `[x]`。已关闭。 |
 | J-01 期间观察（非阻塞，J-GATE 前需决定） | 本地用量统计按 `app_type` 判断输入 token 是否已含缓存（`services/sql_helpers.rs::CACHE_INCLUSIVE_APP_TYPES` 只有 codex、gemini、grokbuild，前端 `src/types/usage.ts` 有同名常量）。Tier 2 客户端经 `/app/:client` 走 OpenAI 或 Gemini 协议时记的是自己的名字，会按「不含缓存」处理，有缓存命中时本地估算的 token 与费用偏高。服务端实扣（账单回填）不受影响。 | 未改：涉及统计口径、成本重算和前端常量，超出 J-01 范围。 | 负责人决定：是否把口径改为按协议（或逐行记录）判断，以及在哪一项里做。 |
 | G-GATE（2026-11-11） | 第 3 项要求预设中的第三方中转名称 grep 无结果。名单 373 个里 266 个仍有命中：名单混有模型名、客户端名和通用词；真正的中转名称仍在 39 个文件里，位于负责人决定保留的模块（统一会话迁移、官方账号与余额后端）、G-03 写明不得删除的代理兼容代码及测试、配置写入器的注释与测试样例、前端图标库。界面文案（src/i18n）里没有中转名称。第 1 项需要界面截图，本机无图形界面。 | 第 2 项用 CI run 42998746287 核对通过；`sponsor\|赞助` 扫描无结果；名单、命中计数和文件分布存 `docs/aicli-evidence/G-GATE*.txt`；前端对官方账号和供应商增删改命令的 invoke 扫描无结果。未改任何代码。 | 第 3 项与翻译键已关闭：负责人于 2026-11-11 决定名称扫描只查用户可见部分、残留供应商键清掉、OAuth 认证模式文案保留；已按此执行（09fa60cc）并重跑通过。第 1 项：负责人于 2026-11-11 决定界面走查截图先跳过，门禁放行；该项未做，留到 K-04 交付摘要列出。已关闭。 |
 | F-07～F-11、G-01/G-02（2026-11-09 界面修订） | 负责人试用后提出：脱敏无入口、侧栏客户端列表占空间、用量页新卡片风格不统一、未绑定直接进入应用、配置集名不显示中文、仍有供应商残留。 | 新增 F-07～F-11（插在 F-GATE 前），G-01/G-02 在 F-GATE 前执行；方案见各项条款。 | 负责人于 2026-11-09 决定：侧栏合并为一个「客户端」入口；隐私脱敏做侧栏独立页（参考 Magpie）；G-01/G-02 本次完成、G-03/G-04 仍按原顺序；违反第 0.2 节第 1 条阶段顺序由负责人批准。已关闭。 |
@@ -1217,20 +1217,19 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 ## 14. 交付摘要（全部完成后填写，交给验收人）
 
-当前状态（2026-11-13，K-04 整理）：
+当前状态（2026-11-13，K-04 整理；2026-11-15 更新 J 阶段）：
 
 ```text
 分支：feat/aicli-client-v1。最近一次完整验收 791dd97a，AICLI Acceptance 五个 job 全部 success
 （run 43547323538）：Rust 4544 passed / 9 skipped，前端 130 个测试文件全部通过。
 
-模型可完成部分：除 J 阶段真实客户端验收外全部完成。
-- 完成 74 项（J-10 于 2026-11-15 确认；A～H 各阶段、C5-GATE、E/F/G 阶段与门禁、J-01、K-01～K-04）。
-- 跳过 2 项（负责人决定）：A5-01（180 秒语义未测，main/global 流式总时长按决定取 600s，
-  不是测量结论）、C4-05（按同一决定不启用）。
-- 阻塞 8 项，全部是 J 阶段真实客户端验收 + 1 个门禁：
-  J-02 OpenCode（界面已开放，等测试机）；J-03～J-09 OpenClaw、Hermes、Pi、MCode、Kimi、DSH、
-  OMP（后端与逐字节还原 CI 通过；负责人 2026-11-13 决定先开放接管按钮，等测试机验收）；J-10 Agy（暂不支持接管，负责人 2026-11-15 确认，已完成）。J-GATE 未过：依赖以上结论，且需把暂不
-  支持名单写入 README。交接单 docs/aicli-handover/J-02.md、J-03-J-09.md。
+模型可完成部分：全部完成或按负责人决定处理（2026-11-15 更新）。
+- 完成 78 项（A～H 各阶段、C5-GATE、E/F/G 阶段与门禁、J-01、J-02、J-05、J-10、J-GATE、K-01～K-04）。
+- 跳过 8 项（负责人决定）：A5-01（180 秒语义未测，main/global 流式总时长按决定取 600s，
+  不是测量结论）、C4-05（按同一决定不启用）；J-03 OpenClaw、J-04 Hermes、J-06 MCode、J-07 Kimi、
+  J-08 DSH、J-09 OMP 的真实客户端验收延后到内测（后端与逐字节还原 CI 通过，接管按钮开放，不是已验证）。
+- 阻塞 0 项。J-02 OpenCode、J-05 Pi 由负责人 2026-11-15 用真实客户端试用通过（无日志）；
+  J-10 Agy 暂不支持接管。J-GATE 按负责人决定的例外通过，README 列出 Tier 2 接管状态。
 - G-GATE 第 1 项（界面走查截图）按负责人 2026-11-11 决定跳过，未做，不是已验证。
   负责人 2026-11-15 告知已在 Windows、macOS 上试用界面，页面没有问题（第 13 节），无截图。
 
