@@ -167,7 +167,7 @@ CI-OPT2 证据：40b0e795 | 四个并行 job 加汇总 job `Checklist acceptance
   证据：负责人告知已开启 `auto`；A5-02 只读复测确认 `auto_available=true`、`auto_max_count=15`，大于等于最大模型分组数 3；`docs/aicli-evidence/A5-02.txt`。
 - [x] **H-05** 应用图标源文件。没有提供时沿用占位图标（B-08 生成）。依赖项：L-01。（负责人于 2026-11-15 确认）：源文件 `assets/aicli-logo.png`（2026-11-12 提供），图标已由它生成。
   证据：
-- [ ] **H-06** 更新器：签名密钥对、更新清单的公开地址。没有提供时禁用更新器（B-05）。依赖项：L-02。
+- [x] **H-06** 更新器：签名密钥对、更新清单的公开地址。没有提供时禁用更新器（B-05）。依赖项：L-02。负责人于 2026-11-15 让模型生成：密钥对由 `tauri signer generate` 生成，私钥、密码、公钥由负责人存入 1Password，服务器上的副本已删除；私钥和密码在仓库 Secrets `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。清单地址 `https://github.com/Txy-Sky/AICLI-Client/releases/download/updater/latest.json`（版本标预发布，`releases/latest` 会跳过，负责人选固定 updater release）。
   证据：
 - [ ] **H-07** 法务确认：Magpie/jieba 声明、Maskit 仅作对照的做法。依赖项：L-07。
   证据：
@@ -1050,7 +1050,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## L. `[HUMAN]` 阶段 L：上线前（负责人执行，模型只准备材料）
 
 - [x] **L-01** 换正式图标（H-05）。（负责人于 2026-11-15 确认）。
-- [ ] **L-02** 配置更新器并恢复 `createUpdaterArtifacts`（H-06）。
+- [x] **L-02** 配置更新器并恢复 `createUpdaterArtifacts`（H-06）。90228c49：公钥与清单地址写入 `tauri.conf.json`，`createUpdaterArtifacts=true`，`updater_enabled()`/`UPDATER_ENABLED`=true；release.yml 每次构建都签更新器签名、缺 .sig 即失败，未签名 macOS 也带签名的 `.app.tar.gz`；发版不再要求 Apple 签名（负责人决定），推 tag 时覆盖 updater release 的 `latest.json`。验收 CI run 43717310426 五个 job success（B-05 改为检查启用后的配置）；Release 演练 run 43717319756 全部 success，9 个平台 .sig 齐全，用配置中的公钥验过 macOS `.tar.gz` 签名（Ed25519 + BLAKE2b 预哈希，篡改 1 字节被拒）。未做：经更新器从一个已发布版本升级到下一个（需推两个 tag 实测）；首个带更新器的版本需用户手动安装一次。
 - [x] **L-03** macOS、Windows、Linux 安装包：安装、深链注册、卸载、升级（H-03）。负责人于 2026-11-15 告知安装包没有问题；模型未操作测试机，无日志。更新器未启用（L-02），经更新器的自动升级不在其中。
 - [x] **L-04** 三条线路分别验证：TLS、`/api/status`、绑定、`/api/pricing`、`/v1/models`、四种协议、SSE 长连接；Cloudflare 线路的中断行为、CDN 长流式。负责人于 2026-11-15 告知三条线路都正常；模型未执行，无日志。
 - [x] **L-05** 后台设置（不部署任何东西）：按 H-04 确认 `auto` 和 `MaxTokenAutoGroups`；按 H-08 设置 `RetryTimes`；可选新增 A6-05 同款亲和规则；确认 `LogConsumeEnabled=true`。 负责人于 2026-11-15 确认：`auto` 与 `MaxTokenAutoGroups` 已按 H-04/A5-02 满足；`RetryTimes` 保持 5（H-08）；`LogConsumeEnabled=true`。可选的 `X-AICLI-Session` 亲和规则未提及，不算已配置。
@@ -1097,6 +1097,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| B-05 / L-02（2026-11-15 启用更新器） | B-05 要求更新器关闭、Apple 与更新器签名同由 `AICLI_RELEASE_SIGNING` 控制，正式发布必须开签名。 | 更新器启用；更新器签名不再受该开关控制，每次构建必做；发版只要求更新器签名，Apple 签名可选，未签名时发 `-macOS-unsigned.dmg` 并在发布说明写打开方法；新增固定 `updater` release 存 `latest.json`；B-05 验收改为检查启用后的配置。 | 负责人于 2026-11-15 决定：发版只要求更新器签名、更新地址用固定清单 release。 |
 | G-GATE 第 1 项 / H-03（2026-11-15 负责人反馈） | G-GATE 第 1 项要求界面走查截图；H-03 要求 macOS、Windows 测试机和操作人。 | 负责人在 Windows 和 macOS 上自行试用界面，于 2026-11-15 告知页面没有问题，发现问题后续再优化。模型未操作测试机，没有截图或日志。 | 按负责人反馈记录。安装、深链注册、卸载、升级（L-03）及 J 阶段真实客户端请求不在这次反馈范围内，仍未验证；H-03、L-03 是否勾选由负责人决定。 |
 | 第 0.6 节第 13 条 → 运行 release.yml（2026-11-14） | 禁止运行 `release.yml`。 | 负责人当面要求「更新一个最新的」，由模型以 workflow_dispatch 触发未签名演练 run 43589207909（3a153587），全部 job success，「Publish GitHub Release」跳过，Releases 页仍为空；未使用任何签名或发布类 secret。Windows 便携版中的 `aicli-client.exe` 含新命令 `aicli_set_claude_keep_builtin_models`，确认是该提交的构建。 | 负责人需要包含最新改动的安装包做 Windows 实测。 |
 | C3-10 → Claude Code / Codex 模型列表（负责人 2026-11-13） | 负责人 2026-11-04：Claude、Codex、Gemini 沿用现有投影，不变。 | Claude Code 的 `/model` 写入配置集全部模型（`modelPicker`，自带行按设置保留或隐藏，默认保留在前）；Codex 写模型目录（`model_catalog_json`）。配置集变化时重写，还原不变。Gemini 不变（e64f7d71，CI run 43564355142 success）。 | 负责人 Windows 实测：两个客户端只显示自带模型，要求列出全部。`docs/aicli-evidence/C3-10-model-lists.txt` |
@@ -1243,8 +1244,8 @@ source-reference、magpie_golden。
 人工项（第 1 节 HUMAN 与第 11 节 L，模型未代办；2026-11-15 负责人确认）：已完成 H-03、H-05、L-01、
 L-03（安装包）、L-04（三条线路），均为负责人告知，模型无日志；L-08 条件未触发（new-api 暂不升级）。
 H-08 线上 RetryTimes 保持 5、L-05 后台设置含 LogConsumeEnabled=true（负责人 2026-11-15 确认）。
-未完成：H-06/L-02 更新器签名与清单地址；H-07/L-07 法务确认；
-L-06 实扣对账。
+H-06/L-02 更新器已启用（2026-11-15，见 L-02；自动升级本身待推两个 tag 实测）。
+未完成：H-07/L-07 法务确认；L-06 实扣对账。
 
 待负责人决定：① （已决定：J-03～J-09 先开放接管按钮，2026-11-13）；②（已决定：J-10 Agy 暂不支持接管，2026-11-15）；③（已决定：DSH 凭据引用名改为
 AICLI_DSH_* 并清理同 ID 旧条目，2026-11-15，第 13 节）；⑤（已关闭：上下文窗口与 1M 已按窗口标签实现，2359c5ec，负责人 2026-11-15 确认）；④ 合并到 main 前需改 CONTRIBUTING 与第 0.6 节「不合并到
