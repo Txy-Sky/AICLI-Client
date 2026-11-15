@@ -834,7 +834,7 @@ fn save_paths_and_commit<T>(
             } else {
                 ensure_provider_copies_agree(paths, authoritative, profile_texts, id)?;
             }
-            let (credentials, native) = native_provider(id, &config, &texts[0])?;
+            let (credentials, native) = native_provider(id, &config, &texts[0], profile_texts)?;
             let mut next = vec![credentials];
             for text in profile_texts {
                 next.push(update_provider(text, id, Some(native.clone()), create)?);
@@ -926,7 +926,12 @@ fn initialize_profiles_and_commit<T>(
                         let native = match native {
                             Some(native) => native,
                             None => {
-                                let (credentials, native) = native_provider(id, config, &next[0])?;
+                                let (credentials, native) = native_provider(
+                                    id,
+                                    config,
+                                    &next[0],
+                                    &texts[1..=profiles.len()],
+                                )?;
                                 next[0] = credentials;
                                 native
                             }
@@ -1119,10 +1124,36 @@ fn diverged_mcp_error(id: &str, other: Option<&PathBuf>, source: Option<&PathBuf
 
 /// The native `llm-pi-ai` provider node for an editor config, and the credentials text with a new
 /// key stored under AICLI Client's reference (unchanged when the key is unchanged).
+/// Credential ref prefix written for providers saved from this app.
+const CREDENTIAL_REF_PREFIX: &str = "AICLI_DSH_";
+/// Prefix inherited from cc-switch. A ref of this name for the provider being saved is moved to
+/// [`CREDENTIAL_REF_PREFIX`] and removed, unless another provider in a profile still uses it.
+const LEGACY_CREDENTIAL_REF_PREFIX: &str = "CC_SWITCH_DSH_";
+
+fn credential_ref(prefix: &str, id: &str) -> String {
+    format!("{prefix}{}", id.replace('-', "_").to_ascii_uppercase())
+}
+
+/// Whether a provider other than `id` in any of `profile_texts` names `reference` as its key.
+fn ref_used_by_other_provider(profile_texts: &[String], id: &str, reference: &str) -> bool {
+    profile_texts.iter().any(|text| {
+        provider_entry(text).is_ok_and(|entry| {
+            entry["config"]["providers"]
+                .as_mapping()
+                .into_iter()
+                .flatten()
+                .any(|(key, native)| {
+                    key.as_str() != Some(id) && native["apiKeyEnv"].as_str() == Some(reference)
+                })
+        })
+    })
+}
+
 fn native_provider(
     id: &str,
     config: &Value,
     credentials_text: &str,
+    profile_texts: &[String],
 ) -> Result<(String, Value), AppError> {
     let mut credentials_next = credentials_text.to_owned();
     let native = {
@@ -1180,24 +1211,25 @@ fn native_provider(
             .and_then(Value::as_str)
             .filter(|key| !key.trim().is_empty())
         {
-            let reference = format!(
-                "CC_SWITCH_DSH_{}",
-                id.replace('-', "_").to_ascii_uppercase()
-            );
+            let reference = credential_ref(CREDENTIAL_REF_PREFIX, id);
+            let legacy = credential_ref(LEGACY_CREDENTIAL_REF_PREFIX, id);
             let mut credentials = credential_document_from(credentials_text)?;
-            let unchanged_key =
-                config
-                    .get("apiKeyEnv")
-                    .and_then(Value::as_str)
-                    .is_some_and(|reference| {
-                        credentials["refs"][reference].as_str() == Some(key)
-                            || std::env::var(reference).ok().as_deref() == Some(key)
-                    });
+            let current = config.get("apiKeyEnv").and_then(Value::as_str);
+            let unchanged_key = current.is_some_and(|reference| {
+                reference != legacy
+                    && (credentials["refs"][reference].as_str() == Some(key)
+                        || std::env::var(reference).ok().as_deref() == Some(key))
+            });
             if !unchanged_key {
                 if credentials["refs"].is_null() {
                     credentials["refs"] = Yaml::Mapping(Default::default());
                 }
                 credentials["refs"][&reference] = Yaml::from(key);
+                if !ref_used_by_other_provider(profile_texts, id, &legacy) {
+                    if let Some(refs) = credentials["refs"].as_mapping_mut() {
+                        refs.remove(Yaml::from(legacy.as_str()));
+                    }
+                }
                 credentials_next = serde_yaml::to_string(&credentials)
                     .map_err(|error| AppError::Config(error.to_string()))?;
                 object.insert("apiKeyEnv".into(), json!(reference));
@@ -1621,7 +1653,7 @@ mod tests {
             .unwrap();
             let saved = credential_document(&credentials).unwrap();
             assert_eq!(saved["records"], original_document["records"]);
-            assert_eq!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"], "test-value");
+            assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
             assert_eq!(
                 get_providers_from(&path, &credentials).unwrap()["gateway"]["options"]["apiKey"],
                 "test-value"
@@ -1637,6 +1669,72 @@ mod tests {
             fs::write(&path, format!("version: 1\nrefs: {refs}\n")).unwrap();
             assert!(credential_document(&path).is_err());
         }
+    }
+
+    #[test]
+    fn legacy_cc_switch_ref_moves_to_aicli_name_unless_another_provider_uses_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("cordis.patch.yml");
+        let credentials = temp.path().join(".credentials.yaml");
+        let mut legacy = editor_config();
+        legacy["apiKeyEnv"] = json!("CC_SWITCH_DSH_GATEWAY");
+
+        // The provider's own legacy ref, unchanged key: renamed, old entry removed, others kept.
+        fs::write(&path, "- id: llm-pi-ai\n  config:\n    providers:\n      gateway: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n").unwrap();
+        fs::write(
+            &credentials,
+            "version: 1\nrefs: {CC_SWITCH_DSH_GATEWAY: test-value, CC_SWITCH_DSH_OTHER: other}\n",
+        )
+        .unwrap();
+        save_paths_and_commit(
+            std::slice::from_ref(&path),
+            &credentials,
+            "gateway",
+            Some(legacy.clone()),
+            false,
+            || Ok(()),
+        )
+        .unwrap();
+        let saved = credential_document(&credentials).unwrap();
+        assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
+        assert!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"].is_null());
+        assert_eq!(saved["refs"]["CC_SWITCH_DSH_OTHER"], "other");
+        let text = read_text(&path).unwrap();
+        assert!(text.contains("apiKeyEnv: AICLI_DSH_GATEWAY"));
+        assert!(!text.contains("CC_SWITCH_DSH_GATEWAY"));
+        assert_eq!(
+            get_providers_from(&path, &credentials).unwrap()["gateway"]["options"]["apiKey"],
+            "test-value"
+        );
+
+        // Another provider still names the legacy ref: renamed, old entry kept for it.
+        fs::write(&path, "- id: llm-pi-ai\n  config:\n    providers:\n      gateway: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n      other: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n").unwrap();
+        fs::write(
+            &credentials,
+            "version: 1\nrefs: {CC_SWITCH_DSH_GATEWAY: test-value}\n",
+        )
+        .unwrap();
+        save_paths_and_commit(
+            std::slice::from_ref(&path),
+            &credentials,
+            "gateway",
+            Some(legacy),
+            false,
+            || Ok(()),
+        )
+        .unwrap();
+        let saved = credential_document(&credentials).unwrap();
+        assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
+        assert_eq!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"], "test-value");
+        let entry = provider_entry(&read_text(&path).unwrap()).unwrap();
+        assert_eq!(
+            entry["config"]["providers"]["gateway"]["apiKeyEnv"],
+            "AICLI_DSH_GATEWAY"
+        );
+        assert_eq!(
+            entry["config"]["providers"]["other"]["apiKeyEnv"],
+            "CC_SWITCH_DSH_GATEWAY"
+        );
     }
 
     #[test]
@@ -1964,7 +2062,7 @@ mod tests {
         for name in ["web", "desktop", "headless"] {
             assert!(profile_text(root, name)
                 .unwrap()
-                .contains("apiKeyEnv: CC_SWITCH_DSH_GATEWAY"));
+                .contains("apiKeyEnv: AICLI_DSH_GATEWAY"));
         }
         assert_eq!(profile_text(root, "sdk").unwrap(), FACTORY_PROFILE);
         assert!(root.join("profiles/desktop/cordis.patch.yml").exists());
@@ -2187,7 +2285,7 @@ mod tests {
         assert_eq!(profile_text(root, "desktop").unwrap(), tagged);
         assert!(!fs::read_to_string(&credentials)
             .unwrap()
-            .contains("CC_SWITCH_DSH_GATEWAY"));
+            .contains("AICLI_DSH_GATEWAY"));
         assert!(!root.join("profiles/web/cordis.patch.yml.lock").exists());
         assert!(!root.join(".credentials.yaml.lock").exists());
     }
