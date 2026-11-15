@@ -185,8 +185,9 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
+      # 更新器签名每次构建都做：createUpdaterArtifacts=true，缺私钥时 Tauri 打包直接失败。
+      # 与 Apple 签名（AICLI_RELEASE_SIGNING）无关。
       - name: Prepare Tauri signing key
-        if: ${{ vars.AICLI_RELEASE_SIGNING == 'true' }}
         uses: ./.github/actions/prepare-tauri-signing-key
         with:
           private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -215,8 +216,6 @@ jobs:
         shell: pwsh
         env:
           WINDOWS_RELEASE_ARCH: ${{ matrix.arch || 'x86_64' }}
-          # 没开签名（干跑、还没有密钥）时不生成 updater 的 .sig，不要求它
-          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
@@ -254,10 +253,8 @@ jobs:
             if (Test-Path $sigPath) {
               Copy-Item $sigPath (Join-Path release-assets ("$dest.sig"))
               Write-Host "Signature copied: $dest.sig"
-            } elseif ($env:RELEASE_SIGNING -eq 'true') {
-              throw "Signature not found for $($msi.Name)"
             } else {
-              Write-Warning "Signing is off: $dest has no updater signature"
+              throw "Updater signature not found for $($msi.Name)"
             }
           } else {
             throw "No Windows MSI installer found ($env:WINDOWS_RELEASE_ARCH)"
@@ -304,19 +301,14 @@ jobs:
       - name: Prepare Linux Assets
         if: runner.os == 'Linux'
         shell: bash
-        env:
-          # 没开签名（干跑、还没有密钥）时不生成 updater 的 .sig，不要求它
-          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
         run: |
           set -euxo pipefail
           copy_sig() {
             if [ -f "$1.sig" ]; then
               cp "$1.sig" "release-assets/$2.sig"
-            elif [ "${RELEASE_SIGNING:-}" = "true" ]; then
+            else
               echo "❌ Updater signature not found: $1.sig" >&2
               exit 1
-            else
-              echo "⚠️ Signing is off: $2 has no updater signature"
             fi
           }
           mkdir -p release-assets
@@ -507,8 +499,9 @@ jobs:
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
+      # 更新器签名每次构建都做：createUpdaterArtifacts=true，缺私钥时 Tauri 打包直接失败。
+      # 与 Apple 签名（AICLI_RELEASE_SIGNING）无关。
       - name: Prepare Tauri signing key
-        if: ${{ vars.AICLI_RELEASE_SIGNING == 'true' }}
         uses: ./.github/actions/prepare-tauri-signing-key
         with:
           private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -755,6 +748,16 @@ jobs:
           fi
           cp "$DMG" "release-assets/AICLI-Client-${VERSION}-macOS-unsigned.dmg"
           echo "Unsigned DMG copied: AICLI-Client-${VERSION}-macOS-unsigned.dmg"
+          # 更新器包：.app.tar.gz 和它的 .sig（更新器签名，与 Apple 签名无关）
+          MACOS_BUNDLE=src-tauri/target/universal-apple-darwin/release/bundle/macos
+          TAR_GZ=$(find "$MACOS_BUNDLE" -maxdepth 1 -name "*.tar.gz" -type f | head -1 || true)
+          if [ -z "$TAR_GZ" ] || [ ! -f "$TAR_GZ.sig" ]; then
+            echo "❌ No signed macOS updater artifact (.app.tar.gz + .sig) under $MACOS_BUNDLE" >&2
+            exit 1
+          fi
+          cp "$TAR_GZ" "release-assets/AICLI-Client-${VERSION}-macOS.tar.gz"
+          cp "$TAR_GZ.sig" "release-assets/AICLI-Client-${VERSION}-macOS.tar.gz.sig"
+          echo "macOS updater artifact copied: AICLI-Client-${VERSION}-macOS.tar.gz"
 
       - name: Verify macOS code signing and notarization
         if: ${{ vars.AICLI_RELEASE_SIGNING == 'true' }}
@@ -841,15 +844,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      # 正式发布必须签名：没开签名时打出来的是给测试用的未签名包，不能当正式版发出去
-      - name: Require signed builds for a release
+      # 发版只要求更新器签名（下面生成 latest.json 时逐平台检查 .sig）。Apple 签名可选：
+      # 没开 AICLI_RELEASE_SIGNING 时发未签名的 macOS 包，发布说明里写明打开方式。
+      - name: Note macOS signing state
         shell: bash
         env:
           RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
         run: |
           if [ "${RELEASE_SIGNING:-}" != "true" ]; then
-            echo "::error::Set the AICLI_RELEASE_SIGNING variable and the signing secrets before publishing a release; unsigned builds are for workflow_dispatch dry runs only."
-            exit 1
+            echo "::warning::AICLI_RELEASE_SIGNING is off: the macOS package is not Apple-signed or notarized."
           fi
 
       - name: Download built release artifacts
@@ -991,31 +994,66 @@ jobs:
           } > "$tmp_json"
           echo "Generated latest.json:" && cat "$tmp_json"
           mv "$tmp_json" release-assets/latest.json
+      - name: Write release notes
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RELEASE_SIGNING: ${{ vars.AICLI_RELEASE_SIGNING }}
+        run: |
+          set -euo pipefail
+          if [ "${RELEASE_SIGNING:-}" = "true" ]; then
+            mac_line="- **macOS**: \`AICLI-Client-${TAG}-macOS.dmg\`（推荐）或 \`AICLI-Client-${TAG}-macOS.zip\`（解压即用）"
+            mac_note="macOS 版本已通过 Apple 代码签名和公证，可直接安装使用。"
+          else
+            mac_line="- **macOS**: \`AICLI-Client-${TAG}-macOS-unsigned.dmg\`"
+            mac_note="macOS 版本未经 Apple 签名和公证：首次打开请在「应用程序」里右键 AICLI Client 选择「打开」，或运行 \`xattr -dr com.apple.quarantine \"/Applications/AICLI Client.app\"\`。"
+          fi
+          cat > "$RUNNER_TEMP/release-notes.md" <<NOTES
+          ## AICLI Client ${TAG}
+
+          项目仓库：${REPO_URL}
+
+          ### 下载
+
+          ${mac_line}
+          - **Windows (x86_64)**: \`AICLI-Client-${TAG}-Windows.msi\`（安装版）或 \`AICLI-Client-${TAG}-Windows-Portable.zip\`（绿色版）
+          - **Windows (ARM64)**: \`AICLI-Client-${TAG}-Windows-arm64.msi\`（安装版）或 \`AICLI-Client-${TAG}-Windows-arm64-Portable.zip\`（绿色版）
+          - **Linux (x86_64)**: \`AICLI-Client-${TAG}-Linux-x86_64.AppImage\` / \`.deb\` / \`.rpm\`
+          - **Linux (ARM64)**: \`AICLI-Client-${TAG}-Linux-arm64.AppImage\` / \`.deb\` / \`.rpm\`
+
+          > \`.tar.gz\`、\`.sig\` 和 \`latest.json\` 为应用内自动更新专用，无需手动下载。
+
+          ---
+          ${mac_note}
+          NOTES
+          cat "$RUNNER_TEMP/release-notes.md"
+
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: AICLI Client ${{ github.ref_name }}
           prerelease: true
-          body: |
-            ## AICLI Client ${{ github.ref_name }}
-
-            项目仓库：${{ github.server_url }}/${{ github.repository }}
-
-            Claude Code 供应商切换工具
-
-            ### 下载
-
-            - **macOS**: `AICLI-Client-${{ github.ref_name }}-macOS.dmg`（推荐）或 `AICLI-Client-${{ github.ref_name }}-macOS.zip`（解压即用）
-            - **Windows (x86_64)**: `AICLI-Client-${{ github.ref_name }}-Windows.msi`（安装版）或 `AICLI-Client-${{ github.ref_name }}-Windows-Portable.zip`（绿色版）
-            - **Windows (ARM64)**: `AICLI-Client-${{ github.ref_name }}-Windows-arm64.msi`（安装版）或 `AICLI-Client-${{ github.ref_name }}-Windows-arm64-Portable.zip`（绿色版）
-            - **Linux (x86_64)**: `AICLI-Client-${{ github.ref_name }}-Linux-x86_64.AppImage` / `.deb` / `.rpm`
-            - **Linux (ARM64)**: `AICLI-Client-${{ github.ref_name }}-Linux-arm64.AppImage` / `.deb` / `.rpm`
-
-            > `.tar.gz` 为 Tauri updater 自动更新专用，无需手动下载。
-
-            ---
-            macOS 版本已通过 Apple 代码签名和公证，可直接安装使用。
+          body_path: ${{ runner.temp }}/release-notes.md
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 客户端的更新地址固定为 releases/download/updater/latest.json：版本都标预发布，
+      # releases/latest 会跳过它们，所以单独维护一个 updater release，每次发版覆盖其中的清单。
+      - name: Publish updater manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! gh release view updater -R "$REPO" >/dev/null 2>&1; then
+            gh release create updater -R "$REPO" --target "$GITHUB_SHA" --prerelease \
+              --title "Updater manifest" \
+              --notes "应用内自动更新用的清单（latest.json），每次发版自动覆盖。请到其他版本下载安装包。"
+          fi
+          gh release upload updater release-assets/latest.json -R "$REPO" --clobber
+          echo "✅ Updater manifest now points to $TAG"

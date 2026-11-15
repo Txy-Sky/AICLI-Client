@@ -208,7 +208,7 @@ jobs:
           test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
           test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
           printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
-      - name: B-05 verify updater disabled and release workflow guards
+      - name: B-05 verify updater configuration and release workflow guards
         shell: bash
         run: |
           set -euo pipefail
@@ -225,25 +225,41 @@ jobs:
           import yaml
 
           config = json.loads(Path("src-tauri/tauri.conf.json").read_text())
-          assert config["bundle"]["createUpdaterArtifacts"] is False
-          assert config["plugins"]["updater"] == {"pubkey": "", "endpoints": []}
+          # L-02（负责人 2026-11-15）：更新器启用，清单固定在 updater release
+          assert config["bundle"]["createUpdaterArtifacts"] is True
+          updater = config["plugins"]["updater"]
+          assert set(updater) == {"pubkey", "endpoints"}
+          assert updater["endpoints"] == [
+              "https://github.com/Txy-Sky/AICLI-Client/releases/download/updater/latest.json"
+          ]
+          import base64
+          assert base64.b64decode(updater["pubkey"]).decode().startswith("untrusted comment: minisign public key")
+          lib_rs = Path("src-tauri/src/lib.rs").read_text()
+          assert "pub(crate) const fn updater_enabled() -> bool {\n    true\n}" in lib_rs
+          assert "export const UPDATER_ENABLED = true;" in Path("src/lib/updater.ts").read_text()
           for name in ("schema-version", "sync-r2", "stale", "labeler", "claude", "wsl2-nightly"):
               assert not Path(f".github/workflows/{name}.yml").exists()
           release = Path(".github/workflows/release.yml").read_text()
           assert "cc-switch" not in release and "CC-Switch" not in release
           workflow = yaml.safe_load(release)
-          guarded = {"Prepare Tauri signing key", "Import Apple signing certificate",
+          # 更新器签名不受 Apple 签名开关控制，每次构建都要做
+          guarded = {"Import Apple signing certificate",
                      "Bundle, sign and notarize (macOS)", "Prepare macOS Assets",
                      "Notarize macOS DMG", "Verify macOS code signing and notarization",
                      "Clean up Apple signing keychain"}
           seen = set()
+          key_steps = 0
           for job in workflow["jobs"].values():
               for step in job.get("steps", []):
+                  if step.get("name") == "Prepare Tauri signing key":
+                      assert "if" not in step, "updater signing must not be optional"
+                      key_steps += 1
                   if step.get("name") in guarded:
                       assert "vars.AICLI_RELEASE_SIGNING == 'true'" in step.get("if", ""), step["name"]
                       seen.add(step["name"])
           assert seen == guarded
-          print("B-05: PASS; updater disabled; both legacy scans empty; release signing guarded; release not executed")
+          assert key_steps == 2
+          print("B-05: PASS; updater enabled with fixed manifest; both legacy scans empty; Apple signing guarded; updater signing always on; release not executed")
           PY
       - name: B-07 verify visible copy and upstream attribution
         shell: bash

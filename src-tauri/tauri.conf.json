@@ -38,7 +38,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -62,8 +62,10 @@
       }
     },
     "updater": {
-      "pubkey": "",
-      "endpoints": []
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1NUQxOUU1NEIwMDA2RUUKUldUdUJnQkw1UmxkNWN2ckp4NGZRR0x5TVFMWDBSRm5hYkR1S2VtUTRyVU9aai9qVm1LTG84ZW0K",
+      "endpoints": [
+        "https://github.com/Txy-Sky/AICLI-Client/releases/download/updater/latest.json"
+      ]
     }
   }
 }

@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 
-export const UPDATER_ENABLED = false;
+export const UPDATER_ENABLED = true;
 
 export type UpdateChannel = "stable" | "beta";
 

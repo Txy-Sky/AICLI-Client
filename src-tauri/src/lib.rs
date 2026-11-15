@@ -349,7 +349,7 @@ fn run_codex_startup_migrations(db: &Database) {
 }
 
 pub(crate) const fn updater_enabled() -> bool {
-    false
+    true
 }
 
 fn runtime_log_level_allows(level: log::Level, max_level: log::LevelFilter) -> bool {
