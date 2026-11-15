@@ -107,3 +107,14 @@ aicli_picker_windows_follow_the_catalog_tags；五个 job 全部 success |
 https://github.com/Txy-Sky/AICLI-Client/actions/runs/43684331496
 未做：Windows 实测——Claude Code 选 1M 模型发超过 200K 上下文，确认 new-api 透传 context-1m beta 且上游
 接受；Codex /model 窗口显示为 1.1M。
+
+## 10. Codex 路由表显示名 AICLI；绑定页链接改安全与访问（2eaca87d、44c5f18b，负责人 2026-11-15）
+
+现象：Codex App 左下角显示 custom。负责人实测确认显示的是 [model_providers.custom] 的 name；代理契约
+proxy_route_table(ROUTE_ID, …) 把表 id 当作 name 写入。修复：路由供应商 category 为 aicli 时 name 写 AICLI，
+表 id 仍为 custom（会话分桶、resume 不变），换回别家恢复 custom。
+绑定页「打开网页获取令牌」改开 https://aicliapi.com/security；说明与 sk- 错误文案写网页侧边栏「安全与访问」、
+模块「访问令牌」，五种语言同步，清单 0.4 节与 F-03 记录同步。
+CI：44c5f18b | job `A3-01 baseline (Linux)`：Rust 4564 passed / 9 skipped（含
+codex_proxy_names_the_aicli_route_table_aicli），前端 130 文件 1321 用例全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43697604290
