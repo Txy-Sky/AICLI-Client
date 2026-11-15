@@ -56,7 +56,7 @@ export const aicliApi = {
   // ---- 账户 ----
   getAccount: (): Promise<AicliAccountView> => invoke("aicli_get_account"),
 
-  /** 绑定：accessToken 是网页端「个人设置」里生成的访问令牌（不是 sk- 模型密钥）。 */
+  /** 绑定：accessToken 是网页端「安全与访问」→「访问令牌」里生成的访问令牌（不是 sk- 模型密钥）。 */
   bind: (accessToken: string, line: string): Promise<AicliBindResult> =>
     invoke("aicli_bind", { accessToken, line }),
 

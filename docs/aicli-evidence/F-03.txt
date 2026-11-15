@@ -9,7 +9,7 @@ CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42551495587（85abd404
 实现（自上而下）
 1. 未绑定：AicliBindCard。标题、占位、说明、警告按 0.4 节文案常驻显示；密码型输入框，提交后立刻
    清空；sk- 开头直接显示 0.4 节的误填错误、不发起绑定（后端 wrong_credential_type 同一文案）；
-   「打开网页获取令牌」经 open_external 在系统浏览器打开 https://aicliapi.com/profile。
+   「打开网页获取令牌」经 open_external 在系统浏览器打开 https://aicliapi.com/profile（负责人 2026-11-15 起改为 https://aicliapi.com/security）。
    深链 aicli-open-bind：App 切到首页（先走未保存保护），未绑定时聚焦绑定卡片，已绑定时弹「重新绑定」。
 2. 账户：AicliAccountCard。账户名、用户组、剩余 / 已用额度（服务端 /api/user/self 快照），标注
    「来源：服务端」和最后同步时间；隐私开启时显示引擎状态，可用性优先且有降级时红色提示。

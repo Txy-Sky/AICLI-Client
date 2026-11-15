@@ -105,7 +105,7 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
     ).toHaveAttribute("type", "password");
     expect(
       screen.getByText(
-        "在网页「个人设置」中生成。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
+        "在网页「安全与访问」的「访问令牌」中生成。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
       ),
     ).toBeInTheDocument();
     expect(
@@ -131,7 +131,7 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
 
     expect(
       await screen.findByText(
-        "这是 API 密钥，请粘贴网页「个人设置」中的系统访问令牌。",
+        "这是 API 密钥，请粘贴网页「安全与访问」的「访问令牌」中的系统访问令牌。",
       ),
     ).toBeInTheDocument();
     expect(input).toHaveValue("");
@@ -157,7 +157,7 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
     );
   });
 
-  it("opens the profile page in the system browser", async () => {
+  it("opens the security page in the system browser", async () => {
     respond({ aicli_get_account: unbound });
     renderGate();
     fireEvent.click(
@@ -165,7 +165,7 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
     );
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("open_external", {
-        url: "https://aicliapi.com/profile",
+        url: "https://aicliapi.com/security",
       }),
     );
   });

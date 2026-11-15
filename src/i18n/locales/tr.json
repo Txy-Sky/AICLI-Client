@@ -3108,9 +3108,9 @@
     "bind": {
       "title": "Sistem erişim belirteci",
       "placeholder": "Sistem erişim belirtecini yapıştırın (sk- ile başlayan API anahtarı değil)",
-      "description": "Web sitesindeki «Profil ayarları» bölümünde oluşturulur. Belirteç yalnızca bir kez gösterilir, güvenli bir yerde saklayın; başka cihazları bağlarken aynı belirteci yapıştırın.",
+      "description": "Web sitesindeki «Güvenlik ve Erişim» > «Erişim belirteci» bölümünde oluşturulur. Belirteç yalnızca bir kez gösterilir, güvenli bir yerde saklayın; başka cihazları bağlarken aynı belirteci yapıştırın.",
       "warning": "Yeniden oluşturulduğunda eski belirteç hemen geçersiz olur; bağlı tüm cihazlara yeni belirtecin yapıştırılması gerekir.",
-      "skKeyError": "Bu bir API anahtarı. Web sitesindeki «Profil ayarları» bölümünden sistem erişim belirtecini yapıştırın.",
+      "skKeyError": "Bu bir API anahtarı. Web sitesindeki «Güvenlik ve Erişim» > «Erişim belirteci» bölümünden sistem erişim belirtecini yapıştırın.",
       "openWeb": "Belirteç almak için web sitesini aç",
       "submit": "Bağla",
       "binding": "Bağlanıyor…",
