@@ -544,6 +544,11 @@ enum AuthGoal {
 }
 
 /// 行里的 `auth`（没有时是空对象）。
+/// AICLI 内部供应商行的 category（`aicli::seed`）。
+const AICLI_CATEGORY: &str = "aicli";
+/// AICLI 接管时 Codex 路由表的显示名。
+const AICLI_ROUTE_NAME: &str = "AICLI";
+
 fn row_auth(provider: &Provider) -> Value {
     provider
         .settings_config
@@ -656,6 +661,11 @@ pub(crate) fn plan(
                 // compaction preference. Preserve the existing UI's OpenAI-name
                 // toggle and Codex's explicit override (including "unsupported").
                 let mut proxy_table = proxy_route_table(ROUTE_ID, base_url, false, &proxy_token);
+                // AICLI 接管：Codex App 左下角显示表里的 name（负责人 2026-11-15），写 AICLI；
+                // 表 id 仍是 custom，会话分桶不变。
+                if route.category.as_deref() == Some(AICLI_CATEGORY) {
+                    proxy_table.insert("name", toml_edit::value(AICLI_ROUTE_NAME));
+                }
                 if let Route::Custom { table, .. } = &projection.route {
                     if table.get("name").and_then(Item::as_str) == Some("OpenAI") {
                         proxy_table.insert("name", toml_edit::value("OpenAI"));

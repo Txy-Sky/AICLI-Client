@@ -7372,6 +7372,35 @@ model_provider = "c"
         check_codex_proxy_compaction_preference("OpenAI", Some("unsupported")).await;
     }
 
+    /// AICLI 接管 Codex：路由表 id 仍是 custom（会话分桶不变），name 写 AICLI，Codex App
+    /// 左下角显示它；换回别家时恢复 custom。
+    #[tokio::test]
+    #[serial]
+    async fn codex_proxy_names_the_aicli_route_table_aicli() {
+        let _home = Home::new();
+        seed_codex("", None);
+        let relay = codex_native("relay", "https://relay.example/v1", "", None);
+        let mut aicli = codex_native("aicli-like", "https://aicli.example/v1", "", None);
+        aicli.category = Some("aicli".to_string());
+        let state = state_with(AppType::Codex, &[relay, aicli], "relay").await;
+        enter(&state, &AppType::Codex, false).await.expect("enter");
+        let name = || {
+            let doc = codex_doc();
+            assert_eq!(doc["model_provider"].as_str(), Some("custom"));
+            doc["model_providers"]["custom"]["name"]
+                .as_str()
+                .map(str::to_string)
+        };
+        assert_eq!(name().as_deref(), Some("custom"));
+        set_route(&state, &AppType::Codex, "aicli-like")
+            .await
+            .unwrap();
+        assert_eq!(name().as_deref(), Some("AICLI"));
+        set_route(&state, &AppType::Codex, "relay").await.unwrap();
+        assert_eq!(name().as_deref(), Some("custom"));
+        exit(&state, &AppType::Codex).await.unwrap();
+    }
+
     #[tokio::test]
     #[serial]
     async fn codex_stack_models_join_the_catalog_and_leave_with_it() {
