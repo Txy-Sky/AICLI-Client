@@ -1097,6 +1097,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| H-07（许可声明的分发，2026-11-15） | MIT 要求副本附带版权与许可声明；cc-switch、Magpie 移植代码和 jieba 词典都编译进程序。 | 源码仓库的 `LICENSE`、`THIRD_PARTY_NOTICES.md`、README 与移植文件头均有声明；安装包内不附这两个文件（K-03 核对 Linux .deb 只含主程序、desktop 文件、图标）。 | 负责人于 2026-11-15 决定安装包里不加声明文件。「关于」页是否加开源许可入口未定。 |
 | B-05 / L-02（2026-11-15 启用更新器） | B-05 要求更新器关闭、Apple 与更新器签名同由 `AICLI_RELEASE_SIGNING` 控制，正式发布必须开签名。 | 更新器启用；更新器签名不再受该开关控制，每次构建必做；发版只要求更新器签名，Apple 签名可选，未签名时发 `-macOS-unsigned.dmg` 并在发布说明写打开方法；新增固定 `updater` release 存 `latest.json`；B-05 验收改为检查启用后的配置。 | 负责人于 2026-11-15 决定：发版只要求更新器签名、更新地址用固定清单 release。 |
 | G-GATE 第 1 项 / H-03（2026-11-15 负责人反馈） | G-GATE 第 1 项要求界面走查截图；H-03 要求 macOS、Windows 测试机和操作人。 | 负责人在 Windows 和 macOS 上自行试用界面，于 2026-11-15 告知页面没有问题，发现问题后续再优化。模型未操作测试机，没有截图或日志。 | 按负责人反馈记录。安装、深链注册、卸载、升级（L-03）及 J 阶段真实客户端请求不在这次反馈范围内，仍未验证；H-03、L-03 是否勾选由负责人决定。 |
 | 第 0.6 节第 13 条 → 运行 release.yml（2026-11-14） | 禁止运行 `release.yml`。 | 负责人当面要求「更新一个最新的」，由模型以 workflow_dispatch 触发未签名演练 run 43589207909（3a153587），全部 job success，「Publish GitHub Release」跳过，Releases 页仍为空；未使用任何签名或发布类 secret。Windows 便携版中的 `aicli-client.exe` 含新命令 `aicli_set_claude_keep_builtin_models`，确认是该提交的构建。 | 负责人需要包含最新改动的安装包做 Windows 实测。 |
