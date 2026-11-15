@@ -8,8 +8,8 @@ import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
 import { useAicliBind } from "@/hooks/useAicliAccount";
 import type { AicliBindResult } from "@/types/aicli";
 
-/** 网页「个人设置」地址（清单 0.4 节固定取值）。 */
-export const AICLI_PROFILE_URL = "https://aicliapi.com/profile";
+/** 网页上生成系统访问令牌的页面（负责人 2026-11-15 改为安全设置页）。 */
+export const AICLI_PROFILE_URL = "https://aicli.qzz.io/security";
 
 interface AicliBindCardProps {
   /** 绑定使用的线路（默认 main）。 */
