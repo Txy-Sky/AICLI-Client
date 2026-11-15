@@ -413,6 +413,15 @@ fn selected_profile(
         .unwrap_or_else(|| "recommended".into()))
 }
 
+/// The client's own model family, listed first in its picker (owner, 2026-11-14).
+fn picker_home(app: &AppType) -> Option<u8> {
+    match app {
+        AppType::Claude | AppType::ClaudeDesktop => Some(super::picker::VENDOR_CLAUDE),
+        AppType::Codex => Some(super::picker::VENDOR_GPT),
+        _ => None,
+    }
+}
+
 /// Picker rows (vendor order, description) for the models `routable_models` gives.
 fn picker_rows(
     db: &crate::Database,
@@ -431,6 +440,7 @@ fn picker_rows(
         models,
         routes,
         catalog,
+        picker_home(app),
         &crate::tray::tray_language(),
     ))
 }
@@ -1340,10 +1350,11 @@ mod tests {
         let models = routable_models(&state.db, &app, &snap, "anthropic").unwrap();
         assert!(!models.is_empty());
         let catalog = snap.catalog.as_ref().unwrap();
-        let in_order = |names: &[String]| {
+        let in_order = |names: &[String], app: &AppType| {
+            let home = picker_home(app);
             names.windows(2).all(|pair| {
-                super::super::picker::sort_key(&pair[0], catalog)
-                    <= super::super::picker::sort_key(&pair[1], catalog)
+                super::super::picker::sort_key(&pair[0], catalog, home)
+                    <= super::super::picker::sort_key(&pair[1], catalog, home)
             })
         };
         let row = prepare_projection(&state.db, &app, &snap, seed.clone()).unwrap();
@@ -1364,7 +1375,7 @@ mod tests {
         let mut got = labels.clone();
         got.sort();
         assert_eq!(got, expected);
-        assert!(in_order(&labels), "{labels:?}");
+        assert!(in_order(&labels, &app), "{labels:?}");
         for option in &picker.options {
             assert_eq!(
                 option.id,
@@ -1397,7 +1408,7 @@ mod tests {
             .iter()
             .map(|m| m["model"].as_str().unwrap().to_owned())
             .collect::<Vec<_>>();
-        assert!(in_order(&listed), "{listed:?}");
+        assert!(in_order(&listed, &app), "{listed:?}");
         let mut all = listed.clone();
         all.sort();
         // Codex 的目录保留全部模型（codex-auto-* 也在，只是标成不显示）

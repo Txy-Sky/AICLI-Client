@@ -5,6 +5,12 @@
 //! - Order: recommended models first (the catalog tag 推荐, set in new-api's admin), then the
 //!   rest, then image and video models; within each, by vendor family (Claude, GPT, Gemini,
 //!   Grok, DeepSeek, Qwen, GLM, Kimi, MiniMax, Doubao, the rest), then by name.
+//! - Order, revised 2026-11-14: within each kind the client's own family comes first (Claude
+//!   in Claude Code, GPT in Codex), the other families keep their order. Within a family the
+//!   newest version comes first (read from the name: `claude-opus-5-5` before
+//!   `claude-opus-4-5`, `gpt-5.1` before `gpt-5`; a date stamp like `-20250929` only breaks
+//!   ties, newest first); within a version by tier — Fable > Opus > Sonnet > Haiku,
+//!   Astra > Sol > Terra > Luna — then by name.
 //! - Line: "⭐ 推荐" for a recommended model; the first group the route takes and its ratio,
 //!   how many groups it can fall back to, and the catalog's tags. An image or video model
 //!   says plainly that it is not a text model and can't be the main chat model.
@@ -98,9 +104,9 @@ pub(crate) fn vendor_rank(model: &str) -> u8 {
     let has = |needles: &[&str]| needles.iter().any(|needle| m.contains(needle));
     let o_series = m.starts_with('o') && m[1..].starts_with(|c: char| c.is_ascii_digit());
     if has(&["claude", "anthropic"]) {
-        0
+        VENDOR_CLAUDE
     } else if has(&["gpt", "openai", "codex", "dall-e"]) || o_series {
-        1
+        VENDOR_GPT
     } else if has(&["gemini", "gemma", "imagen", "veo-"]) {
         2
     } else if has(&["grok"]) {
@@ -122,11 +128,102 @@ pub(crate) fn vendor_rank(model: &str) -> u8 {
     }
 }
 
-/// The list order of `model`: kind, vendor family, then name.
-pub(crate) fn sort_key(model: &str, catalog: &Catalog) -> (Kind, u8, String, String) {
+/// [`vendor_rank`] of Claude models: Claude Code's own family.
+pub(crate) const VENDOR_CLAUDE: u8 = 0;
+/// [`vendor_rank`] of GPT / o-series models: Codex's own family.
+pub(crate) const VENDOR_GPT: u8 = 1;
+
+/// Version and date stamp read from a model name. The version is the digits of the first
+/// name part that has any (`5` in `gpt-5.1`, `4` in `gpt-4o`, `3` in `qwen3`), followed by
+/// the purely numeric parts right after it (`gpt-5.1` → 5.1, `claude-opus-4-5` → 4.5). A
+/// numeric part of four or more digits starts the date stamp (`-20250929`, `-2025-08-07`,
+/// `-0905`), which only breaks ties.
+fn version_of(model: &str) -> (Vec<u32>, u64) {
+    let mut version = Vec::new();
+    let mut date = String::new();
+    // Not started, reading the version, done with it.
+    let (mut started, mut done) = (false, false);
+    for part in model
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+    {
+        let numeric = part.bytes().all(|b| b.is_ascii_digit());
+        if !date.is_empty() {
+            if !numeric {
+                break;
+            }
+            date.push_str(part);
+            continue;
+        }
+        if numeric && part.len() >= 4 {
+            date.push_str(part);
+            continue;
+        }
+        if done {
+            continue;
+        }
+        if started {
+            if numeric {
+                version.push(part.parse().unwrap_or(0));
+            } else {
+                done = true;
+            }
+            continue;
+        }
+        if part.bytes().any(|b| b.is_ascii_digit()) {
+            started = true;
+            version.extend(
+                part.split(|c: char| !c.is_ascii_digit())
+                    .filter(|digits| !digits.is_empty())
+                    .map(|digits| digits.parse().unwrap_or(0)),
+            );
+        }
+    }
+    date.truncate(18);
+    (version, date.parse().unwrap_or(0))
+}
+
+/// Tiers within one version, best first (owner, 2026-11-14).
+const TIERS: &[&[&str]] = &[
+    &["fable", "astra"],
+    &["opus", "sol"],
+    &["sonnet", "terra"],
+    &["haiku", "luna"],
+];
+
+/// Tier rank of `model` (a whole name part, case-insensitively); untiered names come after.
+fn tier_rank(model: &str) -> usize {
+    let m = model.to_ascii_lowercase();
+    let parts: Vec<&str> = m.split(|c: char| !c.is_ascii_alphanumeric()).collect();
+    TIERS
+        .iter()
+        .position(|tier| tier.iter().any(|name| parts.contains(name)))
+        .unwrap_or(TIERS.len())
+}
+
+/// The order key of a model in a client's list.
+pub(crate) type SortKey = (
+    Kind,
+    u8,
+    std::cmp::Reverse<Vec<u32>>,
+    usize,
+    std::cmp::Reverse<u64>,
+    String,
+    String,
+);
+
+/// The list order of `model` in a client whose own family is `home` ([`VENDOR_CLAUDE`]
+/// for Claude Code, [`VENDOR_GPT`] for Codex): kind, family (`home` first), newest version,
+/// tier, newest date stamp, then name.
+pub(crate) fn sort_key(model: &str, catalog: &Catalog, home: Option<u8>) -> SortKey {
+    let vendor = vendor_rank(model);
+    let (version, date) = version_of(model);
     (
         kind(model, catalog),
-        vendor_rank(model),
+        if Some(vendor) == home { 0 } else { vendor + 1 },
+        std::cmp::Reverse(version),
+        tier_rank(model),
+        std::cmp::Reverse(date),
         model.to_ascii_lowercase(),
         model.to_string(),
     )
@@ -305,12 +402,13 @@ pub(crate) fn describe(route: &ModelRoute, catalog: &Catalog, language: &str) ->
     }
 }
 
-/// Picker rows for `models` (the client's routable public names), in list order, each
-/// described from the profile's route.
+/// Picker rows for `models` (the client's routable public names), in list order for a
+/// client whose own family is `home`, each described from the profile's route.
 pub(crate) fn picker_models(
     models: &[String],
     routes: &[ModelRoute],
     catalog: &Catalog,
+    home: Option<u8>,
     language: &str,
 ) -> Vec<PickerModel> {
     let upstream = |public: &str| {
@@ -321,7 +419,7 @@ pub(crate) fn picker_models(
             .unwrap_or_else(|| public.to_string())
     };
     let mut ordered = models.to_vec();
-    ordered.sort_by_cached_key(|public| sort_key(&upstream(public), catalog));
+    ordered.sort_by_cached_key(|public| sort_key(&upstream(public), catalog, home));
     ordered
         .into_iter()
         .map(|public| {
@@ -450,7 +548,7 @@ mod tests {
         .map(|m| m.to_string())
         .collect();
         let routes: Vec<ModelRoute> = models.iter().map(|m| route(m, &["vip"])).collect();
-        let rows = picker_models(&models, &routes, &c, "zh");
+        let rows = picker_models(&models, &routes, &c, Some(VENDOR_CLAUDE), "zh");
         assert_eq!(
             rows.iter().map(|r| r.public.as_str()).collect::<Vec<_>>(),
             [
@@ -473,6 +571,148 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["codex-auto-review"]
         );
+    }
+
+    fn order(names: &[&str], home: Option<u8>) -> Vec<String> {
+        order_in(&catalog(), names, home)
+    }
+
+    fn order_in(c: &Catalog, names: &[&str], home: Option<u8>) -> Vec<String> {
+        let models: Vec<String> = names.iter().map(|m| m.to_string()).collect();
+        let routes: Vec<ModelRoute> = models.iter().map(|m| route(m, &["vip"])).collect();
+        picker_models(&models, &routes, c, home, "zh")
+            .into_iter()
+            .map(|row| row.public)
+            .collect()
+    }
+
+    #[test]
+    fn each_client_lists_its_own_family_first() {
+        let names = [
+            "kimi-k3",
+            "gpt-6.1-sol",
+            "claude-opus-5-5",
+            "gemini-3-pro",
+            "gpt-image-2",
+            "gemini-3-pro-image-preview",
+        ];
+        // Claude Code：Claude 在前，其余厂商顺序不变
+        assert_eq!(
+            order(&names, Some(VENDOR_CLAUDE)),
+            [
+                "claude-opus-5-5",
+                "gpt-6.1-sol",
+                "gemini-3-pro",
+                "kimi-k3",
+                "gpt-image-2",
+                "gemini-3-pro-image-preview",
+            ]
+        );
+        // Codex：GPT 在前，然后 Claude、Gemini……；生图模型仍在文本模型之后
+        assert_eq!(
+            order(&names, Some(VENDOR_GPT)),
+            [
+                "gpt-6.1-sol",
+                "claude-opus-5-5",
+                "gemini-3-pro",
+                "kimi-k3",
+                "gpt-image-2",
+                "gemini-3-pro-image-preview",
+            ]
+        );
+        // 推荐分组同样自家在前
+        assert_eq!(
+            order(
+                &["deepseek-v4-pro", "gpt-5.6-luna", "claude-sonnet-5-5"],
+                Some(VENDOR_GPT)
+            ),
+            ["gpt-5.6-luna", "claude-sonnet-5-5", "deepseek-v4-pro"]
+        );
+    }
+
+    #[test]
+    fn newest_version_first_then_tier_then_date() {
+        // 没有标签的目录：只看版本、档次、日期
+        let c = Catalog {
+            models: BTreeMap::new(),
+            ..catalog()
+        };
+        assert_eq!(
+            order_in(
+                &c,
+                &[
+                    "claude-3-5-sonnet-20241022",
+                    "claude-haiku-5-5",
+                    "claude-opus-4-5",
+                    "claude-sonnet-4-5-20250929",
+                    "claude-sonnet-4-5-20250514",
+                    "claude-sonnet-5-5",
+                    "claude-fable-5-2",
+                    "claude-opus-5-5",
+                    "claude-fable-5-5",
+                ],
+                Some(VENDOR_CLAUDE)
+            ),
+            [
+                "claude-fable-5-5",
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5",
+                "claude-fable-5-2",
+                "claude-opus-4-5",
+                "claude-sonnet-4-5-20250929",
+                "claude-sonnet-4-5-20250514",
+                "claude-3-5-sonnet-20241022",
+            ]
+        );
+        assert_eq!(
+            order_in(
+                &c,
+                &[
+                    "gpt-5",
+                    "gpt-6.1-luna",
+                    "gpt-5.1-codex",
+                    "gpt-6.1-astra",
+                    "gpt-6.1-terra",
+                    "gpt-5.1",
+                    "gpt-6.1-sol",
+                    "gpt-4o",
+                    "gpt-4.1",
+                ],
+                Some(VENDOR_GPT)
+            ),
+            [
+                "gpt-6.1-astra",
+                "gpt-6.1-sol",
+                "gpt-6.1-terra",
+                "gpt-6.1-luna",
+                "gpt-5.1",
+                "gpt-5.1-codex",
+                "gpt-5",
+                "gpt-4.1",
+                "gpt-4o",
+            ]
+        );
+    }
+
+    #[test]
+    fn versions_and_date_stamps_come_from_the_name() {
+        assert_eq!(version_of("claude-opus-4-5"), (vec![4, 5], 0));
+        assert_eq!(
+            version_of("claude-3-5-sonnet-20241022"),
+            (vec![3, 5], 20241022)
+        );
+        assert_eq!(version_of("gpt-5.1-codex-mini"), (vec![5, 1], 0));
+        assert_eq!(version_of("gpt-5-2025-08-07"), (vec![5], 20250807));
+        assert_eq!(version_of("gpt-4o"), (vec![4], 0));
+        assert_eq!(version_of("qwen3-coder-480b"), (vec![3], 0));
+        assert_eq!(version_of("qwen2.5-72b-instruct"), (vec![2, 5], 0));
+        assert_eq!(version_of("kimi-k2-0905"), (vec![2], 905));
+        assert_eq!(version_of("deepseek-chat"), (vec![], 0));
+        assert_eq!(tier_rank("gpt-6.1-sol"), 1);
+        assert_eq!(tier_rank("claude-sonnet-5-5"), 2);
+        // 只认整段名字，solar 不算 sol
+        assert_eq!(tier_rank("solar-pro"), TIERS.len());
     }
 
     #[test]
