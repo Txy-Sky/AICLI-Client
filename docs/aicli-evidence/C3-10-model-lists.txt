@@ -84,3 +84,26 @@ codex_official_model_entry 生成，强制 list 并保留官方说明，行里�
 CI：06a552e6 | job `Rust item tests (Linux)`：C3-10-model-lists 9 passed（含
 official_entries_take_the_rows_hidden_and_description）；job `A3-01 baseline (Linux)`：Rust 4557 passed /
 9 skipped，前端 130 文件全过；五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43611880267
+
+## 8. 自家厂商在前、新版本与档次在前（4ee51a8f，负责人 2026-11-14）
+
+每个分组内当前客户端的自家厂商在前（Claude Code 是 Claude，Codex 是 GPT/o 系列），其余厂商顺序不变。
+同厂商内按名字里的版本号新的在前（claude-opus-5-5 先于 claude-opus-4-5，gpt-5.1 先于 gpt-5）；同版本按
+档次 Fable > Opus > Sonnet > Haiku、Astra > Sol > Terra > Luna；再按日期后缀（-20250929 等）新的在前，
+最后按名字。推荐分组仍在最前。已知：o3 读作版本 3，排在 gpt-4.1 之后。
+CI：该提交的 run 43684183855 被下一次推送取消，代码由 2359c5ec 的 run 一并验证（见第 9 节）。
+
+## 9. 上下文窗口取后台窗口标签，1M 模型在 Claude Code 带 [1M]（2359c5ec，负责人 2026-11-14）
+
+线上 /api/pricing（只读）55 个模型的窗口标签：1M 19 个、1.1M 9 个、200K 5 个、500K 3 个、1K 1 个（视频）。
+文本模型取窗口标签（多个取最大），生图/视频不取。Claude Code：窗口 ≥1M 的行 id 带 [1M]；其余按标签
+窗口走 Stack 规则（非 1M 最小窗口写 CLAUDE_CODE_MAX_CONTEXT_TOKENS，等于默认 200K 不写，无标签按
+200K）。Codex：目录行带 contextWindow。解析器：精确名无路由时去掉 [1M]/[1m] 再查，上游收到的是上游名。
+CI：2359c5ec | job `Rust item tests (Linux)`：C3-10-model-lists 全过（picker 新增
+each_client_lists_its_own_family_first、newest_version_first_then_tier_then_date、
+versions_and_date_stamps_come_from_the_name、windows_come_from_tags_of_text_models）；job `A3-01 baseline
+(Linux)`：Rust 4563 passed / 9 skipped，含 one_m_marker_on_a_claude_code_id_resolves_to_the_plain_route、
+aicli_picker_windows_follow_the_catalog_tags；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43684331496
+未做：Windows 实测——Claude Code 选 1M 模型发超过 200K 上下文，确认 new-api 透传 context-1m beta 且上游
+接受；Codex /model 窗口显示为 1.1M。
