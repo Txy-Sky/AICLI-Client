@@ -1053,7 +1053,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [ ] **L-02** 配置更新器并恢复 `createUpdaterArtifacts`（H-06）。
 - [x] **L-03** macOS、Windows、Linux 安装包：安装、深链注册、卸载、升级（H-03）。负责人于 2026-11-15 告知安装包没有问题；模型未操作测试机，无日志。更新器未启用（L-02），经更新器的自动升级不在其中。
 - [x] **L-04** 三条线路分别验证：TLS、`/api/status`、绑定、`/api/pricing`、`/v1/models`、四种协议、SSE 长连接；Cloudflare 线路的中断行为、CDN 长流式。负责人于 2026-11-15 告知三条线路都正常；模型未执行，无日志。
-- [ ] **L-05** 后台设置（不部署任何东西）：按 H-04 确认 `auto` 和 `MaxTokenAutoGroups`；按 H-08 设置 `RetryTimes`；可选新增 A6-05 同款亲和规则；确认 `LogConsumeEnabled=true`。
+- [x] **L-05** 后台设置（不部署任何东西）：按 H-04 确认 `auto` 和 `MaxTokenAutoGroups`；按 H-08 设置 `RetryTimes`；可选新增 A6-05 同款亲和规则；确认 `LogConsumeEnabled=true`。 负责人于 2026-11-15 确认：`auto` 与 `MaxTokenAutoGroups` 已按 H-04/A5-02 满足；`RetryTimes` 保持 5（H-08）；`LogConsumeEnabled=true`。可选的 `X-AICLI-Session` 亲和规则未提及，不算已配置。
 - [ ] **L-06** 对测试账号走完整链路，核对服务端实扣和客户端显示一致。
 - [ ] **L-07** 法务确认（H-07）。
 - [-] **L-08** new-api 升级时重跑 A6 和 `e2e.sh`，确认用到的接口没有变化。条件未触发：负责人于 2026-11-15 决定 new-api 暂不升级，仍为 rc.34；升级时再做。
@@ -1242,8 +1242,8 @@ source-reference、magpie_golden。
 
 人工项（第 1 节 HUMAN 与第 11 节 L，模型未代办；2026-11-15 负责人确认）：已完成 H-03、H-05、L-01、
 L-03（安装包）、L-04（三条线路），均为负责人告知，模型无日志；L-08 条件未触发（new-api 暂不升级）。
-H-08 线上 RetryTimes 保持 5（负责人 2026-11-15 决定）。
-未完成：H-06/L-02 更新器签名与清单地址；H-07/L-07 法务确认；L-05 后台设置（待确认 LogConsumeEnabled）；
+H-08 线上 RetryTimes 保持 5、L-05 后台设置含 LogConsumeEnabled=true（负责人 2026-11-15 确认）。
+未完成：H-06/L-02 更新器签名与清单地址；H-07/L-07 法务确认；
 L-06 实扣对账。
 
 待负责人决定：① （已决定：J-03～J-09 先开放接管按钮，2026-11-13）；②（已决定：J-10 Agy 暂不支持接管，2026-11-15）；③（已决定：DSH 凭据引用名改为
