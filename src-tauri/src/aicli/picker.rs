@@ -11,6 +11,9 @@
 //!   `claude-opus-4-5`, `gpt-5.1` before `gpt-5`; a date stamp like `-20250929` only breaks
 //!   ties, newest first); within a version by tier — Fable > Opus > Sonnet > Haiku,
 //!   Astra > Sol > Terra > Luna — then by name.
+//! - Context window (owner, 2026-11-14): a text model's window comes from its catalog tag
+//!   (`1M`, `1.1M`, `200K`, `500K`, set in new-api's admin). Claude Code gets a `[1M]` id
+//!   for a window of 1M or more; Codex gets the window in its catalog row.
 //! - Line: "⭐ 推荐" for a recommended model; the first group the route takes and its ratio,
 //!   how many groups it can fall back to, and the catalog's tags. An image or video model
 //!   says plainly that it is not a text model and can't be the main chat model.
@@ -30,7 +33,13 @@ pub struct PickerModel {
     /// Kept in the list for the client to use, never shown in its picker (Codex's
     /// `codex-auto-*`). Claude Code leaves such a row out.
     pub hidden: bool,
+    /// The context window in tokens from the catalog's window tag; `None` when the model has
+    /// none or isn't a text model.
+    pub window: Option<u64>,
 }
+
+/// A window of this many tokens or more is a 1M window to Claude Code.
+pub(crate) const ONE_M_WINDOW: u64 = 1_000_000;
 
 /// What kind of row a model is, in list order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,6 +82,34 @@ fn tags_of<'a>(model: &str, catalog: &'a Catalog) -> Vec<&'a str> {
 fn has_tag(tags: &[&str], wanted: &[&str]) -> bool {
     tags.iter()
         .any(|tag| wanted.iter().any(|w| tag.eq_ignore_ascii_case(w)))
+}
+
+/// A window tag in tokens: `1M` → 1 000 000, `1.1M` → 1 100 000, `200K` → 200 000.
+fn window_tag(tag: &str) -> Option<u64> {
+    let tag = tag.trim();
+    let unit = match tag.chars().last()?.to_ascii_uppercase() {
+        'K' => 1_000.0,
+        'M' => 1_000_000.0,
+        _ => return None,
+    };
+    let number = &tag[..tag.len() - 1];
+    if number.is_empty() || !number.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
+        return None;
+    }
+    let value: f64 = number.parse().ok()?;
+    (value > 0.0).then(|| (value * unit).round() as u64)
+}
+
+/// The context window of a text model (its upstream name), from its window tag; the
+/// largest when it has several.
+pub(crate) fn context_window(model: &str, catalog: &Catalog) -> Option<u64> {
+    if !matches!(kind(model, catalog), Kind::Recommended | Kind::Text) {
+        return None;
+    }
+    tags_of(model, catalog)
+        .into_iter()
+        .filter_map(window_tag)
+        .max()
 }
 
 /// The row kind of `model` (its upstream name, which the catalog keys).
@@ -435,6 +472,7 @@ pub(crate) fn picker_models(
             PickerModel {
                 description: describe(&route, catalog, language),
                 hidden: is_codex_auto(&route.upstream_model) || is_codex_auto(&public),
+                window: context_window(&route.upstream_model, catalog),
                 public,
             }
         })
@@ -693,6 +731,46 @@ mod tests {
                 "gpt-4o",
             ]
         );
+    }
+
+    #[test]
+    fn windows_come_from_tags_of_text_models() {
+        let mut c = catalog();
+        let tagged = |tags: &str| CatalogModel {
+            groups: vec!["vip".into()],
+            wire: BTreeMap::new(),
+            compat: BTreeMap::new(),
+            pricing: json!({ "tags": tags }),
+        };
+        for (name, tags) in [
+            ("claude-opus-5", "推理,工具,1M"),
+            ("gpt-6-astra", "推理,1.1M,推荐"),
+            ("glm-5", "200K"),
+            ("kimi-k3", "500k,256K"),
+            ("grok-imagine-video", "文件,多模态,1K"),
+        ] {
+            c.models.insert(name.into(), tagged(tags));
+        }
+        assert_eq!(context_window("claude-opus-5", &c), Some(1_000_000));
+        assert_eq!(context_window("gpt-6-astra", &c), Some(1_100_000));
+        assert_eq!(context_window("glm-5", &c), Some(200_000));
+        // 多个窗口标签取最大
+        assert_eq!(context_window("kimi-k3", &c), Some(500_000));
+        // 视频、生图模型不读窗口；没有窗口标签是 None
+        assert_eq!(context_window("grok-imagine-video", &c), None);
+        assert_eq!(context_window("claude-opus-5-5", &c), None);
+        assert_eq!(context_window("absent", &c), None);
+        assert_eq!(window_tag("推理"), None);
+        assert_eq!(window_tag("M"), None);
+        assert_eq!(window_tag("1.5.0M"), None);
+        let rows = picker_models(
+            &["claude-opus-5".to_string()],
+            &[route("claude-opus-5", &["vip"])],
+            &c,
+            Some(VENDOR_CLAUDE),
+            "zh",
+        );
+        assert_eq!(rows[0].window, Some(1_000_000));
     }
 
     #[test]

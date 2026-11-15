@@ -288,8 +288,9 @@ fn with_stack_models(
     }
 }
 
-/// AICLI 接管时 `/model` 列的配置集模型（[`crate::provider::AicliClaudePicker`]）。目录里没有
-/// 窗口数据，按 Claude Code 默认窗口记，不改 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`。
+/// AICLI 接管时 `/model` 列的配置集模型（[`crate::provider::AicliClaudePicker`]）。窗口来自后台
+/// 的窗口标签：1M 及以上是 1M 模型（id 已带 `[1M]`）；其余按标签窗口参与
+/// `CLAUDE_CODE_MAX_CONTEXT_TOKENS`（取最小，等于默认 200K 时不写）；没有标签按默认窗口。
 fn aicli_picker_models(picker: &crate::provider::AicliClaudePicker) -> Vec<StackModel> {
     picker
         .options
@@ -300,8 +301,10 @@ fn aicli_picker_models(picker: &crate::provider::AicliClaudePicker) -> Vec<Stack
             name: option.label.clone(),
             display_name: option.label.clone(),
             description: option.description.clone(),
-            one_m: false,
-            window: stack::CLAUDE_DEFAULT_WINDOW,
+            one_m: option
+                .window
+                .is_some_and(|window| window >= crate::aicli::picker::ONE_M_WINDOW),
+            window: option.window.unwrap_or(stack::CLAUDE_DEFAULT_WINDOW),
         })
         .collect()
 }
@@ -2167,11 +2170,13 @@ mod tests {
                     id: "aicli-claude-gpt-6.1-sol".into(),
                     label: "gpt-6.1-sol".into(),
                     description: "首选 vip ×1 · tools".into(),
+                    window: None,
                 },
                 crate::provider::AicliPickerOption {
                     id: "aicli-claude-deepseek-v4".into(),
                     label: "deepseek-v4".into(),
                     description: "首选 g-cheap ×0.5".into(),
+                    window: None,
                 },
             ],
             keep_builtin: true,
@@ -2206,6 +2211,56 @@ mod tests {
         assert_ne!(
             keys[0], keys[1],
             "switching the choice rewrites Claude Code"
+        );
+    }
+
+    /// AICLI 行的窗口来自后台标签：1M 及以上是 1M 模型，不受 MAX 约束；其余取最小窗口写 MAX，
+    /// 没有标签的按默认 200K。
+    #[test]
+    fn aicli_picker_windows_follow_the_catalog_tags() {
+        let route = stack_member("aicli-main", json!({}));
+        let option = |model: &str, window: Option<u64>| crate::provider::AicliPickerOption {
+            id: format!("aicli-claude-{model}"),
+            label: model.into(),
+            description: "AICLI".into(),
+            window,
+        };
+        let max_of = |options: Vec<crate::provider::AicliPickerOption>| {
+            let picker = crate::provider::AicliClaudePicker {
+                options,
+                keep_builtin: true,
+            };
+            let models = aicli_picker_models(&picker);
+            let (projection, _) = claude_contract(
+                &route,
+                "http://127.0.0.1:15821",
+                &models,
+                false,
+                None,
+                &[],
+                PROXY_TOKEN_PLACEHOLDER,
+            );
+            (
+                models.iter().map(|m| m.one_m).collect::<Vec<_>>(),
+                projection.exclusive.get(CLAUDE_MAX_CONTEXT_ENV).cloned(),
+            )
+        };
+        assert_eq!(
+            max_of(vec![
+                option("claude-opus-5[1M]", Some(1_000_000)),
+                option("gpt-6-astra[1M]", Some(1_100_000)),
+                option("kimi-k3", Some(500_000)),
+            ]),
+            (vec![true, true, false], Some(json!("500000")))
+        );
+        // 有没有标签的模型：按默认 200K，等于默认不写 MAX
+        assert_eq!(
+            max_of(vec![
+                option("claude-opus-5[1M]", Some(1_000_000)),
+                option("kimi-k3", Some(500_000)),
+                option("plain", None),
+            ]),
+            (vec![true, false, false], None)
         );
     }
 

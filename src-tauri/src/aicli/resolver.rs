@@ -336,6 +336,18 @@ fn resolve_profile(
     let Some(entry) = snapshot.profiles.get(&selected) else {
         return Ok(Resolved::Miss(RouteMiss::ModelNotInProfile));
     };
+    // Claude Code's `/model` id carries `[1M]` for a 1M-window model; the route is under the
+    // name without it (a public name that itself ends in `[1M]` still matches exactly).
+    let public_model = if entry
+        .compiled
+        .routes
+        .iter()
+        .any(|route| route.public_model == public_model)
+    {
+        public_model
+    } else {
+        crate::proxy::model_mapper::strip_one_m_suffix_for_upstream(public_model)
+    };
     // Repair takes precedence over lookup: revoked exclusive models may have
     // disappeared from the current catalog and compiled route list entirely.
     if entry.compiled.repair.needs_repair

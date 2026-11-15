@@ -524,10 +524,20 @@ pub(crate) fn prepare_projection(
                 .filter(|row| !row.hidden)
                 .map(|row| {
                     super::alias::encode(app, &row.public, Some(db))
-                        .map(|id| crate::provider::AicliPickerOption {
-                            id,
-                            label: row.public,
-                            description: row.description,
+                        .map(|mut id| {
+                            // 后台标了 1M 及以上窗口：id 带 `[1M]`，Claude Code 才按 1M 算上下文；
+                            // 请求进来时解析器去掉它再找路由
+                            if row.window.is_some_and(|w| w >= super::picker::ONE_M_WINDOW)
+                                && !crate::live::project::claude::has_one_m_marker(&id)
+                            {
+                                id.push_str(crate::live::project::claude::ONE_M_MARKER_FOR_CLIENT);
+                            }
+                            crate::provider::AicliPickerOption {
+                                id,
+                                label: row.public,
+                                description: row.description,
+                                window: row.window,
+                            }
                         })
                         .map_err(|_| TakeoverError::State)
                 })
@@ -547,13 +557,20 @@ pub(crate) fn prepare_projection(
             provider.settings_config["modelCatalog"] = serde_json::json!({
                 "models": rows
                     .iter()
-                    .map(|row| serde_json::json!({
-                        "model": row.public,
-                        "displayName": row.public,
-                        "description": row.description,
-                        // codex-auto-* 留在目录里给 Codex 自动审批用，不进选择器
-                        "hidden": row.hidden,
-                    }))
+                    .map(|row| {
+                        let mut entry = serde_json::json!({
+                            "model": row.public,
+                            "displayName": row.public,
+                            "description": row.description,
+                            // codex-auto-* 留在目录里给 Codex 自动审批用，不进选择器
+                            "hidden": row.hidden,
+                        });
+                        // 后台窗口标签（1.1M 等）；没有标签时用目录的默认窗口
+                        if let Some(window) = row.window {
+                            entry["contextWindow"] = serde_json::json!(window);
+                        }
+                        entry
+                    })
                     .collect::<Vec<_>>(),
             });
             return Ok(provider);
@@ -1377,9 +1394,18 @@ mod tests {
         assert_eq!(got, expected);
         assert!(in_order(&labels, &app), "{labels:?}");
         for option in &picker.options {
+            // 后台标了 1M 及以上窗口的模型 id 带 `[1M]`
+            let mut id = super::super::alias::encode(&app, &option.label, Some(&state.db)).unwrap();
+            if option
+                .window
+                .is_some_and(|w| w >= super::super::picker::ONE_M_WINDOW)
+            {
+                id.push_str("[1M]");
+            }
+            assert_eq!(option.id, id);
             assert_eq!(
-                option.id,
-                super::super::alias::encode(&app, &option.label, Some(&state.db)).unwrap()
+                option.window,
+                super::super::picker::context_window(&option.label, catalog)
             );
             assert!(option.id.starts_with("aicli-claude-"));
             assert!(!option.description.is_empty());

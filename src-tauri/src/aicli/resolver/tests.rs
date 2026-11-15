@@ -263,6 +263,27 @@ fn aliases_are_decoded_and_upstream_model_is_rewritten_without_keys_in_providers
         .all(|p| !serde_json::to_string(p).unwrap().contains(KEY)));
 }
 
+/// Claude Code 的 1M 模型 id 带 `[1M]`（大小写都可能）：去掉后找路由，发往上游的是上游名。
+#[test]
+fn one_m_marker_on_a_claude_code_id_resolves_to_the_plain_route() {
+    let mut f = Fixture::new();
+    f.profile("custom", "inherit", Some("friendly"));
+    f.active(Some("custom"));
+    f.reload();
+    let encoded = alias::encode(&AppType::Claude, "friendly", Some(&f.db)).unwrap();
+    for marker in ["[1M]", "[1m]"] {
+        let (resolved, body) = f.resolve(&format!("{encoded}{marker}"), true);
+        let decision = hit(resolved);
+        assert_eq!(decision.public_model, "friendly");
+        assert_eq!(body["model"], "model-a");
+    }
+    let (resolved, _) = f.resolve(&format!("{encoded}[2M]"), true);
+    assert!(matches!(
+        resolved,
+        Resolved::Miss(RouteMiss::ModelNotInProfile)
+    ));
+}
+
 #[test]
 fn desktop_alias_uses_the_persisted_alias_map() {
     let f = Fixture::new();

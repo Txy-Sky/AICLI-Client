@@ -422,6 +422,9 @@ pub struct AicliPickerOption {
     pub label: String,
     /// 名字下面那行：首选分组与倍率、可回退分组数、能力标签。
     pub description: String,
+    /// 后台窗口标签给出的上下文窗口（token）；没有标签是 `None`，按 Claude Code 默认窗口。
+    /// 1M 及以上时 `id` 末尾带 `[1M]`。
+    pub window: Option<u64>,
 }
 
 /// Claude Desktop 本地路由模式下暴露给 Desktop 的安全模型路由。
