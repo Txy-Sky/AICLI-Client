@@ -1097,6 +1097,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| G-GATE 第 1 项 / H-03（2026-11-15 负责人反馈） | G-GATE 第 1 项要求界面走查截图；H-03 要求 macOS、Windows 测试机和操作人。 | 负责人在 Windows 和 macOS 上自行试用界面，于 2026-11-15 告知页面没有问题，发现问题后续再优化。模型未操作测试机，没有截图或日志。 | 按负责人反馈记录。安装、深链注册、卸载、升级（L-03）及 J 阶段真实客户端请求不在这次反馈范围内，仍未验证；H-03、L-03 是否勾选由负责人决定。 |
 | 第 0.6 节第 13 条 → 运行 release.yml（2026-11-14） | 禁止运行 `release.yml`。 | 负责人当面要求「更新一个最新的」，由模型以 workflow_dispatch 触发未签名演练 run 43589207909（3a153587），全部 job success，「Publish GitHub Release」跳过，Releases 页仍为空；未使用任何签名或发布类 secret。Windows 便携版中的 `aicli-client.exe` 含新命令 `aicli_set_claude_keep_builtin_models`，确认是该提交的构建。 | 负责人需要包含最新改动的安装包做 Windows 实测。 |
 | C3-10 → Claude Code / Codex 模型列表（负责人 2026-11-13） | 负责人 2026-11-04：Claude、Codex、Gemini 沿用现有投影，不变。 | Claude Code 的 `/model` 写入配置集全部模型（`modelPicker`，自带行按设置保留或隐藏，默认保留在前）；Codex 写模型目录（`model_catalog_json`）。配置集变化时重写，还原不变。Gemini 不变（e64f7d71，CI run 43564355142 success）。 | 负责人 Windows 实测：两个客户端只显示自带模型，要求列出全部。`docs/aicli-evidence/C3-10-model-lists.txt` |
 | C1-08 前端 → 从预设新建（2026-11-13） | 冲突需确认后才能保存。 | 前端「从预设新建」与后端 copy_preset 一致，复制时把多分组模型记为按分组顺序；之后新增的冲突仍需处理（e09fc4d4）。 | 负责人实测：预设复制后满屏冲突。`docs/aicli-evidence/C3-10-model-lists.txt` |
@@ -1231,6 +1232,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   OMP（后端与逐字节还原 CI 通过；负责人 2026-11-13 决定先开放接管按钮，等测试机验收）；J-10 Agy（暂不支持接管，负责人 2026-11-15 确认，已完成）。J-GATE 未过：依赖以上结论，且需把暂不
   支持名单写入 README。交接单 docs/aicli-handover/J-02.md、J-03-J-09.md。
 - G-GATE 第 1 项（界面走查截图）按负责人 2026-11-11 决定跳过，未做，不是已验证。
+  负责人 2026-11-15 告知已在 Windows、macOS 上试用界面，页面没有问题（第 13 节），无截图。
 
 端到端（K-01）：tests/aicli-testenv/e2e.sh 在独立 rc.34 环境走通绑定→目录→配置集→Token→
 经代理请求→服务端账单回填→解绑；MySQL 通用查询日志只有 new-api 连接。
