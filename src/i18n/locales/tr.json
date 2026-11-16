@@ -3399,7 +3399,7 @@
       "charged": "Tahsil edilen",
       "pending": "Sunucunun faturalandırması bekleniyor",
       "estimated": "Tahmini",
-      "settled": "Sunucu ücreti",
+      "listPriceEstimated": "Liste fiyatı tahmini",
       "groupRatio": "Grup oranı"
     },
     "usage": {

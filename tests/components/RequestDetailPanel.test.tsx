@@ -228,6 +228,7 @@ describe("RequestDetailPanel", () => {
     profile_id: "recommended",
     upstream_request_id: "up-1",
     server_group: "vip",
+    group_ratio: null,
     billed_quota: null,
     billed_at: null,
     ...patch,
@@ -272,33 +273,43 @@ describe("RequestDetailPanel", () => {
     expect(screen.queryByText("aicli.bill.pending")).not.toBeInTheDocument();
   });
 
-  it("shows the group ratio and an estimate until the server bills an AICLI request", () => {
-    useAicliRequestBillMock.mockReturnValue({ data: bill() });
-    renderWith(log({ costMultiplier: "0.18", totalCostUsd: "0.0121" }));
-    expect(screen.getByText("aicli.bill.groupRatio")).toBeInTheDocument();
+  it("shows the group ratio under the server group of an AICLI request", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ server_group: "gpt", group_ratio: 0.18 }),
+    });
+    renderWith(log({}));
+    const group = screen.getByText("aicli.bill.serverGroup");
+    const ratio = screen.getByText("aicli.bill.groupRatio");
+    // 分组倍率紧跟在服务端分组之后
+    expect(
+      group.compareDocumentPosition(ratio) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("×0.18")).toBeInTheDocument();
-    expect(screen.queryByText("usage.costMultiplier")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("usage.detail.costTitle · aicli.bill.estimated"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("usage.detail.total · aicli.bill.estimated"),
-    ).toBeInTheDocument();
   });
 
-  it("labels the cost total as the server charge once an AICLI request is billed", () => {
+  it("prices an AICLI request's cost breakdown at the model's list price", () => {
     useAicliRequestBillMock.mockReturnValue({
-      data: bill({ billed_quota: 8_527, billed_at: 2 }),
+      data: bill({ billed_quota: 8_527, billed_at: 2, group_ratio: 0.18 }),
     });
-    renderWith(log({ costMultiplier: "0.180005", totalCostUsd: "0.017054" }));
+    renderWith(
+      log({
+        costMultiplier: "0.180005",
+        inputCostUsd: "0.07878",
+        outputCostUsd: "0.00468",
+        cacheReadCostUsd: "0.011282",
+        cacheCreationCostUsd: "0",
+        totalCostUsd: "0.017054",
+      }),
+    );
     expect(
-      screen.getByText("usage.detail.costTitle · aicli.bill.settled"),
+      screen.getByText(
+        "usage.detail.costTitle · aicli.bill.listPriceEstimated",
+      ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("usage.detail.total · aicli.bill.settled"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("usage.detail.total · aicli.bill.estimated"),
-    ).not.toBeInTheDocument();
+    // 合计 = 各项之和（模型原价，不乘分组倍率），倍数行不在成本明细里
+    expect(screen.getByText("usage.detail.total")).toBeInTheDocument();
+    expect(screen.getByText("$0.0947")).toBeInTheDocument();
+    expect(screen.queryByText("usage.costMultiplier")).not.toBeInTheDocument();
+    expect(screen.queryByText("×0.180005")).not.toBeInTheDocument();
   });
 });

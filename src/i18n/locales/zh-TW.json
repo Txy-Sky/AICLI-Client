@@ -3404,7 +3404,7 @@
       "charged": "實扣",
       "pending": "等待伺服器記帳",
       "estimated": "預估",
-      "settled": "依伺服器實扣",
+      "listPriceEstimated": "模型原價預估",
       "groupRatio": "分組倍率"
     },
     "usage": {

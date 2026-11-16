@@ -3403,7 +3403,7 @@
       "charged": "Charged",
       "pending": "Waiting for the server to bill",
       "estimated": "Estimated",
-      "settled": "Server charge",
+      "listPriceEstimated": "List-price estimate",
       "groupRatio": "Group ratio"
     },
     "usage": {

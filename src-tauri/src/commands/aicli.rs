@@ -364,6 +364,8 @@ pub struct AicliRequestBillView {
     pub profile_id: Option<String>,
     pub upstream_request_id: Option<String>,
     pub server_group: Option<String>,
+    /// 服务端分组的倍率，取自本机缓存的分组列表（不发请求）；没有分组或缓存里没有时为空。
+    pub group_ratio: Option<f64>,
     pub billed_quota: Option<i64>,
     pub billed_at: Option<i64>,
 }
@@ -1517,7 +1519,8 @@ impl AicliServices {
         &self,
         request_id: String,
     ) -> Result<Option<AicliRequestBillView>, AicliCommandError> {
-        self.db
+        let bill = self
+            .db
             .conn
             .lock()
             .map_err(|_| AicliCommandError::database())?
@@ -1537,13 +1540,22 @@ impl AicliServices {
                         profile_id: row.get(6)?,
                         upstream_request_id: row.get(7)?,
                         server_group: row.get(8)?,
+                        group_ratio: None,
                         billed_quota: row.get(9)?,
                         billed_at: row.get(10)?,
                     })
                 },
             )
             .optional()
-            .map_err(|_| AicliCommandError::database())
+            .map_err(|_| AicliCommandError::database())?;
+        Ok(bill.map(|mut bill| {
+            bill.group_ratio = bill.server_group.as_deref().and_then(|group| {
+                let runtime = self.app_state.proxy_service.aicli_runtime_now()?;
+                let snapshot = runtime.snapshot();
+                snapshot.catalog.as_ref()?.groups.get(group)?.ratio
+            });
+            bill
+        }))
     }
 
     // -- Privacy ---------------------------------------------------------------------

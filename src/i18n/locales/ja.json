@@ -3403,7 +3403,7 @@
       "charged": "確定",
       "pending": "サーバーの記帳待ち",
       "estimated": "見積もり",
-      "settled": "サーバー確定額",
+      "listPriceEstimated": "モデル定価での見積もり",
       "groupRatio": "グループ倍率"
     },
     "usage": {

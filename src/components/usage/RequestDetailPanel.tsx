@@ -92,13 +92,10 @@ function DetailSection({ title, rows }: { title: string; rows: DetailRow[] }) {
 }
 
 /**
- * `aicli`：AICLI 请求的账单状态（非 AICLI 请求为 null）。AICLI 行的成本按站点单价 ×
- * 分组倍率估算，服务端记账后合计改为实扣（后端 settle_billed_costs），标签随之变化。
+ * `isAicli`：有 AICLI 账单记录的请求。它的成本明细只列模型原价（站点单价、不乘分组倍率）
+ * 的预估，合计为各项之和；分组倍率和实扣在「服务端账单」一节显示。
  */
-function useDetailSections(
-  request: RequestLog,
-  aicli: { settled: boolean } | null,
-) {
+function useDetailSections(request: RequestLog, isAicli: boolean) {
   const { t, i18n } = useTranslation();
   const { money, moneyTitle } = useMoneyFormat();
   const usd = (value: string) => money(value, 4);
@@ -218,28 +215,46 @@ function useDetailSections(
       value: usd(request.cacheCreationCostUsd),
     },
   ];
-  if (multiplier != null && multiplier !== 1) {
+  if (isAicli) {
+    // 模型原价合计 = 各项之和（不乘分组倍率）；各项全为 0 说明价格未知
+    const listTotal = [
+      request.inputCostUsd,
+      request.outputCostUsd,
+      request.cacheReadCostUsd,
+      request.cacheCreationCostUsd,
+    ]
+      .map((value) => parseFiniteNumber(value) ?? 0)
+      .reduce((sum, value) => sum + value, 0);
+    const unknown = listTotal <= 0;
     cost.push({
-      key: "multiplier",
-      label: aicli ? t("aicli.bill.groupRatio") : t("usage.costMultiplier"),
-      value: `×${request.costMultiplier}`,
+      key: "total",
+      label: t("usage.detail.total"),
+      value: unknown ? t("usage.unpriced") : usd(String(listTotal)),
+      strong: !unknown,
+      muted: unknown,
+      title: unknown ? undefined : moneyTitle(String(listTotal), 6),
+    });
+  } else {
+    if (multiplier != null && multiplier !== 1) {
+      cost.push({
+        key: "multiplier",
+        label: t("usage.costMultiplier"),
+        value: `×${request.costMultiplier}`,
+      });
+    }
+    // F-06：本机按定价算出的是预估值，不是服务端实扣，合计行必须标「预估」
+    cost.push({
+      key: "total",
+      label:
+        multiplier != null && multiplier !== 1
+          ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${t("aicli.bill.estimated")}`
+          : `${t("usage.detail.total")} · ${t("aicli.bill.estimated")}`,
+      value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
+      strong: !unpriced,
+      muted: unpriced,
+      title: unpriced ? undefined : moneyTitle(request.totalCostUsd, 6),
     });
   }
-  // F-06：本机按定价算出的是预估值，合计行标「预估」；AICLI 行服务端记账后合计即实扣
-  const totalTag = aicli?.settled
-    ? t("aicli.bill.settled")
-    : t("aicli.bill.estimated");
-  cost.push({
-    key: "total",
-    label:
-      multiplier != null && multiplier !== 1 && !aicli
-        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${totalTag}`
-        : `${t("usage.detail.total")} · ${totalTag}`,
-    value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
-    strong: !unpriced,
-    muted: unpriced,
-    title: unpriced ? undefined : moneyTitle(request.totalCostUsd, 6),
-  });
 
   let performance: DetailRow[];
   if (!isProxy) {
@@ -381,6 +396,12 @@ function useServerBillRows(requestId: string): DetailRow[] | null {
       muted: !bill.server_group,
     },
     {
+      key: "groupRatio",
+      label: t("aicli.bill.groupRatio"),
+      value: bill.group_ratio != null ? `×${bill.group_ratio}` : "—",
+      muted: bill.group_ratio == null,
+    },
+    {
       key: "billed",
       label: `${t("aicli.bill.serverCharge")} · ${t("aicli.bill.charged")}`,
       value: pending ? t("aicli.bill.pending") : (charged ?? "—"),
@@ -393,9 +414,8 @@ function useServerBillRows(requestId: string): DetailRow[] | null {
 function RequestDetailBody({ request }: { request: RequestLog }) {
   const { t } = useTranslation();
   const { currency } = useMoneyFormat();
-  const bill = useAicliRequestBill(request.requestId).data;
-  const aicli = bill ? { settled: bill.billed_at != null } : null;
-  const sections = useDetailSections(request, aicli);
+  const isAicli = Boolean(useAicliRequestBill(request.requestId).data);
+  const sections = useDetailSections(request, isAicli);
   const serverBill = useServerBillRows(request.requestId);
   return (
     <div className="flex flex-col gap-4">
@@ -409,7 +429,7 @@ function RequestDetailBody({ request }: { request: RequestLog }) {
       />
       <DetailSection
         title={`${t("usage.detail.costTitle", { currency })} · ${t(
-          aicli?.settled ? "aicli.bill.settled" : "aicli.bill.estimated",
+          isAicli ? "aicli.bill.listPriceEstimated" : "aicli.bill.estimated",
         )}`}
         rows={sections.cost}
       />

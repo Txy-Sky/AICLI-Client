@@ -48,6 +48,13 @@ import {
   type RequestLogColumnId,
 } from "./requestLogColumns";
 
+/** AICLI 线路的种子供应商（后端 `aicli/lines.rs`）。 */
+const AICLI_LINE_PROVIDERS = new Set([
+  "aicli-main",
+  "aicli-global",
+  "aicli-apac",
+]);
+
 interface RequestLogTableProps {
   range: UsageRangeSelection;
   /** 旧接口保留；时间范围由页面顶部的筛选统一控制 */
@@ -403,7 +410,10 @@ export function RequestLogTable({
             : estimatedTps != null
               ? t("usage.estimatedTimingTip", timing)
               : undefined;
-    const multiplier = parseFiniteNumber(log.costMultiplier);
+    // AICLI 行的成本即服务端实扣（记账前为按分组倍率的预估），倍数是由实扣反推的，不单独提示
+    const multiplier = AICLI_LINE_PROVIDERS.has(log.providerId)
+      ? null
+      : parseFiniteNumber(log.costMultiplier);
     const modelTitle =
       log.requestModel && log.requestModel !== log.model
         ? `${log.requestModel} → ${log.model}`

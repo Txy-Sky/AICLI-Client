@@ -240,6 +240,8 @@ export interface AicliRequestBill {
   profile_id: string | null;
   upstream_request_id: string | null;
   server_group: string | null;
+  /** 服务端分组的倍率（本机缓存的分组列表）；未记账或缓存里没有时为空。 */
+  group_ratio: number | null;
   /** 服务端实扣额度；`billed_at` 为空时尚未记账。 */
   billed_quota: number | null;
   billed_at: number | null;
