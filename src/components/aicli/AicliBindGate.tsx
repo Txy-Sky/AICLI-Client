@@ -8,8 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, CircleAlert, Cloud, SquareTerminal } from "lucide-react";
+import { Check, CircleAlert, SquareTerminal } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import appLogo from "@/assets/icons/aicli-logo.png";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import {
@@ -186,7 +188,7 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
 }
 
 /**
- * 首次绑定对话框的左栏：一句话说明、三格示意图（你的 AI 工具 → 这台电脑 → AICLI 服务）、
+ * 首次绑定对话框的左栏：一句话说明、三格示意图（你的 AI 工具 → AICLI 服务 → 大模型，模型 logo 轮播）、
  * 三条好处。纯说明，没有操作；窄窗口（md 以下）不显示，只留右边的表单。
  */
 function BindIntro() {
@@ -228,11 +230,7 @@ function BindIntro() {
         </FlowNode>
         <FlowLink />
         <FlowNode label={t("aicli.bind.flowService")}>
-          <Cloud
-            aria-hidden="true"
-            strokeWidth={1.75}
-            className="h-6 w-6 text-action-text"
-          />
+          <ModelLogoCarousel />
         </FlowNode>
       </div>
       <ul className="m-0 mt-auto flex list-none flex-col gap-2.5 p-0 text-strong font-normal text-fg-1">
@@ -261,6 +259,52 @@ function FlowNode({ label, children }: { label: string; children: ReactNode }) {
         {label}
       </span>
     </div>
+  );
+}
+
+/** 「大模型」节点轮播的模型厂商（复用内置图标库，不另加图片）。 */
+const MODEL_LOGOS = [
+  { icon: "claude", name: "Claude" },
+  { icon: "openai", name: "GPT" },
+  { icon: "gemini", name: "Gemini" },
+  { icon: "deepseek", name: "DeepSeek" },
+  { icon: "grok", name: "Grok" },
+] as const;
+const MODEL_LOGO_INTERVAL_MS = 2000;
+
+/** 每 2 秒淡入下一个模型 logo；系统要求减少动态效果时停在第一个。纯装饰，读屏读节点文字。 */
+function ModelLogoCarousel() {
+  const reduceMotion = useReducedMotion();
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    const timer = window.setInterval(
+      () => setIndex((current) => (current + 1) % MODEL_LOGOS.length),
+      MODEL_LOGO_INTERVAL_MS,
+    );
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
+  const logo = MODEL_LOGOS[reduceMotion ? 0 : index];
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="aicli-bind-model-logo"
+      data-model={logo.icon}
+      className="relative flex h-7 w-7 items-center justify-center text-fg-1"
+    >
+      <AnimatePresence initial={false}>
+        <motion.span
+          key={logo.icon}
+          className="absolute inset-0 flex items-center justify-center"
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.85 }}
+          transition={{ duration: 0.3 }}
+        >
+          <ProviderIcon icon={logo.icon} name={logo.name} size={28} />
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
 }
 

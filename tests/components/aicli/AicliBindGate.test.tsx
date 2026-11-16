@@ -171,6 +171,37 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
   });
 });
 
+describe("AicliBindGate — flow diagram", () => {
+  beforeEach(async () => {
+    i18n.addResourceBundle(
+      "zh",
+      "translation",
+      { aicli: zh.aicli },
+      true,
+      true,
+    );
+    await i18n.changeLanguage("zh");
+  });
+
+  afterEach(() => {
+    i18n.removeResourceBundle("zh", "translation");
+    i18n.addResourceBundle("zh", "translation", {});
+  });
+
+  it("shows tools, the AICLI service and the AI models, rotating the model logos", async () => {
+    respond({ aicli_get_account: unbound });
+    renderGate();
+    expect(await screen.findByText("AICLI 服务")).toBeInTheDocument();
+    expect(screen.getByText("大模型")).toBeInTheDocument();
+    expect(screen.queryByText("这台电脑")).not.toBeInTheDocument();
+    const logo = screen.getByTestId("aicli-bind-model-logo");
+    expect(logo).toHaveAttribute("data-model", "claude");
+    await waitFor(() => expect(logo).toHaveAttribute("data-model", "openai"), {
+      timeout: 3000,
+    });
+  });
+});
+
 describe("bind copy translations", () => {
   const bundles = { en, ja, tr, "zh-TW": zhTW } as const;
   const keys = Object.keys(zh.aicli.bind) as Array<keyof typeof zh.aicli.bind>;
@@ -182,10 +213,10 @@ describe("bind copy translations", () => {
     >;
     for (const key of keys) {
       expect(bind[key], `${lng} aicli.bind.${key}`).toBeTruthy();
-      // flowTools（「你的 AI 工具」）在简体和繁体里写法相同，不算漏翻
+      // flowTools（「你的 AI 工具」）、flowService（「大模型」）在简体和繁体里写法相同，不算漏翻
       const sameAsZh =
         ["failed", "binding"].includes(key) ||
-        (lng === "zh-TW" && key === "flowTools");
+        (lng === "zh-TW" && ["flowTools", "flowService"].includes(key));
       if (!sameAsZh) {
         expect(bind[key], `${lng} aicli.bind.${key}`).not.toBe(
           zh.aicli.bind[key],
