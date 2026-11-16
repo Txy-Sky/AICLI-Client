@@ -2810,7 +2810,53 @@
       "homepage": "ホームページ",
       "docs": "ドキュメント"
     },
-    "resync": "ここのスイッチで各アプリの設定を書き直す"
+    "resync": "ここのスイッチで各アプリの設定を書き直す",
+    "viewAria": "MCP の表示",
+    "viewInstalled": "インストール済み",
+    "viewInstalledCount": "インストール済み · {{count}}",
+    "viewDiscover": "見つける",
+    "discover": {
+      "searchPlaceholder": "MCP サーバーを検索 — GitHub、Postgres、Figma…",
+      "searchAria": "MCP サーバーを検索",
+      "sourceNote": "おすすめと公式 MCP Registry",
+      "results": "{{count}} 件",
+      "searching": "MCP Registry を検索中…",
+      "registryFailedTitle": "MCP Registry に接続できません",
+      "registryFailedBody": "下にはおすすめのうち一致するものだけを表示しています。{{error}}",
+      "listLabel": "追加できる MCP サーバー",
+      "remote": "リモート",
+      "remoteSignIn": "リモート · 要ログイン",
+      "needsKey": "追加時に入力が必要：{{labels}}",
+      "add": "追加",
+      "addEllipsis": "追加…",
+      "addOnly": "一覧にだけ追加",
+      "adding": "追加中…",
+      "added": "追加済み",
+      "addedAria": "{{name}} は追加済み、表示する",
+      "addedAs": "一覧にあります（キー {{id}}）",
+      "addAria": "{{name}} を追加",
+      "openAria": "{{name}} を表示",
+      "empty": "「{{query}}」は見つかりません",
+      "emptyHint": "別の語で検索するか、ヘッダーの「追加」から手動で入力してください。",
+      "homepage": "ホームページ",
+      "noDescription": "説明はありません。",
+      "signInNote": "初回利用時にブラウザで {{name}} にログインします。",
+      "optional": "（任意）",
+      "rateLimit": "任意。入力するとレート制限が緩和されます",
+      "obtainBefore": "",
+      "obtainAfter": " で取得",
+      "asEnv": "環境変数 {{key}} に設定",
+      "asHeader": "ヘッダー {{key}} として送信",
+      "asArg": "起動引数の末尾に追加",
+      "fillRequired": "{{label}}を入力してください",
+      "showValue": "表示",
+      "hideValue": "隠す",
+      "labels": {
+        "apiKey": "API キー",
+        "token": "アクセストークン",
+        "folder": "フォルダー"
+      }
+    }
   },
   "skillsPage": {
     "noun": "Skill",
@@ -3742,5 +3788,39 @@
         "dailyAvg": "直近 {{days}} 日の平均"
       }
     }
+  },
+  "discoverView": {
+    "aria": "表示",
+    "list": "リスト",
+    "grid": "カード"
+  },
+  "mcpCatalog": {
+    "context7": "あらゆるライブラリの最新ドキュメントとコード例を、そのままプロンプトへ。",
+    "playwright": "実際のブラウザを操作：ページを開き、クリック・入力し、アクセシビリティツリーで読み取ります。",
+    "chrome-devtools": "起動中の Chrome を操作・調査：コンソール、ネットワーク、パフォーマンストレース、スクリーンショット。",
+    "github": "GitHub のリポジトリ、Issue、PR、Actions、コード検索。",
+    "deepwiki": "公開 GitHub リポジトリについて質問し、自動生成された Wiki を読みます。",
+    "exa": "エージェント向けの Web・コード検索。きれいなページ内容を返します。",
+    "anysearch": "リアルタイム Web 検索、分野別検索（金融、論文、コード、セキュリティなど）、ページ全体の Markdown 化。",
+    "filesystem": "許可したフォルダー内だけでファイルを読み書き・検索します。",
+    "fetch": "Web ページを取得して Markdown に変換します。",
+    "memory": "エージェントが会話をまたいで保持するナレッジグラフ。",
+    "sequential-thinking": "問題を一歩ずつ考え、修正や分岐をしながら進めます。",
+    "git": "Git リポジトリの読み取り、検索、変更。",
+    "time": "各地の現在時刻とタイムゾーン変換。",
+    "sentry": "Sentry の Issue、エラー、トレースと Seer による分析。",
+    "linear": "Linear の Issue、プロジェクト、コメントの検索・作成・更新。",
+    "notion": "Notion ワークスペースのページとデータベースを検索・読み書き。",
+    "atlassian": "Atlassian Cloud の Jira 課題と Confluence ページ。",
+    "supabase": "Supabase プロジェクトを管理：テーブル、SQL、マイグレーション、ログ、Edge Functions。",
+    "stripe": "顧客、支払い、サブスクリプションと Stripe のドキュメント。",
+    "vercel": "Vercel のプロジェクト、デプロイ、ログとドキュメント。",
+    "neon": "Neon のサーバーレス Postgres：プロジェクト、ブランチ、SQL。",
+    "cloudflare-docs": "Cloudflare のドキュメントを検索。",
+    "microsoft-learn": "Microsoft と Azure の公式ドキュメントとコード例。",
+    "huggingface": "Hugging Face Hub のモデル、データセット、Spaces、論文を検索。",
+    "brave-search": "Brave の独自インデックスによる Web・ニュース・画像・ローカル検索。",
+    "firecrawl": "Web をスクレイピング・クロール・検索し、きれいな Markdown に。",
+    "tavily": "Tavily で Web を検索し内容を抽出します。"
   }
 }

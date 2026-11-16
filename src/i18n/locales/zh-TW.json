@@ -2811,7 +2811,53 @@
       "homepage": "首頁",
       "docs": "文件"
     },
-    "resync": "按這裡的開關重寫各應用設定"
+    "resync": "按這裡的開關重寫各應用設定",
+    "viewAria": "MCP 檢視",
+    "viewInstalled": "已安裝",
+    "viewInstalledCount": "已安裝 · {{count}}",
+    "viewDiscover": "探索",
+    "discover": {
+      "searchPlaceholder": "搜尋 MCP 伺服器 — GitHub、Postgres、Figma…",
+      "searchAria": "搜尋 MCP 伺服器",
+      "sourceNote": "精選，以及官方 MCP Registry",
+      "results": "{{count}} 個結果",
+      "searching": "正在搜尋 MCP Registry…",
+      "registryFailedTitle": "MCP Registry 暫時連不上",
+      "registryFailedBody": "下面只列出精選中符合的伺服器。{{error}}",
+      "listLabel": "可新增的 MCP 伺服器",
+      "remote": "遠端",
+      "remoteSignIn": "遠端 · 需登入",
+      "needsKey": "新增時需要填寫：{{labels}}",
+      "add": "新增",
+      "addEllipsis": "新增…",
+      "addOnly": "只加入清單",
+      "adding": "正在新增…",
+      "added": "已新增",
+      "addedAria": "{{name}} 已新增，檢視",
+      "addedAs": "已在清單中（鍵名 {{id}}）",
+      "addAria": "新增 {{name}}",
+      "openAria": "檢視 {{name}}",
+      "empty": "找不到「{{query}}」",
+      "emptyHint": "換個關鍵字試試，或在頁首點「新增」手動填寫。",
+      "homepage": "首頁",
+      "noDescription": "沒有說明。",
+      "signInNote": "第一次使用時會在瀏覽器中登入 {{name}}。",
+      "optional": "（選填）",
+      "rateLimit": "選填，填了可提高速率限制",
+      "obtainBefore": "在 ",
+      "obtainAfter": " 取得",
+      "asEnv": "設為環境變數 {{key}}",
+      "asHeader": "作為請求標頭 {{key}} 送出",
+      "asArg": "附加到啟動參數末尾",
+      "fillRequired": "請填寫{{label}}",
+      "showValue": "顯示",
+      "hideValue": "隱藏",
+      "labels": {
+        "apiKey": "API 金鑰",
+        "token": "存取權杖",
+        "folder": "資料夾"
+      }
+    }
   },
   "skillsPage": {
     "noun": "Skill",
@@ -3743,5 +3789,39 @@
         "dailyAvg": "近 {{days}} 天日均"
       }
     }
+  },
+  "discoverView": {
+    "aria": "顯示方式",
+    "list": "清單",
+    "grid": "卡片"
+  },
+  "mcpCatalog": {
+    "context7": "任意函式庫的最新文件與程式碼範例，直接送進提示詞。",
+    "playwright": "驅動真實瀏覽器：開啟頁面、點擊、輸入，並透過無障礙樹讀取頁面。",
+    "chrome-devtools": "控制並檢查執行中的 Chrome：主控台、網路、效能追蹤和截圖。",
+    "github": "GitHub 上的儲存庫、Issue、PR、Actions 和程式碼搜尋。",
+    "deepwiki": "就任意公開 GitHub 儲存庫提問，並閱讀自動產生的 Wiki。",
+    "exa": "為 Agent 打造的網頁與程式碼搜尋，回傳乾淨的頁面內容。",
+    "anysearch": "即時網頁搜尋、垂直搜尋（金融、論文、程式碼、資安等）以及整頁內容轉 Markdown。",
+    "filesystem": "讀、寫、搜尋檔案，僅限你允許的資料夾。",
+    "fetch": "抓取網頁並轉成 Markdown。",
+    "memory": "Agent 跨對話保留的知識圖譜。",
+    "sequential-thinking": "一步步想清問題，邊想邊修正、分支。",
+    "git": "讀取、搜尋和修改 Git 儲存庫。",
+    "time": "任意地點的目前時間，以及時區換算。",
+    "sentry": "Sentry 中的問題、錯誤和追蹤，以及 Seer 的分析。",
+    "linear": "尋找、建立和更新 Linear 的 Issue、專案和留言。",
+    "notion": "搜尋、讀寫 Notion 工作區中的頁面和資料庫。",
+    "atlassian": "Atlassian Cloud 上的 Jira 問題和 Confluence 頁面。",
+    "supabase": "管理 Supabase 專案：資料表、SQL、遷移、日誌和邊緣函式。",
+    "stripe": "客戶、付款、訂閱，以及 Stripe 文件。",
+    "vercel": "Vercel 上的專案、部署和日誌，以及 Vercel 文件。",
+    "neon": "Neon 無伺服器 Postgres：專案、分支和 SQL。",
+    "cloudflare-docs": "搜尋 Cloudflare 文件。",
+    "microsoft-learn": "微軟與 Azure 官方文件和程式碼範例。",
+    "huggingface": "在 Hugging Face Hub 搜尋模型、資料集、Spaces 和論文。",
+    "brave-search": "來自 Brave 獨立索引的網頁、新聞、圖片和在地搜尋。",
+    "firecrawl": "抓取、爬取和搜尋網頁，輸出乾淨的 Markdown。",
+    "tavily": "用 Tavily 搜尋網頁並擷取內容。"
   }
 }

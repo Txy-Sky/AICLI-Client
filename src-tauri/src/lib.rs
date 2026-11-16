@@ -1601,6 +1601,7 @@ pub fn run() {
             commands::toggle_mcp_app,
             commands::import_mcp_from_apps,
             commands::resync_mcp_to_apps,
+            commands::search_mcp_registry,
             // Prompt management
             commands::get_prompts,
             commands::upsert_prompt,

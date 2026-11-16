@@ -2810,7 +2810,53 @@
       "homepage": "主页",
       "docs": "文档"
     },
-    "resync": "按这里的开关重写各应用配置"
+    "resync": "按这里的开关重写各应用配置",
+    "viewAria": "MCP 视图",
+    "viewInstalled": "已安装",
+    "viewInstalledCount": "已安装 · {{count}}",
+    "viewDiscover": "发现",
+    "discover": {
+      "searchPlaceholder": "搜索 MCP 服务器 — GitHub、Postgres、Figma…",
+      "searchAria": "搜索 MCP 服务器",
+      "sourceNote": "精选，以及官方 MCP Registry",
+      "results": "{{count}} 个结果",
+      "searching": "正在搜索 MCP Registry…",
+      "registryFailedTitle": "MCP Registry 暂时连不上",
+      "registryFailedBody": "下面只列出精选里匹配的服务器。{{error}}",
+      "listLabel": "可添加的 MCP 服务器",
+      "remote": "远程",
+      "remoteSignIn": "远程 · 需登录",
+      "needsKey": "添加时需要填写：{{labels}}",
+      "add": "添加",
+      "addEllipsis": "添加…",
+      "addOnly": "只加入列表",
+      "adding": "正在添加…",
+      "added": "已添加",
+      "addedAria": "{{name}} 已添加，查看",
+      "addedAs": "已在列表里（键名 {{id}}）",
+      "addAria": "添加 {{name}}",
+      "openAria": "查看 {{name}}",
+      "empty": "没有找到「{{query}}」",
+      "emptyHint": "换个关键词试试，或在页头点「添加」手动填写。",
+      "homepage": "主页",
+      "noDescription": "没有说明。",
+      "signInNote": "第一次使用时会在浏览器里登录 {{name}}。",
+      "optional": "（可选）",
+      "rateLimit": "可选，填了能提高速率限制",
+      "obtainBefore": "在 ",
+      "obtainAfter": " 获取",
+      "asEnv": "设为环境变量 {{key}}",
+      "asHeader": "作为请求头 {{key}} 发送",
+      "asArg": "追加到启动参数末尾",
+      "fillRequired": "请填写{{label}}",
+      "showValue": "显示",
+      "hideValue": "隐藏",
+      "labels": {
+        "apiKey": "API 密钥",
+        "token": "访问令牌",
+        "folder": "文件夹"
+      }
+    }
   },
   "skillsPage": {
     "noun": "Skill",
@@ -3742,5 +3788,39 @@
         "dailyAvg": "近 {{days}} 天日均"
       }
     }
+  },
+  "discoverView": {
+    "aria": "显示方式",
+    "list": "列表",
+    "grid": "卡片"
+  },
+  "mcpCatalog": {
+    "context7": "任意库的最新文档与代码示例，直接送进提示词。",
+    "playwright": "驱动真实浏览器：打开页面、点击、输入，并通过无障碍树读取页面。",
+    "chrome-devtools": "控制并检查运行中的 Chrome：控制台、网络、性能追踪和截图。",
+    "github": "GitHub 上的仓库、Issue、PR、Actions 和代码搜索。",
+    "deepwiki": "就任意公开 GitHub 仓库提问，并阅读自动生成的 Wiki。",
+    "exa": "为 Agent 打造的网页与代码搜索，返回干净的页面内容。",
+    "anysearch": "实时网页搜索、垂直搜索（金融、论文、代码、安全等）以及整页内容转 Markdown。",
+    "filesystem": "读、写、搜索文件，仅限你允许的文件夹。",
+    "fetch": "抓取网页并转成 Markdown。",
+    "memory": "Agent 跨对话保留的知识图谱。",
+    "sequential-thinking": "一步步想清问题，边想边修正、分支。",
+    "git": "读取、搜索和修改 Git 仓库。",
+    "time": "任意地点的当前时间，以及时区换算。",
+    "sentry": "Sentry 里的问题、错误和追踪，以及 Seer 的分析。",
+    "linear": "查找、创建和更新 Linear 的 Issue、项目和评论。",
+    "notion": "搜索、读写 Notion 工作区里的页面和数据库。",
+    "atlassian": "Atlassian Cloud 上的 Jira 问题和 Confluence 页面。",
+    "supabase": "管理 Supabase 项目：表、SQL、迁移、日志和边缘函数。",
+    "stripe": "客户、付款、订阅，以及 Stripe 文档。",
+    "vercel": "Vercel 上的项目、部署和日志，以及 Vercel 文档。",
+    "neon": "Neon 无服务器 Postgres：项目、分支和 SQL。",
+    "cloudflare-docs": "搜索 Cloudflare 文档。",
+    "microsoft-learn": "微软与 Azure 官方文档和代码示例。",
+    "huggingface": "在 Hugging Face Hub 搜索模型、数据集、Spaces 和论文。",
+    "brave-search": "来自 Brave 独立索引的网页、新闻、图片和本地搜索。",
+    "firecrawl": "抓取、爬取和搜索网页，输出干净的 Markdown。",
+    "tavily": "用 Tavily 搜索网页并提取内容。"
   }
 }

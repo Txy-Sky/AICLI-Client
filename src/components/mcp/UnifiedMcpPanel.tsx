@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import { useTranslation } from "react-i18next";
 import { Download, MoreHorizontal, Pencil, Plus, Server } from "lucide-react";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DialogTitle } from "@/components/ui/dialog";
 import { HoverTip } from "@/components/ui/hover-tip";
+import { PageTabs } from "@/components/ui/page-tabs";
 import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { APP_DISPLAY_NAME } from "@/components/shell/AppGlyph";
 import { useIsMutating } from "@tanstack/react-query";
@@ -36,6 +38,7 @@ import { copyText } from "@/lib/clipboard";
 import { extractErrorMessage } from "@/utils/errorUtils";
 import { cn } from "@/lib/utils";
 import McpFormModal from "./McpFormModal";
+import { McpDiscover } from "./McpDiscover";
 import {
   MatrixCell,
   MatrixColumnHeader,
@@ -120,6 +123,8 @@ interface UnifiedMcpPanelProps {
   onInteractionBlockedChange?: (blocked: boolean) => void;
 }
 
+type McpView = "installed" | "discover";
+
 interface ImportReport {
   added: string[];
   hadExisting: boolean;
@@ -127,7 +132,7 @@ interface ImportReport {
 }
 
 /**
- * MCP 全局页（v7）：页头 + 应用矩阵 + 添加 / 编辑抽屉。
+ * MCP 全局页（v7）：页头 +「已安装 / 发现」页签（应用矩阵 / 精选与官方 Registry）+ 添加 / 编辑抽屉。
  * 以这里为准写进勾选的应用；不支持的应用（Claude Desktop、OpenClaw）没有列。
  */
 const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
@@ -142,6 +147,14 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importFilesOpen, setImportFilesOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<McpView>("installed");
+  // 「发现」第一次打开后一直挂着（隐藏不卸载），来回切不丢搜索结果
+  const [discoverMounted, setDiscoverMounted] = useState(false);
+  useEffect(() => {
+    if (view === "discover") setDiscoverMounted(true);
+  }, [view]);
+  const [tabsTrailingSlot, setTabsTrailingSlot] =
+    useState<HTMLDivElement | null>(null);
   const [fails, setFails] = useState<Record<string, WriteFailure>>({});
   /** 整个应用重新同步失败（「重新同步到各应用」或通知条「重试」），不对应某一行 */
   const [appFails, setAppFails] = useState<Partial<Record<McpAppId, string>>>(
@@ -658,391 +671,446 @@ const UnifiedMcpPanel: React.FC<UnifiedMcpPanelProps> = ({
       />
 
       <div id="main-content" className="flex min-h-0 flex-1 flex-col">
-        {showList && (
-          <div className="flex h-14 shrink-0 items-center gap-3 px-6">
-            <MatrixSearch
-              className="w-[320px] min-w-[180px] shrink"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              placeholder={t("mcpPage.searchPlaceholder")}
-              ariaLabel={t("mcp.unifiedPanel.searchAriaLabel")}
-              status={
-                normalizedSearchQuery
-                  ? t("appMatrix.found", {
-                      count: filteredServerEntries.length,
+        <div className="shrink-0 px-6 pt-1">
+          <PageTabs<McpView>
+            aria-label={t("mcpPage.viewAria")}
+            idPrefix="mcp-view"
+            className="h-11"
+            value={view}
+            onValueChange={setView}
+            items={[
+              {
+                value: "installed",
+                label: hasServers
+                  ? t("mcpPage.viewInstalledCount", {
+                      count: serverEntries.length,
                     })
-                  : ""
+                  : t("mcpPage.viewInstalled"),
+              },
+              { value: "discover", label: t("mcpPage.viewDiscover") },
+            ]}
+            trailing={
+              <div ref={setTabsTrailingSlot} className="flex items-center" />
+            }
+          />
+        </div>
+        {discoverMounted && (
+          <div
+            className={cn(
+              "min-h-0 flex-1 flex-col",
+              view === "discover" ? "flex" : "hidden",
+            )}
+          >
+            <McpDiscover
+              renderViewTabs={(trailing) =>
+                view === "discover" && tabsTrailingSlot
+                  ? createPortal(trailing, tabsTrailingSlot)
+                  : null
               }
+              existingServers={serversMap ?? {}}
+              visibleAppIds={appIds}
+              disabled={interactionBlocked}
+              onShowInstalled={(id) => {
+                setSearchQuery(id);
+                setView("installed");
+              }}
             />
-            <span className="shrink-0 whitespace-nowrap text-caption tabular-nums text-fg-2">
-              {normalizedSearchQuery
-                ? t("mcpPage.countFiltered", {
-                    shown: filteredServerEntries.length,
-                    count: serverEntries.length,
-                  })
-                : t("mcpPage.count", { count: serverEntries.length })}
-            </span>
-            <span className="ms-auto min-w-0 truncate text-caption text-fg-2">
-              {t("mcpPage.overwriteNote")}
-            </span>
           </div>
         )}
+        <div
+          className={cn(
+            "min-h-0 flex-1 flex-col",
+            view === "installed" ? "flex" : "hidden",
+          )}
+        >
+          {showList && (
+            <div className="flex h-14 shrink-0 items-center gap-3 px-6">
+              <MatrixSearch
+                className="w-[320px] min-w-[180px] shrink"
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+                placeholder={t("mcpPage.searchPlaceholder")}
+                ariaLabel={t("mcp.unifiedPanel.searchAriaLabel")}
+                status={
+                  normalizedSearchQuery
+                    ? t("appMatrix.found", {
+                        count: filteredServerEntries.length,
+                      })
+                    : ""
+                }
+              />
+              <span className="shrink-0 whitespace-nowrap text-caption tabular-nums text-fg-2">
+                {normalizedSearchQuery
+                  ? t("mcpPage.countFiltered", {
+                      shown: filteredServerEntries.length,
+                      count: serverEntries.length,
+                    })
+                  : t("mcpPage.count", { count: serverEntries.length })}
+              </span>
+              <span className="ms-auto min-w-0 truncate text-caption text-fg-2">
+                {t("mcpPage.overwriteNote")}
+              </span>
+            </div>
+          )}
 
-        <NoticeSlot className={cn(failedApps.size > 0 && "px-6 pb-3")}>
-          {Array.from(failedApps.entries()).map(([app, error]) => (
-            <Notice
-              key={app}
-              tone="warning"
-              title={t("mcpPage.failNoticeTitle", {
-                app: APP_DISPLAY_NAME[app],
-              })}
-              actions={
+          <NoticeSlot className={cn(failedApps.size > 0 && "px-6 pb-3")}>
+            {Array.from(failedApps.entries()).map(([app, error]) => (
+              <Notice
+                key={app}
+                tone="warning"
+                title={t("mcpPage.failNoticeTitle", {
+                  app: APP_DISPLAY_NAME[app],
+                })}
+                actions={
+                  <Button
+                    type="button"
+                    variant="neutral"
+                    size="compact"
+                    disabled={controlsDisabled}
+                    onClick={() => void retryApp(app)}
+                  >
+                    {t("common.retry")}
+                  </Button>
+                }
+              >
+                {t("mcpPage.failNoticeBody", { error })}
+              </Notice>
+            ))}
+          </NoticeSlot>
+
+          <div className="flex min-h-0 flex-1 flex-col px-6 pb-5">
+            {isLoading ? (
+              <div className="py-12 text-center text-body text-fg-2">
+                {t("mcp.loading")}
+              </div>
+            ) : isError ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-10 pb-12 text-center">
+                <h2 className="m-0 text-section">{t("mcpPage.loadFailed")}</h2>
+                <code className="max-w-[520px] rounded-[8px] bg-subtle px-3 py-2 text-left font-mono text-caption text-fg-2 [overflow-wrap:anywhere]">
+                  {extractErrorMessage(loadError) || String(loadError)}
+                </code>
+                <p className="m-0 text-body text-fg-2">
+                  {t("mcpPage.noFilesChanged")}
+                </p>
                 <Button
                   type="button"
                   variant="neutral"
-                  size="compact"
-                  disabled={controlsDisabled}
-                  onClick={() => void retryApp(app)}
+                  size="regular"
+                  className="mt-1"
+                  onClick={() => void refetch()}
                 >
                   {t("common.retry")}
                 </Button>
-              }
-            >
-              {t("mcpPage.failNoticeBody", { error })}
-            </Notice>
-          ))}
-        </NoticeSlot>
-
-        <div className="flex min-h-0 flex-1 flex-col px-6 pb-5">
-          {isLoading ? (
-            <div className="py-12 text-center text-body text-fg-2">
-              {t("mcp.loading")}
-            </div>
-          ) : isError ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-10 pb-12 text-center">
-              <h2 className="m-0 text-section">{t("mcpPage.loadFailed")}</h2>
-              <code className="max-w-[520px] rounded-[8px] bg-subtle px-3 py-2 text-left font-mono text-caption text-fg-2 [overflow-wrap:anywhere]">
-                {extractErrorMessage(loadError) || String(loadError)}
-              </code>
-              <p className="m-0 text-body text-fg-2">
-                {t("mcpPage.noFilesChanged")}
-              </p>
-              <Button
-                type="button"
-                variant="neutral"
-                size="regular"
-                className="mt-1"
-                onClick={() => void refetch()}
+              </div>
+            ) : !hasServers ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-10 pb-12 text-center">
+                <h2 className="m-0 text-section">{t("mcpPage.emptyTitle")}</h2>
+                <div className="flex items-center gap-0.5">
+                  <p className="m-0 text-body text-fg-2">
+                    {t("mcpPage.emptyBody")}
+                  </p>
+                  <HelpTip title={t("mcpPage.importHelpTitle")} align="end">
+                    {t("mcpPage.importHelp")}
+                  </HelpTip>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    type="button"
+                    variant="neutral"
+                    size="regular"
+                    disabled={controlsDisabled}
+                    onClick={() => void handleImport()}
+                  >
+                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t("mcpPage.importFromApps")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="neutral"
+                    size="regular"
+                    disabled={controlsDisabled}
+                    onClick={openAdd}
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                    {t("mcpPage.add")}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                data-testid="mcp-matrix"
+                className="min-h-0 overflow-auto scroll-stable rounded-panel border border-border bg-surface"
               >
-                {t("common.retry")}
-              </Button>
-            </div>
-          ) : !hasServers ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-10 pb-12 text-center">
-              <h2 className="m-0 text-section">{t("mcpPage.emptyTitle")}</h2>
-              <div className="flex items-center gap-0.5">
-                <p className="m-0 text-body text-fg-2">
-                  {t("mcpPage.emptyBody")}
-                </p>
-                <HelpTip title={t("mcpPage.importHelpTitle")} align="end">
-                  {t("mcpPage.importHelp")}
-                </HelpTip>
-              </div>
-              <div className="mt-2 flex gap-2">
-                <Button
-                  type="button"
-                  variant="neutral"
-                  size="regular"
-                  disabled={controlsDisabled}
-                  onClick={() => void handleImport()}
-                >
-                  <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t("mcpPage.importFromApps")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="neutral"
-                  size="regular"
-                  disabled={controlsDisabled}
-                  onClick={openAdd}
-                >
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-                  {t("mcpPage.add")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div
-              data-testid="mcp-matrix"
-              className="min-h-0 overflow-auto scroll-stable rounded-panel border border-border bg-surface"
-            >
-              <MatrixColumnHighlight>
-                <div className="min-w-[560px]">
-                  <div className="sticky top-0 z-10 flex h-11 items-center border-b border-border bg-subtle pe-2 ps-4">
-                    <span className="min-w-0 flex-1 text-caption font-semibold text-fg-2">
-                      {t("mcpPage.columnName")}
-                    </span>
-                    <div className="flex shrink-0">
-                      {appIds.map((app) => {
-                        const enabledCount = serverEntries.filter(
-                          ([, server]) => server.apps[app],
-                        ).length;
-                        const scopeEnabled = scope.rows.filter(
-                          ([, server]) => server.apps[app],
-                        ).length;
-                        const scopeFailed = scope.rows.filter(
-                          ([id]) => fails[failKey(id, app)],
-                        ).length;
-                        return (
-                          <MatrixColumnHeader
-                            key={app}
-                            app={app}
-                            enabledCount={enabledCount}
-                            totalCount={serverEntries.length}
-                            scopeTotal={scope.rows.length}
-                            scopeEnabled={scopeEnabled}
-                            scopeFailed={scopeFailed}
-                            scopeKind={scope.kind}
-                            noun={noun}
-                            disabled={controlsDisabled}
-                            {...ompDiscoveryColumnNote(app, t)}
-                            onEnableRest={() => void handleBulk(app, true)}
-                            onDisableAll={() => void handleBulk(app, false)}
-                          />
-                        );
-                      })}
-                    </div>
-                    <span aria-hidden="true" className="w-16 shrink-0" />
-                  </div>
-
-                  {filteredServerEntries.length === 0 ? (
-                    <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
-                      <span className="text-body text-fg-2">
-                        {t("mcpPage.noMatch", { query: searchQuery.trim() })}
+                <MatrixColumnHighlight>
+                  <div className="min-w-[560px]">
+                    <div className="sticky top-0 z-10 flex h-11 items-center border-b border-border bg-subtle pe-2 ps-4">
+                      <span className="min-w-0 flex-1 text-caption font-semibold text-fg-2">
+                        {t("mcpPage.columnName")}
                       </span>
-                      <Button
-                        type="button"
-                        variant="neutral"
-                        size="regular"
-                        onClick={() => setSearchQuery("")}
-                      >
-                        {t("mcpPage.clearSearch")}
-                      </Button>
+                      <div className="flex shrink-0">
+                        {appIds.map((app) => {
+                          const enabledCount = serverEntries.filter(
+                            ([, server]) => server.apps[app],
+                          ).length;
+                          const scopeEnabled = scope.rows.filter(
+                            ([, server]) => server.apps[app],
+                          ).length;
+                          const scopeFailed = scope.rows.filter(
+                            ([id]) => fails[failKey(id, app)],
+                          ).length;
+                          return (
+                            <MatrixColumnHeader
+                              key={app}
+                              app={app}
+                              enabledCount={enabledCount}
+                              totalCount={serverEntries.length}
+                              scopeTotal={scope.rows.length}
+                              scopeEnabled={scopeEnabled}
+                              scopeFailed={scopeFailed}
+                              scopeKind={scope.kind}
+                              noun={noun}
+                              disabled={controlsDisabled}
+                              {...ompDiscoveryColumnNote(app, t)}
+                              onEnableRest={() => void handleBulk(app, true)}
+                              onDisableAll={() => void handleBulk(app, false)}
+                            />
+                          );
+                        })}
+                      </div>
+                      <span aria-hidden="true" className="w-16 shrink-0" />
                     </div>
-                  ) : (
-                    <ul
-                      aria-label={t("mcpPage.listLabel")}
-                      className="m-0 list-none p-0"
-                    >
-                      {filteredServerEntries.map(([id, server], index) => {
-                        const enabled = MCP_APP_IDS.some(
-                          (app) => server.apps[app],
-                        );
-                        const rowFailedApps = appIds.filter(
-                          (app) => fails[failKey(id, app)],
-                        );
-                        const summary = summaryOf(server.server);
-                        const failedNames = rowFailedApps
-                          .map((app) => APP_DISPLAY_NAME[app])
-                          .join(listSeparator);
-                        const hasDocs = Boolean(
-                          server.docs ||
-                            server.homepage ||
-                            mcpPresets.find((item) => item.id === id)?.docs,
-                        );
-                        const displayName = server.name?.trim() || id;
-                        const hasCustomName = Boolean(
-                          server.name?.trim() && server.name.trim() !== id,
-                        );
-                        return (
-                          <li
-                            key={id}
-                            onClick={() => openEdit(id)}
-                            className={cn(
-                              "flex h-14 cursor-pointer items-center pe-2 ps-4 transition-colors duration-150 hover:bg-subtle",
-                              index > 0 && "border-t border-border",
-                            )}
-                          >
-                            <div className="flex min-w-0 flex-1 flex-col pe-3">
-                              <div className="flex min-w-0 items-center gap-1.5">
-                                <span
-                                  title={displayName}
-                                  className="min-w-0 truncate text-body font-medium"
-                                >
-                                  {displayName}
-                                </span>
-                                {hasCustomName && (
+
+                    {filteredServerEntries.length === 0 ? (
+                      <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+                        <span className="text-body text-fg-2">
+                          {t("mcpPage.noMatch", { query: searchQuery.trim() })}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="neutral"
+                          size="regular"
+                          onClick={() => setSearchQuery("")}
+                        >
+                          {t("mcpPage.clearSearch")}
+                        </Button>
+                      </div>
+                    ) : (
+                      <ul
+                        aria-label={t("mcpPage.listLabel")}
+                        className="m-0 list-none p-0"
+                      >
+                        {filteredServerEntries.map(([id, server], index) => {
+                          const enabled = MCP_APP_IDS.some(
+                            (app) => server.apps[app],
+                          );
+                          const rowFailedApps = appIds.filter(
+                            (app) => fails[failKey(id, app)],
+                          );
+                          const summary = summaryOf(server.server);
+                          const failedNames = rowFailedApps
+                            .map((app) => APP_DISPLAY_NAME[app])
+                            .join(listSeparator);
+                          const hasDocs = Boolean(
+                            server.docs ||
+                              server.homepage ||
+                              mcpPresets.find((item) => item.id === id)?.docs,
+                          );
+                          const displayName = server.name?.trim() || id;
+                          const hasCustomName = Boolean(
+                            server.name?.trim() && server.name.trim() !== id,
+                          );
+                          return (
+                            <li
+                              key={id}
+                              onClick={() => openEdit(id)}
+                              className={cn(
+                                "flex h-14 cursor-pointer items-center pe-2 ps-4 transition-colors duration-150 hover:bg-subtle",
+                                index > 0 && "border-t border-border",
+                              )}
+                            >
+                              <div className="flex min-w-0 flex-1 flex-col pe-3">
+                                <div className="flex min-w-0 items-center gap-1.5">
                                   <span
-                                    title={id}
-                                    className="min-w-0 shrink truncate font-mono text-caption text-fg-3"
+                                    title={displayName}
+                                    className="min-w-0 truncate text-body font-medium"
                                   >
-                                    {id}
+                                    {displayName}
                                   </span>
-                                )}
-                                <NeutralBadge mono>
-                                  {transportOf(server.server)}
-                                </NeutralBadge>
-                                {!enabled && (
-                                  <NeutralBadge>
-                                    {t("mcpPage.notEnabled")}
+                                  {hasCustomName && (
+                                    <span
+                                      title={id}
+                                      className="min-w-0 shrink truncate font-mono text-caption text-fg-3"
+                                    >
+                                      {id}
+                                    </span>
+                                  )}
+                                  <NeutralBadge mono>
+                                    {transportOf(server.server)}
                                   </NeutralBadge>
-                                )}
-                              </div>
-                              <div className="flex min-w-0 items-center text-caption text-fg-2">
-                                <span
-                                  title={summary}
-                                  className="min-w-0 truncate font-mono"
-                                >
-                                  {summary}
-                                </span>
-                                {rowFailedApps.length > 0 && (
-                                  <span className="ms-2.5 shrink-0 whitespace-nowrap text-warning-text">
-                                    {t("mcpPage.rowFail", {
-                                      apps: failedNames,
-                                    })}
-                                    {" · "}
-                                    <button
-                                      type="button"
-                                      className="font-medium underline underline-offset-[3px]"
-                                      aria-label={t("mcpPage.rowRetryAria", {
-                                        id,
+                                  {!enabled && (
+                                    <NeutralBadge>
+                                      {t("mcpPage.notEnabled")}
+                                    </NeutralBadge>
+                                  )}
+                                </div>
+                                <div className="flex min-w-0 items-center text-caption text-fg-2">
+                                  <span
+                                    title={summary}
+                                    className="min-w-0 truncate font-mono"
+                                  >
+                                    {summary}
+                                  </span>
+                                  {rowFailedApps.length > 0 && (
+                                    <span className="ms-2.5 shrink-0 whitespace-nowrap text-warning-text">
+                                      {t("mcpPage.rowFail", {
                                         apps: failedNames,
                                       })}
-                                      disabled={controlsDisabled}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        const app = rowFailedApps[0];
-                                        void writeOne(
+                                      {" · "}
+                                      <button
+                                        type="button"
+                                        className="font-medium underline underline-offset-[3px]"
+                                        aria-label={t("mcpPage.rowRetryAria", {
                                           id,
-                                          app,
-                                          fails[failKey(id, app)].desired,
-                                        );
-                                      }}
-                                    >
-                                      {t("common.retry")}
-                                    </button>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex shrink-0">
-                              {appIds.map((app) => {
-                                const failure = fails[failKey(id, app)];
-                                const on = Boolean(server.apps[app]);
-                                const state = failure
-                                  ? "fail"
-                                  : on
-                                    ? "on"
-                                    : "off";
-                                return (
-                                  <MatrixCell
-                                    key={app}
-                                    app={app}
-                                    state={state}
-                                    disabled={controlsDisabled}
-                                    label={t(`appMatrix.cell.${state}`, {
-                                      name: id,
-                                      app: APP_DISPLAY_NAME[app],
-                                    })}
-                                    onClick={() =>
-                                      handleCellClick(id, server, app)
-                                    }
-                                  />
-                                );
-                              })}
-                            </div>
-                            <div
-                              className="flex w-16 shrink-0 justify-end gap-1"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <HoverTip content={t("common.edit")}>
-                                <Button
-                                  type="button"
-                                  variant="quiet"
-                                  size="icon-compact"
-                                  aria-label={t("mcpPage.editAria", { id })}
-                                  disabled={controlsDisabled}
-                                  onClick={() => openEdit(id)}
-                                >
-                                  <Pencil
-                                    className="h-[15px] w-[15px]"
-                                    strokeWidth={1.5}
-                                  />
-                                </Button>
-                              </HoverTip>
-                              <DropdownMenu>
-                                <HoverTip content={t("common.more")}>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="quiet"
-                                      size="icon-compact"
-                                      aria-label={t("mcpPage.rowMoreAria", {
-                                        id,
-                                      })}
-                                      disabled={controlsDisabled}
-                                    >
-                                      <MoreHorizontal
-                                        className="h-[15px] w-[15px]"
-                                        strokeWidth={1.5}
-                                      />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                </HoverTip>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="min-w-[200px]"
-                                >
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      void copyJson(
-                                        { [id]: server },
-                                        t("mcpPage.toast.copiedOne", { id }),
-                                      )
-                                    }
-                                  >
-                                    {t("mcpPage.copyJson")}
-                                  </DropdownMenuItem>
-                                  {hasDocs && (
-                                    <DropdownMenuItem
-                                      onSelect={() => void openDocs(server, id)}
-                                    >
-                                      {t("mcpPage.openDocs")}
-                                    </DropdownMenuItem>
+                                          apps: failedNames,
+                                        })}
+                                        disabled={controlsDisabled}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          const app = rowFailedApps[0];
+                                          void writeOne(
+                                            id,
+                                            app,
+                                            fails[failKey(id, app)].desired,
+                                          );
+                                        }}
+                                      >
+                                        {t("common.retry")}
+                                      </button>
+                                    </span>
                                   )}
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      void handleRowAll(id, server, true)
-                                    }
+                                </div>
+                              </div>
+                              <div className="flex shrink-0">
+                                {appIds.map((app) => {
+                                  const failure = fails[failKey(id, app)];
+                                  const on = Boolean(server.apps[app]);
+                                  const state = failure
+                                    ? "fail"
+                                    : on
+                                      ? "on"
+                                      : "off";
+                                  return (
+                                    <MatrixCell
+                                      key={app}
+                                      app={app}
+                                      state={state}
+                                      disabled={controlsDisabled}
+                                      label={t(`appMatrix.cell.${state}`, {
+                                        name: id,
+                                        app: APP_DISPLAY_NAME[app],
+                                      })}
+                                      onClick={() =>
+                                        handleCellClick(id, server, app)
+                                      }
+                                    />
+                                  );
+                                })}
+                              </div>
+                              <div
+                                className="flex w-16 shrink-0 justify-end gap-1"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <HoverTip content={t("common.edit")}>
+                                  <Button
+                                    type="button"
+                                    variant="quiet"
+                                    size="icon-compact"
+                                    aria-label={t("mcpPage.editAria", { id })}
+                                    disabled={controlsDisabled}
+                                    onClick={() => openEdit(id)}
                                   >
-                                    {t("mcpPage.enableEverywhere")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onSelect={() =>
-                                      void handleRowAll(id, server, false)
-                                    }
+                                    <Pencil
+                                      className="h-[15px] w-[15px]"
+                                      strokeWidth={1.5}
+                                    />
+                                  </Button>
+                                </HoverTip>
+                                <DropdownMenu>
+                                  <HoverTip content={t("common.more")}>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="quiet"
+                                        size="icon-compact"
+                                        aria-label={t("mcpPage.rowMoreAria", {
+                                          id,
+                                        })}
+                                        disabled={controlsDisabled}
+                                      >
+                                        <MoreHorizontal
+                                          className="h-[15px] w-[15px]"
+                                          strokeWidth={1.5}
+                                        />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                  </HoverTip>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="min-w-[200px]"
                                   >
-                                    {t("mcpPage.disableEverywhere")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-danger-text focus:text-danger-text"
-                                    onSelect={() => setDeleteId(id)}
-                                  >
-                                    {t("mcpPage.deleteEllipsis")}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              </MatrixColumnHighlight>
-            </div>
-          )}
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        void copyJson(
+                                          { [id]: server },
+                                          t("mcpPage.toast.copiedOne", { id }),
+                                        )
+                                      }
+                                    >
+                                      {t("mcpPage.copyJson")}
+                                    </DropdownMenuItem>
+                                    {hasDocs && (
+                                      <DropdownMenuItem
+                                        onSelect={() =>
+                                          void openDocs(server, id)
+                                        }
+                                      >
+                                        {t("mcpPage.openDocs")}
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        void handleRowAll(id, server, true)
+                                      }
+                                    >
+                                      {t("mcpPage.enableEverywhere")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={() =>
+                                        void handleRowAll(id, server, false)
+                                      }
+                                    >
+                                      {t("mcpPage.disableEverywhere")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-danger-text focus:text-danger-text"
+                                      onSelect={() => setDeleteId(id)}
+                                    >
+                                      {t("mcpPage.deleteEllipsis")}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </MatrixColumnHighlight>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

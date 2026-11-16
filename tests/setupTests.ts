@@ -32,11 +32,12 @@ beforeAll(async () => {
 
 afterEach(() => {
   cleanup();
-  // 页面数据的本地缓存（src/lib/localCache.ts）和用量页记住的选择不能从一个用例带到下一个
+  // 页面数据的本地缓存（src/lib/localCache.ts）、用量页和发现栏记住的选择不能从一个用例带到下一个
   for (const key of Object.keys(localStorage)) {
     if (
       key.startsWith("cc-switch-cache:") ||
-      key.startsWith("cc-switch.usage.")
+      key.startsWith("cc-switch.usage.") ||
+      key.endsWith(".discoverView")
     )
       localStorage.removeItem(key);
   }

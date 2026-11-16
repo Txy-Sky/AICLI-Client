@@ -36,6 +36,8 @@ import {
   RequiredMark,
 } from "./formBits";
 import {
+  SSE_AS_HTTP_APPS,
+  SSE_REJECTED_APPS,
   connectionOf,
   jsonTextOf,
   parseJsonText,
@@ -55,14 +57,6 @@ import {
 } from "./mcpDraft";
 
 type AppsState = Record<McpAppId, boolean>;
-
-/**
- * 不支持 SSE 的应用。Codex 的 `[mcp_servers.*]` 只有 stdio / Streamable HTTP，
- * 写进去的 SSE 地址会被当成 Streamable HTTP 连接（#8882）；Pi、Antigravity 的
- * 写入直接拒绝 SSE（`mcp/pi.rs`、`mcp/agy.rs`）。
- */
-const SSE_AS_HTTP_APPS: readonly McpAppId[] = ["codex"];
-const SSE_REJECTED_APPS: readonly McpAppId[] = ["pi", "agy"];
 
 interface MetaDraft {
   name: string;

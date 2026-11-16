@@ -2810,7 +2810,53 @@
       "homepage": "Homepage",
       "docs": "Docs"
     },
-    "resync": "Rewrite every app's config from these switches"
+    "resync": "Rewrite every app's config from these switches",
+    "viewAria": "MCP view",
+    "viewInstalled": "Installed",
+    "viewInstalledCount": "Installed · {{count}}",
+    "viewDiscover": "Discover",
+    "discover": {
+      "searchPlaceholder": "Search MCP servers — GitHub, Postgres, Figma…",
+      "searchAria": "Search MCP servers",
+      "sourceNote": "Featured, plus the official MCP Registry",
+      "results": "{{count}} results",
+      "searching": "Searching the MCP Registry…",
+      "registryFailedTitle": "Couldn't reach the MCP Registry",
+      "registryFailedBody": "Only matching featured servers are listed below. {{error}}",
+      "listLabel": "MCP servers you can add",
+      "remote": "remote",
+      "remoteSignIn": "remote · sign-in",
+      "needsKey": "Needs {{labels}} when added",
+      "add": "Add",
+      "addEllipsis": "Add…",
+      "addOnly": "Add to list only",
+      "adding": "Adding…",
+      "added": "Added",
+      "addedAria": "{{name}} is added, show it",
+      "addedAs": "Already in the list (as {{id}})",
+      "addAria": "Add {{name}}",
+      "openAria": "Show {{name}}",
+      "empty": "Nothing found for “{{query}}”",
+      "emptyHint": "Try another word, or use Add in the header to fill it in yourself.",
+      "homepage": "Homepage",
+      "noDescription": "No description.",
+      "signInNote": "You'll sign in to {{name}} in the browser the first time it's used.",
+      "optional": " (optional)",
+      "rateLimit": "Optional, raises the rate limit",
+      "obtainBefore": "Get it at ",
+      "obtainAfter": "",
+      "asEnv": "Set as the {{key}} environment variable",
+      "asHeader": "Sent as the {{key}} header",
+      "asArg": "Appended to the launch arguments",
+      "fillRequired": "Fill in {{label}}",
+      "showValue": "Show",
+      "hideValue": "Hide",
+      "labels": {
+        "apiKey": "API key",
+        "token": "Access token",
+        "folder": "Folder"
+      }
+    }
   },
   "skillsPage": {
     "noun": "Skills",
@@ -3742,5 +3788,10 @@
         "dailyAvg": "Daily average, last {{days}} days"
       }
     }
+  },
+  "discoverView": {
+    "aria": "View",
+    "list": "List",
+    "grid": "Cards"
   }
 }

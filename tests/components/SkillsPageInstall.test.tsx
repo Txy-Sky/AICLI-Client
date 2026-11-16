@@ -205,6 +205,40 @@ describe("SkillsPage (Discover)", () => {
     expect(args.skill.name).toBe("Agent Browser B");
   });
 
+  it("shows results as cards after switching the view and installs from a card", async () => {
+    setSearchResult("agent", 0, {
+      skills: [makeSkillsSh({ key: "a", name: "Agent Browser A" })],
+      totalCount: 1,
+      query: "agent",
+    });
+    renderPage();
+    const gridButton = screen.getByRole("button", {
+      name: "discoverView.grid",
+    });
+    expect(gridButton.getAttribute("aria-pressed")).toBe("false");
+    await userEvent.click(gridButton);
+    expect(gridButton.getAttribute("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("cc-switch.skills.discoverView")).toBe("grid");
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "skillsPage.discover.skillsShAria" }),
+      "agent{Enter}",
+    );
+    await screen.findByText("Agent Browser A");
+    const [card] = screen.getAllByRole("listitem");
+    // 卡片：来源 owner/repo 和下载量
+    expect(within(card).getByText("owner-a/repo-a")).toBeInTheDocument();
+    expect(
+      within(card).getByTitle("skills.skillssh.installs"),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      within(card).getByRole("button", {
+        name: "skillsPage.discover.installAria",
+      }),
+    );
+    await waitFor(() => expect(m.install).toHaveBeenCalledTimes(1));
+  });
+
   it("keeps skills.sh results when the same query is submitted again", async () => {
     setSearchResult("figma", 0, {
       skills: [makeSkillsSh({ key: "f", name: "figma-use" })],

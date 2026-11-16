@@ -3,6 +3,10 @@ import { mcpApi } from "@/lib/api/mcp";
 import type { McpServer, McpServersMap } from "@/types";
 import type { AppId } from "@/lib/api/types";
 import { runSequentialBulkAction } from "@/lib/utils/sequentialBulkAction";
+import {
+  parseRegistryResponse,
+  type RegistryResponse,
+} from "@/lib/mcpRegistry";
 
 /**
  * 查询所有 MCP 服务器（统一管理）
@@ -11,6 +15,22 @@ export function useAllMcpServers() {
   return useQuery({
     queryKey: ["mcp", "all"],
     queryFn: () => mcpApi.getAllServers(),
+  });
+}
+
+const selectRegistryEntries = (data: unknown) =>
+  parseRegistryResponse(data as RegistryResponse);
+
+/** 发现栏：在官方 MCP Registry 搜索（至少 2 个字符才请求；结果缓存 10 分钟） */
+export function useSearchMcpRegistry(query: string) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: ["mcp", "registry", q],
+    queryFn: () => mcpApi.searchRegistry(q),
+    enabled: q.length >= 2,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+    select: selectRegistryEntries,
   });
 }
 

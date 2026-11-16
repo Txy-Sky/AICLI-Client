@@ -53,6 +53,14 @@ vi.mock("@/hooks/useMcp", () => ({
     mutateAsync: mocks.resync,
     isPending: false,
   }),
+  useUpsertMcpServer: () => ({ mutateAsync: vi.fn() }),
+  useSearchMcpRegistry: () => ({
+    data: [],
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock("@/components/mcp/useVisibleAppIds", () => ({
@@ -200,6 +208,44 @@ describe("UnifiedMcpPanel", () => {
     expect(screen.getByText("mcpPage.loadFailed")).toBeInTheDocument();
     expect(screen.getByText("database is locked")).toBeInTheDocument();
     expect(screen.queryByText("mcpPage.emptyTitle")).not.toBeInTheDocument();
+  });
+
+  it("switches between the installed matrix and the discover section", async () => {
+    mocks.serversMap = {
+      deepwiki: makeServer("deepwiki", {
+        server: { type: "http", url: "https://mcp.deepwiki.com/mcp" },
+      }),
+    };
+    // 卡片网格是虚拟化的（jsdom 量不出尺寸），这里用列表视图
+    localStorage.setItem("cc-switch.mcp.discoverView", "list");
+    renderPanel();
+    const discoverTab = screen.getByRole("tab", {
+      name: "mcpPage.viewDiscover",
+    });
+    expect(
+      screen.queryByRole("list", { name: "mcpPage.discover.listLabel" }),
+    ).toBeNull();
+    await userEvent.click(discoverTab);
+    expect(discoverTab).toHaveAttribute("aria-selected", "true");
+    const discover = screen.getByRole("list", {
+      name: "mcpPage.discover.listLabel",
+    });
+
+    // 已在列表里的精选显示「已添加」，点它回到已安装并按键名搜索
+    const card = within(discover)
+      .getAllByRole("listitem")
+      .find((item) => within(item).queryAllByText("DeepWiki").length > 0)!;
+    await userEvent.click(
+      within(card).getByRole("button", { name: "mcpPage.discover.addedAria" }),
+    );
+    expect(
+      screen.getByRole("tab", { name: "mcpPage.viewInstalledCount" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("textbox", {
+        name: "mcp.unifiedPanel.searchAriaLabel",
+      }),
+    ).toHaveValue("deepwiki");
   });
 
   it("only renders columns for apps shown on the Apps page", () => {

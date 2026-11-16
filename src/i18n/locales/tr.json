@@ -2806,7 +2806,53 @@
       "homepage": "Ana sayfa",
       "docs": "Dokümanlar"
     },
-    "resync": "Bu anahtarlardan her uygulamanın yapılandırmasını yeniden yazın"
+    "resync": "Bu anahtarlardan her uygulamanın yapılandırmasını yeniden yazın",
+    "viewAria": "MCP görünümü",
+    "viewInstalled": "Yüklü",
+    "viewInstalledCount": "Yüklü · {{count}}",
+    "viewDiscover": "Keşfet",
+    "discover": {
+      "searchPlaceholder": "MCP sunucusu ara — GitHub, Postgres, Figma…",
+      "searchAria": "MCP sunucusu ara",
+      "sourceNote": "Öne çıkanlar ve resmi MCP Registry",
+      "results": "{{count}} sonuç",
+      "searching": "MCP Registry'de aranıyor…",
+      "registryFailedTitle": "MCP Registry'ye ulaşılamadı",
+      "registryFailedBody": "Aşağıda yalnızca eşleşen öne çıkan sunucular listeleniyor. {{error}}",
+      "listLabel": "Eklenebilecek MCP sunucuları",
+      "remote": "uzak",
+      "remoteSignIn": "uzak · giriş gerekir",
+      "needsKey": "Eklerken gerekli: {{labels}}",
+      "add": "Ekle",
+      "addEllipsis": "Ekle…",
+      "addOnly": "Yalnızca listeye ekle",
+      "adding": "Ekleniyor…",
+      "added": "Eklendi",
+      "addedAria": "{{name}} eklendi, göster",
+      "addedAs": "Listede zaten var ({{id}} olarak)",
+      "addAria": "{{name}} ekle",
+      "openAria": "{{name}} göster",
+      "empty": "“{{query}}” için sonuç yok",
+      "emptyHint": "Başka bir sözcük deneyin ya da başlıktaki Ekle ile kendiniz doldurun.",
+      "homepage": "Ana sayfa",
+      "noDescription": "Açıklama yok.",
+      "signInNote": "İlk kullanımda tarayıcıda {{name}} hesabına giriş yapılır.",
+      "optional": " (isteğe bağlı)",
+      "rateLimit": "İsteğe bağlı, hız sınırını yükseltir",
+      "obtainBefore": "Şuradan alın: ",
+      "obtainAfter": "",
+      "asEnv": "{{key}} ortam değişkeni olarak ayarlanır",
+      "asHeader": "{{key}} başlığı olarak gönderilir",
+      "asArg": "Başlatma argümanlarının sonuna eklenir",
+      "fillRequired": "{{label}} alanını doldurun",
+      "showValue": "Göster",
+      "hideValue": "Gizle",
+      "labels": {
+        "apiKey": "API anahtarı",
+        "token": "Erişim belirteci",
+        "folder": "Klasör"
+      }
+    }
   },
   "skillsPage": {
     "noun": "Beceriler",
@@ -3738,5 +3784,10 @@
         "dailyAvg": "Son {{days}} gün günlük ortalama"
       }
     }
+  },
+  "discoverView": {
+    "aria": "Görünüm",
+    "list": "Liste",
+    "grid": "Kartlar"
   }
 }
