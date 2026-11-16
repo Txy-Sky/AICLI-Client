@@ -206,7 +206,10 @@ jobs:
           test ! -s "$RUNNER_TEMP/aicli-evidence/B-03-scan.txt"
           test "$(grep -n 'AICLI Client' src-tauri/tauri.conf.json src-tauri/tauri.windows.conf.json | wc -l)" -gt 0
           test "$(grep -n 'com.aicliapi.com' src-tauri/tauri.conf.json | wc -l)" -gt 0
-          test "$(grep -n '0.1.0' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json | wc -l)" -ge 3
+          # 三处版本号必须一致（原先写死 0.1.0，发 0.1.1 起改为比对；见清单第 13 节）
+          version=$(node -p "require('./package.json').version")
+          test "$(node -p "require('./src-tauri/tauri.conf.json').version")" = "$version"
+          grep -q -x -F "version = \"$version\"" src-tauri/Cargo.toml
           printf 'B-03: PASS\n' | tee "$RUNNER_TEMP/aicli-evidence/B-03.txt"
       - name: B-05 verify updater configuration and release workflow guards
         shell: bash

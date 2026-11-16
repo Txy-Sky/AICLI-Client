@@ -1,0 +1,33 @@
+{
+  "version": "0.1.1",
+  "items": [
+    {
+      "type": "improve",
+      "zh": "支付订单 5 分钟超时自动关闭窗口，等待时显示倒计时",
+      "zh-TW": "付款訂單 5 分鐘逾時自動關閉視窗，等待時顯示倒數",
+      "en": "Payment windows close when the 5-minute order expires, with a countdown while waiting",
+      "ja": "支払いは 5 分で期限切れになるとウィンドウを自動で閉じ、待機中は残り時間を表示"
+    },
+    {
+      "type": "improve",
+      "zh": "钱包页重新排版，邀请返利和兑换码移到余额下方",
+      "zh-TW": "錢包頁重新排版，邀請回饋和兌換碼移到餘額下方",
+      "en": "Wallet page rearranged: invitation rewards and redemption sit under the balance",
+      "ja": "ウォレット画面を再構成し、招待リワードと引き換えコードを残高の下に配置"
+    },
+    {
+      "type": "fix",
+      "zh": "充值记录里超时未付的订单显示为「已超时」",
+      "zh-TW": "儲值紀錄中逾時未付的訂單顯示為「已逾時」",
+      "en": "Unpaid orders past their validity now show as timed out in the top-up history",
+      "ja": "チャージ履歴で、未払いのまま期限を過ぎた注文を「期限切れ」と表示"
+    },
+    {
+      "type": "improve",
+      "zh": "支付宝、微信使用官方图标",
+      "zh-TW": "支付寶、微信使用官方圖示",
+      "en": "Alipay and WeChat now use their official icons",
+      "ja": "Alipay と WeChat に公式アイコンを使用"
+    }
+  ]
+}

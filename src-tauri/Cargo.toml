@@ -1,6 +1,6 @@
 [package]
 name = "aicli-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "AICLI Client desktop application"
 authors = ["Txy-Sky"]
 license = "MIT"
