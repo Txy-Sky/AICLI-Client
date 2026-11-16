@@ -1119,7 +1119,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [ ] 完成
 - 修改：`UnifiedMcpPanel` 新增「已安装 / 发现」页签（原矩阵为「已安装」）。`src/config/mcpCatalog.ts` 精选 27 条（取 Magpie featured 的第三方条目，不含 Magpie 自家与依赖 Magpie Memory 的 EverMe、Nowledge），描述译文在 `mcpCatalog.<id>`。`src/lib/mcpRegistry.ts` 把 Registry 记录转换成配置：远程优先（streamable-http → sse，须 https 且地址不含占位），其次 npm（npx）/ PyPI（uvx），docker 镜像不支持；必填或保密的环境变量、请求头和必填位置参数变成「添加…」表单里的输入项，请求头按模板（如 `Bearer {}`）写入；非 active 的记录、重复的服务器去掉。搜索输入停顿 320ms 或回车时请求，结果为匹配的精选加 Registry（按名字相关度排序，最多 100 条）；Registry 失败时精选照常显示并提示重试。已在列表里的（按远程地址或命令 + 包名判断）显示「已添加 ›」，点它回到已安装并按键名搜索。「添加」直接写入界面上显示的全部应用（SSE 时去掉 Pi、Antigravity），「添加…」对话框可改写入的应用。新增命令 `search_mcp_registry`：只取数（`/v0/servers?search=&limit=100&version=latest`，超时 60 秒，5xx 重试一次，响应上限 8MB），不写本地配置。
 - 验收：`tests/lib/mcpRegistry.test.ts`（11 项）、`tests/components/McpDiscover.test.tsx`（6 项）、`tests/components/UnifiedMcpPanel.test.tsx` 新增页签切换用例；`tsc --noEmit` 通过；Rust 新命令由 CI 编译。
-- 状态：本地 vitest 全量 1359 项中 1358 项通过；另一项 `SessionManagerPage` 是与 tsc 同时运行时 5 秒超时，单独重跑 19 项全部通过。prettier、`rustfmt --check` 通过；本机 `tsc` 因内存不足被系统终止，类型检查以 CI 为准（首次 CI run 43894404680 查出 `mcpRegistry.ts` 一处 TS2322，已修正）。Rust 新命令在本机编译不了，由 CI 验证。界面还没在真机上走查。
+- 状态：本地 vitest 全量 1359 项中 1358 项通过；另一项 `SessionManagerPage` 是与 tsc 同时运行时 5 秒超时，单独重跑 19 项全部通过。prettier、`rustfmt --check` 通过；本机 `tsc` 因内存不足被系统终止，类型检查以 CI 为准（首次 CI run 43894404680 查出 `mcpRegistry.ts` 一处 TS2322，已修正）。10f26f9d 的 CI run 43901121640 五个 job 全部 success（格式与类型、Rust 测试、桌面检查、测试环境、清单验收），Rust 新命令 `search_mcp_registry`、`get_cached_discover_icon`、`cache_discover_icon` 编译通过。界面还没在真机上走查。
 
 ---
 
