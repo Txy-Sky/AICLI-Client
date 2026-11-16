@@ -399,24 +399,40 @@ impl<'a> UsageLogger<'a> {
         provider_type: Option<String>,
         is_streaming: bool,
         aicli_route: Option<(&str, &str)>,
+        aicli_billing: Option<&crate::aicli::pricing::UsageBilling>,
     ) -> Result<(), AppError> {
-        let pricing = self.get_model_pricing(&pricing_model)?;
-
         let has_usage = usage.input_tokens > 0
             || usage.output_tokens > 0
             || usage.cache_read_tokens > 0
             || usage.cache_creation_tokens > 0;
 
-        if pricing.is_none() && has_usage && !is_placeholder_pricing_model(&pricing_model) {
-            log::warn!("[USG-002] 模型定价未找到，成本将记录为 0: {pricing_model}");
-        }
-
-        let cost = CostCalculator::try_calculate_for_app(
-            &app_type,
-            &usage,
-            pricing.as_ref(),
-            Decimal::ONE,
-        );
+        // AICLI 请求按服务端口径估算（站点单价 × 分组倍率），不用本地官方价格表；
+        // 认不出价格时记为未计价，等服务端账单回填实扣。
+        let (cost, cost_multiplier) = if aicli_route.is_some() {
+            match aicli_billing
+                .and_then(|billing| crate::aicli::pricing::estimate(&app_type, &usage, billing))
+            {
+                Some((cost, ratio)) => (Some(cost), ratio.normalize().to_string()),
+                None => {
+                    if has_usage {
+                        log::info!("[USG-003] AICLI 价格未知，等服务端账单回填: {pricing_model}");
+                    }
+                    (None, "1".to_string())
+                }
+            }
+        } else {
+            let pricing = self.get_model_pricing(&pricing_model)?;
+            if pricing.is_none() && has_usage && !is_placeholder_pricing_model(&pricing_model) {
+                log::warn!("[USG-002] 模型定价未找到，成本将记录为 0: {pricing_model}");
+            }
+            let cost = CostCalculator::try_calculate_for_app(
+                &app_type,
+                &usage,
+                pricing.as_ref(),
+                Decimal::ONE,
+            );
+            (cost, "1".to_string())
+        };
 
         let log = RequestLog {
             request_id,
@@ -434,7 +450,7 @@ impl<'a> UsageLogger<'a> {
             session_id,
             provider_type,
             is_streaming,
-            cost_multiplier: "1".to_string(),
+            cost_multiplier,
             aicli_line_id: aicli_route.map(|(line, _)| line.to_owned()),
             aicli_profile_id: aicli_route.map(|(_, profile)| profile.to_owned()),
         };
@@ -508,6 +524,7 @@ mod tests {
             None,
             false,
             Some(("apac", "custom")),
+            None,
         )?;
         let (provider_id, line, profile): (String, Option<String>, Option<String>) =
             db.conn.lock()?.query_row(
@@ -553,6 +570,7 @@ mod tests {
             None,
             false,
             None,
+            None,
         )?;
         let (line, profile): (Option<String>, Option<String>) = db.conn.lock().unwrap().query_row(
             "SELECT aicli_line_id,aicli_profile_id FROM proxy_request_logs
@@ -565,6 +583,88 @@ mod tests {
             (None, None),
             "non-AICLI rows must stay NULL"
         );
+        Ok(())
+    }
+
+    /// 线上实测（2026-11-15，Codex → gpt-5.6-sol，gpt 分组 0.18）：服务端实扣 $0.0171。
+    /// AICLI 行按站点单价 × 分组倍率估算，不再用本地官方价格表（那样得 $0.0752）。
+    #[test]
+    fn aicli_rows_are_priced_like_the_server() -> Result<(), AppError> {
+        use std::str::FromStr;
+        let db = Database::memory()?;
+        let logger = UsageLogger::new(&db);
+        let billing = crate::aicli::pricing::UsageBilling {
+            pricing_row: serde_json::json!({"quota_type":0,"model_ratio":37.5,"completion_ratio":6,
+                "billing_mode":"tiered_expr",
+                "billing_expr":"len < 272000 ? tier(\"std\", p * 5 + c * 30 + cr * 0.5 + cc * 6.25) : tier(\"long\", p * 10 + c * 45 + cr * 1 + cc * 9.375)"}),
+            group: "gpt".to_string(),
+            group_ratio: Decimal::from_str("0.18").unwrap(),
+        };
+        let usage = TokenUsage {
+            input_tokens: 38_320,
+            output_tokens: 156,
+            cache_read_tokens: 22_564,
+            cache_creation_tokens: 0,
+            cache_creation_1h_tokens: 0,
+            model: None,
+            message_id: Some("sol-row".to_string()),
+        };
+        logger.log_with_calculation(
+            "sol-row".to_string(),
+            "aicli-apac".to_string(),
+            "codex".to_string(),
+            "gpt-5.6-sol".to_string(),
+            "gpt-5.6-sol".to_string(),
+            "gpt-5.6-sol".to_string(),
+            usage.clone(),
+            10,
+            None,
+            200,
+            None,
+            None,
+            true,
+            Some(("apac", "recommended")),
+            Some(&billing),
+        )?;
+        let row: (String, String, String, String, String) = db.conn.lock()?.query_row(
+            "SELECT input_cost_usd, output_cost_usd, cache_read_cost_usd, total_cost_usd, cost_multiplier
+             FROM proxy_request_logs WHERE request_id='sol-row'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        )?;
+        let dec = |value: &str| Decimal::from_str(value).unwrap();
+        assert_eq!(dec(&row.0), dec("0.07878"), "15756 fresh input at $5/M");
+        assert_eq!(dec(&row.1), dec("0.00468"), "156 output at $30/M");
+        assert_eq!(dec(&row.2), dec("0.011282"), "22564 cache reads at $0.5/M");
+        assert_eq!(dec(&row.3), dec("0.01705356"), "x 0.18 group ratio");
+        assert_eq!(row.4, "0.18");
+
+        // 价格未知：记为未计价（0），不退回本地官方价格表
+        let mut unknown = usage;
+        unknown.message_id = Some("unknown-row".to_string());
+        logger.log_with_calculation(
+            "unknown-row".to_string(),
+            "aicli-apac".to_string(),
+            "codex".to_string(),
+            "gpt-5".to_string(),
+            "gpt-5".to_string(),
+            "gpt-5".to_string(),
+            unknown,
+            10,
+            None,
+            200,
+            None,
+            None,
+            true,
+            Some(("apac", "recommended")),
+            None,
+        )?;
+        let total: String = db.conn.lock()?.query_row(
+            "SELECT total_cost_usd FROM proxy_request_logs WHERE request_id='unknown-row'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(dec(&total), Decimal::ZERO);
         Ok(())
     }
 
@@ -609,6 +709,7 @@ mod tests {
             None,
             Some("claude".to_string()),
             false,
+            None,
             None,
         )?;
 

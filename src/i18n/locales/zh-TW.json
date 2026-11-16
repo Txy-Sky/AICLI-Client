@@ -3403,7 +3403,9 @@
       "serverCharge": "伺服器額度",
       "charged": "實扣",
       "pending": "等待伺服器記帳",
-      "estimated": "預估"
+      "estimated": "預估",
+      "settled": "依伺服器實扣",
+      "groupRatio": "分組倍率"
     },
     "usage": {
       "includeSessionLogs": "統計 CLI 工作階段日誌",

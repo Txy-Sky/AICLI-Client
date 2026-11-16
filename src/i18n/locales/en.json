@@ -3402,7 +3402,9 @@
       "serverCharge": "Server quota",
       "charged": "Charged",
       "pending": "Waiting for the server to bill",
-      "estimated": "Estimated"
+      "estimated": "Estimated",
+      "settled": "Server charge",
+      "groupRatio": "Group ratio"
     },
     "usage": {
       "includeSessionLogs": "Count CLI session logs",

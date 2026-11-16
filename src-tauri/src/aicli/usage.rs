@@ -6,6 +6,9 @@
 //! `billed_at`。三次都查不到（或账户关闭消费日志）保持 NULL，由 UI 显示
 //! 「等待服务端记账」；**绝不**用本地估算值覆盖这些字段。
 //!
+//! 反过来，回填后该行的本地成本改以实扣为准（[`settle_billed_costs`]）：合计 = 实扣美元，
+//! 各项保留站点单价，成本倍数 = 实扣 ÷ 各项之和。用量统计按合计汇总，因此与服务端一致。
+//!
 //! 队列上限 1000：满时丢弃最旧条目并只记一次警告；不落盘，运行时销毁即清空。
 //!
 //! 数据库与钥匙串都是阻塞 IO：一律放进 `spawn_blocking`，不占 tokio worker
@@ -20,7 +23,9 @@ use std::time::{Duration, Instant};
 use chrono::Utc;
 use futures::future::BoxFuture;
 use rusqlite::OptionalExtension;
+use rust_decimal::Decimal;
 use serde_json::Value;
+use std::str::FromStr;
 
 use super::newapi::{NewApiClient, NewApiError};
 use crate::database::Database;
@@ -411,9 +416,91 @@ fn write_bill(db: &Database, request_id: &str, item: &Value) {
     );
     match written {
         Ok(0) => log::debug!("AICLI bill row for {request_id} is gone or already billed"),
-        Ok(_) => {}
+        Ok(_) => {
+            if let Err(error) = settle_billed_costs(&conn, Some(request_id)) {
+                log::warn!("AICLI cost settle for {request_id} failed: {error}");
+            }
+        }
         Err(error) => log::warn!("AICLI bill write for {request_id} failed: {error}"),
     }
+}
+
+/// 服务端额度换美元的单位：`/api/status` 的 `quota_per_unit`（F-03 缓存在
+/// `aicli_cache` 的 `status` 行），没有时按 new-api 默认 500000。
+fn quota_per_unit(conn: &rusqlite::Connection) -> Decimal {
+    conn.query_row(
+        "SELECT body_json FROM aicli_cache WHERE kind='status'",
+        [],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .and_then(|body| serde_json::from_str::<Value>(&body).ok())
+    .and_then(|body| body.get("quota_per_unit").and_then(Value::as_f64))
+    .filter(|value| value.is_finite() && *value > 0.0)
+    .and_then(Decimal::from_f64_retain)
+    .unwrap_or_else(|| Decimal::from(500_000))
+}
+
+/// 把已回填 AICLI 行的本地成本改为服务端实扣：合计 = `billed_quota ÷ quota_per_unit`，
+/// 各项保留，成本倍数 = 合计 ÷ 各项之和（各项全为 0 时倍数不变）。只改合计与实扣不一致
+/// 的行，重复执行无副作用。`request_id` 为 None 时处理全部已回填行（启动时校正历史行）。
+pub(crate) fn settle_billed_costs(
+    conn: &rusqlite::Connection,
+    request_id: Option<&str>,
+) -> rusqlite::Result<usize> {
+    let per_unit = quota_per_unit(conn);
+    let mut select = conn.prepare(
+        "SELECT request_id, billed_quota, input_cost_usd, output_cost_usd,
+                cache_read_cost_usd, cache_creation_cost_usd, total_cost_usd
+         FROM proxy_request_logs
+         WHERE aicli_line_id IS NOT NULL AND billed_quota IS NOT NULL
+           AND (?1 IS NULL OR request_id = ?1)",
+    )?;
+    let rows = select
+        .query_map([request_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                [
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ],
+                row.get::<_, Option<String>>(6)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let parse = |value: &Option<String>| {
+        value
+            .as_deref()
+            .and_then(|value| Decimal::from_str(value).ok())
+            .unwrap_or(Decimal::ZERO)
+    };
+    let mut changed = 0;
+    for (id, quota, parts, total) in rows {
+        let billed = (Decimal::from(quota) / per_unit).round_dp(10).normalize();
+        if parse(&total) == billed {
+            continue;
+        }
+        let base: Decimal = parts.iter().map(parse).sum();
+        changed += if base > Decimal::ZERO {
+            let multiplier = (billed / base).round_dp(6).normalize();
+            conn.execute(
+                "UPDATE proxy_request_logs SET total_cost_usd=?2, cost_multiplier=?3
+                 WHERE request_id=?1",
+                rusqlite::params![id, billed.to_string(), multiplier.to_string()],
+            )?
+        } else {
+            conn.execute(
+                "UPDATE proxy_request_logs SET total_cost_usd=?2 WHERE request_id=?1",
+                rusqlite::params![id, billed.to_string()],
+            )?
+        };
+    }
+    Ok(changed)
 }
 
 #[cfg(test)]

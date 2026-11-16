@@ -271,4 +271,34 @@ describe("RequestDetailPanel", () => {
     expect(screen.getByText("$2")).toBeInTheDocument();
     expect(screen.queryByText("aicli.bill.pending")).not.toBeInTheDocument();
   });
+
+  it("shows the group ratio and an estimate until the server bills an AICLI request", () => {
+    useAicliRequestBillMock.mockReturnValue({ data: bill() });
+    renderWith(log({ costMultiplier: "0.18", totalCostUsd: "0.0121" }));
+    expect(screen.getByText("aicli.bill.groupRatio")).toBeInTheDocument();
+    expect(screen.getByText("×0.18")).toBeInTheDocument();
+    expect(screen.queryByText("usage.costMultiplier")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("usage.detail.costTitle · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("usage.detail.total · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+  });
+
+  it("labels the cost total as the server charge once an AICLI request is billed", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ billed_quota: 8_527, billed_at: 2 }),
+    });
+    renderWith(log({ costMultiplier: "0.180005", totalCostUsd: "0.017054" }));
+    expect(
+      screen.getByText("usage.detail.costTitle · aicli.bill.settled"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("usage.detail.total · aicli.bill.settled"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("usage.detail.total · aicli.bill.estimated"),
+    ).not.toBeInTheDocument();
+  });
 });

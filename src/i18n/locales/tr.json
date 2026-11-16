@@ -3398,7 +3398,9 @@
       "serverCharge": "Sunucu kotası",
       "charged": "Tahsil edilen",
       "pending": "Sunucunun faturalandırması bekleniyor",
-      "estimated": "Tahmini"
+      "estimated": "Tahmini",
+      "settled": "Sunucu ücreti",
+      "groupRatio": "Grup oranı"
     },
     "usage": {
       "includeSessionLogs": "CLI oturum günlüklerini say",

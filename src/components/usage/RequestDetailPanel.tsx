@@ -91,7 +91,14 @@ function DetailSection({ title, rows }: { title: string; rows: DetailRow[] }) {
   );
 }
 
-function useDetailSections(request: RequestLog) {
+/**
+ * `aicli`：AICLI 请求的账单状态（非 AICLI 请求为 null）。AICLI 行的成本按站点单价 ×
+ * 分组倍率估算，服务端记账后合计改为实扣（后端 settle_billed_costs），标签随之变化。
+ */
+function useDetailSections(
+  request: RequestLog,
+  aicli: { settled: boolean } | null,
+) {
   const { t, i18n } = useTranslation();
   const { money, moneyTitle } = useMoneyFormat();
   const usd = (value: string) => money(value, 4);
@@ -214,17 +221,20 @@ function useDetailSections(request: RequestLog) {
   if (multiplier != null && multiplier !== 1) {
     cost.push({
       key: "multiplier",
-      label: t("usage.costMultiplier"),
+      label: aicli ? t("aicli.bill.groupRatio") : t("usage.costMultiplier"),
       value: `×${request.costMultiplier}`,
     });
   }
-  // F-06：本机按定价算出的是预估值，不是服务端实扣，合计行必须标「预估」
+  // F-06：本机按定价算出的是预估值，合计行标「预估」；AICLI 行服务端记账后合计即实扣
+  const totalTag = aicli?.settled
+    ? t("aicli.bill.settled")
+    : t("aicli.bill.estimated");
   cost.push({
     key: "total",
     label:
-      multiplier != null && multiplier !== 1
-        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${t("aicli.bill.estimated")}`
-        : `${t("usage.detail.total")} · ${t("aicli.bill.estimated")}`,
+      multiplier != null && multiplier !== 1 && !aicli
+        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${totalTag}`
+        : `${t("usage.detail.total")} · ${totalTag}`,
     value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
     strong: !unpriced,
     muted: unpriced,
@@ -383,7 +393,9 @@ function useServerBillRows(requestId: string): DetailRow[] | null {
 function RequestDetailBody({ request }: { request: RequestLog }) {
   const { t } = useTranslation();
   const { currency } = useMoneyFormat();
-  const sections = useDetailSections(request);
+  const bill = useAicliRequestBill(request.requestId).data;
+  const aicli = bill ? { settled: bill.billed_at != null } : null;
+  const sections = useDetailSections(request, aicli);
   const serverBill = useServerBillRows(request.requestId);
   return (
     <div className="flex flex-col gap-4">
@@ -396,7 +408,9 @@ function RequestDetailBody({ request }: { request: RequestLog }) {
         rows={sections.tokens}
       />
       <DetailSection
-        title={`${t("usage.detail.costTitle", { currency })} · ${t("aicli.bill.estimated")}`}
+        title={`${t("usage.detail.costTitle", { currency })} · ${t(
+          aicli?.settled ? "aicli.bill.settled" : "aicli.bill.estimated",
+        )}`}
         rows={sections.cost}
       />
       <DetailSection

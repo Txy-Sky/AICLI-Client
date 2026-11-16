@@ -3624,6 +3624,12 @@ async fn log_usage(
     // #7818：使用量写入要拿 Database 的单把 std::sync::Mutex<Connection> 并做
     // 磁盘 IO，同步执行会卡住 tokio worker，移到阻塞线程池执行。计费模式
     // 读取走同一把锁，一并移入。
+    // AICLI 行的计价依据（站点价格行 + 路由第一个分组的倍率），按上游模型、请求模型依次匹配
+    let aicli_billing = aicli_route.as_ref().and_then(|(_, profile)| {
+        state
+            .aicli
+            .usage_billing(profile, &[outbound_model, request_model, model])
+    });
     let db = state.db.clone();
     let provider_id = provider_id.to_string();
     let app_type = app_type.to_string();
@@ -3658,6 +3664,7 @@ async fn log_usage(
             aicli_route
                 .as_ref()
                 .map(|(line, profile)| (line.as_str(), profile.as_str())),
+            aicli_billing.as_ref(),
         )
     });
     if let Err(e) = write.await.unwrap_or_else(|e| {

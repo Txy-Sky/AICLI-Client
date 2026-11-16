@@ -8,6 +8,7 @@ pub mod lines;
 pub mod local_auth;
 pub mod newapi;
 pub mod picker;
+pub mod pricing;
 pub mod privacy;
 pub mod profiles;
 pub mod resolver;

@@ -3402,7 +3402,9 @@
       "serverCharge": "サーバーのクォータ",
       "charged": "確定",
       "pending": "サーバーの記帳待ち",
-      "estimated": "見積もり"
+      "estimated": "見積もり",
+      "settled": "サーバー確定額",
+      "groupRatio": "グループ倍率"
     },
     "usage": {
       "includeSessionLogs": "CLI のセッションログを集計",

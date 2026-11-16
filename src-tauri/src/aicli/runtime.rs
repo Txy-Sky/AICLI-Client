@@ -231,6 +231,34 @@ impl AicliRuntime {
             .clone()
     }
 
+    /// 用量记录的计价依据：在当前快照里按配置集找到该模型的路由，取第一个分组的倍率
+    /// 和服务端价格行。`models` 依次尝试（上游模型名、客户端请求的公开名）。
+    /// 找不到配置集、路由、价格或分组倍率时返回 None。
+    pub fn usage_billing(
+        &self,
+        profile_id: &str,
+        models: &[&str],
+    ) -> Option<super::pricing::UsageBilling> {
+        let snapshot = self.snapshot();
+        let catalog = snapshot.catalog.as_ref()?;
+        let routes = &snapshot.profiles.get(profile_id)?.compiled.routes;
+        let route = models.iter().find_map(|model| {
+            routes
+                .iter()
+                .find(|route| route.upstream_model == *model)
+                .or_else(|| routes.iter().find(|route| route.public_model == *model))
+        })?;
+        let group = route.ordered_groups.first()?;
+        let ratio = catalog.groups.get(group)?.ratio?;
+        Some(super::pricing::UsageBilling {
+            pricing_row: catalog.models.get(&route.upstream_model)?.pricing.clone(),
+            group: group.clone(),
+            group_ratio: rust_decimal::Decimal::from_f64_retain(ratio)?
+                .round_dp(12)
+                .normalize(),
+        })
+    }
+
     pub fn credential(&self, token_id: i64) -> Option<String> {
         self.credentials.read().ok()?.get(&token_id).cloned()
     }
@@ -744,6 +772,20 @@ impl AicliRuntime {
         if self.background_started.swap(true, Ordering::SeqCst) {
             return;
         }
+        // 已回填账单的历史行：本地成本改以服务端实扣为准（一次，幂等）
+        let db = self.db.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let settled = db
+                .conn
+                .lock()
+                .map_err(|_| rusqlite::Error::InvalidQuery)
+                .and_then(|conn| crate::aicli::usage::settle_billed_costs(&conn, None));
+            match settled {
+                Ok(0) => {}
+                Ok(rows) => log::info!("AICLI settled {rows} billed usage rows to server charges"),
+                Err(error) => log::warn!("AICLI billed cost settle failed: {error}"),
+            }
+        });
         let weak = Arc::downgrade(self);
         tauri::async_runtime::spawn(async move {
             loop {

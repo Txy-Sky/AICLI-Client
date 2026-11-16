@@ -110,6 +110,110 @@ async fn second_query_hit_fills_group_quota_and_billed_at() {
     assert!(calls.load(Ordering::SeqCst) >= 2);
 }
 
+/// 回填后本地成本改以实扣为准（线上实测行：gpt-5.6-sol，预估分组倍率 0.18，实扣 8527 额度）。
+fn db_with_priced_aicli_row(request_id: &str) -> Arc<Database> {
+    let db = Arc::new(Database::memory().unwrap());
+    db.conn
+        .lock()
+        .unwrap()
+        .execute(
+            "INSERT INTO proxy_request_logs(request_id,provider_id,app_type,model,input_tokens,
+             output_tokens,input_cost_usd,output_cost_usd,cache_read_cost_usd,cache_creation_cost_usd,
+             total_cost_usd,cost_multiplier,latency_ms,status_code,created_at,aicli_line_id,aicli_profile_id)
+             VALUES(?1,'aicli-apac','codex','gpt-5.6-sol',38320,156,'0.07878','0.00468','0.011282','0',
+             '0.01705356','0.18',10,200,100,'apac','recommended')",
+            [request_id],
+        )
+        .unwrap();
+    db
+}
+
+fn cost_columns(db: &Arc<Database>, request_id: &str) -> (String, String, String) {
+    db.conn
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT input_cost_usd,total_cost_usd,cost_multiplier FROM proxy_request_logs WHERE request_id=?1",
+            [request_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap()
+}
+
+#[test]
+fn bill_write_settles_the_local_cost_to_the_server_charge() {
+    let db = db_with_priced_aicli_row("sol");
+    write_bill(
+        &db,
+        "sol",
+        &serde_json::json!({"group": "gpt", "quota": 8527, "created_at": 4567}),
+    );
+    // 8527 / 500000 = $0.017054；各项保留站点单价，倍数 = 实扣 ÷ 各项之和
+    assert_eq!(
+        cost_columns(&db, "sol"),
+        (
+            "0.07878".to_owned(),
+            "0.017054".to_owned(),
+            "0.180005".to_owned()
+        )
+    );
+    // 幂等：再校正一次不改任何行
+    let conn = db.conn.lock().unwrap();
+    assert_eq!(settle_billed_costs(&conn, None).unwrap(), 0);
+}
+
+#[test]
+fn settle_uses_the_cached_quota_per_unit_and_skips_unbilled_and_non_aicli_rows() {
+    let db = db_with_priced_aicli_row("billed");
+    {
+        let conn = db.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json)
+             VALUES('status',NULL,1,'{\"quota_per_unit\":1000000,\"quota_display_type\":\"USD\"}')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE proxy_request_logs SET billed_quota=17054, billed_at=1 WHERE request_id='billed'",
+            [],
+        )
+        .unwrap();
+        // 未计价的 AICLI 行：合计改为实扣，倍数不变
+        conn.execute(
+            "INSERT INTO proxy_request_logs(request_id,provider_id,app_type,model,input_tokens,output_tokens,
+             total_cost_usd,latency_ms,status_code,created_at,aicli_line_id,billed_quota,billed_at)
+             VALUES('unpriced','aicli-main','codex','x',1,1,'0',10,200,100,'main',500,1)",
+            [],
+        )
+        .unwrap();
+        // 未回填的 AICLI 行与非 AICLI 行都不动
+        conn.execute(
+            "INSERT INTO proxy_request_logs(request_id,provider_id,app_type,model,input_tokens,output_tokens,
+             total_cost_usd,latency_ms,status_code,created_at,aicli_line_id)
+             VALUES('pending','aicli-main','codex','x',1,1,'0.5',10,200,100,'main')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO proxy_request_logs(request_id,provider_id,app_type,model,input_tokens,output_tokens,
+             total_cost_usd,latency_ms,status_code,created_at,billed_quota)
+             VALUES('plain','p1','claude','x',1,1,'0.5',10,200,100,999)",
+            [],
+        )
+        .unwrap();
+        assert_eq!(settle_billed_costs(&conn, None).unwrap(), 2);
+    }
+    assert_eq!(cost_columns(&db, "billed").1, "0.017054");
+    assert_eq!(cost_columns(&db, "billed").2, "0.180005");
+    let unpriced = cost_columns(&db, "unpriced");
+    assert_eq!(
+        (unpriced.1.as_str(), unpriced.2.as_str()),
+        ("0.0005", "1.0")
+    );
+    assert_eq!(cost_columns(&db, "pending").1, "0.5");
+    assert_eq!(cost_columns(&db, "plain").1, "0.5");
+}
+
 /// 验收二（三次都未命中）：字段保持 NULL，条目被丢弃，队列清空。
 #[tokio::test]
 async fn three_misses_keep_the_bill_columns_null() {
