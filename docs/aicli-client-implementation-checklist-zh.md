@@ -1106,7 +1106,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 ## L. `[HUMAN]` 阶段 L：上线前（负责人执行，模型只准备材料）
 
 - [x] **L-01** 换正式图标（H-05）。（负责人于 2026-11-15 确认）。
-- [x] **L-02** 配置更新器并恢复 `createUpdaterArtifacts`（H-06）。90228c49：公钥与清单地址写入 `tauri.conf.json`，`createUpdaterArtifacts=true`，`updater_enabled()`/`UPDATER_ENABLED`=true；release.yml 每次构建都签更新器签名、缺 .sig 即失败，未签名 macOS 也带签名的 `.app.tar.gz`；发版不再要求 Apple 签名（负责人决定），推 tag 时覆盖 updater release 的 `latest.json`。验收 CI run 43717310426 五个 job success（B-05 改为检查启用后的配置）；Release 演练 run 43717319756 全部 success，9 个平台 .sig 齐全，用配置中的公钥验过 macOS `.tar.gz` 签名（Ed25519 + BLAKE2b 预哈希，篡改 1 字节被拒）。未做：经更新器从一个已发布版本升级到下一个（需推两个 tag 实测）；首个带更新器的版本需用户手动安装一次。
+- [x] **L-02** 配置更新器并恢复 `createUpdaterArtifacts`（H-06）。90228c49：公钥与清单地址写入 `tauri.conf.json`，`createUpdaterArtifacts=true`，`updater_enabled()`/`UPDATER_ENABLED`=true；release.yml 每次构建都签更新器签名、缺 .sig 即失败，未签名 macOS 也带签名的 `.app.tar.gz`；发版不再要求 Apple 签名（负责人决定），推 tag 时覆盖 updater release 的 `latest.json`。验收 CI run 43717310426 五个 job success（B-05 改为检查启用后的配置）；Release 演练 run 43717319756 全部 success，9 个平台 .sig 齐全，用配置中的公钥验过 macOS `.tar.gz` 签名（Ed25519 + BLAKE2b 预哈希，篡改 1 字节被拒）。首个带更新器的版本需用户手动安装一次。2026-11-16 已实测经更新器升级：推 v0.1.1 tag，Release run 43851954698 全部 success（9 个 job，各平台 .sig 齐全），`updater` release 的 `latest.json` 为 0.1.1 且含 10 个平台条目；同次分支 push 的验收 run 43851951940 success（B-03 改为比对三处版本号）。负责人在 Windows 上从 0.1.0 自动升级到 0.1.1 成功，并弹出「更新内容」窗口，内容为 0.1.1 的 4 条（负责人口头告知，模型未操作测试机，无日志；其他平台未测）。
 - [x] **L-03** macOS、Windows、Linux 安装包：安装、深链注册、卸载、升级（H-03）。负责人于 2026-11-15 告知安装包没有问题；模型未操作测试机，无日志。更新器未启用（L-02），经更新器的自动升级不在其中。
 - [x] **L-04** 三条线路分别验证：TLS、`/api/status`、绑定、`/api/pricing`、`/v1/models`、四种协议、SSE 长连接；Cloudflare 线路的中断行为、CDN 长流式。负责人于 2026-11-15 告知三条线路都正常；模型未执行，无日志。
 - [x] **L-05** 后台设置（不部署任何东西）：按 H-04 确认 `auto` 和 `MaxTokenAutoGroups`；按 H-08 设置 `RetryTimes`；可选新增 A6-05 同款亲和规则；确认 `LogConsumeEnabled=true`。 负责人于 2026-11-15 确认：`auto` 与 `MaxTokenAutoGroups` 已按 H-04/A5-02 满足；`RetryTimes` 保持 5（H-08）；`LogConsumeEnabled=true`。可选的 `X-AICLI-Session` 亲和规则未提及，不算已配置。
@@ -1303,7 +1303,7 @@ source-reference、magpie_golden。
 人工项（第 1 节 HUMAN 与第 11 节 L，模型未代办；2026-11-15 负责人确认）：已完成 H-03、H-05、L-01、
 L-03（安装包）、L-04（三条线路），均为负责人告知，模型无日志；L-08 条件未触发（new-api 暂不升级）。
 H-08 线上 RetryTimes 保持 5、L-05 后台设置含 LogConsumeEnabled=true（负责人 2026-11-15 确认）。
-H-06/L-02 更新器已启用（2026-11-15，见 L-02；自动升级本身待推两个 tag 实测）。
+H-06/L-02 更新器已启用（2026-11-15，见 L-02；自动升级已在 Windows 上由 0.1.0 升到 0.1.1 实测通过，见 L-02）。
 H-07/L-07 法务确认（负责人 2026-11-15）。
 未完成：L-06 实扣对账。
 
