@@ -3637,7 +3637,7 @@
       },
       "pay": {
         "waitingTitle": "Waiting for payment",
-        "waitingBody": "The payment window is open ({{host}}). This page updates once the payment completes.",
+        "waitingBody": "The payment window is open ({{host}}). The order is valid for 5 minutes; the window closes by itself after that. This page updates once the payment completes.",
         "confirmingTitle": "Confirming the payment",
         "confirmingBody": "The payment window closed. Checking with the server; this usually takes a few seconds.",
         "stop": "Stop waiting",
@@ -3645,7 +3645,9 @@
         "successSubscription": "Plan is active",
         "notDetectedTitle": "No payment detected yet",
         "notDetectedBody": "If you already paid, it may take a moment to arrive. Check the top-up history later.",
-        "dismiss": "Dismiss"
+        "dismiss": "Dismiss",
+        "remaining": "Time left",
+        "cancel": "Cancel payment"
       },
       "redeem": {
         "title": "Redemption code",
@@ -3692,7 +3694,8 @@
         "transferHint": "Transfer becomes available at {{min}}",
         "confirmTitle": "Transfer {{value}} to your balance?",
         "confirmMessage": "The amount is added to your account balance and cannot be moved back.",
-        "transferred": "Transferred to balance"
+        "transferred": "Transferred to balance",
+        "body": "People who sign up through this link count as your invitations. The website sets the reward rules."
       },
       "history": {
         "title": "Top-up history",
@@ -3704,7 +3707,7 @@
         "status": {
           "success": "Paid",
           "pending": "Pending",
-          "expired": "Expired",
+          "expired": "Timed out",
           "failed": "Failed"
         },
         "tradeNo": "Order no.",

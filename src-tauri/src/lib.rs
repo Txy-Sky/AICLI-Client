@@ -1917,6 +1917,7 @@ pub fn run() {
             commands::aicli_wallet_get,
             commands::aicli_wallet_quote,
             commands::aicli_wallet_pay,
+            commands::aicli_wallet_close_pay,
             commands::aicli_wallet_redeem,
             commands::aicli_wallet_history,
             commands::aicli_wallet_order_status,

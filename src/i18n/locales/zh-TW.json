@@ -3638,7 +3638,7 @@
       },
       "pay": {
         "waitingTitle": "等待付款完成",
-        "waitingBody": "付款視窗已開啟（{{host}}）。付款完成後這裡會自動更新。",
+        "waitingBody": "付款視窗已開啟（{{host}}）。訂單 5 分鐘內有效，逾時後付款視窗會自動關閉；付款完成後這裡會自動更新。",
         "confirmingTitle": "正在確認入帳",
         "confirmingBody": "付款視窗已關閉，正在向伺服器確認，通常只需幾秒。",
         "stop": "不再等待",
@@ -3646,7 +3646,9 @@
         "successSubscription": "方案已生效",
         "notDetectedTitle": "尚未偵測到付款",
         "notDetectedBody": "如果已經付款，入帳可能有延遲，可稍後在儲值紀錄中查看。",
-        "dismiss": "關閉提示"
+        "dismiss": "關閉提示",
+        "remaining": "剩餘",
+        "cancel": "取消付款"
       },
       "redeem": {
         "title": "兌換碼",
@@ -3693,7 +3695,8 @@
         "transferHint": "累積到 {{min}} 後可以轉入",
         "confirmTitle": "把 {{value}} 轉入餘額？",
         "confirmMessage": "轉入後計入帳戶餘額，無法撤回。",
-        "transferred": "已轉入餘額"
+        "transferred": "已轉入餘額",
+        "body": "透過這個連結註冊的使用者會記為你的邀請，獎勵規則以網站為準。"
       },
       "history": {
         "title": "儲值紀錄",
@@ -3705,7 +3708,7 @@
         "status": {
           "success": "成功",
           "pending": "待付款",
-          "expired": "已過期",
+          "expired": "已逾時",
           "failed": "失敗"
         },
         "tradeNo": "訂單編號",

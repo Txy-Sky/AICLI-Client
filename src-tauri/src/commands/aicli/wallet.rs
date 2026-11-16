@@ -409,3 +409,18 @@ pub async fn aicli_aff_transfer(
 ) -> Result<(), AicliCommandError> {
     state.0.aff_transfer(quota).await
 }
+
+/// Close the pay window (order timed out, or the user stopped waiting). The
+/// window's own `Destroyed` handler reports `closed` to the main window.
+#[tauri::command]
+pub async fn aicli_wallet_close_pay(app: AppHandle) -> Result<bool, AicliCommandError> {
+    match app.get_webview_window(PAY_WINDOW_LABEL) {
+        Some(window) => {
+            if let Err(error) = window.destroy() {
+                log::warn!("failed to close the payment window: {error}");
+            }
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}

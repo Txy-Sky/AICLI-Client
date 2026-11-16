@@ -67,3 +67,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Simple Icons（CC0 1.0）
+
+`src/components/aicli/wallet/PayMethodIcon.tsx` 中支付宝、微信标志的图形路径取自
+[Simple Icons](https://github.com/simple-icons/simple-icons)（CC0 1.0，无需署名）。
+标志本身是各自权利人的商标，这里只用来标明支付方式。

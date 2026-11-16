@@ -111,8 +111,18 @@ const history: AicliTopupHistory = {
       complete_time: 1_762_560_100,
       status: "success",
     },
+    {
+      id: 2,
+      amount: 10,
+      money: 10,
+      trade_no: "USR7NOold",
+      payment_method: "wxpay",
+      create_time: 1_762_550_000,
+      complete_time: 0,
+      status: "pending",
+    },
   ],
-  total: 1,
+  total: 2,
 };
 
 const started: AicliPayStarted = {
@@ -186,6 +196,8 @@ describe("AicliWalletPage", () => {
     expect(await screen.findByTestId("aicli-wallet-runway")).toHaveTextContent(
       "aicli.overview.runway",
     );
+    // 兑换码和邀请返利都在左栏
+    expect(screen.getByTestId("aicli-wallet-redeem")).toBeInTheDocument();
     // 每一档都向服务端要实付金额；选中档与第一档同一个查询，不重复请求
     await waitFor(() =>
       expect(
@@ -280,6 +292,61 @@ describe("AicliWalletPage", () => {
     ).toHaveTextContent("aicli.wallet.pay.notDetectedTitle");
   });
 
+  it("counts down, closes the pay window when the order times out and on cancel", async () => {
+    respond({
+      aicli_wallet_pay: started,
+      aicli_wallet_order_status: "pending",
+      aicli_wallet_close_pay: true,
+    });
+    renderWithQueryClient(<AicliWalletPage />);
+    await screen.findByTestId("aicli-wallet-topup");
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    // 支付宝、微信用官方标志，不是文字色块
+    const methods = screen.getByRole("group", {
+      name: "aicli.wallet.topup.methodLabel",
+    });
+    expect(methods.querySelector('svg[data-brand="alipay"]')).not.toBeNull();
+    expect(methods.querySelector('svg[data-brand="wechat"]')).not.toBeNull();
+
+    fireEvent.click(payButton());
+    await screen.findByTestId("aicli-wallet-pay-waiting");
+    expect(screen.getByTestId("aicli-wallet-countdown").textContent).toMatch(
+      /^(5:00|4:5\d)$/,
+    );
+    expect(calls("aicli_wallet_close_pay")).toEqual([]);
+
+    // 订单 5 分钟超时：到点关闭支付窗口，转入确认到账
+    const later = Date.now() + 5 * 60_000 + 1_000;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(later);
+    await waitFor(
+      () => expect(calls("aicli_wallet_close_pay")).toHaveLength(1),
+      { timeout: 4_000 },
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("aicli-wallet-pay-waiting")).toHaveTextContent(
+        "aicli.wallet.pay.confirmingTitle",
+      ),
+    );
+    expect(screen.queryByTestId("aicli-wallet-countdown")).toBeNull();
+    // 只恢复时钟：restoreAllMocks 会连 invoke 的调用记录一起清掉
+    clock.mockRestore();
+
+    // 「不再等待」后重新下单，再点「取消支付」：窗口一并关掉
+    fireEvent.click(
+      screen.getByRole("button", { name: "aicli.wallet.pay.stop" }),
+    );
+    expect(calls("aicli_wallet_close_pay")).toHaveLength(1);
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    fireEvent.click(payButton());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "aicli.wallet.pay.cancel" }),
+    );
+    await waitFor(() =>
+      expect(calls("aicli_wallet_close_pay")).toHaveLength(2),
+    );
+    expect(screen.queryByTestId("aicli-wallet-pay-waiting")).toBeNull();
+  });
+
   it("reports the server's own reason when an order is declined", async () => {
     respond({
       aicli_wallet_pay: () =>
@@ -340,8 +407,15 @@ describe("AicliWalletPage", () => {
     renderWithQueryClient(<AicliWalletPage />);
     const card = await screen.findByTestId("aicli-wallet-plan-3");
     expect(card).toHaveTextContent("Pro");
-    // 没有生效的订阅：不显示「我的订阅」，兑换码放在余额下面
+    // 没有生效的订阅：不显示「我的订阅」
     expect(screen.queryByTestId("aicli-wallet-mine")).toBeNull();
+    // 这时邀请返利在左栏，排在订阅套餐前面
+    expect(
+      screen
+        .getByTestId("aicli-wallet-invite")
+        .compareDocumentPosition(screen.getByTestId("aicli-wallet-plans")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     fireEvent.click(
       within(card).getByRole("button", {
@@ -437,8 +511,13 @@ describe("AicliWalletPage", () => {
         name: "aicli.wallet.plans.subscribe",
       }),
     ).toBeInTheDocument();
-    // 兑换码移到下面一行，仍然可用
+    // 有订阅时兑换码留在左栏，邀请返利排到订阅套餐后面独占一行
     expect(screen.getByTestId("aicli-wallet-redeem")).toBeInTheDocument();
+    const invite = screen.getByTestId("aicli-wallet-invite");
+    expect(
+      screen.getByTestId("aicli-wallet-plans").compareDocumentPosition(invite) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("redeems a code, transfers invitation rewards and lists the history", async () => {
@@ -481,6 +560,11 @@ describe("AicliWalletPage", () => {
     expect(table).toHaveTextContent("USR7NOabc");
     expect(table).toHaveTextContent("支付宝");
     expect(table).toHaveTextContent("aicli.wallet.history.status.success");
+    // 很久以前下的单还是 pending：显示为已超时，不再写待支付
+    expect(table.querySelector('[data-status="expired"]')).toHaveTextContent(
+      "aicli.wallet.history.status.expired",
+    );
+    expect(table.querySelector('[data-status="pending"]')).toBeNull();
     expect(calls("aicli_wallet_history")[0]).toEqual([
       "aicli_wallet_history",
       { page: 1 },

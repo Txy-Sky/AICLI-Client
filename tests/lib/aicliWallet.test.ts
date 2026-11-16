@@ -4,12 +4,15 @@ import {
   discountPercent,
   inviteLink,
   minAffTransfer,
+  formatCountdown,
   parseTopupAmount,
+  payMethodBrand,
   payMethodMark,
   planDuration,
   planPriceQuota,
   readAffStats,
   topupInputSymbol,
+  topupOrderStatus,
   topupQuota,
   walletErrorText,
 } from "@/lib/aicliWallet";
@@ -106,15 +109,38 @@ describe("aicliWallet", () => {
     expect(
       topupInputSymbol(display({ quota_display_type: "TOKENS" })),
     ).toBeNull();
-    expect(payMethodMark("alipay", "支付宝")).toEqual({
-      color: "#1677ff",
-      letter: "支",
-    });
+    expect(payMethodBrand("alipay")).toBe("alipay");
+    expect(payMethodBrand(" WxPay ")).toBe("wechat");
+    expect(payMethodBrand("qqpay")).toBeNull();
     expect(payMethodMark("qqpay", " QQ 钱包")).toEqual({
       color: "#52525b",
       letter: "Q",
     });
     expect(payMethodMark("x", "").letter).toBe("?");
+    expect(formatCountdown(5 * 60_000)).toBe("5:00");
+    expect(formatCountdown(61_001)).toBe("1:02");
+    expect(formatCountdown(999)).toBe("0:01");
+    expect(formatCountdown(-5)).toBe("0:00");
+  });
+
+  it("shows an unpaid order as timed out once its validity has passed", () => {
+    const created = 1_762_560_000;
+    const at = (seconds: number) => (created + seconds) * 1000;
+    const pending = { status: "pending", create_time: created };
+    expect(topupOrderStatus(pending, at(60))).toBe("pending");
+    // 5 分钟有效期 + 45 秒余量之内仍算待支付
+    expect(topupOrderStatus(pending, at(345))).toBe("pending");
+    expect(topupOrderStatus(pending, at(346))).toBe("expired");
+    expect(
+      topupOrderStatus({ status: "success", create_time: created }, at(9_999)),
+    ).toBe("success");
+    expect(
+      topupOrderStatus({ status: "failed", create_time: created }, at(9_999)),
+    ).toBe("failed");
+    // 没有下单时间时不猜
+    expect(
+      topupOrderStatus({ status: "pending", create_time: 0 }, at(9_999)),
+    ).toBe("pending");
   });
 
   it("maps failures to one sentence for the user", () => {

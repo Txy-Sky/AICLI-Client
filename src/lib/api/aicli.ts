@@ -179,6 +179,9 @@ export const aicliApi = {
   walletPay: (amount: number, method: string): Promise<AicliPayStarted> =>
     invoke("aicli_wallet_pay", { amount, method }),
 
+  /** 关闭支付窗口（订单超时或用户不再等待）；没有窗口时返回 false。 */
+  walletClosePay: (): Promise<boolean> => invoke("aicli_wallet_close_pay"),
+
   /** 兑换码充值；返回到账的原始额度。 */
   walletRedeem: (key: string): Promise<number> =>
     invoke("aicli_wallet_redeem", { key }),

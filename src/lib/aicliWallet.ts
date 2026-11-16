@@ -46,17 +46,55 @@ export function topupInputSymbol(
   return type === "USD" ? "$" : null;
 }
 
-const METHOD_MARK_COLORS: Record<string, string> = {
-  alipay: "#1677ff",
-  wxpay: "#07853f",
+const METHOD_BRANDS: Record<string, "alipay" | "wechat"> = {
+  alipay: "alipay",
+  wxpay: "wechat",
+  wechat: "wechat",
+  weixin: "wechat",
 };
 
-/** 支付方式的色块标记：已知方式用品牌色，其余用中性灰；白字都满足对比度。 */
-export function payMethodMark(type: string, name: string) {
+/** 有官方标志可用的支付方式；其余为 null。 */
+export function payMethodBrand(type: string): "alipay" | "wechat" | null {
+  return METHOD_BRANDS[type.trim().toLowerCase()] ?? null;
+}
+
+/** 没有官方标志的支付方式：中性灰底色块加名字首字。 */
+export function payMethodMark(_type: string, name: string) {
   return {
-    color: METHOD_MARK_COLORS[type] ?? "#52525b",
+    color: "#52525b",
     letter: Array.from(name.trim())[0] ?? "?",
   };
+}
+
+/** 易支付订单的有效期：下单后 5 分钟不付款即超时。 */
+export const TOPUP_ORDER_VALID_MS = 5 * 60_000;
+/** 超时后再留一点余量（等服务端收到异步通知）才把订单显示成已超时。 */
+export const TOPUP_ORDER_GRACE_MS = 45_000;
+
+/**
+ * 充值记录里显示的状态。new-api 不会把没付款的订单改成过期，服务端状态一直是
+ * pending；这里按下单时间判断：过了有效期仍是 pending 的显示为 expired（已超时）。
+ * 只影响显示：之后若真的到账，服务端状态变成 success，这里照实显示。
+ */
+export function topupOrderStatus(
+  order: { status: string; create_time: number },
+  nowMs: number,
+): string {
+  if (
+    order.status === "pending" &&
+    order.create_time > 0 &&
+    nowMs >
+      order.create_time * 1000 + TOPUP_ORDER_VALID_MS + TOPUP_ORDER_GRACE_MS
+  ) {
+    return "expired";
+  }
+  return order.status;
+}
+
+/** 剩余时间 → 「m:ss」；不为负。 */
+export function formatCountdown(remainingMs: number): string {
+  const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 /** 邀请奖励至少攒够一个额度单位才能划转（服务端规则）。 */

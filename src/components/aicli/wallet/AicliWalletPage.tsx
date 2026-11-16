@@ -43,18 +43,20 @@ import {
   inviteLink,
   minAffTransfer,
   parseTopupAmount,
-  payMethodMark,
+  formatCountdown,
   planDuration,
   planPriceQuota,
   quotaPerUnit,
   readAffStats,
   topupInputSymbol,
+  topupOrderStatus,
   topupQuota,
   walletErrorText,
 } from "@/lib/aicliWallet";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
+import { PayMethodIcon } from "./PayMethodIcon";
 import type {
   AicliPayKind,
   AicliPayMethod,
@@ -63,6 +65,7 @@ import type {
   AicliQuotaDisplay,
   AicliSubscription,
   AicliTopupInfo,
+  AicliTopupOrder,
 } from "@/types/aicli";
 
 const HISTORY_PAGE_SIZE = 10;
@@ -116,16 +119,19 @@ function Stat({
   );
 }
 
-/** 支付方式的色块标记（图形不读出，名字由按钮文字给出）。 */
-function MethodMark({ method }: { method: AicliPayMethod }) {
-  const mark = payMethodMark(method.type, method.name);
+/** 距订单超时还剩多久，每秒刷新；只在支付窗口开着时渲染。 */
+function Countdown({ expiresAt }: { expiresAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   return (
     <span
-      aria-hidden="true"
-      style={{ backgroundColor: mark.color }}
-      className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-control text-caption font-bold text-white"
+      data-testid="aicli-wallet-countdown"
+      className="rounded-control bg-surface px-2 py-0.5 font-mono text-body font-semibold tabular-nums text-fg-1"
     >
-      {mark.letter}
+      {formatCountdown(expiresAt - now)}
     </span>
   );
 }
@@ -161,14 +167,24 @@ function PayStatus({
               : t("aicli.wallet.pay.confirmingTitle")
           }
           actions={
-            <Button
-              type="button"
-              variant="neutral"
-              size="compact"
-              onClick={onDismiss}
-            >
-              {t("aicli.wallet.pay.stop")}
-            </Button>
+            <>
+              {watch.windowOpen ? (
+                <span className="flex items-center gap-1.5 text-caption text-fg-2">
+                  {t("aicli.wallet.pay.remaining")}
+                  <Countdown expiresAt={watch.expiresAt} />
+                </span>
+              ) : null}
+              <Button
+                type="button"
+                variant="neutral"
+                size="compact"
+                onClick={onDismiss}
+              >
+                {watch.windowOpen
+                  ? t("aicli.wallet.pay.cancel")
+                  : t("aicli.wallet.pay.stop")}
+              </Button>
+            </>
           }
         >
           {watch.windowOpen
@@ -508,7 +524,7 @@ function TopupPanel({
                 "inline-flex h-11 items-center gap-2 px-4 text-body font-medium",
               )}
             >
-              <MethodMark method={entry} />
+              <PayMethodIcon method={entry} />
               {entry.name}
             </button>
           ))}
@@ -587,12 +603,9 @@ function TopupOffPanel({ link }: { link: string | null }) {
 function RedeemPanel({
   display,
   locale,
-  stacked,
 }: {
   display: Display;
   locale: string;
-  /** 放在左栏时输入框与按钮上下排。 */
-  stacked: boolean;
 }) {
   const { t } = useTranslation();
   const redeem = useAicliWalletRedeem();
@@ -616,7 +629,7 @@ function RedeemPanel({
     <section
       aria-labelledby="aicli-wallet-redeem-title"
       data-testid="aicli-wallet-redeem"
-      className={cn(panelClass, "flex-1 gap-3")}
+      className={cn(panelClass, "gap-3")}
     >
       <PanelTitle id="aicli-wallet-redeem-title">
         {t("aicli.wallet.redeem.title")}
@@ -625,7 +638,7 @@ function RedeemPanel({
         {t("aicli.wallet.redeem.body")}
       </p>
       <form
-        className={cn("flex gap-2", stacked ? "flex-col" : "items-center")}
+        className="flex items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -642,7 +655,7 @@ function RedeemPanel({
           type="submit"
           variant="neutral"
           size="regular"
-          className={cn("h-9 px-5", stacked && "self-start")}
+          className="h-9 px-5"
           disabled={!key.trim() || redeem.isPending}
         >
           {t("aicli.wallet.redeem.submit")}
@@ -924,7 +937,7 @@ function PlansPanel({
                   "flex h-11 items-center gap-2.5 px-4 text-start text-body font-medium",
                 )}
               >
-                <MethodMark method={entry} />
+                <PayMethodIcon method={entry} />
                 {entry.name}
               </button>
             ))}
@@ -977,7 +990,7 @@ function InvitePanel({
   accountValue: unknown;
   display: Display;
   locale: string;
-  /** 独占一行时链接与统计左右排。 */
+  /** 独占一行（有生效订阅时）：链接在左、统计与划转在右；否则是左栏里的竖排卡片。 */
   wide: boolean;
 }) {
   const { t } = useTranslation();
@@ -1005,14 +1018,21 @@ function InvitePanel({
       data-testid="aicli-wallet-invite"
       className={cn(
         panelClass,
-        "flex-[2_1_480px]",
-        wide && "flex-row flex-wrap items-end gap-x-7",
+        wide ? "flex-row flex-wrap items-end gap-x-7" : "flex-1",
       )}
     >
-      <div className="flex min-w-0 flex-[1_1_360px] flex-col gap-2.5">
+      <div
+        className={cn(
+          "flex min-w-0 flex-col",
+          wide ? "flex-[1_1_360px] gap-2.5" : "gap-4",
+        )}
+      >
         <PanelTitle id="aicli-wallet-invite-title">
           {t("aicli.wallet.invite.title")}
         </PanelTitle>
+        <p className="m-0 text-caption text-fg-2">
+          {t("aicli.wallet.invite.body")}
+        </p>
         <div className="flex gap-2">
           <Input
             readOnly
@@ -1033,7 +1053,12 @@ function InvitePanel({
           </Button>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+      <div
+        className={cn(
+          "gap-3 rounded-control bg-sidebar px-3 py-2.5",
+          wide ? "flex flex-wrap gap-x-7" : "grid grid-cols-3",
+        )}
+      >
         <Stat
           label={t("aicli.wallet.invite.pending")}
           value={fmt(stats.pending)}
@@ -1047,22 +1072,27 @@ function InvitePanel({
               : t("aicli.account.noData")
           }
         />
-        <div className="ms-auto flex flex-col items-end gap-1">
-          <Button
-            type="button"
-            variant="neutral"
-            size="regular"
-            disabled={!canTransfer || transfer.isPending}
-            onClick={() => setConfirming(true)}
-          >
-            {t("aicli.wallet.invite.transfer")}
-          </Button>
-          {!canTransfer ? (
-            <span className="text-caption text-fg-3">
-              {t("aicli.wallet.invite.transferHint", { min: fmt(minimum) })}
-            </span>
-          ) : null}
-        </div>
+      </div>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-x-3 gap-y-1",
+          wide ? "ms-auto" : "mt-auto",
+        )}
+      >
+        <Button
+          type="button"
+          variant="neutral"
+          size="regular"
+          disabled={!canTransfer || transfer.isPending}
+          onClick={() => setConfirming(true)}
+        >
+          {t("aicli.wallet.invite.transfer")}
+        </Button>
+        {!canTransfer ? (
+          <span className="text-caption text-fg-3">
+            {t("aicli.wallet.invite.transferHint", { min: fmt(minimum) })}
+          </span>
+        ) : null}
       </div>
       <ConfirmDialog
         isOpen={confirming}
@@ -1085,6 +1115,25 @@ function InvitePanel({
         onCancel={() => setConfirming(false)}
       />
     </section>
+  );
+}
+
+/** 订单状态标签；过了有效期仍未付款的显示为「已超时」（见 topupOrderStatus）。 */
+function OrderStatus({ order }: { order: AicliTopupOrder }) {
+  const { t } = useTranslation();
+  const status = topupOrderStatus(order, Date.now());
+  return (
+    <span
+      data-status={status}
+      className={cn(
+        "rounded-full px-2 py-0.5 text-caption font-semibold",
+        STATUS_TONE[status] ?? "bg-subtle text-fg-2",
+      )}
+    >
+      {["success", "pending", "expired", "failed"].includes(status)
+        ? t(`aicli.wallet.history.status.${status}`)
+        : status}
+    </span>
   );
 }
 
@@ -1188,18 +1237,7 @@ function HistoryPanel({
                     {methodName(order.payment_method)}
                   </td>
                   <td className={cell}>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-caption font-semibold",
-                        STATUS_TONE[order.status] ?? "bg-subtle text-fg-2",
-                      )}
-                    >
-                      {["success", "pending", "expired", "failed"].includes(
-                        order.status,
-                      )
-                        ? t(`aicli.wallet.history.status.${order.status}`)
-                        : order.status}
-                    </span>
+                    <OrderStatus order={order} />
                   </td>
                   <td className={cn(cell, "font-mono text-caption text-fg-3")}>
                     {order.trade_no}
@@ -1238,10 +1276,13 @@ function HistoryPanel({
 }
 
 /**
- * 钱包页（W 阶段，按 2026-11-15 定稿的设计稿）：上排左栏余额与「我的订阅」（没有生效的
- * 订阅时换成兑换码）、右栏在线充值；有套餐时下面一行订阅套餐；再下面兑换码与邀请返利、
- * 充值记录。全部走 new-api rc.34 现有接口；管理员没配置套餐时套餐与「我的订阅」都不出现。
- * 实付金额全部来自服务端；付款在独立的支付窗口里完成，到账以服务端为准，这里只轮询确认。
+ * 钱包页（W 阶段，按 2026-11-15 定稿的设计稿，2026-11-16 调整左栏）。上排右栏是在线充值，
+ * 左栏随有没有生效的订阅而不同，保证两栏高度接近：
+ * - 没有订阅：余额、兑换码、邀请返利（竖排卡片）；
+ * - 有订阅：余额、「我的订阅」、兑换码；邀请返利在订阅套餐下面独占一行（横排）。
+ * 有套餐时上排下面是订阅套餐，最后是充值记录。全部走 new-api rc.34 现有接口；管理员没配置
+ * 套餐时套餐与「我的订阅」都不出现。实付金额全部来自服务端；付款在独立的支付窗口里完成，
+ * 到账以服务端为准，这里只轮询确认。
  */
 export function AicliWalletPage() {
   const { t, i18n } = useTranslation();
@@ -1340,8 +1381,17 @@ export function AicliWalletPage() {
                 locale={locale}
               />
             ) : null}
-            {view && !hasMine && redemption ? (
-              <RedeemPanel display={display} locale={locale} stacked />
+            {redemption ? (
+              <RedeemPanel display={display} locale={locale} />
+            ) : null}
+            {view?.aff_code && !hasMine ? (
+              <InvitePanel
+                code={view.aff_code}
+                accountValue={cached.data?.value}
+                display={display}
+                locale={locale}
+                wide={false}
+              />
             ) : null}
           </div>
           {view?.topup ? (
@@ -1373,27 +1423,14 @@ export function AicliWalletPage() {
           />
         ) : null}
 
-        {view && ((hasMine && redemption) || view.aff_code) ? (
-          <div className="flex flex-wrap items-stretch gap-4">
-            {hasMine && redemption ? (
-              <div className="flex min-w-0 flex-[1_1_280px] flex-col">
-                <RedeemPanel
-                  display={display}
-                  locale={locale}
-                  stacked={false}
-                />
-              </div>
-            ) : null}
-            {view.aff_code ? (
-              <InvitePanel
-                code={view.aff_code}
-                accountValue={cached.data?.value}
-                display={display}
-                locale={locale}
-                wide={!(hasMine && redemption)}
-              />
-            ) : null}
-          </div>
+        {view?.aff_code && hasMine ? (
+          <InvitePanel
+            code={view.aff_code}
+            accountValue={cached.data?.value}
+            display={display}
+            locale={locale}
+            wide
+          />
         ) : null}
 
         {view ? (

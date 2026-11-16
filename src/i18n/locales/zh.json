@@ -3637,7 +3637,7 @@
       },
       "pay": {
         "waitingTitle": "等待支付完成",
-        "waitingBody": "支付窗口已打开（{{host}}）。付款完成后这里会自动更新。",
+        "waitingBody": "支付窗口已打开（{{host}}）。订单 5 分钟内有效，超时后支付窗口会自动关闭；付款完成后这里会自动更新。",
         "confirmingTitle": "正在确认到账",
         "confirmingBody": "支付窗口已关闭，正在向服务端确认，通常只需几秒。",
         "stop": "不再等待",
@@ -3645,7 +3645,9 @@
         "successSubscription": "套餐已生效",
         "notDetectedTitle": "暂未检测到付款",
         "notDetectedBody": "如果已经付款，到账可能有延迟，可稍后在充值记录中查看。",
-        "dismiss": "关闭提示"
+        "dismiss": "关闭提示",
+        "remaining": "剩余",
+        "cancel": "取消支付"
       },
       "redeem": {
         "title": "兑换码",
@@ -3692,7 +3694,8 @@
         "transferHint": "攒够 {{min}} 后可以划转",
         "confirmTitle": "把 {{value}} 划转到余额？",
         "confirmMessage": "划转后计入账户余额，不能撤回。",
-        "transferred": "已划转到余额"
+        "transferred": "已划转到余额",
+        "body": "通过这个链接注册的用户会记为你的邀请，奖励规则以网站为准。"
       },
       "history": {
         "title": "充值记录",
@@ -3704,7 +3707,7 @@
         "status": {
           "success": "成功",
           "pending": "待支付",
-          "expired": "已过期",
+          "expired": "已超时",
           "failed": "失败"
         },
         "tradeNo": "订单号",

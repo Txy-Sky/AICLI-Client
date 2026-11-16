@@ -3633,7 +3633,7 @@
       },
       "pay": {
         "waitingTitle": "Ödemenin tamamlanması bekleniyor",
-        "waitingBody": "Ödeme penceresi açıldı ({{host}}). Ödeme tamamlandığında bu sayfa kendiliğinden güncellenir.",
+        "waitingBody": "Ödeme penceresi açıldı ({{host}}). Sipariş 5 dakika geçerlidir; süre dolunca pencere kendiliğinden kapanır. Ödeme tamamlandığında bu sayfa kendiliğinden güncellenir.",
         "confirmingTitle": "Ödeme doğrulanıyor",
         "confirmingBody": "Ödeme penceresi kapandı. Sunucudan doğrulanıyor; genellikle birkaç saniye sürer.",
         "stop": "Beklemeyi bırak",
@@ -3641,7 +3641,9 @@
         "successSubscription": "Plan etkinleşti",
         "notDetectedTitle": "Henüz ödeme algılanmadı",
         "notDetectedBody": "Ödeme yaptıysanız hesaba geçmesi biraz sürebilir. Daha sonra yükleme geçmişine bakın.",
-        "dismiss": "Kapat"
+        "dismiss": "Kapat",
+        "remaining": "Kalan süre",
+        "cancel": "Ödemeyi iptal et"
       },
       "redeem": {
         "title": "Kullanım kodu",
@@ -3688,7 +3690,8 @@
         "transferHint": "{{min}} olduğunda aktarılabilir",
         "confirmTitle": "{{value}} bakiyeye aktarılsın mı?",
         "confirmMessage": "Tutar hesap bakiyenize eklenir ve geri alınamaz.",
-        "transferred": "Bakiyeye aktarıldı"
+        "transferred": "Bakiyeye aktarıldı",
+        "body": "Bu bağlantıyla kaydolan kullanıcılar sizin davetiniz sayılır. Ödül kurallarını web sitesi belirler."
       },
       "history": {
         "title": "Yükleme geçmişi",
