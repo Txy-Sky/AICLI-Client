@@ -26,7 +26,13 @@ READ_PATHS = {
     "/api/token/auto-groups",
     "/api/log/self",
     "/api/pricing",
+    # W-00：钱包只读接口（不含任何下单、兑换、划转接口）
+    "/api/user/topup/info",
+    "/api/user/topup/self",
+    "/api/subscription/plans",
+    "/api/subscription/self",
 }
+OTHER_GATEWAYS = {"stripe", "creem", "waffo", "waffo_pancake"}
 
 
 class ProbeBlocked(Exception):
@@ -97,6 +103,47 @@ def model_group_counts(pricing, available):
     return rows
 
 
+def wallet_capabilities(token):
+    """W-00: which wallet features the access token can read and the operator enabled.
+
+    Only capability metadata is kept: no order numbers, amounts paid or plan titles.
+    """
+    status_info, info = fetch("main", "/api/user/topup/info", token)
+    status_history, history = fetch("main", "/api/user/topup/self?p=1&page_size=1", token)
+    status_plans, plans = fetch("main", "/api/subscription/plans", token)
+    status_self, subscriptions = fetch("main", "/api/subscription/self", token)
+
+    def data(body):
+        return body.get("data") if isinstance(body, dict) else None
+
+    info_data = data(info) if isinstance(data(info), dict) else {}
+    methods = info_data.get("pay_methods")
+    method_types = sorted(
+        {
+            str(method.get("type"))
+            for method in (methods if isinstance(methods, list) else [])
+            if isinstance(method, dict) and method.get("type")
+        }
+    )
+    options = info_data.get("amount_options")
+    return {
+        "topup_info_http": status_info,
+        "topup_history_http": status_history,
+        "subscription_plans_http": status_plans,
+        "subscription_self_http": status_self,
+        "enable_online_topup": info_data.get("enable_online_topup") is True,
+        "enable_redemption": info_data.get("enable_redemption") is True,
+        "pay_method_types": method_types,
+        "epay_method_types": [kind for kind in method_types if kind not in OTHER_GATEWAYS],
+        "min_topup": info_data.get("min_topup") if isinstance(info_data.get("min_topup"), int) else None,
+        "amount_option_count": len(options) if isinstance(options, list) else 0,
+        "history_shape_valid": isinstance(data(history), dict)
+        and isinstance(data(history).get("items"), list),
+        "plan_count": len(data(plans)) if isinstance(data(plans), list) else None,
+        "subscriptions_shape_valid": isinstance(data(subscriptions), dict),
+    }
+
+
 def run(output):
     token = os.environ.get("AICLI_TEST_ACCESS_TOKEN", "").strip()
     if not token or token.startswith("sk-"):
@@ -134,6 +181,7 @@ def run(output):
         ),
         "logs_shape_valid": isinstance(logs_data, dict) and isinstance(logs_data.get("data"), dict),
     }
+    result["wallet"] = wallet_capabilities(token)
     all_200 = all(value == 200 for value in result["lines"]["main"].values())
     max_ok = isinstance(max_count, int) and max_count >= result["account"]["max_model_group_count"]
     if all_200 and result["account"]["auto_available"] and max_ok:

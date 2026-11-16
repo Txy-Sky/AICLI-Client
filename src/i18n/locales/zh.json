@@ -2521,7 +2521,8 @@
     "privacyToday": "今天脱敏 {{count}} 处",
     "home": "首页",
     "profiles": "配置集",
-    "profilesCount": "{{count}} 份"
+    "profilesCount": "{{count}} 份",
+    "wallet": "钱包"
   },
   "appsPage": {
     "showInSidebar": "在客户端页显示 {{name}}",
@@ -3608,6 +3609,133 @@
       "stepClearBody": "之后要用，重新粘贴令牌即可",
       "stepKeep": "本机的请求记录保留",
       "stepKeepBody": "用量页照常能看"
+    },
+    "wallet": {
+      "recharge": "充值",
+      "loadFailed": "钱包信息读取失败",
+      "partFailed": "部分钱包信息读取失败，可稍后重试",
+      "topup": {
+        "title": "在线充值",
+        "amountLabel": "充值数量",
+        "customPlaceholder": "输入整数",
+        "methodLabel": "支付方式",
+        "pay": "去支付",
+        "minHint": "最少充值 {{min}}",
+        "discount": "-{{percent}}%",
+        "checkoutHint": "付款在单独的支付窗口里完成，实际支付金额以收银台为准。",
+        "disabledBody": "当前没有开启客户端内的在线充值，可以到网页上充值。",
+        "openWebsite": "前往网页充值",
+        "customLabel": "其他数量",
+        "customHint": "最少 {{min}} · 实付金额按服务端价格计算",
+        "tileMoney": "实付 ¥{{money}}",
+        "arriveLabel": "到账额度",
+        "payLabel": "实付金额",
+        "money": "¥{{money}}",
+        "payWithMoney": "去支付 ¥{{money}}",
+        "paying": "支付进行中…",
+        "pending": "—"
+      },
+      "pay": {
+        "waitingTitle": "等待支付完成",
+        "waitingBody": "支付窗口已打开（{{host}}）。付款完成后这里会自动更新。",
+        "confirmingTitle": "正在确认到账",
+        "confirmingBody": "支付窗口已关闭，正在向服务端确认，通常只需几秒。",
+        "stop": "不再等待",
+        "successTopup": "充值已到账",
+        "successSubscription": "套餐已生效",
+        "notDetectedTitle": "暂未检测到付款",
+        "notDetectedBody": "如果已经付款，到账可能有延迟，可稍后在充值记录中查看。",
+        "dismiss": "关闭提示"
+      },
+      "redeem": {
+        "title": "兑换码",
+        "placeholder": "输入兑换码",
+        "submit": "兑换",
+        "success": "兑换成功，到账 {{value}}",
+        "body": "有兑换码时在这里兑换，额度立即到账。"
+      },
+      "plans": {
+        "title": "订阅套餐",
+        "mine": "我的订阅",
+        "unlimited": "额度不限",
+        "planFallback": "套餐 #{{id}}",
+        "quota": "额度 {{value}}",
+        "group": "用户组升级为 {{group}}",
+        "limit": "每人限购 {{count}} 次",
+        "bought": "套餐已生效",
+        "reset": {
+          "daily": "每日重置",
+          "weekly": "每周重置",
+          "monthly": "每月重置"
+        },
+        "active": "生效中",
+        "expiresOn": "{{time}} 到期",
+        "usedShare": "订阅额度已用占比",
+        "usedValue": "已用 {{value}}",
+        "totalValue": "共 {{value}}",
+        "current": "当前套餐",
+        "subscribe": "订阅",
+        "renew": "续订",
+        "chooseTitle": "订阅「{{title}}」",
+        "chooseBody": "{{price}} / {{duration}}，选择付款方式",
+        "chooseHint": "点「订阅」后选择付款方式。",
+        "balanceOption": "余额支付（从余额扣除 {{price}}）"
+      },
+      "invite": {
+        "title": "邀请返利",
+        "link": "邀请链接",
+        "copied": "已复制邀请链接",
+        "pending": "待划转",
+        "total": "累计获得",
+        "invited": "已邀请人数",
+        "transfer": "划转到余额",
+        "transferHint": "攒够 {{min}} 后可以划转",
+        "confirmTitle": "把 {{value}} 划转到余额？",
+        "confirmMessage": "划转后计入账户余额，不能撤回。",
+        "transferred": "已划转到余额"
+      },
+      "history": {
+        "title": "充值记录",
+        "empty": "还没有充值记录",
+        "time": "时间",
+        "amount": "数量",
+        "money": "实付",
+        "method": "方式",
+        "status": {
+          "success": "成功",
+          "pending": "待支付",
+          "expired": "已过期",
+          "failed": "失败"
+        },
+        "tradeNo": "订单号",
+        "page": "第 {{page}} / {{pages}} 页",
+        "prev": "上一页",
+        "next": "下一页",
+        "statusLabel": "状态"
+      },
+      "duration": {
+        "year": "{{count}} 年",
+        "month": "{{count}} 个月",
+        "day": "{{count}} 天",
+        "hour": "{{count}} 小时",
+        "unknown": "时长未知"
+      },
+      "errors": {
+        "generic": "操作失败，请稍后重试",
+        "rateLimited": "操作太频繁，请稍后再试",
+        "network": "网络不可用，请检查线路后重试",
+        "payWindowOpen": "已有一个支付窗口，请先完成或关闭它",
+        "payWindow": "支付窗口打开失败",
+        "disabled": "当前未开启在线充值",
+        "amount": "请输入有效的充值数量",
+        "belowMinimum": "低于最小充值数量",
+        "method": "该支付方式当前不可用",
+        "redeemKey": "兑换码格式不正确",
+        "checkout": "支付页面地址异常，已取消打开"
+      },
+      "balance": {
+        "dailyAvg": "近 {{days}} 天日均"
+      }
     }
   }
 }

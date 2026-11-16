@@ -7,6 +7,7 @@ import type {
   AicliCatalog,
   AicliCommandError,
   AicliLinesView,
+  AicliPayStarted,
   AicliPrivacyRule,
   AicliPrivacySettings,
   AicliPrivacyView,
@@ -21,7 +22,9 @@ import type {
   AicliRequestBill,
   AicliRoutesView,
   AicliTakeoverStatus,
+  AicliTopupHistory,
   AicliUsageSummary,
+  AicliWalletView,
 } from "@/types/aicli";
 
 /** 后端事件名（src-tauri/src/aicli/cache.rs 与 lib.rs）。 */
@@ -32,6 +35,8 @@ export const AICLI_EVENTS = {
   takeoverResults: "aicli-takeover-results",
   /** 深链 aicli://bind：打开绑定界面。 */
   openBind: "aicli-open-bind",
+  /** 支付窗口结束（回到站点或被关闭）；负载是 AicliPayFinished。 */
+  payFinished: "aicli-pay-finished",
 } as const;
 
 /** invoke 抛出的错误是否为 AICLI 命令错误（带机器码）。 */
@@ -162,4 +167,34 @@ export const aicliApi = {
       allowUnscannedMedia: settings.allowUnscannedMedia,
       privacyDetectCjkNames: settings.privacyDetectCjkNames ?? null,
     }),
+
+  // ---- 钱包（W 阶段）----
+  walletGet: (): Promise<AicliWalletView> => invoke("aicli_wallet_get"),
+
+  /** 充值 amount 的实付金额（服务端格式化的两位小数）。 */
+  walletQuote: (amount: number): Promise<string> =>
+    invoke("aicli_wallet_quote", { amount }),
+
+  /** 下单并打开支付窗口。 */
+  walletPay: (amount: number, method: string): Promise<AicliPayStarted> =>
+    invoke("aicli_wallet_pay", { amount, method }),
+
+  /** 兑换码充值；返回到账的原始额度。 */
+  walletRedeem: (key: string): Promise<number> =>
+    invoke("aicli_wallet_redeem", { key }),
+
+  walletHistory: (page: number): Promise<AicliTopupHistory> =>
+    invoke("aicli_wallet_history", { page }),
+
+  /** 一笔充值订单的状态；未查到时为 null。 */
+  walletOrderStatus: (tradeNo: string): Promise<string | null> =>
+    invoke("aicli_wallet_order_status", { tradeNo }),
+
+  /** method 为 "balance" 时用余额购买，否则走易支付并打开支付窗口。 */
+  subscriptionBuy: (planId: number, method: string): Promise<AicliPayStarted> =>
+    invoke("aicli_subscription_buy", { planId, method }),
+
+  /** 把邀请奖励划转到余额；quota 为原始额度。 */
+  affTransfer: (quota: number): Promise<void> =>
+    invoke("aicli_aff_transfer", { quota }),
 };

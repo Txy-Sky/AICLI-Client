@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   BookOpen,
   ChartColumn,
+  Wallet,
   ChevronsLeft,
   ChevronsRight,
   Database,
@@ -46,7 +47,12 @@ import {
   useAicliProfiles,
   useAicliTakeoverStatus,
 } from "@/hooks/useAicliProfiles";
-import { useAicliPrivacy } from "@/hooks/useAicliAccount";
+import {
+  useAicliAccount,
+  useAicliCachedValue,
+  useAicliPrivacy,
+} from "@/hooks/useAicliAccount";
+import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
 import { useAicliPrivacySummary } from "@/hooks/useAicliPrivacyRecords";
 import { useProxyStatusQuery } from "@/lib/query/proxy";
 import {
@@ -238,12 +244,24 @@ function MainDirectory({
   const privacyOn = useAicliPrivacy().data?.privacy_enabled ?? false;
   const privacySummary = useAicliPrivacySummary(1, privacyOn).data;
   const profilesView = useAicliProfiles().data;
+  // W 阶段：「钱包」行尾写余额（与首页同一份服务端缓存，缓存优先）
+  const aicliAccount = useAicliAccount().data;
+  const aicliBound =
+    aicliAccount?.state === "bound" || aicliAccount?.state === "needs_rebind";
+  const accountCache = useAicliCachedValue("account", aicliBound).data;
   const privacyToday = privacySummary?.total_values ?? 0;
 
   // 选了的项里是 0 的不写（没配定价时金额总是 0）；命中率在今天还没有请求时不写；
   // 全都没有就整个不显示。两项都有时只写数、上下两行（「今日」放进悬停和读屏）：
   // 带上「今日」，换成新台币这类长币种后一行放不下，会把「用量统计」挤成省略号
   const locale = getLocaleFromLanguage(getResolvedLang(i18n));
+  const walletBalance = aicliBound
+    ? formatAicliQuota(
+        readAccountQuota(accountCache?.value).remaining,
+        aicliAccount?.quota_display,
+        locale,
+      )
+    : null;
   const todayValue = (item: SidebarTodayItem): string | null => {
     switch (item) {
       case "cost":
@@ -323,6 +341,13 @@ function MainDirectory({
       icon: ChartColumn,
       trailing: todayTrailing,
       trailingLabel: todayText,
+    },
+    {
+      // W 阶段：充值、兑换码、订阅套餐、邀请返利
+      page: "wallet",
+      label: t("nav.wallet"),
+      icon: Wallet,
+      trailing: walletBalance ?? undefined,
     },
     {
       // F-09：隐私脱敏独立页；开启时行尾写今天遮盖的个数

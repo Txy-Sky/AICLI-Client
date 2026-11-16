@@ -19,6 +19,7 @@ pub mod takeover;
 pub mod tier;
 pub mod tokens;
 pub mod usage;
+pub mod wallet;
 
 #[cfg(test)]
 pub(crate) mod testing;

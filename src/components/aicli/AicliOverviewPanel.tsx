@@ -66,10 +66,12 @@ interface AicliOverviewPanelProps {
   onOpenProfiles: () => void;
   onOpenPrivacy?: () => void;
   onOpenClients?: () => void;
+  /** 余额旁「充值」的入口（钱包页）；不传则不显示按钮。 */
+  onOpenWallet?: () => void;
 }
 
 /** 最近 n 天（UTC 日期，新 → 旧的反序：旧 → 新），与后端 aicli_usage_daily 的 day 同口径。 */
-function lastDays(n: number, now = new Date()): string[] {
+export function lastDays(n: number, now = new Date()): string[] {
   const out: string[] = [];
   for (let offset = n - 1; offset >= 0; offset -= 1) {
     const d = new Date(
@@ -81,7 +83,10 @@ function lastDays(n: number, now = new Date()): string[] {
   return out;
 }
 
-function periodTotals(summary: AicliUsageSummary | undefined, days: string[]) {
+export function periodTotals(
+  summary: AicliUsageSummary | undefined,
+  days: string[],
+) {
   if (!summary) return null;
   const rows = summary.days.filter((row) => days.includes(row.day));
   if (rows.length === 0) return null;
@@ -114,6 +119,7 @@ export function AicliOverviewPanel({
   onOpenProfiles,
   onOpenPrivacy,
   onOpenClients,
+  onOpenWallet,
 }: AicliOverviewPanelProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
@@ -372,6 +378,17 @@ export function AicliOverviewPanel({
                   {remaining ?? noData}
                 </span>
               </HoverTip>
+              {onOpenWallet && (
+                <Button
+                  type="button"
+                  variant="neutral"
+                  size="compact"
+                  className="mt-1 self-start"
+                  onClick={onOpenWallet}
+                >
+                  {t("aicli.wallet.recharge")}
+                </Button>
+              )}
             </div>
             {usedRatio != null && (
               <div

@@ -2521,7 +2521,8 @@
     "privacyToday": "Bugün {{count}} değer maskelendi",
     "home": "Ana sayfa",
     "profiles": "Yapılandırma setleri",
-    "profilesCount": "{{count}}"
+    "profilesCount": "{{count}}",
+    "wallet": "Cüzdan"
   },
   "appsPage": {
     "showInSidebar": "{{name}} uygulamasını İstemciler sayfasında göster",
@@ -3604,6 +3605,133 @@
       "stepClearBody": "Kullanmak istediğinizde belirteci yeniden yapıştırın",
       "stepKeep": "Yerel istek kayıtları korunur",
       "stepKeepBody": "Kullanım sayfasında görünmeye devam eder"
+    },
+    "wallet": {
+      "recharge": "Bakiye yükle",
+      "loadFailed": "Cüzdan bilgileri yüklenemedi",
+      "partFailed": "Bazı cüzdan bilgileri yüklenemedi. Daha sonra yeniden deneyin.",
+      "topup": {
+        "title": "Çevrimiçi yükleme",
+        "amountLabel": "Yükleme miktarı",
+        "customPlaceholder": "Tam sayı girin",
+        "methodLabel": "Ödeme yöntemi",
+        "pay": "Ödemeye git",
+        "minHint": "En az yükleme miktarı {{min}}",
+        "discount": "-{{percent}}%",
+        "checkoutHint": "Ödeme ayrı bir ödeme penceresinde yapılır. Geçerli tutar, ödeme sayfasında gösterilen tutardır.",
+        "disabledBody": "İstemci içinde çevrimiçi yükleme etkin değil. Web sitesinden yükleme yapabilirsiniz.",
+        "openWebsite": "Web sitesinde yükle",
+        "customLabel": "Başka miktar",
+        "customHint": "En az {{min}} · fiyatı sunucu belirler",
+        "tileMoney": "Ödenecek ¥{{money}}",
+        "arriveLabel": "Hesaba geçecek",
+        "payLabel": "Ödenecek",
+        "money": "¥{{money}}",
+        "payWithMoney": "¥{{money}} öde",
+        "paying": "Ödeme sürüyor…",
+        "pending": "—"
+      },
+      "pay": {
+        "waitingTitle": "Ödemenin tamamlanması bekleniyor",
+        "waitingBody": "Ödeme penceresi açıldı ({{host}}). Ödeme tamamlandığında bu sayfa kendiliğinden güncellenir.",
+        "confirmingTitle": "Ödeme doğrulanıyor",
+        "confirmingBody": "Ödeme penceresi kapandı. Sunucudan doğrulanıyor; genellikle birkaç saniye sürer.",
+        "stop": "Beklemeyi bırak",
+        "successTopup": "Yükleme hesaba geçti",
+        "successSubscription": "Plan etkinleşti",
+        "notDetectedTitle": "Henüz ödeme algılanmadı",
+        "notDetectedBody": "Ödeme yaptıysanız hesaba geçmesi biraz sürebilir. Daha sonra yükleme geçmişine bakın.",
+        "dismiss": "Kapat"
+      },
+      "redeem": {
+        "title": "Kullanım kodu",
+        "placeholder": "Kullanım kodunu girin",
+        "submit": "Kullan",
+        "success": "Kod kullanıldı. Hesaba geçen: {{value}}",
+        "body": "Kullanım kodunu burada kullanın; kota hemen hesaba geçer."
+      },
+      "plans": {
+        "title": "Abonelik planları",
+        "mine": "Aboneliklerim",
+        "unlimited": "Sınırsız kota",
+        "planFallback": "Plan #{{id}}",
+        "quota": "Kota {{value}}",
+        "group": "Kullanıcı grubunuz {{group}} olur",
+        "limit": "Kişi başına en çok {{count}} kez",
+        "bought": "Plan etkinleşti",
+        "reset": {
+          "daily": "her gün sıfırlanır",
+          "weekly": "her hafta sıfırlanır",
+          "monthly": "her ay sıfırlanır"
+        },
+        "active": "Etkin",
+        "expiresOn": "{{time}} tarihinde bitiyor",
+        "usedShare": "Plan kotasının kullanılan oranı",
+        "usedValue": "Kullanılan {{value}}",
+        "totalValue": "Toplam {{value}}",
+        "current": "Geçerli plan",
+        "subscribe": "Abone ol",
+        "renew": "Yenile",
+        "chooseTitle": "“{{title}}” aboneliği",
+        "chooseBody": "{{price}} / {{duration}}. Ödeme yöntemini seçin.",
+        "chooseHint": "Abone ol'a bastıktan sonra ödeme yöntemini seçersiniz.",
+        "balanceOption": "Bakiyeyle öde ({{price}} düşülür)"
+      },
+      "invite": {
+        "title": "Davet ödülleri",
+        "link": "Davet bağlantısı",
+        "copied": "Davet bağlantısı kopyalandı",
+        "pending": "Aktarılacak",
+        "total": "Toplam kazanılan",
+        "invited": "Davet edilen kişi",
+        "transfer": "Bakiyeye aktar",
+        "transferHint": "{{min}} olduğunda aktarılabilir",
+        "confirmTitle": "{{value}} bakiyeye aktarılsın mı?",
+        "confirmMessage": "Tutar hesap bakiyenize eklenir ve geri alınamaz.",
+        "transferred": "Bakiyeye aktarıldı"
+      },
+      "history": {
+        "title": "Yükleme geçmişi",
+        "empty": "Henüz yükleme yok",
+        "time": "Zaman",
+        "amount": "Miktar",
+        "money": "Ödenen",
+        "method": "Yöntem",
+        "status": {
+          "success": "Başarılı",
+          "pending": "Ödeme bekliyor",
+          "expired": "Süresi doldu",
+          "failed": "Başarısız"
+        },
+        "tradeNo": "Sipariş no.",
+        "page": "Sayfa {{page}} / {{pages}}",
+        "prev": "Önceki",
+        "next": "Sonraki",
+        "statusLabel": "Durum"
+      },
+      "duration": {
+        "year": "{{count}} yıl",
+        "month": "{{count}} ay",
+        "day": "{{count}} gün",
+        "hour": "{{count}} saat",
+        "unknown": "Süre bilinmiyor"
+      },
+      "errors": {
+        "generic": "İşlem başarısız oldu. Daha sonra yeniden deneyin.",
+        "rateLimited": "Çok sık denendi. Daha sonra yeniden deneyin.",
+        "network": "Ağ kullanılamıyor. Hattı denetleyip yeniden deneyin.",
+        "payWindowOpen": "Zaten açık bir ödeme penceresi var. Önce onu tamamlayın veya kapatın.",
+        "payWindow": "Ödeme penceresi açılamadı",
+        "disabled": "Çevrimiçi yükleme etkin değil",
+        "amount": "Geçerli bir yükleme miktarı girin",
+        "belowMinimum": "En az yükleme miktarının altında",
+        "method": "Bu ödeme yöntemi şu anda kullanılamıyor",
+        "redeemKey": "Kullanım kodunun biçimi geçersiz",
+        "checkout": "Ödeme sayfasının adresi hatalı göründüğü için açılmadı"
+      },
+      "balance": {
+        "dailyAvg": "Son {{days}} gün günlük ortalama"
+      }
     }
   }
 }

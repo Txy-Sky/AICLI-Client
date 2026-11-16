@@ -6,7 +6,7 @@ import type { AppId } from "@/lib/api";
  * - 客户端（F-08）：侧栏只有一个「客户端」入口，进入客户端总览；点卡片进入单个应用的
  *   客户端页，OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
  * - 全局页（2026-11 改版，负责人同意改 F-02/F-03/F-10 的口径）：首页（AICLI 账户与请求链路）、
- *   客户端总览、用量（本机统计）、隐私脱敏、配置集，以及 MCP、Skills、提示词、会话，每样只出现一次。
+ *   客户端总览、用量（本机统计）、钱包（W 阶段，负责人 2026-11-15 新增）、隐私脱敏、配置集，以及 MCP、Skills、提示词、会话，每样只出现一次。
  *   「应用」（安装与升级）不在侧栏，从客户端页进入。
  * - 设置：侧栏换成设置目录，6 个分组。
  * - 冷启动恒进首页（F-02）：不再记住上次停留的页面。
@@ -23,6 +23,7 @@ export type GlobalPage =
   | "clients"
   | "privacy"
   | "usage"
+  | "wallet"
   | "profiles"
   | "mcp"
   | "skills"
@@ -62,6 +63,7 @@ const GLOBAL_PAGES: GlobalPage[] = [
   "clients",
   "privacy",
   "usage",
+  "wallet",
   "profiles",
   "mcp",
   "skills",

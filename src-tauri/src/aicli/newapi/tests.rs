@@ -460,3 +460,191 @@ fn local_test_constructor_rejects_remote_or_credential_bearing_origins() {
         );
     }
 }
+
+fn raw(body: Value) -> (u16, &'static str, String) {
+    (200, "application/json", body.to_string())
+}
+
+#[tokio::test]
+async fn wallet_reads_and_writes_use_fixed_paths_and_bodies() {
+    let checkout = json!({
+        "message": "success",
+        "url": "https://pay.example.test/submit.php",
+        "data": {"pid": "1001", "out_trade_no": "USR7NOabc123", "sign": "synthetic"}
+    });
+    let server = mock(vec![
+        ok(json!({"enable_online_topup": true})),
+        ok(json!({"items": [], "total": 0})),
+        ok(json!([])),
+        ok(json!({"subscriptions": []})),
+        ok(json!("abcd")),
+        raw(json!({"message": "success", "data": "7.30"})),
+        raw(checkout.clone()),
+        raw(json!({"success": true, "message": "", "data": 500000})),
+        raw(checkout),
+        raw(json!({"success": true, "message": ""})),
+        raw(json!({"success": true, "message": "ok"})),
+    ])
+    .await;
+    let api = client(&[server.origin.clone()]);
+    api.topup_info().await.unwrap();
+    api.topup_history(2, 10, Some("USR7NOabc123"))
+        .await
+        .unwrap();
+    api.subscription_plans().await.unwrap();
+    api.subscription_self().await.unwrap();
+    api.aff_code().await.unwrap();
+    assert_eq!(api.topup_amount(10).await.unwrap(), "7.30");
+    let order = api.topup_pay(10, "alipay").await.unwrap();
+    assert_eq!(order.url, "https://pay.example.test/submit.php");
+    assert_eq!(order.params["out_trade_no"], "USR7NOabc123");
+    assert_eq!(api.redeem("synthetic-code").await.unwrap(), 500000);
+    api.subscription_epay_pay(3, "wxpay").await.unwrap();
+    api.subscription_balance_pay(3).await.unwrap();
+    api.aff_transfer(500000).await.unwrap();
+
+    let requests = server.requests.lock().unwrap();
+    let expected = [
+        (Method::GET, "/api/user/topup/info", Value::Null),
+        (Method::GET, "/api/user/topup/self", Value::Null),
+        (Method::GET, "/api/subscription/plans", Value::Null),
+        (Method::GET, "/api/subscription/self", Value::Null),
+        (Method::GET, "/api/user/aff", Value::Null),
+        (Method::POST, "/api/user/amount", json!({"amount": 10})),
+        (
+            Method::POST,
+            "/api/user/pay",
+            json!({"amount": 10, "payment_method": "alipay"}),
+        ),
+        (
+            Method::POST,
+            "/api/user/topup",
+            json!({"key": "synthetic-code"}),
+        ),
+        (
+            Method::POST,
+            "/api/subscription/epay/pay",
+            json!({"plan_id": 3, "payment_method": "wxpay"}),
+        ),
+        (
+            Method::POST,
+            "/api/subscription/balance/pay",
+            json!({"plan_id": 3}),
+        ),
+        (
+            Method::POST,
+            "/api/user/aff_transfer",
+            json!({"quota": 500000}),
+        ),
+    ];
+    assert_eq!(requests.len(), expected.len());
+    for ((method, url, headers, body), (expected_method, path, expected_body)) in
+        requests.iter().zip(expected)
+    {
+        assert_eq!(method, &expected_method);
+        assert_eq!(url.path(), path);
+        assert_eq!(body, &expected_body);
+        assert_eq!(
+            headers.get("authorization").unwrap(),
+            "Bearer synthetic-access-value"
+        );
+    }
+    assert_eq!(
+        requests[1].1.query(),
+        Some("p=2&page_size=10&keyword=USR7NOabc123")
+    );
+}
+
+#[tokio::test]
+async fn wallet_writes_report_the_server_reason_in_both_envelopes() {
+    let server = mock(vec![
+        raw(json!({"message": "error", "data": "充值数量不能小于 10"})),
+        raw(json!({"success": false, "message": "兑换失败\u{0007}"})),
+        raw(json!({"success": false, "message": ""})),
+        raw(json!({"message": "pending"})),
+        raw(json!({"message": "error", "data": "x".repeat(500)})),
+        raw(json!({"message": "success", "data": {"pid": 1}, "url": "https://pay.example.test/"})),
+        raw(json!({"message": "success", "data": {}})),
+    ])
+    .await;
+    let api = client(&[server.origin.clone()]);
+    assert_eq!(
+        api.topup_pay(1, "alipay").await.unwrap_err(),
+        WalletApiError::Declined("充值数量不能小于 10".into())
+    );
+    assert_eq!(
+        api.redeem("synthetic-code").await.unwrap_err(),
+        WalletApiError::Declined("兑换失败".into())
+    );
+    assert_eq!(
+        api.redeem("synthetic-code").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::Rejected)
+    );
+    assert_eq!(
+        api.topup_amount(1).await.unwrap_err(),
+        WalletApiError::Api(NewApiError::InvalidResponse)
+    );
+    match api.topup_amount(1).await.unwrap_err() {
+        WalletApiError::Declined(reason) => assert_eq!(reason.chars().count(), 160),
+        other => panic!("unexpected {other:?}"),
+    }
+    // Form fields must all be strings and the gateway URL must be present.
+    assert_eq!(
+        api.topup_pay(1, "alipay").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::InvalidResponse)
+    );
+    assert_eq!(
+        api.topup_pay(1, "alipay").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::InvalidResponse)
+    );
+}
+
+#[tokio::test]
+async fn wallet_writes_never_move_to_another_line() {
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let unreachable = Url::parse(&format!("http://{}/", closed.local_addr().unwrap())).unwrap();
+    drop(closed);
+    let other = mock(vec![]).await;
+    let api = client(&[unreachable, other.origin.clone()]);
+    assert_eq!(
+        api.topup_pay(10, "alipay").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::Network)
+    );
+
+    let edge = mock(vec![
+        (502, "text/html", "<html>edge error".into()),
+        (401, "text/plain", "synthetic-private-response".into()),
+        (429, "text/plain", String::new()),
+    ])
+    .await;
+    let api = client(&[edge.origin.clone(), other.origin.clone()]);
+    assert_eq!(
+        api.redeem("synthetic-code").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::Http(502))
+    );
+    assert_eq!(
+        api.redeem("synthetic-code").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::TokenInvalid)
+    );
+    assert_eq!(
+        api.redeem("synthetic-code").await.unwrap_err(),
+        WalletApiError::Api(NewApiError::Http(429))
+    );
+    assert!(other.requests.lock().unwrap().is_empty());
+
+    for error in [
+        api.topup_amount(0).await.unwrap_err(),
+        api.topup_pay(1, "").await.unwrap_err(),
+        api.redeem("").await.unwrap_err(),
+        api.subscription_epay_pay(0, "alipay").await.unwrap_err(),
+        api.subscription_balance_pay(-1).await.unwrap_err(),
+        api.aff_transfer(0).await.unwrap_err(),
+    ] {
+        assert_eq!(error, WalletApiError::Api(NewApiError::InvalidInput));
+    }
+    assert_eq!(
+        api.topup_history(0, 10, None).await.unwrap_err(),
+        NewApiError::InvalidInput
+    );
+    assert_eq!(edge.requests.lock().unwrap().len(), 3);
+}

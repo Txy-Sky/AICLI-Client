@@ -17,6 +17,12 @@ export const aicliKeys = {
   usageSummary: ["aicli", "usage", "summary"] as const,
   requestBill: (requestId: string) =>
     ["aicli", "usage", "bill", requestId] as const,
+  wallet: ["aicli", "wallet", "view"] as const,
+  walletHistory: (page: number) =>
+    ["aicli", "wallet", "history", page] as const,
+  walletHistoryAll: ["aicli", "wallet", "history"] as const,
+  walletQuote: (amount: number) =>
+    ["aicli", "wallet", "quote", amount] as const,
 };
 
 /**

@@ -420,6 +420,236 @@ impl NewApiClient {
     }
 }
 
+/// A wallet write that did not go through. `Declined` carries the server's own
+/// short reason (for example "充值数量不能小于 10"), bounded and stripped of
+/// control characters; it never contains a response body beyond that one field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WalletApiError {
+    Api(NewApiError),
+    Declined(String),
+}
+
+impl From<NewApiError> for WalletApiError {
+    fn from(error: NewApiError) -> Self {
+        Self::Api(error)
+    }
+}
+
+/// The epay checkout a pay endpoint hands back: the gateway URL plus the signed form fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpayCheckout {
+    pub url: String,
+    pub params: BTreeMap<String, String>,
+}
+
+const DECLINE_REASON_MAX_CHARS: usize = 160;
+
+fn declined(reason: Option<&Value>) -> WalletApiError {
+    let text: String = reason
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(DECLINE_REASON_MAX_CHARS)
+        .collect();
+    let text = text.trim();
+    if text.is_empty() {
+        WalletApiError::Api(NewApiError::Rejected)
+    } else {
+        WalletApiError::Declined(text.to_owned())
+    }
+}
+
+/// rc.34 payment endpoints answer either `{success, message, data}` or the older
+/// `{message: "success" | "error", data}` without a `success` field.
+fn wallet_envelope(value: Value) -> Result<Value, WalletApiError> {
+    match value.get("success").and_then(Value::as_bool) {
+        Some(true) => Ok(value),
+        Some(false) => Err(declined(value.get("message"))),
+        None => match value.get("message").and_then(Value::as_str) {
+            Some("success") => Ok(value),
+            Some("error") => Err(declined(value.get("data"))),
+            _ => Err(NewApiError::InvalidResponse.into()),
+        },
+    }
+}
+
+fn epay_checkout(value: &Value) -> Result<EpayCheckout, WalletApiError> {
+    let url = value
+        .get("url")
+        .and_then(Value::as_str)
+        .filter(|url| !url.is_empty())
+        .ok_or(NewApiError::InvalidResponse)?;
+    let fields = value
+        .get("data")
+        .and_then(Value::as_object)
+        .ok_or(NewApiError::InvalidResponse)?;
+    let mut params = BTreeMap::new();
+    for (key, field) in fields {
+        let field = field.as_str().ok_or(NewApiError::InvalidResponse)?;
+        params.insert(key.clone(), field.to_owned());
+    }
+    Ok(EpayCheckout {
+        url: url.to_owned(),
+        params,
+    })
+}
+
+/// Wallet (W stage). Reads go through `request` like every other account read.
+/// Writes go to the selected line exactly once: an order or a redemption must
+/// never be repeated on another line after an ambiguous failure.
+impl NewApiClient {
+    async fn wallet_write(&self, path: &str, body: &Value) -> Result<Value, WalletApiError> {
+        let origin = self.origins.first().ok_or(NewApiError::InvalidInput)?;
+        let url = origin.join(path).map_err(|_| NewApiError::InvalidInput)?;
+        let response = self
+            .client
+            .post(url)
+            .header(AUTHORIZATION, self.authorization.clone())
+            .json(body)
+            .send()
+            .await
+            .map_err(|_| NewApiError::Network)?;
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(NewApiError::TokenInvalid.into());
+        }
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            if let Some(delay) = response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(retry_after_seconds)
+            {
+                return Err(NewApiError::RateLimited(delay).into());
+            }
+        }
+        if !status.is_success() {
+            return Err(NewApiError::Http(status.as_u16()).into());
+        }
+        let bytes = response.bytes().await.map_err(|_| NewApiError::Network)?;
+        let value: Value =
+            serde_json::from_slice(&bytes).map_err(|_| NewApiError::InvalidResponse)?;
+        wallet_envelope(value)
+    }
+
+    pub async fn topup_info(&self) -> Result<Value, NewApiError> {
+        self.request(Method::GET, "/api/user/topup/info", &[], None)
+            .await
+    }
+    /// One page of the user's own top-up orders; `keyword` narrows by trade number.
+    pub async fn topup_history(
+        &self,
+        page: u64,
+        page_size: u64,
+        keyword: Option<&str>,
+    ) -> Result<Value, NewApiError> {
+        if page == 0 || page_size == 0 || page_size > PAGE_SIZE {
+            return Err(NewApiError::InvalidInput);
+        }
+        let mut query = vec![
+            ("p", page.to_string()),
+            ("page_size", page_size.to_string()),
+        ];
+        if let Some(keyword) = keyword.filter(|keyword| !keyword.is_empty()) {
+            query.push(("keyword", keyword.to_owned()));
+        }
+        self.request(Method::GET, "/api/user/topup/self", &query, None)
+            .await
+    }
+    pub async fn subscription_plans(&self) -> Result<Value, NewApiError> {
+        self.request(Method::GET, "/api/subscription/plans", &[], None)
+            .await
+    }
+    pub async fn subscription_self(&self) -> Result<Value, NewApiError> {
+        self.request(Method::GET, "/api/subscription/self", &[], None)
+            .await
+    }
+    pub async fn aff_code(&self) -> Result<Value, NewApiError> {
+        self.request(Method::GET, "/api/user/aff", &[], None).await
+    }
+
+    /// The money to pay for `amount`, as the server formats it (two decimals).
+    pub async fn topup_amount(&self, amount: i64) -> Result<String, WalletApiError> {
+        if amount <= 0 {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        let result = self
+            .wallet_write("/api/user/amount", &json!({"amount": amount}))
+            .await?;
+        match result.get("data") {
+            Some(Value::String(money)) if !money.is_empty() => Ok(money.clone()),
+            Some(Value::Number(money)) => Ok(money.to_string()),
+            _ => Err(NewApiError::InvalidResponse.into()),
+        }
+    }
+    pub async fn topup_pay(
+        &self,
+        amount: i64,
+        payment_method: &str,
+    ) -> Result<EpayCheckout, WalletApiError> {
+        if amount <= 0 || payment_method.is_empty() {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        let result = self
+            .wallet_write(
+                "/api/user/pay",
+                &json!({"amount": amount, "payment_method": payment_method}),
+            )
+            .await?;
+        epay_checkout(&result)
+    }
+    /// Redeem a code; the result is the credited quota in raw quota units.
+    pub async fn redeem(&self, key: &str) -> Result<i64, WalletApiError> {
+        if key.is_empty() {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        let result = self
+            .wallet_write("/api/user/topup", &json!({"key": key}))
+            .await?;
+        result
+            .get("data")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| NewApiError::InvalidResponse.into())
+    }
+    pub async fn subscription_epay_pay(
+        &self,
+        plan_id: i64,
+        payment_method: &str,
+    ) -> Result<EpayCheckout, WalletApiError> {
+        if plan_id <= 0 || payment_method.is_empty() {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        let result = self
+            .wallet_write(
+                "/api/subscription/epay/pay",
+                &json!({"plan_id": plan_id, "payment_method": payment_method}),
+            )
+            .await?;
+        epay_checkout(&result)
+    }
+    pub async fn subscription_balance_pay(&self, plan_id: i64) -> Result<(), WalletApiError> {
+        if plan_id <= 0 {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        self.wallet_write(
+            "/api/subscription/balance/pay",
+            &json!({"plan_id": plan_id}),
+        )
+        .await
+        .map(|_| ())
+    }
+    /// Move invitation rewards into the wallet; `quota` is in raw quota units.
+    pub async fn aff_transfer(&self, quota: i64) -> Result<(), WalletApiError> {
+        if quota <= 0 {
+            return Err(NewApiError::InvalidInput.into());
+        }
+        self.wallet_write("/api/user/aff_transfer", &json!({"quota": quota}))
+            .await
+            .map(|_| ())
+    }
+}
+
 fn retry_after_seconds(value: &str) -> Option<u64> {
     value.trim().parse().ok().or_else(|| {
         chrono::DateTime::parse_from_rfc2822(value)

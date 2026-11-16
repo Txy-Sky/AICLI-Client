@@ -52,6 +52,7 @@ import { UsagePage } from "@/components/usage/UsagePage";
 import { AicliClientPage } from "@/components/aicli/AicliClientPage";
 import { AicliClientsPage } from "@/components/aicli/clients/AicliClientsPage";
 import { AicliPrivacyPage } from "@/components/aicli/privacy/AicliPrivacyPage";
+import { AicliWalletPage } from "@/components/aicli/wallet/AicliWalletPage";
 import { useAicliEventBridge } from "@/hooks/useAicliAccount";
 import { AICLI_EVENTS } from "@/lib/api/aicli";
 import { AicliBindGate } from "@/components/aicli/AicliBindGate";
@@ -910,12 +911,15 @@ function App() {
         );
       case "privacy":
         return <AicliPrivacyPage />;
+      case "wallet":
+        return <AicliWalletPage />;
       case "home":
         return (
           <AicliHome
             onOpenProfiles={() => openPage("profiles")}
             onOpenPrivacy={() => openPage("privacy")}
             onOpenClients={() => openPage("clients")}
+            onOpenWallet={() => openPage("wallet")}
           />
         );
       case "usage":

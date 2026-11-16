@@ -353,3 +353,102 @@ export interface AicliPrivacySettings {
  * app 的 scopeKey 是客户端 id（claude / codex / gemini …）。
  */
 export type AicliProfileScope = "global" | "app";
+
+// ---- 钱包（W 阶段）：对应 src-tauri/src/aicli/wallet.rs 与 commands/aicli/wallet.rs ----
+
+export interface AicliPayMethod {
+  name: string;
+  /** 易支付的支付方式标识（alipay / wxpay …）。 */
+  type: string;
+  color: string | null;
+  min_topup: number | null;
+}
+
+/** 线上充值设置（/api/user/topup/info 中客户端用到的部分）。 */
+export interface AicliTopupInfo {
+  /** 易支付已开启且至少配置了一种易支付方式。 */
+  online_topup: boolean;
+  redemption: boolean;
+  methods: AicliPayMethod[];
+  min_topup: number;
+  amount_options: number[];
+  /** 预设数量 → 价格系数（0.9 即九折）；键是数量的字符串。 */
+  discounts: Record<string, number>;
+  /** 管理员配置的外部购买链接（https）。 */
+  topup_link: string | null;
+}
+
+export interface AicliPlan {
+  id: number;
+  title: string;
+  subtitle: string;
+  price_amount: number;
+  currency: string;
+  /** year / month / day / hour / custom。 */
+  duration_unit: string;
+  duration_value: number;
+  custom_seconds: number;
+  /** null 表示服务端未设置（按允许处理，最终以服务端为准）。 */
+  allow_balance_pay: boolean | null;
+  max_purchase_per_user: number;
+  upgrade_group: string;
+  /** 原始额度；0 表示不限。 */
+  total_amount: number;
+  quota_reset_period: string;
+}
+
+export interface AicliSubscription {
+  id: number;
+  plan_id: number;
+  amount_total: number;
+  amount_used: number;
+  /** 秒级时间戳。 */
+  start_time: number;
+  end_time: number;
+  status: string;
+  next_reset_time: number;
+}
+
+/** 钱包页除余额外的全部数据；某一部分读取失败时列在 failed 里并留空。 */
+export interface AicliWalletView {
+  topup: AicliTopupInfo | null;
+  plans: AicliPlan[];
+  subscriptions: AicliSubscription[];
+  billing_preference: string | null;
+  aff_code: string | null;
+  failed: string[];
+}
+
+export interface AicliPayStarted {
+  trade_no: string | null;
+  /** 收银台主机名；余额支付时为空。 */
+  host: string | null;
+  /** 为 true 时无需等待（余额支付已完成）。 */
+  completed: boolean;
+}
+
+export interface AicliTopupOrder {
+  id: number;
+  amount: number;
+  money: number;
+  trade_no: string;
+  payment_method: string;
+  /** 秒级时间戳。 */
+  create_time: number;
+  complete_time: number;
+  status: string;
+}
+
+export interface AicliTopupHistory {
+  items: AicliTopupOrder[];
+  total: number;
+}
+
+export type AicliPayKind = "topup" | "subscription";
+
+/** 支付窗口结束事件（aicli-pay-finished）的负载。 */
+export interface AicliPayFinished {
+  kind: AicliPayKind;
+  trade_no: string | null;
+  outcome: "success" | "fail" | "unknown" | "closed";
+}

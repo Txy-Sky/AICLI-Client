@@ -2521,7 +2521,8 @@
     "privacyToday": "今日 {{count}} 件をマスク",
     "home": "ホーム",
     "profiles": "構成セット",
-    "profilesCount": "{{count}} 個"
+    "profilesCount": "{{count}} 個",
+    "wallet": "ウォレット"
   },
   "appsPage": {
     "showInSidebar": "{{name}} をクライアントページに表示",
@@ -3608,6 +3609,133 @@
       "stepClearBody": "使うときはトークンをもう一度貼り付けてください",
       "stepKeep": "ローカルのリクエスト記録は残す",
       "stepKeepBody": "使用量ページで引き続き見られます"
+    },
+    "wallet": {
+      "recharge": "チャージ",
+      "loadFailed": "ウォレット情報を読み込めませんでした",
+      "partFailed": "一部のウォレット情報を読み込めませんでした。しばらくしてから再試行してください。",
+      "topup": {
+        "title": "オンラインチャージ",
+        "amountLabel": "チャージ数量",
+        "customPlaceholder": "整数を入力",
+        "methodLabel": "支払い方法",
+        "pay": "支払いへ進む",
+        "minHint": "最小チャージ数量は {{min}} です",
+        "discount": "-{{percent}}%",
+        "checkoutHint": "支払いは別の支払いウィンドウで行います。実際の支払額は決済画面の表示が優先されます。",
+        "disabledBody": "クライアント内のオンラインチャージは有効になっていません。ウェブサイトでチャージできます。",
+        "openWebsite": "ウェブサイトでチャージ",
+        "customLabel": "その他の数量",
+        "customHint": "最小 {{min}} · 支払額はサーバーの価格で計算",
+        "tileMoney": "支払額 ¥{{money}}",
+        "arriveLabel": "付与される額",
+        "payLabel": "支払額",
+        "money": "¥{{money}}",
+        "payWithMoney": "¥{{money}} を支払う",
+        "paying": "支払い処理中…",
+        "pending": "—"
+      },
+      "pay": {
+        "waitingTitle": "支払いの完了を待っています",
+        "waitingBody": "支払いウィンドウを開きました（{{host}}）。支払いが完了するとここが自動で更新されます。",
+        "confirmingTitle": "入金を確認しています",
+        "confirmingBody": "支払いウィンドウが閉じられました。サーバーに確認しています。通常は数秒で終わります。",
+        "stop": "待機をやめる",
+        "successTopup": "チャージが反映されました",
+        "successSubscription": "プランが有効になりました",
+        "notDetectedTitle": "まだ支払いを確認できません",
+        "notDetectedBody": "支払い済みの場合、反映に時間がかかることがあります。後でチャージ履歴を確認してください。",
+        "dismiss": "閉じる"
+      },
+      "redeem": {
+        "title": "引き換えコード",
+        "placeholder": "引き換えコードを入力",
+        "submit": "引き換え",
+        "success": "引き換えました。{{value}} が付与されました",
+        "body": "引き換えコードはここで使えます。すぐにクォータが付与されます。"
+      },
+      "plans": {
+        "title": "サブスクリプションプラン",
+        "mine": "契約中のプラン",
+        "unlimited": "クォータ無制限",
+        "planFallback": "プラン #{{id}}",
+        "quota": "クォータ {{value}}",
+        "group": "ユーザーグループが {{group}} に変わります",
+        "limit": "1 人 {{count}} 回まで",
+        "bought": "プランが有効になりました",
+        "reset": {
+          "daily": "毎日リセット",
+          "weekly": "毎週リセット",
+          "monthly": "毎月リセット"
+        },
+        "active": "有効",
+        "expiresOn": "{{time}} に期限切れ",
+        "usedShare": "プランのクォータ使用率",
+        "usedValue": "使用済み {{value}}",
+        "totalValue": "合計 {{value}}",
+        "current": "現在のプラン",
+        "subscribe": "購読する",
+        "renew": "更新する",
+        "chooseTitle": "「{{title}}」を購読",
+        "chooseBody": "{{price}} / {{duration}}。支払い方法を選んでください。",
+        "chooseHint": "「購読する」を押したあとで支払い方法を選びます。",
+        "balanceOption": "残高で支払う（{{price}} を差し引き）"
+      },
+      "invite": {
+        "title": "招待リワード",
+        "link": "招待リンク",
+        "copied": "招待リンクをコピーしました",
+        "pending": "未振替",
+        "total": "累計獲得",
+        "invited": "招待した人数",
+        "transfer": "残高へ振り替え",
+        "transferHint": "{{min}} に達すると振り替えできます",
+        "confirmTitle": "{{value}} を残高へ振り替えますか？",
+        "confirmMessage": "振り替えた分はアカウント残高に加算され、元に戻せません。",
+        "transferred": "残高へ振り替えました"
+      },
+      "history": {
+        "title": "チャージ履歴",
+        "empty": "チャージ履歴はまだありません",
+        "time": "日時",
+        "amount": "数量",
+        "money": "支払額",
+        "method": "方法",
+        "status": {
+          "success": "成功",
+          "pending": "支払い待ち",
+          "expired": "期限切れ",
+          "failed": "失敗"
+        },
+        "tradeNo": "注文番号",
+        "page": "{{page}} / {{pages}} ページ",
+        "prev": "前へ",
+        "next": "次へ",
+        "statusLabel": "状態"
+      },
+      "duration": {
+        "year": "{{count}} 年",
+        "month": "{{count}} か月",
+        "day": "{{count}} 日",
+        "hour": "{{count}} 時間",
+        "unknown": "期間不明"
+      },
+      "errors": {
+        "generic": "操作に失敗しました。しばらくしてから再試行してください。",
+        "rateLimited": "操作が多すぎます。しばらくしてから再試行してください。",
+        "network": "ネットワークを利用できません。回線を確認して再試行してください。",
+        "payWindowOpen": "支払いウィンドウがすでに開いています。先に完了するか閉じてください。",
+        "payWindow": "支払いウィンドウを開けませんでした",
+        "disabled": "オンラインチャージは有効になっていません",
+        "amount": "有効なチャージ数量を入力してください",
+        "belowMinimum": "最小チャージ数量を下回っています",
+        "method": "この支払い方法は現在利用できません",
+        "redeemKey": "引き換えコードの形式が正しくありません",
+        "checkout": "支払いページのアドレスに問題があるため、開くのを中止しました"
+      },
+      "balance": {
+        "dailyAvg": "直近 {{days}} 日の平均"
+      }
     }
   }
 }

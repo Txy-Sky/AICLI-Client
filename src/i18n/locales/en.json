@@ -2521,7 +2521,8 @@
     "privacyToday": "{{count}} values masked today",
     "home": "Home",
     "profiles": "Profiles",
-    "profilesCount": "{{count}}"
+    "profilesCount": "{{count}}",
+    "wallet": "Wallet"
   },
   "appsPage": {
     "showInSidebar": "Show {{name}} on the Clients page",
@@ -3608,6 +3609,133 @@
       "stepClearBody": "Paste a token again whenever you want to use it",
       "stepKeep": "Local request records are kept",
       "stepKeepBody": "The Usage page still shows them"
+    },
+    "wallet": {
+      "recharge": "Top up",
+      "loadFailed": "Could not load wallet information",
+      "partFailed": "Some wallet information could not be loaded. Try again later.",
+      "topup": {
+        "title": "Online top-up",
+        "amountLabel": "Top-up amount",
+        "customPlaceholder": "Whole number",
+        "methodLabel": "Payment method",
+        "pay": "Pay",
+        "minHint": "The minimum top-up is {{min}}",
+        "discount": "-{{percent}}%",
+        "checkoutHint": "Payment happens in a separate payment window. The amount shown at checkout is final.",
+        "disabledBody": "Online top-up inside the client is not enabled. You can top up on the website.",
+        "openWebsite": "Top up on the website",
+        "customLabel": "Other amount",
+        "customHint": "Min {{min}} · the server sets the price",
+        "tileMoney": "Pay ¥{{money}}",
+        "arriveLabel": "You get",
+        "payLabel": "You pay",
+        "money": "¥{{money}}",
+        "payWithMoney": "Pay ¥{{money}}",
+        "paying": "Payment in progress…",
+        "pending": "—"
+      },
+      "pay": {
+        "waitingTitle": "Waiting for payment",
+        "waitingBody": "The payment window is open ({{host}}). This page updates once the payment completes.",
+        "confirmingTitle": "Confirming the payment",
+        "confirmingBody": "The payment window closed. Checking with the server; this usually takes a few seconds.",
+        "stop": "Stop waiting",
+        "successTopup": "Top-up received",
+        "successSubscription": "Plan is active",
+        "notDetectedTitle": "No payment detected yet",
+        "notDetectedBody": "If you already paid, it may take a moment to arrive. Check the top-up history later.",
+        "dismiss": "Dismiss"
+      },
+      "redeem": {
+        "title": "Redemption code",
+        "placeholder": "Enter a redemption code",
+        "submit": "Redeem",
+        "success": "Redeemed. You received {{value}}",
+        "body": "Redeem a code here; the quota arrives right away."
+      },
+      "plans": {
+        "title": "Subscription plans",
+        "mine": "My subscriptions",
+        "unlimited": "Unlimited quota",
+        "planFallback": "Plan #{{id}}",
+        "quota": "Quota {{value}}",
+        "group": "Upgrades your group to {{group}}",
+        "limit": "Limit {{count}} per user",
+        "bought": "Plan is active",
+        "reset": {
+          "daily": "resets daily",
+          "weekly": "resets weekly",
+          "monthly": "resets monthly"
+        },
+        "active": "Active",
+        "expiresOn": "Expires {{time}}",
+        "usedShare": "Share of the plan quota used",
+        "usedValue": "Used {{value}}",
+        "totalValue": "of {{value}}",
+        "current": "Current plan",
+        "subscribe": "Subscribe",
+        "renew": "Renew",
+        "chooseTitle": "Subscribe to “{{title}}”",
+        "chooseBody": "{{price}} / {{duration}}. Choose how to pay.",
+        "chooseHint": "Choose how to pay after you click Subscribe.",
+        "balanceOption": "Pay with balance ({{price}} deducted)"
+      },
+      "invite": {
+        "title": "Invitation rewards",
+        "link": "Invitation link",
+        "copied": "Invitation link copied",
+        "pending": "To transfer",
+        "total": "Total earned",
+        "invited": "People invited",
+        "transfer": "Transfer to balance",
+        "transferHint": "Transfer becomes available at {{min}}",
+        "confirmTitle": "Transfer {{value}} to your balance?",
+        "confirmMessage": "The amount is added to your account balance and cannot be moved back.",
+        "transferred": "Transferred to balance"
+      },
+      "history": {
+        "title": "Top-up history",
+        "empty": "No top-ups yet",
+        "time": "Time",
+        "amount": "Amount",
+        "money": "Paid",
+        "method": "Method",
+        "status": {
+          "success": "Paid",
+          "pending": "Pending",
+          "expired": "Expired",
+          "failed": "Failed"
+        },
+        "tradeNo": "Order no.",
+        "page": "Page {{page}} of {{pages}}",
+        "prev": "Previous",
+        "next": "Next",
+        "statusLabel": "Status"
+      },
+      "duration": {
+        "year": "{{count}} yr",
+        "month": "{{count}} mo",
+        "day": "{{count}} d",
+        "hour": "{{count}} h",
+        "unknown": "Unknown duration"
+      },
+      "errors": {
+        "generic": "Something went wrong. Try again later.",
+        "rateLimited": "Too many attempts. Try again later.",
+        "network": "The network is unavailable. Check the line and try again.",
+        "payWindowOpen": "A payment window is already open. Finish or close it first.",
+        "payWindow": "The payment window could not be opened",
+        "disabled": "Online top-up is not enabled",
+        "amount": "Enter a valid top-up amount",
+        "belowMinimum": "Below the minimum top-up amount",
+        "method": "This payment method is not available right now",
+        "redeemKey": "The redemption code format is not valid",
+        "checkout": "The payment page address looked wrong, so it was not opened"
+      },
+      "balance": {
+        "dailyAvg": "Daily average, last {{days}} days"
+      }
     }
   }
 }

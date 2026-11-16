@@ -2522,7 +2522,8 @@
     "privacyToday": "今天遮蔽 {{count}} 處",
     "home": "首頁",
     "profiles": "設定集",
-    "profilesCount": "{{count}} 份"
+    "profilesCount": "{{count}} 份",
+    "wallet": "錢包"
   },
   "appsPage": {
     "showInSidebar": "在客戶端頁顯示 {{name}}",
@@ -3609,6 +3610,133 @@
       "stepClearBody": "之後要用，重新貼上權杖即可",
       "stepKeep": "本機的請求記錄保留",
       "stepKeepBody": "用量頁照常能看"
+    },
+    "wallet": {
+      "recharge": "儲值",
+      "loadFailed": "錢包資訊讀取失敗",
+      "partFailed": "部分錢包資訊讀取失敗，可稍後重試",
+      "topup": {
+        "title": "線上儲值",
+        "amountLabel": "儲值數量",
+        "customPlaceholder": "輸入整數",
+        "methodLabel": "付款方式",
+        "pay": "前往付款",
+        "minHint": "最少儲值 {{min}}",
+        "discount": "-{{percent}}%",
+        "checkoutHint": "付款在獨立的付款視窗中完成，實際付款金額以收銀台為準。",
+        "disabledBody": "目前未開啟用戶端內的線上儲值，可以到網頁上儲值。",
+        "openWebsite": "前往網頁儲值",
+        "customLabel": "其他數量",
+        "customHint": "最少 {{min}} · 實付金額依伺服器價格計算",
+        "tileMoney": "實付 ¥{{money}}",
+        "arriveLabel": "入帳額度",
+        "payLabel": "實付金額",
+        "money": "¥{{money}}",
+        "payWithMoney": "前往付款 ¥{{money}}",
+        "paying": "付款進行中…",
+        "pending": "—"
+      },
+      "pay": {
+        "waitingTitle": "等待付款完成",
+        "waitingBody": "付款視窗已開啟（{{host}}）。付款完成後這裡會自動更新。",
+        "confirmingTitle": "正在確認入帳",
+        "confirmingBody": "付款視窗已關閉，正在向伺服器確認，通常只需幾秒。",
+        "stop": "不再等待",
+        "successTopup": "儲值已入帳",
+        "successSubscription": "方案已生效",
+        "notDetectedTitle": "尚未偵測到付款",
+        "notDetectedBody": "如果已經付款，入帳可能有延遲，可稍後在儲值紀錄中查看。",
+        "dismiss": "關閉提示"
+      },
+      "redeem": {
+        "title": "兌換碼",
+        "placeholder": "輸入兌換碼",
+        "submit": "兌換",
+        "success": "兌換成功，入帳 {{value}}",
+        "body": "有兌換碼時在這裡兌換，額度立即入帳。"
+      },
+      "plans": {
+        "title": "訂閱方案",
+        "mine": "我的訂閱",
+        "unlimited": "額度不限",
+        "planFallback": "方案 #{{id}}",
+        "quota": "額度 {{value}}",
+        "group": "使用者群組升級為 {{group}}",
+        "limit": "每人限購 {{count}} 次",
+        "bought": "方案已生效",
+        "reset": {
+          "daily": "每日重置",
+          "weekly": "每週重置",
+          "monthly": "每月重置"
+        },
+        "active": "生效中",
+        "expiresOn": "{{time}} 到期",
+        "usedShare": "訂閱額度已用比例",
+        "usedValue": "已用 {{value}}",
+        "totalValue": "共 {{value}}",
+        "current": "目前方案",
+        "subscribe": "訂閱",
+        "renew": "續訂",
+        "chooseTitle": "訂閱「{{title}}」",
+        "chooseBody": "{{price}} / {{duration}}，選擇付款方式",
+        "chooseHint": "點「訂閱」後選擇付款方式。",
+        "balanceOption": "餘額付款（從餘額扣除 {{price}}）"
+      },
+      "invite": {
+        "title": "邀請回饋",
+        "link": "邀請連結",
+        "copied": "已複製邀請連結",
+        "pending": "待轉入",
+        "total": "累計獲得",
+        "invited": "已邀請人數",
+        "transfer": "轉入餘額",
+        "transferHint": "累積到 {{min}} 後可以轉入",
+        "confirmTitle": "把 {{value}} 轉入餘額？",
+        "confirmMessage": "轉入後計入帳戶餘額，無法撤回。",
+        "transferred": "已轉入餘額"
+      },
+      "history": {
+        "title": "儲值紀錄",
+        "empty": "還沒有儲值紀錄",
+        "time": "時間",
+        "amount": "數量",
+        "money": "實付",
+        "method": "方式",
+        "status": {
+          "success": "成功",
+          "pending": "待付款",
+          "expired": "已過期",
+          "failed": "失敗"
+        },
+        "tradeNo": "訂單編號",
+        "page": "第 {{page}} / {{pages}} 頁",
+        "prev": "上一頁",
+        "next": "下一頁",
+        "statusLabel": "狀態"
+      },
+      "duration": {
+        "year": "{{count}} 年",
+        "month": "{{count}} 個月",
+        "day": "{{count}} 天",
+        "hour": "{{count}} 小時",
+        "unknown": "時長未知"
+      },
+      "errors": {
+        "generic": "操作失敗，請稍後重試",
+        "rateLimited": "操作太頻繁，請稍後再試",
+        "network": "網路無法使用，請檢查線路後重試",
+        "payWindowOpen": "已有一個付款視窗，請先完成或關閉它",
+        "payWindow": "付款視窗開啟失敗",
+        "disabled": "目前未開啟線上儲值",
+        "amount": "請輸入有效的儲值數量",
+        "belowMinimum": "低於最小儲值數量",
+        "method": "此付款方式目前無法使用",
+        "redeemKey": "兌換碼格式不正確",
+        "checkout": "付款頁面位址異常，已取消開啟"
+      },
+      "balance": {
+        "dailyAvg": "近 {{days}} 天日均"
+      }
     }
   }
 }

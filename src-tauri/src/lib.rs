@@ -551,6 +551,10 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         // 拦截窗口关闭：根据设置决定是否最小化到托盘
         .on_window_event(|window, event| {
+            // 支付窗口（W 阶段）关闭就是关闭：不最小化到托盘，更不能带着整个应用退出。
+            if window.label() == commands::PAY_WINDOW_LABEL {
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 log::info!("收到窗口关闭请求: label={}", window.label());
                 // 数据库版本过新的恢复模式下没有托盘可唤回，关闭即退出，避免应用隐身后台
@@ -591,6 +595,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(window_state_flags())
+                .with_denylist(&[commands::PAY_WINDOW_LABEL])
                 .build(),
         )
         .setup(|app| {
@@ -1909,6 +1914,14 @@ pub fn run() {
             commands::aicli_get_privacy,
             commands::aicli_set_privacy,
             commands::aicli_set_privacy_custom,
+            commands::aicli_wallet_get,
+            commands::aicli_wallet_quote,
+            commands::aicli_wallet_pay,
+            commands::aicli_wallet_redeem,
+            commands::aicli_wallet_history,
+            commands::aicli_wallet_order_status,
+            commands::aicli_subscription_buy,
+            commands::aicli_aff_transfer,
         ]);
 
     let app = builder

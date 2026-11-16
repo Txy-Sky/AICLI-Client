@@ -1047,6 +1047,62 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 ---
 
+## W. 阶段 W：钱包（负责人 2026-11-15 新增）
+
+范围（负责人 2026-11-15 确认）：侧栏独立「钱包」页；易支付在线充值、兑换码、充值记录、订阅套餐、邀请返利。订阅套餐与线上一致，管理员没有配置套餐就不显示。易支付收银台在**应用内支付窗口**打开。全部使用 rc.34 现有接口，不改 new-api、不新增服务端、不写数据库。
+
+用到的接口（已对照 rc.34 公开源码 `controller/topup.go`、`controller/subscription*.go`、`controller/user.go`）：
+
+| 用途 | 接口 | 返回格式 |
+|---|---|---|
+| 充值设置 | `GET /api/user/topup/info` | 标准 `success` |
+| 实付金额 | `POST /api/user/amount` | `{message:"success"|"error", data}`，**没有 `success` 字段** |
+| 易支付下单 | `POST /api/user/pay` | 同上；成功时带 `url` 和签名后的表单参数（含 `out_trade_no`） |
+| 兑换码 | `POST /api/user/topup` | 标准 |
+| 充值记录 | `GET /api/user/topup/self` | 标准分页，`keyword` 可按订单号筛选 |
+| 套餐与订阅 | `GET /api/subscription/plans`、`/api/subscription/self` | 标准 |
+| 套餐购买 | `POST /api/subscription/epay/pay`、`/api/subscription/balance/pay` | 易支付成功同下单格式，失败为标准错误 |
+| 邀请 | `GET /api/user/aff`、`POST /api/user/aff_transfer` | 标准；统计字段在 `/api/user/self` |
+
+到账以服务端为准（易支付异步通知 new-api），客户端只轮询确认。
+
+### W-00 线上只读探测 `[需 H-01]`
+- [ ] 完成
+- 修改：`scripts/aicli-poc/account_probe.py` 增加钱包只读接口（`topup/info`、`topup/self`、`subscription/plans`、`subscription/self`），报告新增 `wallet` 段：各接口 HTTP 状态、是否开启在线充值与兑换码、支付方式标识、套餐数量。**不探测任何下单、兑换、划转接口**。
+- 验收：`python3 -m unittest test_account_probe` 通过；用 `AICLI_TEST_ACCESS_TOKEN` 在隔离 HOME 下运行，四个接口均为 200，报告不含订单号、套餐名与令牌。
+- 状态：脚本与单测已完成（4 passed）。开发机没有测试令牌，线上探测未运行。
+
+### W-01 接口与校验
+- [ ] 完成
+- 修改：`aicli/newapi.rs` 增加钱包接口。读接口沿用 `request`（可换线路）；写接口只发往当前线路一次，不换线路重试，避免重复下单或重复兑换；两种返回格式都能识别，被服务端拒绝时带回服务端给出的一句原因（限 160 字符、去控制字符）。新增 `aicli/wallet.rs`：充值设置、套餐、订阅、充值记录的类型与解析；金额、支付方式、兑换码、订单号校验；收银台地址检查（只接受 https、不带账号密码、不是自家线路域名）。
+- 验收：`scripts/aicli-item-tests.sh` 的 `W-01-unit`（`aicli::wallet::tests`）与 `W-01-api`（`aicli::newapi::tests::wallet_`）通过。
+
+### W-02 支付窗口
+- [ ] 完成
+- 修改：`commands/aicli/wallet.rs` 的支付窗口（标签 `aicli-pay`）只加载易支付收银台；不在任何 capability 里，所以没有 IPC，访问令牌不进入该窗口；无痕模式，不保留第三方页面的数据。导航规则（`wallet::classify_navigation`）：http(s) 放行；支付宝、微信的唤起协议交给系统；其余协议拒绝；回到 AICLI 三条线路的域名即视为支付结束并关闭窗口，唯一放行的是 `/api/subscription/epay/return`（该请求由服务端完成订阅订单后再跳转）。窗口结束或被用户关闭时向主窗口发 `aicli-pay-finished`。`lib.rs`：支付窗口不走「关闭到托盘 / 关闭即退出」，也不记窗口位置。已有支付窗口时不再下单。
+- 验收：`aicli::wallet::tests::navigation_policy`、`checkout_target_requires_an_external_https_gateway` 通过；CI 三平台编译通过。
+
+### W-03 命令
+- [ ] 完成
+- 修改：新增命令 `aicli_wallet_get`、`aicli_wallet_quote`、`aicli_wallet_pay`、`aicli_wallet_redeem`、`aicli_wallet_history`、`aicli_wallet_order_status`、`aicli_subscription_buy`、`aicli_aff_transfer`。钱包数据实时读取，不写 `aicli_cache`；兑换、余额购买、划转成功或订单到账后刷新 `account` 缓存。下单前重新读取线上充值设置并校验。
+- 验收：CI 编译与 `commands::aicli::tests` 通过。
+
+### W-04 钱包页
+- [ ] 完成
+- 修改：侧栏在「用量」后增加「钱包」，行尾写余额；首页余额下增加「充值」按钮。钱包页按负责人 2026-11-15 定稿的设计稿（https://claude.ai/artifact/MUhqqN4EobSRMZR1wRLurW，「有订阅」「无订阅」两版）：
+  - 上排左栏：余额卡（剩余额度、已用额度、近 7 天日均、按近 7 天估算的可用天数），下面是「我的订阅」（有生效中的订阅时：套餐名、到期日、重置周期、已用进度）；没有生效的订阅时这里放兑换码。
+  - 上排右栏：在线充值。预设档位取服务端 `amount_options`，每档写服务端算出的实付金额，配置了折扣才显示折扣角标；「其他数量」整行输入，与预设互斥；支付方式带色块标记；结算小票三行（到账额度、支付方式、实付金额）加通栏「去支付 ¥x」按钮，等待支付时变为「支付进行中…」。实付金额只显示服务端返回的数字。
+  - 订阅套餐（服务端没有套餐时整块不显示）：卡片网格，生效中的套餐标「当前套餐」、按钮为「续订」；点「订阅」后在对话框里选易支付方式或余额支付。
+  - 兑换码（有生效订阅时与邀请返利同一行）、邀请返利（链接 `https://aicliapi.com/sign-up?aff=…`、待划转、累计获得、已邀请人数、划转到余额）、充值记录（状态用胶囊标签，分页）。
+  - 未开启易支付时充值区改为「前往网页充值」。等待支付时每 3 秒确认一次，支付窗口开着最多等 15 分钟，窗口结束后再确认 45 秒。文案写入 5 种语言。
+- 验收：`tests/components/aicli/AicliWalletPage.test.tsx`（8 项）、`tests/lib/aicliWallet.test.ts`（5 项）通过；`tsc --noEmit` 通过；语言文件覆盖检查通过。
+
+### W-GATE 阶段 W 门禁 `[HUMAN]`
+- [ ] 完成
+- 验收：`scripts/aicli-check.sh` 全过；负责人用测试账号实付一笔最小金额（会产生真实订单和扣款），核对：支付窗口能打开收银台（确认网关接受 GET 方式提交；只接受 POST 时改为窗口内提交表单）、付款后窗口自动关闭、余额与充值记录更新；Windows、macOS、Linux 各看一次扫码页；兑换码、余额购买套餐、邀请划转各走一次。记录存 `docs/aicli-evidence/W-GATE.txt`，不含订单签名参数。
+
+---
+
 ## L. `[HUMAN]` 阶段 L：上线前（负责人执行，模型只准备材料）
 
 - [x] **L-01** 换正式图标（H-05）。（负责人于 2026-11-15 确认）。
@@ -1097,6 +1153,7 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 
 | 项目编号 | 清单写的 | 实际做的 | 原因 |
 |---|---|---|---|
+| W（钱包，2026-11-15 新增） | F-02 的侧栏为首页、客户端、用量、隐私脱敏、配置集；C1-04 的账户接口模块不跟随跳转、不使用浏览器；方案 v2.2 未包含充值。 | 侧栏在「用量」后增加「钱包」；新增独立的应用内支付窗口加载易支付收银台（无 IPC、无痕、不带任何凭据），账户接口模块本身仍不跟随跳转；钱包写接口识别 rc.34 支付接口的 `{message, data}` 返回格式，并把服务端给出的一句拒绝原因显示给用户。 | 负责人 2026-11-15 决定：用户每次充值都要打开网页太麻烦，客户端直接复用 new-api 钱包功能，易支付在应用内窗口完成。 |
 | H-07（许可声明的分发，2026-11-15） | MIT 要求副本附带版权与许可声明；cc-switch、Magpie 移植代码和 jieba 词典都编译进程序。 | 源码仓库的 `LICENSE`、`THIRD_PARTY_NOTICES.md`、README 与移植文件头均有声明；安装包内不附这两个文件（K-03 核对 Linux .deb 只含主程序、desktop 文件、图标）。 | 负责人于 2026-11-15 决定安装包里不加声明文件。「关于」页也不加开源许可入口（同日决定）。 |
 | B-05 / L-02（2026-11-15 启用更新器） | B-05 要求更新器关闭、Apple 与更新器签名同由 `AICLI_RELEASE_SIGNING` 控制，正式发布必须开签名。 | 更新器启用；更新器签名不再受该开关控制，每次构建必做；发版只要求更新器签名，Apple 签名可选，未签名时发 `-macOS-unsigned.dmg` 并在发布说明写打开方法；新增固定 `updater` release 存 `latest.json`；B-05 验收改为检查启用后的配置。 | 负责人于 2026-11-15 决定：发版只要求更新器签名、更新地址用固定清单 release。 |
 | G-GATE 第 1 项 / H-03（2026-11-15 负责人反馈） | G-GATE 第 1 项要求界面走查截图；H-03 要求 macOS、Windows 测试机和操作人。 | 负责人在 Windows 和 macOS 上自行试用界面，于 2026-11-15 告知页面没有问题，发现问题后续再优化。模型未操作测试机，没有截图或日志。 | 按负责人反馈记录。安装、深链注册、卸载、升级（L-03）及 J 阶段真实客户端请求不在这次反馈范围内，仍未验证；H-03、L-03 是否勾选由负责人决定。 |

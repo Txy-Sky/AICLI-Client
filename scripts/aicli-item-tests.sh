@@ -67,10 +67,12 @@ case "$set_name" in
     item E-08-unit aicli::privacy::rules::zhname
     item F-09-unit aicli::privacy::events::tests commands::aicli::tests::privacy_
     item F-10-unit commands::aicli::tests::usage_backfill
+    item W-01-unit aicli::wallet::tests
     ;;
   test-hooks)
     item C1-04-unit --features test-hooks aicli::newapi::tests
     item C1-06-api --features test-hooks aicli::newapi::tests
+    item W-01-api --features test-hooks aicli::newapi::tests::wallet_
     item C3-03-routing --features test-hooks --test aicli_routing
     item C3-09-wire --features test-hooks --test aicli_routing aicli_credentials_follow_wire
     item C4-03-routing --features test-hooks --test aicli_routing bill_backfill

@@ -2082,5 +2082,8 @@ pub async fn aicli_set_privacy(
     )
 }
 
+mod wallet;
+pub use wallet::*;
+
 #[cfg(test)]
 mod tests;

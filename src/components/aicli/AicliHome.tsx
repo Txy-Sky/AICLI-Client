@@ -17,6 +17,8 @@ interface AicliHomeProps {
   onOpenPrivacy?: () => void;
   /** 请求链路里「客户端」环节的入口（F-08 客户端总览）。 */
   onOpenClients?: () => void;
+  /** 余额旁「充值」的入口（W 阶段钱包页）。 */
+  onOpenWallet?: () => void;
 }
 
 /**
@@ -32,6 +34,7 @@ export function AicliHome({
   onOpenProfiles,
   onOpenPrivacy,
   onOpenClients,
+  onOpenWallet,
 }: AicliHomeProps) {
   const { t } = useTranslation();
   const account = useAicliAccount().data;
@@ -59,6 +62,7 @@ export function AicliHome({
               onOpenProfiles={onOpenProfiles ?? (() => setProfilesOpen(true))}
               onOpenPrivacy={onOpenPrivacy}
               onOpenClients={onOpenClients}
+              onOpenWallet={onOpenWallet}
             />
           )}
         </div>
