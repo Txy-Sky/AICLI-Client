@@ -1101,6 +1101,26 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [ ] 完成
 - 验收：`scripts/aicli-check.sh` 全过；负责人用测试账号实付一笔最小金额（会产生真实订单和扣款），核对：支付窗口能打开收银台（确认网关接受 GET 方式提交；只接受 POST 时改为窗口内提交表单）、付款后窗口自动关闭、余额与充值记录更新；Windows、macOS、Linux 各看一次扫码页；兑换码、余额购买套餐、邀请划转各走一次。记录存 `docs/aicli-evidence/W-GATE.txt`，不含订单签名参数。
 
+## M. 阶段 M：发现栏卡片视图（负责人 2026-11-16 新增）
+
+范围（负责人 2026-11-16 确认）：参考 Magpie 的 MCP / Skills「发现」页，在发现栏加入响应式卡片网格，并用视图切换按钮在列表与卡片之间切换；MCP 页新增「发现」段，内容为精选清单加官方 MCP Registry 搜索；卡片图标沿用 Magpie 的做法（GitHub 头像、Registry 给的图标）；需要密钥的 MCP 点「添加…」先填写再写入。不涉及 new-api。
+
+### M-01 共用部件
+- [ ] 完成
+- 修改：新增 `src/components/discover/`：`DiscoverViewToggle`（列表 / 卡片图标分段控件，选择按页面记在 localStorage：`cc-switch.skills.discoverView` 默认列表、`cc-switch.mcp.discoverView` 默认卡片）、`DiscoverCard`（固定高 148：图标 + 名称 / 副行 → 两行描述 → 底部附注与操作）、`DiscoverGrid`（每列至少 240、间距 12，按行虚拟化，仍是 `<ul>/<li>`）、`DiscoverLogo`（白底圆角图标，只加载 https 图片，失败显示首字母）。`useRememberedChoice` 移到 `src/lib/rememberedChoice.ts`（用量页原导出保留）；分段控件新增 `tip`，纯图标项用悬停提示。
+- 验收：见 M-02、M-03 的测试。
+
+### M-02 Skills 发现栏
+- [ ] 完成
+- 修改：`SkillsPage.tsx` 第二行最右加视图切换（两个来源都有）；卡片显示仓库所有者头像、名称、`owner/repo`、描述（skills.sh 没有描述则留空）、下载量或目录名、与列表行共用的安装 / 已安装 / 目录占用按钮。
+- 验收：`tests/components/SkillsPageInstall.test.tsx` 新增「切到卡片后从卡片安装」用例。
+
+### M-03 MCP 发现段
+- [ ] 完成
+- 修改：`UnifiedMcpPanel` 新增「已安装 / 发现」页签（原矩阵为「已安装」）。`src/config/mcpCatalog.ts` 精选 27 条（取 Magpie featured 的第三方条目，不含 Magpie 自家与依赖 Magpie Memory 的 EverMe、Nowledge），描述译文在 `mcpCatalog.<id>`。`src/lib/mcpRegistry.ts` 把 Registry 记录转换成配置：远程优先（streamable-http → sse，须 https 且地址不含占位），其次 npm（npx）/ PyPI（uvx），docker 镜像不支持；必填或保密的环境变量、请求头和必填位置参数变成「添加…」表单里的输入项，请求头按模板（如 `Bearer {}`）写入；非 active 的记录、重复的服务器去掉。搜索输入停顿 320ms 或回车时请求，结果为匹配的精选加 Registry（按名字相关度排序，最多 100 条）；Registry 失败时精选照常显示并提示重试。已在列表里的（按远程地址或命令 + 包名判断）显示「已添加 ›」，点它回到已安装并按键名搜索。「添加」直接写入界面上显示的全部应用（SSE 时去掉 Pi、Antigravity），「添加…」对话框可改写入的应用。新增命令 `search_mcp_registry`：只取数（`/v0/servers?search=&limit=100&version=latest`，超时 60 秒，5xx 重试一次，响应上限 8MB），不写本地配置。
+- 验收：`tests/lib/mcpRegistry.test.ts`（11 项）、`tests/components/McpDiscover.test.tsx`（6 项）、`tests/components/UnifiedMcpPanel.test.tsx` 新增页签切换用例；`tsc --noEmit` 通过；Rust 新命令由 CI 编译。
+- 状态：本地 vitest 全量 1359 项中 1358 项通过；另一项 `SessionManagerPage` 是与 tsc 同时运行时 5 秒超时，单独重跑 19 项全部通过。`tsc --noEmit` 和 prettier 通过，`rustfmt --check` 通过。Rust 新命令在本机编译不了，由 CI 验证。界面还没在真机上走查。
+
 ---
 
 ## L. `[HUMAN]` 阶段 L：上线前（负责人执行，模型只准备材料）
