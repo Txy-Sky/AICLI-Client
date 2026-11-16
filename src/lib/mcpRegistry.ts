@@ -258,7 +258,7 @@ function packageOf(server: RegistryServer) {
         (item.transport?.type ?? "stdio") === "stdio",
     );
     if (!pkg?.identifier) continue;
-    const runs = registryType === "npm" ? "npx" : "uvx";
+    const runs: "npx" | "uvx" = registryType === "npm" ? "npx" : "uvx";
     if (pkg.runtimeHint && pkg.runtimeHint !== runs) continue;
 
     const inputs: McpCatalogInput[] = [];

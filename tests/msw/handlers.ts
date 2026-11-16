@@ -591,6 +591,8 @@ export const handlers = [
       userEnabled: true,
     }),
   ),
+  http.post(`${TAURI_ENDPOINT}/get_cached_discover_icon`, () => success(null)),
+  http.post(`${TAURI_ENDPOINT}/cache_discover_icon`, () => success(true)),
   http.post(`${TAURI_ENDPOINT}/get_custom_icons`, () =>
     success(listCustomIcons()),
   ),
