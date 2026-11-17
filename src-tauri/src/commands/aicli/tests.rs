@@ -983,12 +983,20 @@ impl BindHome {
             AppType::GrokBuild => self.root.join(".grok"),
             AppType::ClaudeDesktop => {
                 // Windows 上 Claude Desktop 的目录来自 %LOCALAPPDATA%\Claude（BindHome 已把
-                // LOCALAPPDATA 重定向到 self.root），其余平台走 XDG 的 .config/Claude
+                // LOCALAPPDATA 重定向到 self.root）；macOS 是 ~/Library/Application Support/Claude
+                // （claude_desktop_config::macos_paths_from_home）；Linux 走 XDG 的 .config/Claude
                 #[cfg(windows)]
                 {
                     self.root.join("Claude")
                 }
-                #[cfg(not(windows))]
+                #[cfg(target_os = "macos")]
+                {
+                    self.root
+                        .join("Library")
+                        .join("Application Support")
+                        .join("Claude")
+                }
+                #[cfg(not(any(windows, target_os = "macos")))]
                 {
                     self.root.join(".config").join("Claude")
                 }

@@ -68,6 +68,13 @@ impl SystemKeychain {
             account: "antigravity",
         }
     }
+
+    /// 真机测试用的另一条，别动 agy 那条（macOS 冒烟测试
+    /// `real_keychain_round_trip_on_a_test_item` 用）。
+    #[cfg(all(test, target_os = "macos"))]
+    pub fn named(service: &'static str, account: &'static str) -> Self {
+        Self { service, account }
+    }
 }
 
 pub fn supported() -> bool {

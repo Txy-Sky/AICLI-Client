@@ -32,6 +32,7 @@ jobs:
         uses: ./.github/actions/aicli-setup
         with:
           rust-cache-key: aicli-items
+          pnpm-cache: "false"
       - name: Prepare the evidence directory
         shell: bash
         run: mkdir -p "$RUNNER_TEMP/aicli-evidence"
@@ -426,6 +427,7 @@ jobs:
         uses: ./.github/actions/aicli-setup
         with:
           rust-cache-key: aicli-testenv
+          pnpm-cache: "false"
       - name: Prepare the evidence directory
         shell: bash
         run: mkdir -p "$RUNNER_TEMP/aicli-evidence"

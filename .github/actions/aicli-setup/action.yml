@@ -6,6 +6,13 @@ inputs:
     description: Per-job Rust cache key; parallel jobs build different feature sets.
     required: false
     default: aicli-acceptance
+  pnpm-cache:
+    description: >-
+      Cache the pnpm store. Jobs that never run pnpm install pass "false": on a
+      cache miss setup-node's post step would try to save a store directory that
+      was never created and fail the job ("Path Validation Error").
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -41,7 +48,7 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version-file: .node-version
-        cache: pnpm
+        cache: ${{ inputs.pnpm-cache == 'true' && 'pnpm' || '' }}
         cache-dependency-path: pnpm-lock.yaml
 
     - name: Set up Python 3.12

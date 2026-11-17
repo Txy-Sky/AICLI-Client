@@ -1,0 +1,26 @@
+{
+  "version": "0.1.3",
+  "items": [
+    {
+      "type": "new",
+      "zh": "MCP 新增发现页：精选服务器和官方 Registry 搜索",
+      "zh-TW": "MCP 新增探索頁：精選伺服器與官方 Registry 搜尋",
+      "en": "MCP has a Discover tab: featured servers plus official Registry search",
+      "ja": "MCP に「見つける」タブ：おすすめと公式 Registry 検索"
+    },
+    {
+      "type": "new",
+      "zh": "需要密钥的 MCP 可在添加时直接填写",
+      "zh-TW": "需要金鑰的 MCP 可在新增時直接填寫",
+      "en": "MCP servers that need a key ask for it when you add them",
+      "ja": "キーが必要な MCP は追加時にその場で入力できます"
+    },
+    {
+      "type": "improve",
+      "zh": "Skills 和 MCP 的发现栏可切换列表或卡片",
+      "zh-TW": "Skills 與 MCP 的探索欄可切換清單或卡片",
+      "en": "Skills and MCP discover lists can switch between list and cards",
+      "ja": "Skills と MCP の一覧をリストとカードで切り替え可能に"
+    }
+  ]
+}
