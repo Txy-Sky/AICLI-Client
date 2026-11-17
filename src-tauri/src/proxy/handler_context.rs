@@ -2,6 +2,7 @@
 //!
 //! 提供请求生命周期的上下文管理，封装通用初始化逻辑
 
+use crate::aicli::resolver::RouteDecision;
 use crate::app_config::AppType;
 use crate::mode::stack::StackTarget;
 use crate::provider::Provider;
@@ -22,6 +23,16 @@ pub struct StreamingTimeoutConfig {
     pub first_byte_timeout: u64,
     /// 静默期超时（秒），0 表示禁用
     pub idle_timeout: u64,
+    /// 流式总时长（秒），0 表示禁用
+    pub total_timeout: u64,
+}
+
+pub enum RouteInput {
+    None,
+    // Kept as the explicit legacy input required by the checklist.
+    #[allow(dead_code)]
+    Stack(Box<StackTarget>),
+    Aicli(Box<RouteDecision>),
 }
 
 /// 请求上下文
@@ -73,6 +84,11 @@ pub struct RequestContext {
     pub copilot_optimizer_config: CopilotOptimizerConfig,
     /// Stack 模型的请求（`mode::stack`）：直达 Stack 里的那一家，不读也不写任何路由状态。
     pub is_stack: bool,
+    /// Immutable resolution retained for per-line timeouts and later credential injection.
+    pub route: Option<Box<RouteDecision>>,
+    /// C4-03：AICLI 请求的上游 `X-Oneapi-Request-Id`（forward 成功后回填），
+    /// usage 落库时写入行并触发账单回填。
+    pub aicli_upstream_request_id: Option<String>,
 }
 
 impl RequestContext {
@@ -85,7 +101,7 @@ impl RequestContext {
     /// * `app_type` - 应用类型
     /// * `tag` - 日志标签
     /// * `app_type_str` - 应用类型字符串
-    /// * `stack` - Stack 模型的目标（请求体里的 `model` 已换成上游名）
+    /// * `route` - 已解析的模型目标（请求体里的 `model` 已换成上游名）
     ///
     /// # Errors
     /// 返回 `ProxyError` 如果 Provider 选择失败
@@ -96,7 +112,7 @@ impl RequestContext {
         app_type: AppType,
         tag: &'static str,
         app_type_str: &'static str,
-        stack: Option<StackTarget>,
+        route: RouteInput,
     ) -> Result<Self, ProxyError> {
         let start_time = Instant::now();
 
@@ -124,9 +140,34 @@ impl RequestContext {
             session_result.client_provided
         );
 
-        let is_stack = stack.is_some();
-        let (provider, providers, current_provider_id, request_model) = match stack {
-            Some(target) => {
+        let is_stack = matches!(&route, RouteInput::Stack(_));
+        let mut decision = None;
+        let (provider, providers, current_provider_id, request_model) = match route {
+            RouteInput::Aicli(target) => {
+                let provider = target
+                    .providers
+                    .first()
+                    .cloned()
+                    .ok_or(ProxyError::NoAvailableProvider)?;
+                app_config.auto_failover_enabled = true;
+                app_config.max_retries = target.providers.len().saturating_sub(1) as u32;
+                let timeouts = target
+                    .timeouts
+                    .get(&provider.id)
+                    .ok_or_else(|| ProxyError::ConfigError("Missing AICLI line timeouts".into()))?;
+                app_config.non_streaming_timeout = timeouts.non_stream_s as u32;
+                app_config.streaming_first_byte_timeout = timeouts.first_byte_s as u32;
+                app_config.streaming_idle_timeout = timeouts.idle_s as u32;
+                let selected = (
+                    provider.clone(),
+                    target.providers.clone(),
+                    provider.id,
+                    target.public_model.clone(),
+                );
+                decision = Some(target);
+                selected
+            }
+            RouteInput::Stack(target) => {
                 // Stack 模型：只发往 Stack 里的那一家，不读代理路由、不经熔断器选家。按「单家、
                 // 不转移」处理：换成有效副本，转发和读响应两个阶段都从这里取，超时和重试
                 // 跟着关掉（见 `create_forwarder`）。
@@ -146,7 +187,7 @@ impl RequestContext {
                     target.original_model,
                 )
             }
-            None => {
+            RouteInput::None => {
                 let current_provider = crate::mode::current::provider_in_use(&state.db, &app_type)
                     .ok()
                     .flatten();
@@ -221,6 +262,8 @@ impl RequestContext {
             optimizer_config,
             copilot_optimizer_config,
             is_stack,
+            route: decision,
+            aicli_upstream_request_id: None,
         })
     }
 
@@ -233,8 +276,10 @@ impl RequestContext {
         // 否则 GET /v1beta/models/<id>?key=... 会把 query 拼到 request_model 上。
         let endpoint = uri.path();
 
-        self.request_model =
-            extract_gemini_model_from_path(endpoint).unwrap_or_else(|| "unknown".to_string());
+        if self.route.is_none() {
+            self.request_model =
+                extract_gemini_model_from_path(endpoint).unwrap_or_else(|| "unknown".to_string());
+        }
 
         self
     }
@@ -271,7 +316,7 @@ impl RequestContext {
             0
         };
 
-        RequestForwarder::new(
+        let forwarder = RequestForwarder::new(
             state.provider_router.clone(),
             non_streaming_timeout,
             state.status.clone(),
@@ -291,6 +336,25 @@ impl RequestContext {
             max_retries,
         )
         .stack_request(self.is_stack)
+        .aicli_request(self.route.is_some())
+        .aicli_runtime(state.aicli.clone())
+        .aicli_timeouts(
+            self.route
+                .as_ref()
+                .map(|route| route.timeouts.clone())
+                .unwrap_or_default(),
+        );
+        if let Some(route) = &self.route {
+            forwarder
+                .aicli_identity(route.token_id, route.upstream_model.clone())
+                .aicli_auth(
+                    route.credential.clone(),
+                    route.wire_protocol.clone(),
+                    route.session_key.clone(),
+                )
+        } else {
+            forwarder
+        }
     }
 
     /// 获取 Provider 列表（用于故障转移）
@@ -313,17 +377,30 @@ impl RequestContext {
     /// - 故障转移关闭：返回 0（禁用超时检查）
     #[inline]
     pub fn streaming_timeout_config(&self) -> StreamingTimeoutConfig {
+        if let Some(timeouts) = self
+            .route
+            .as_ref()
+            .and_then(|route| route.timeouts.get(&self.provider.id))
+        {
+            return StreamingTimeoutConfig {
+                first_byte_timeout: timeouts.first_byte_s,
+                idle_timeout: timeouts.idle_s,
+                total_timeout: timeouts.stream_total_s,
+            };
+        }
         if self.app_config.auto_failover_enabled {
             // 故障转移开启：使用配置的值（0 = 禁用超时）
             StreamingTimeoutConfig {
                 first_byte_timeout: self.app_config.streaming_first_byte_timeout as u64,
                 idle_timeout: self.app_config.streaming_idle_timeout as u64,
+                total_timeout: 0,
             }
         } else {
             // 故障转移关闭：禁用流式超时检查
             StreamingTimeoutConfig {
                 first_byte_timeout: 0,
                 idle_timeout: 0,
+                total_timeout: 0,
             }
         }
     }

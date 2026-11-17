@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 mod agy_account;
+mod aicli;
 mod auth;
 mod balance;
 mod claude_account;
@@ -10,6 +11,7 @@ mod config;
 mod copilot;
 mod custom_icon;
 mod deeplink;
+mod discover_icon;
 mod dsh;
 mod env;
 mod failover;
@@ -38,12 +40,11 @@ mod sync_support;
 mod xai_oauth;
 
 mod lightweight;
-mod s3_sync;
 mod usage;
-mod webdav_sync;
 mod workspace;
 
 pub use agy_account::*;
+pub use aicli::*;
 pub use auth::*;
 pub use balance::*;
 pub use claude_account::*;
@@ -53,6 +54,7 @@ pub use config::*;
 pub use copilot::*;
 pub use custom_icon::*;
 pub use deeplink::*;
+pub use discover_icon::*;
 pub use dsh::*;
 pub use env::*;
 pub use failover::*;
@@ -80,7 +82,5 @@ pub use subscription::*;
 pub use xai_oauth::*;
 
 pub use lightweight::*;
-pub use s3_sync::*;
 pub use usage::*;
-pub use webdav_sync::*;
 pub use workspace::*;

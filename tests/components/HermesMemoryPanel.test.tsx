@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -34,18 +40,14 @@ vi.mock("@/hooks/useHermes", () => ({
   }),
 }));
 
-import HermesMemoryPanel, {
-  HermesMemorySaveButton,
-} from "@/components/hermes/HermesMemoryPanel";
+import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
 
 function renderPage(onOpenWebUI?: (path?: string) => void) {
-  return render(
-    <>
-      <HermesMemorySaveButton />
-      <HermesMemoryPanel onOpenWebUI={onOpenWebUI} />
-    </>,
-  );
+  return render(<HermesMemoryPanel onOpenWebUI={onOpenWebUI} />);
 }
+
+const pane = (kind: "memory" | "user") =>
+  screen.getByTestId(`hermes-memory-${kind}`);
 
 const editors = () =>
   screen.getAllByLabelText("hermes.memory.editorLabel", {
@@ -66,49 +68,54 @@ describe("HermesMemoryPanel", () => {
     mocks.toastSuccess.mockReset();
   });
 
-  it("switches memory files with secondary underline tabs and keeps unsaved edits", () => {
+  it("shows both memory files side by side and marks unsaved edits", () => {
     renderPage();
 
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading").map((heading) => heading.textContent),
+    ).toEqual([
       "hermes.memory.agentNameMEMORY.md",
       "hermes.memory.userNameUSER.md",
     ]);
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(editors()).toHaveLength(2);
     expect(
       screen.queryByRole("img", { name: "hermes.memory.unsaved" }),
     ).not.toBeInTheDocument();
 
     fireEvent.change(editors()[0], { target: { value: "draft" } });
-    // 有未保存修改的那份页签上出现小圆点
-    expect(tabs[0]).toContainElement(
+    // 有未保存修改的那份标题旁出现小圆点
+    expect(within(pane("memory")).getByRole("heading")).toContainElement(
       screen.getByRole("img", { name: "hermes.memory.unsaved" }),
     );
-
-    fireEvent.click(tabs[1]);
-    expect(tabs[1]).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tabpanel")).toHaveAttribute(
-      "aria-labelledby",
-      "hermes-memory-user",
-    );
-
-    fireEvent.click(tabs[0]);
-    expect(editors()[0]).toHaveValue("draft");
+    expect(
+      within(pane("user")).queryByRole("img", {
+        name: "hermes.memory.unsaved",
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it("saves the active file from the header button and clears the dot", async () => {
+  it("saves each file with its own button and clears the dot", async () => {
     renderPage();
 
-    const save = screen.getByRole("button", { name: "common.save" });
-    expect(save).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(save);
+    const userSave = within(pane("user")).getByRole("button", {
+      name: "hermes.memory.saveOne",
+    });
+    expect(userSave).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(userSave);
     expect(mocks.save).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getAllByRole("tab")[1]);
     fireEvent.change(editors()[1], { target: { value: "new profile" } });
-    const enabledSave = screen.getByRole("button", { name: "common.save" });
+    const enabledSave = within(pane("user")).getByRole("button", {
+      name: "hermes.memory.saveOne",
+    });
     expect(enabledSave).not.toHaveAttribute("aria-disabled");
+    // 另一份没改，它的保存仍不可用
+    expect(
+      within(pane("memory")).getByRole("button", {
+        name: "hermes.memory.saveOne",
+      }),
+    ).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(enabledSave);
 
     await waitFor(() =>
@@ -126,22 +133,18 @@ describe("HermesMemoryPanel", () => {
     expect(
       screen.queryByRole("img", { name: "hermes.memory.unsaved" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "common.save" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
   });
 
   it("shows the file path when enabled and the skip warning when disabled", () => {
     mocks.limits = { ...mocks.limits, userEnabled: false };
     renderPage();
 
-    const [agentPanel, userPanel] = screen.getAllByRole("tabpanel", {
-      hidden: true,
-    });
+    const agentPanel = pane("memory");
+    const userPanel = pane("user");
     expect(agentPanel).toHaveTextContent("~/.hermes/memories/MEMORY.md");
     expect(userPanel).toHaveTextContent("hermes.memory.disabledHint");
-    expect(userPanel).not.toHaveTextContent("USER.md");
+    // 标题里常驻文件名；禁用时不写完整路径
+    expect(userPanel).not.toHaveTextContent("~/.hermes/memories/USER.md");
 
     const switches = screen.getAllByRole("switch", { hidden: true });
     fireEvent.click(switches[1]);
@@ -159,18 +162,14 @@ describe("HermesMemoryPanel", () => {
 
     const meter = screen.getAllByRole("meter")[0];
     expect(meter).toHaveAttribute("aria-valuenow", "0");
-    expect(screen.getAllByRole("tabpanel")[0]).toHaveTextContent(
-      "hermes.memory.overLimitBy",
-    );
+    expect(pane("memory")).toHaveTextContent("hermes.memory.overLimitBy");
 
     fireEvent.change(editors()[0], { target: { value: "short" } });
     expect(screen.getAllByRole("meter")[0]).toHaveAttribute(
       "aria-valuenow",
       "5",
     );
-    expect(screen.getAllByRole("tabpanel")[0]).toHaveTextContent(
-      "hermes.memory.remaining",
-    );
+    expect(pane("memory")).toHaveTextContent("hermes.memory.remaining");
   });
 
   it("opens the Hermes Web UI config page through the caller's handler", () => {

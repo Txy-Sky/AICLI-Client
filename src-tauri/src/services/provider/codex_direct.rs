@@ -544,6 +544,11 @@ enum AuthGoal {
 }
 
 /// 行里的 `auth`（没有时是空对象）。
+/// AICLI 内部供应商行的 category（`aicli::seed`）。
+const AICLI_CATEGORY: &str = "aicli";
+/// AICLI 接管时 Codex 路由表的显示名。
+const AICLI_ROUTE_NAME: &str = "AICLI";
+
 fn row_auth(provider: &Provider) -> Value {
     provider
         .settings_config
@@ -583,6 +588,7 @@ pub(crate) fn plan(
     target: &Target<'_>,
     prepared: &Prepared,
 ) -> Result<Planned, AppError> {
+    let proxy_token = crate::aicli::local_auth::token_for(db, "codex")?;
     let facts = row_facts(db)?;
     let provider = target_provider(target);
     let projection = provider.map(project).transpose()?;
@@ -654,7 +660,12 @@ pub(crate) fn plan(
                 // The proxy owns its URL/auth, but the route still owns the remote
                 // compaction preference. Preserve the existing UI's OpenAI-name
                 // toggle and Codex's explicit override (including "unsupported").
-                let mut proxy_table = proxy_route_table(ROUTE_ID, base_url, false);
+                let mut proxy_table = proxy_route_table(ROUTE_ID, base_url, false, &proxy_token);
+                // AICLI 接管：Codex App 左下角显示表里的 name（负责人 2026-11-15），写 AICLI；
+                // 表 id 仍是 custom，会话分桶不变。
+                if route.category.as_deref() == Some(AICLI_CATEGORY) {
+                    proxy_table.insert("name", toml_edit::value(AICLI_ROUTE_NAME));
+                }
                 if let Route::Custom { table, .. } = &projection.route {
                     if table.get("name").and_then(Item::as_str) == Some("OpenAI") {
                         proxy_table.insert("name", toml_edit::value("OpenAI"));
@@ -738,6 +749,7 @@ pub(crate) fn plan(
         .map(row_auth);
 
     let config = CodexConfigPatch {
+        proxy_token,
         top,
         nested,
         exclusive,
@@ -1380,21 +1392,21 @@ mod tests {
     #[test]
     fn the_proxy_base_url_matches_the_listen_address() {
         assert!(is_proxy_base_url(
-            "http://127.0.0.1:15721/v1",
+            "http://127.0.0.1:15821/v1",
             "127.0.0.1",
-            15721
+            15821
         ));
         assert!(is_proxy_base_url(
-            "http://127.0.0.1:15721/v1",
+            "http://127.0.0.1:15821/v1",
             "0.0.0.0",
-            15721
+            15821
         ));
         assert!(!is_proxy_base_url(
             "http://127.0.0.1:10531/v1",
             "127.0.0.1",
-            15721
+            15821
         ));
-        assert!(is_proxy_base_url("http://[::1]:15721/v1", "::", 15721));
+        assert!(is_proxy_base_url("http://[::1]:15821/v1", "::", 15821));
         // 端口 0：系统分配的端口，只核对主机和路径。
         assert!(is_proxy_base_url(
             "http://127.0.0.1:54321/v1",

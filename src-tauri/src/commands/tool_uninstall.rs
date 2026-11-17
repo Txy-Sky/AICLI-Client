@@ -690,7 +690,7 @@ impl<'a> WslShell<'a> {
         match self {
             WslShell::Explicit { shell, flag } => vec![*shell, *flag, script],
             WslShell::Auto { flag } => {
-                let mut args = vec!["sh", "-c", WSL_SHELL_PROBE_LAUNCHER, "cc-switch", script];
+                let mut args = vec!["sh", "-c", WSL_SHELL_PROBE_LAUNCHER, "aicli-client", script];
                 match flag {
                     Some(flag) => args.push(*flag),
                     None => args.extend(WSL_AUTO_SHELL_FLAGS),
@@ -707,7 +707,7 @@ impl<'a> WslShell<'a> {
                 "sh",
                 "-c",
                 WSL_SHELL_RUN_LAUNCHER,
-                "cc-switch",
+                "aicli-client",
                 script,
                 auto_flag.unwrap_or("-c"),
             ],
@@ -1340,7 +1340,7 @@ mod tests {
             assert_eq!(last(run(&["-c", "command -v codex"])), base_tool);
 
             let probe = wsl_probe_script("codex");
-            let mut args = vec!["-c", WSL_SHELL_PROBE_LAUNCHER, "cc-switch", &probe];
+            let mut args = vec!["-c", WSL_SHELL_PROBE_LAUNCHER, "aicli-client", &probe];
             args.extend(WSL_AUTO_SHELL_FLAGS);
             let stdout = run(&args);
             let (path, _) = parse_wsl_installation(&stdout).unwrap();
@@ -1350,7 +1350,7 @@ mod tests {
             let removal = run(&[
                 "-c",
                 WSL_SHELL_RUN_LAUNCHER,
-                "cc-switch",
+                "aicli-client",
                 "command -v codex",
                 flag,
             ]);
@@ -1407,7 +1407,7 @@ mod tests {
         assert_eq!(args, ["-d", "Ubuntu", "--exec", "fish", "-lc", &script]);
         assert!(wsl_process("invalid distro", &[&script]).is_err());
 
-        let launcher = |s: &'static str| ["sh", "-c", s, "cc-switch", script.as_str()];
+        let launcher = |s: &'static str| ["sh", "-c", s, "aicli-client", script.as_str()];
         let auto = WslShell::from_pref(None).unwrap();
         let mut probe = launcher(WSL_SHELL_PROBE_LAUNCHER).to_vec();
         probe.extend(WSL_AUTO_SHELL_FLAGS);

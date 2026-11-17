@@ -20,9 +20,7 @@ export interface Provider {
   sortIndex?: number; // 排序索引（用于自定义拖拽排序）
   // 备注信息
   notes?: string;
-  // 新增：是否为商业合作伙伴
-  isPartner?: boolean;
-  // 可选：供应商元数据（仅存于 ~/.cc-switch/config.json，不写入 live 配置）
+  // 可选：供应商元数据（仅存于 ~/.aicli-client/config.json，不写入 live 配置）
   meta?: ProviderMeta;
   // 图标配置
   icon?: string; // 图标名称（如 "openai", "anthropic"）
@@ -186,10 +184,6 @@ export interface ProviderMeta {
   usage_script?: UsageScript;
   // 请求地址管理：测速后自动选择最佳端点
   endpointAutoSelect?: boolean;
-  // 是否为官方合作伙伴
-  isPartner?: boolean;
-  // 合作伙伴促销 key（用于后端识别 PackyCode 等）
-  partnerPromotionKey?: string;
   // API 格式（Claude / Codex 供应商使用）
   // - "anthropic": 原生 Anthropic Messages API 格式，直接透传
   // - "openai_chat": OpenAI Chat Completions 格式，需要格式转换
@@ -200,9 +194,6 @@ export interface ProviderMeta {
     | "openai_chat"
     | "openai_responses"
     | "gemini_native";
-  // Managed Codex Copilot uses this instead of apiFormat. Missing/unknown means auto.
-  // Keep the raw string so selections from newer versions survive an edit/save.
-  codexCopilotApiFormat?: string;
   // 通用认证绑定
   authBinding?: AuthBinding;
   // Claude 认证字段名
@@ -234,9 +225,9 @@ export interface ProviderMeta {
   liveConfigManaged?: boolean;
   // Source format is needed for package-less OpenCode built-in overrides.
   opencodeConfigFormat?: "v1" | "v2";
-  // 供应商类型（用于识别 Copilot 等特殊供应商）
+  // 供应商类型（用于识别托管 OAuth 等特殊供应商）
   providerType?: string;
-  // GitHub Copilot 关联账号 ID（旧字段，保留兼容读取）
+  // GitHub 托管账号 ID（旧字段，保留兼容读取）
   githubAccountId?: string;
   // Stack 模式下这家 Claude Code 供应商发布的模型；没有时按模型映射发布，空列表什么都不发布
   stackModels?: ClaudeStackModel[];
@@ -274,8 +265,6 @@ export type ClaudeApiFormat =
 // - "openai_chat": OpenAI Chat Completions 格式，需要本地路由转换
 // - "anthropic": native Anthropic Messages format, needs local routing to convert to Responses
 export type CodexApiFormat = "openai_responses" | "openai_chat" | "anthropic";
-
-export type CodexCopilotApiFormat = "auto" | "openai_responses" | "openai_chat";
 
 export interface CodexCatalogModel {
   model: string;
@@ -322,40 +311,6 @@ export interface VisibleApps {
 }
 
 // WebDAV 同步状态
-export interface WebDavSyncStatus {
-  lastSyncAt?: number | null;
-  lastError?: string | null;
-  lastErrorSource?: string | null;
-  lastRemoteEtag?: string | null;
-  lastLocalManifestHash?: string | null;
-  lastRemoteManifestHash?: string | null;
-}
-
-// WebDAV 同步配置
-export interface WebDavSyncSettings {
-  enabled?: boolean;
-  autoSync?: boolean;
-  baseUrl?: string;
-  username?: string;
-  password?: string;
-  remoteRoot?: string;
-  profile?: string;
-  status?: WebDavSyncStatus;
-}
-
-// S3 同步配置
-export interface S3SyncSettings {
-  enabled?: boolean;
-  autoSync?: boolean;
-  region?: string;
-  bucket?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  endpoint?: string;
-  remoteRoot?: string;
-  profile?: string;
-  status?: WebDavSyncStatus;
-}
 
 export type RemoteSnapshotLayout = "current" | "legacy";
 
@@ -388,7 +343,7 @@ export interface UsageDisplaySettings {
 }
 
 // 应用设置类型（用于设置对话框与 Tauri API）
-// 存储在本地 ~/.cc-switch/settings.json，不随数据库同步
+// 存储在本地 ~/.aicli-client/settings.json，不随数据库同步
 export interface Settings {
   // ===== 设备级 UI 设置 =====
   // 是否在系统托盘（macOS 菜单栏）显示图标
@@ -405,6 +360,8 @@ export interface Settings {
   launchOnStartup?: boolean;
   // 静默启动（程序启动时不显示主窗口）
   silentStartup?: boolean;
+  /** 接管 Claude Code 时 /model 是否保留自带的行（没设为保留）。只读：经专用命令写。 */
+  aicliClaudeKeepBuiltinModels?: boolean;
   // 是否启用主页面本地代理功能（默认关闭）
   enableLocalProxy?: boolean;
   // 是否在主页面显示 Stack 模式开关（默认关闭）。和 enableLocalProxy 二选一，只影响 Claude Code、Codex
@@ -418,6 +375,8 @@ export interface Settings {
   usageDisplay?: UsageDisplaySettings;
   // 会话用量自动扫描开关（默认开启=自动模式；关闭后仅手动同步时扫描会话日志，代理记账不受影响）
   sessionAutoSyncEnabled?: boolean;
+  // 用量统计是否包含各 CLI 的会话日志（AICLI 默认关闭：只统计经过本地代理的请求）
+  usageIncludeSessionLogs?: boolean;
   // Whether to show the failover toggle independently on the main page
   enableFailoverToggle?: boolean;
   // Whether to show the project profile switcher on the main page header
@@ -504,10 +463,8 @@ export interface Settings {
   skillStorageLocation?: SkillStorageLocation;
 
   // ===== WebDAV v2 同步设置 =====
-  webdavSync?: WebDavSyncSettings;
 
   // ===== S3 同步设置 =====
-  s3Sync?: S3SyncSettings;
 
   // ===== 备份策略设置 =====
   // Auto-backup interval in hours (0=disabled, default 24)

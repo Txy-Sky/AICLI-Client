@@ -1,0 +1,26 @@
+{
+  "version": "0.1.2",
+  "items": [
+    {
+      "type": "fix",
+      "zh": "用量页的成本改为服务端实际扣费",
+      "zh-TW": "用量頁的成本改為伺服器實際扣費",
+      "en": "Usage costs now show what the server actually charged",
+      "ja": "使用量のコストをサーバーの実際の請求額で表示"
+    },
+    {
+      "type": "new",
+      "zh": "请求详情显示分组倍率和模型原价预估",
+      "zh-TW": "請求詳情顯示分組倍率與模型原價預估",
+      "en": "Request details show the group ratio and a list-price estimate",
+      "ja": "リクエスト詳細にグループ倍率とモデル定価での見積もりを表示"
+    },
+    {
+      "type": "improve",
+      "zh": "绑定页示意图改为 AI 工具 → AICLI 服务 → 大模型",
+      "zh-TW": "綁定頁示意圖改為 AI 工具 → AICLI 服務 → 大模型",
+      "en": "The bind page now shows AI tools → AICLI service → AI models",
+      "ja": "連携画面の図を AI ツール → AICLI サービス → AI モデルに変更"
+    }
+  ]
+}

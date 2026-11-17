@@ -1,4 +1,4 @@
-//! DeepSeek Harness' standard profiles. CC Switch keeps one provider and MCP set in every
+//! DeepSeek Harness' standard profiles. AICLI Client keeps one provider and MCP set in every
 //! `web` and `desktop` profile, plus initialized `headless` and `acp` profiles;
 //! `sdk` / `sdk-minimal` are for embedding and stay native-owned. All
 //! profiles share `$DSH_HOME`'s credentials, sessions, skills and `AGENTS.md`.
@@ -20,7 +20,7 @@ pub(crate) fn data_dir() -> PathBuf {
         .unwrap_or_else(|| get_home_dir().join(".dsh"))
 }
 
-/// Profiles CC Switch writes, in this order. Web and Desktop are prepared before first launch.
+/// Profiles AICLI Client writes, in this order. Web and Desktop are prepared before first launch.
 const TARGET_PROFILES: [&str; 4] = ["web", "desktop", "headless", "acp"];
 /// Providers and MCP are shown from the first of these that exists.
 const DISPLAY_PROFILES: [&str; 2] = ["web", "desktop"];
@@ -500,7 +500,7 @@ pub(crate) fn account_grant() -> Result<Option<(String, String)>, AppError> {
 }
 
 /// DSH's per-install device id (`deepseek-account-platform/device`), created on first login
-/// exactly like DSH does so CC Switch and DSH report the same device to Platform.
+/// exactly like DSH does so AICLI Client and DSH report the same device to Platform.
 pub(crate) fn account_device_id() -> Result<String, AppError> {
     let path = credentials_path();
     let _lock = FileLock::acquire(&path)?;
@@ -565,7 +565,7 @@ pub(crate) fn remove_account_grant() -> Result<Option<(String, String)>, AppErro
     Ok(grant)
 }
 
-/// Providers as shown in CC Switch: every initialized profile ([`read_paths`]), authoritative
+/// Providers as shown in AICLI Client: every initialized profile ([`read_paths`]), authoritative
 /// profile first, first occurrence of a key winning.
 pub(crate) fn get_providers() -> Result<IndexMap<String, Value>, AppError> {
     let credentials = credentials_path();
@@ -592,7 +592,7 @@ pub(crate) fn get_providers() -> Result<IndexMap<String, Value>, AppError> {
     Ok(merged)
 }
 
-/// An `llm-pi-ai` config in the home patch is applied after every profile, so providers CC Switch
+/// An `llm-pi-ai` config in the home patch is applied after every profile, so providers AICLI Client
 /// writes into the profiles would never take effect.
 fn ensure_providers_not_shadowed(home: &Path) -> Result<(), AppError> {
     let text = read_text(home)?;
@@ -834,7 +834,7 @@ fn save_paths_and_commit<T>(
             } else {
                 ensure_provider_copies_agree(paths, authoritative, profile_texts, id)?;
             }
-            let (credentials, native) = native_provider(id, &config, &texts[0])?;
+            let (credentials, native) = native_provider(id, &config, &texts[0], profile_texts)?;
             let mut next = vec![credentials];
             for text in profile_texts {
                 next.push(update_provider(text, id, Some(native.clone()), create)?);
@@ -864,7 +864,7 @@ fn initialize_profiles_and_commit<T>(
         return commit();
     }
     let profiles = target_paths();
-    let receipt = data_dir().join(".cc-switch-profile-sync.json");
+    let receipt = data_dir().join(".aicli-client-profile-sync.json");
     let parse_receipt = |text: &str| -> Result<Vec<String>, AppError> {
         if text.trim().is_empty() {
             Ok(vec![])
@@ -926,7 +926,12 @@ fn initialize_profiles_and_commit<T>(
                         let native = match native {
                             Some(native) => native,
                             None => {
-                                let (credentials, native) = native_provider(id, config, &next[0])?;
+                                let (credentials, native) = native_provider(
+                                    id,
+                                    config,
+                                    &next[0],
+                                    &texts[1..=profiles.len()],
+                                )?;
                                 next[0] = credentials;
                                 native
                             }
@@ -965,7 +970,7 @@ fn initialize_profiles_and_commit<T>(
 
 /// Position of the authoritative profile ([`config_path`]) among `paths`.
 ///
-/// Every target profile is written, but only the authoritative one defines what CC Switch shows,
+/// Every target profile is written, but only the authoritative one defines what AICLI Client shows,
 /// so its copy is the reference the others are compared against. Tests that pass a single
 /// arbitrary path fall back to it.
 fn authoritative_index(paths: &[PathBuf]) -> usize {
@@ -985,7 +990,7 @@ fn existing_provider_node(text: &str, id: &str) -> Result<Option<Yaml>, AppError
 
 /// Refuse to write when another profile holds a *different* version of the same provider.
 ///
-/// CC Switch only knows the authoritative copy, so rewriting the others would silently discard
+/// AICLI Client only knows the authoritative copy, so rewriting the others would silently discard
 /// whatever the user changed natively in DSH (a different endpoint, models or credential
 /// reference). Refuse instead, and name the profile that has to be reconciled.
 fn ensure_provider_copies_agree(
@@ -1027,10 +1032,10 @@ fn diverged_provider_error(
     AppError::localized(
         "dsh.provider_diverged",
         format!(
-            "供应商 '{id}' 在 profile '{other}' 里的内容与 '{source}' 不同；CC Switch 只认得 '{source}' 的那份，改写会覆盖你在 DeepSeek Harness 里对 '{other}' 做的修改。请先在 DeepSeek Harness 里把两者改成一致，或手动编辑 profiles/{other}/cordis.patch.yml。"
+            "供应商 '{id}' 在 profile '{other}' 里的内容与 '{source}' 不同；AICLI Client 只认得 '{source}' 的那份，改写会覆盖你在 DeepSeek Harness 里对 '{other}' 做的修改。请先在 DeepSeek Harness 里把两者改成一致，或手动编辑 profiles/{other}/cordis.patch.yml。"
         ),
         format!(
-            "Provider '{id}' differs between the '{other}' and '{source}' profiles; CC Switch only knows the '{source}' copy, so writing would discard your changes in '{other}'. Make them identical in DeepSeek Harness, or edit profiles/{other}/cordis.patch.yml directly."
+            "Provider '{id}' differs between the '{other}' and '{source}' profiles; AICLI Client only knows the '{source}' copy, so writing would discard your changes in '{other}'. Make them identical in DeepSeek Harness, or edit profiles/{other}/cordis.patch.yml directly."
         ),
     )
 }
@@ -1118,11 +1123,37 @@ fn diverged_mcp_error(id: &str, other: Option<&PathBuf>, source: Option<&PathBuf
 }
 
 /// The native `llm-pi-ai` provider node for an editor config, and the credentials text with a new
-/// key stored under CC Switch's reference (unchanged when the key is unchanged).
+/// key stored under AICLI Client's reference (unchanged when the key is unchanged).
+/// Credential ref prefix written for providers saved from this app.
+const CREDENTIAL_REF_PREFIX: &str = "AICLI_DSH_";
+/// Prefix inherited from cc-switch. A ref of this name for the provider being saved is moved to
+/// [`CREDENTIAL_REF_PREFIX`] and removed, unless another provider in a profile still uses it.
+const LEGACY_CREDENTIAL_REF_PREFIX: &str = "CC_SWITCH_DSH_";
+
+fn credential_ref(prefix: &str, id: &str) -> String {
+    format!("{prefix}{}", id.replace('-', "_").to_ascii_uppercase())
+}
+
+/// Whether a provider other than `id` in any of `profile_texts` names `reference` as its key.
+fn ref_used_by_other_provider(profile_texts: &[String], id: &str, reference: &str) -> bool {
+    profile_texts.iter().any(|text| {
+        provider_entry(text).is_ok_and(|entry| {
+            entry["config"]["providers"]
+                .as_mapping()
+                .into_iter()
+                .flatten()
+                .any(|(key, native)| {
+                    key.as_str() != Some(id) && native["apiKeyEnv"].as_str() == Some(reference)
+                })
+        })
+    })
+}
+
 fn native_provider(
     id: &str,
     config: &Value,
     credentials_text: &str,
+    profile_texts: &[String],
 ) -> Result<(String, Value), AppError> {
     let mut credentials_next = credentials_text.to_owned();
     let native = {
@@ -1180,24 +1211,25 @@ fn native_provider(
             .and_then(Value::as_str)
             .filter(|key| !key.trim().is_empty())
         {
-            let reference = format!(
-                "CC_SWITCH_DSH_{}",
-                id.replace('-', "_").to_ascii_uppercase()
-            );
+            let reference = credential_ref(CREDENTIAL_REF_PREFIX, id);
+            let legacy = credential_ref(LEGACY_CREDENTIAL_REF_PREFIX, id);
             let mut credentials = credential_document_from(credentials_text)?;
-            let unchanged_key =
-                config
-                    .get("apiKeyEnv")
-                    .and_then(Value::as_str)
-                    .is_some_and(|reference| {
-                        credentials["refs"][reference].as_str() == Some(key)
-                            || std::env::var(reference).ok().as_deref() == Some(key)
-                    });
+            let current = config.get("apiKeyEnv").and_then(Value::as_str);
+            let unchanged_key = current.is_some_and(|reference| {
+                reference != legacy
+                    && (credentials["refs"][reference].as_str() == Some(key)
+                        || std::env::var(reference).ok().as_deref() == Some(key))
+            });
             if !unchanged_key {
                 if credentials["refs"].is_null() {
                     credentials["refs"] = Yaml::Mapping(Default::default());
                 }
                 credentials["refs"][&reference] = Yaml::from(key);
+                if !ref_used_by_other_provider(profile_texts, id, &legacy) {
+                    if let Some(refs) = credentials["refs"].as_mapping_mut() {
+                        refs.remove(Yaml::from(legacy.as_str()));
+                    }
+                }
                 credentials_next = serde_yaml::to_string(&credentials)
                     .map_err(|error| AppError::Config(error.to_string()))?;
                 object.insert("apiKeyEnv".into(), json!(reference));
@@ -1214,7 +1246,7 @@ pub(crate) fn set_provider(id: &str, config: Value) -> Result<(), AppError> {
 pub(crate) fn remove_provider(id: &str) -> Result<(), AppError> {
     save_and_commit(id, None, false, || Ok(()))
 }
-/// A key is taken when any target profile already has it (CC Switch never overwrites a node).
+/// A key is taken when any target profile already has it (AICLI Client never overwrites a node).
 pub(crate) fn provider_key_exists(id: &str) -> Result<bool, AppError> {
     for path in target_paths() {
         let entry = provider_entry(&read_text(&path)?)?;
@@ -1228,8 +1260,8 @@ pub(crate) fn provider_key_exists(id: &str) -> Result<bool, AppError> {
     Ok(false)
 }
 
-/// MCP servers as shown in CC Switch, read from the display profile ([`config_path`]).
-/// MCP servers as shown in CC Switch: every initialized profile, authoritative profile first,
+/// MCP servers as shown in AICLI Client, read from the display profile ([`config_path`]).
+/// MCP servers as shown in AICLI Client: every initialized profile, authoritative profile first,
 /// one entry per server name.
 pub(crate) fn mcp_entries() -> Result<Vec<Yaml>, AppError> {
     let authoritative = config_path();
@@ -1424,7 +1456,7 @@ fn mcp_edit(text: &str, id: &str, spec: Option<&Value>) -> Result<String, AppErr
                 .is_none()
         {
             return Err(AppError::Config(
-                "Assign an id to this native MCP entry before editing it in CC Switch".into(),
+                "Assign an id to this native MCP entry before editing it in AICLI Client".into(),
             ));
         }
         let id_matches = plugin_entries(&all_entries)
@@ -1621,7 +1653,7 @@ mod tests {
             .unwrap();
             let saved = credential_document(&credentials).unwrap();
             assert_eq!(saved["records"], original_document["records"]);
-            assert_eq!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"], "test-value");
+            assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
             assert_eq!(
                 get_providers_from(&path, &credentials).unwrap()["gateway"]["options"]["apiKey"],
                 "test-value"
@@ -1637,6 +1669,72 @@ mod tests {
             fs::write(&path, format!("version: 1\nrefs: {refs}\n")).unwrap();
             assert!(credential_document(&path).is_err());
         }
+    }
+
+    #[test]
+    fn legacy_cc_switch_ref_moves_to_aicli_name_unless_another_provider_uses_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("cordis.patch.yml");
+        let credentials = temp.path().join(".credentials.yaml");
+        let mut legacy = editor_config();
+        legacy["apiKeyEnv"] = json!("CC_SWITCH_DSH_GATEWAY");
+
+        // The provider's own legacy ref, unchanged key: renamed, old entry removed, others kept.
+        fs::write(&path, "- id: llm-pi-ai\n  config:\n    providers:\n      gateway: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n").unwrap();
+        fs::write(
+            &credentials,
+            "version: 1\nrefs: {CC_SWITCH_DSH_GATEWAY: test-value, CC_SWITCH_DSH_OTHER: other}\n",
+        )
+        .unwrap();
+        save_paths_and_commit(
+            std::slice::from_ref(&path),
+            &credentials,
+            "gateway",
+            Some(legacy.clone()),
+            false,
+            || Ok(()),
+        )
+        .unwrap();
+        let saved = credential_document(&credentials).unwrap();
+        assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
+        assert!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"].is_null());
+        assert_eq!(saved["refs"]["CC_SWITCH_DSH_OTHER"], "other");
+        let text = read_text(&path).unwrap();
+        assert!(text.contains("apiKeyEnv: AICLI_DSH_GATEWAY"));
+        assert!(!text.contains("CC_SWITCH_DSH_GATEWAY"));
+        assert_eq!(
+            get_providers_from(&path, &credentials).unwrap()["gateway"]["options"]["apiKey"],
+            "test-value"
+        );
+
+        // Another provider still names the legacy ref: renamed, old entry kept for it.
+        fs::write(&path, "- id: llm-pi-ai\n  config:\n    providers:\n      gateway: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n      other: {apiKeyEnv: CC_SWITCH_DSH_GATEWAY, models: []}\n").unwrap();
+        fs::write(
+            &credentials,
+            "version: 1\nrefs: {CC_SWITCH_DSH_GATEWAY: test-value}\n",
+        )
+        .unwrap();
+        save_paths_and_commit(
+            std::slice::from_ref(&path),
+            &credentials,
+            "gateway",
+            Some(legacy),
+            false,
+            || Ok(()),
+        )
+        .unwrap();
+        let saved = credential_document(&credentials).unwrap();
+        assert_eq!(saved["refs"]["AICLI_DSH_GATEWAY"], "test-value");
+        assert_eq!(saved["refs"]["CC_SWITCH_DSH_GATEWAY"], "test-value");
+        let entry = provider_entry(&read_text(&path).unwrap()).unwrap();
+        assert_eq!(
+            entry["config"]["providers"]["gateway"]["apiKeyEnv"],
+            "AICLI_DSH_GATEWAY"
+        );
+        assert_eq!(
+            entry["config"]["providers"]["other"]["apiKeyEnv"],
+            "CC_SWITCH_DSH_GATEWAY"
+        );
     }
 
     #[test]
@@ -1964,7 +2062,7 @@ mod tests {
         for name in ["web", "desktop", "headless"] {
             assert!(profile_text(root, name)
                 .unwrap()
-                .contains("apiKeyEnv: CC_SWITCH_DSH_GATEWAY"));
+                .contains("apiKeyEnv: AICLI_DSH_GATEWAY"));
         }
         assert_eq!(profile_text(root, "sdk").unwrap(), FACTORY_PROFILE);
         assert!(root.join("profiles/desktop/cordis.patch.yml").exists());
@@ -2108,7 +2206,7 @@ mod tests {
         let _home = DshHome::new();
         let providers = IndexMap::from([("gateway".into(), editor_config())]);
         let servers = IndexMap::from([("fetch".into(), json!({"command":"node"}))]);
-        let receipt = data_dir().join(".cc-switch-profile-sync.json");
+        let receipt = data_dir().join(".aicli-client-profile-sync.json");
         let result = initialize_profiles_and_commit(&providers, &servers, || {
             Err::<(), _>(AppError::Database("injected".into()))
         });
@@ -2147,7 +2245,7 @@ mod tests {
         .unwrap();
         let providers = IndexMap::from([("gateway".into(), editor_config())]);
         initialize_profiles(&providers, &IndexMap::new()).unwrap();
-        assert!(data_dir().join(".cc-switch-profile-sync.json").exists());
+        assert!(data_dir().join(".aicli-client-profile-sync.json").exists());
         for name in ["web", "desktop"] {
             assert!(get_providers_from(&profile_path(name), &credentials_path())
                 .unwrap()
@@ -2187,7 +2285,7 @@ mod tests {
         assert_eq!(profile_text(root, "desktop").unwrap(), tagged);
         assert!(!fs::read_to_string(&credentials)
             .unwrap()
-            .contains("CC_SWITCH_DSH_GATEWAY"));
+            .contains("AICLI_DSH_GATEWAY"));
         assert!(!root.join("profiles/web/cordis.patch.yml.lock").exists());
         assert!(!root.join(".credentials.yaml.lock").exists());
     }

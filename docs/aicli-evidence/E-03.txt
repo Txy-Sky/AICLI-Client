@@ -1,0 +1,187 @@
+E-03 检测规则验收记录（完成，2026-11-07）
+
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42358919563（五 job 全 success）
+状态：[x]（规则表 38 条对齐、golden 522/522 行 0 差异、夹具 100% 通过）
+
+一、已完成
+- 10 个源码模块约 4000 行 Rust，全部编译通过：
+  mod.rs（类型+辅助）、phone.rs、ids.rs、dateword.rs、fieldvalue.rs、
+  more.rs、shape.rs、known.rs、rules.rs、scrub.rs、redact.rs（引擎主体）
+- 74 个测试全部通过（CI job Rust item tests E-03-unit + A3-01 基线）
+- 522 条语料 corpus.jsonl：密钥(60)/邮箱(40)/手机(40+20 不遮)/JWT(20)/
+  URL密码(20)/身份证(20)/银行卡(20)/SSN(10)/中英文混合(40)/代码ID不遮(40)/
+  路径版本(30)/误报(30)/日期(20)/安全文本(20)/MAC(10)/IBAN(10)/护照(10)/
+  自定义词(20)/序列号(10)/补齐
+- expected.json 13 条必须遮盖用例全部通过（sk- 密钥、zk_ 密钥、密码赋值、
+  CJK 密钥/密码、JWT、邮箱、手机×3、URL 密码、CJK 密码）
+- false_positives.json 37 条误报用例通过率≥60%（UUID/commit hash/订单号/
+  数字ID/文件路径/版本号/包版本锁定不遮）
+- Go golden 已生成（magpie_golden 工具 -raw 模式）：258/522 被遮盖
+
+二、规则移植进度（Magpie redact.go+more.go ~60 条 → 当前 13 条）
+已移植的核心规则：
+  1. PRIVATE_KEY（PEM 块）
+  2. API_KEY sk-（sk-ant-/proj-/or-等前缀 20+ 字符）
+  3. API_KEY [a-z]{2,4}_sk_（网关自有密钥）
+  4. TOKEN（JWT eyJ...）
+  5. PASSWORD URL（user:password@host）
+  6. SECRET 赋值（password=value, API_KEY: value）
+  7. CJK 密码（密码：value, 密碼是 value）
+  8. CJK 密钥（密钥 value, 令牌是 value）
+  9. EMAIL
+  10. ID_CARD（中国身份证+校验位）
+  11. PHONE（手机号+语境判定）
+  12. BANK_CARD（Luhn）
+  13. 完整 Options/mask/apply/scan 引擎框架
+
+三、待完成（纯量工作，机制已建立）
+- more.go 中的 ~47 条规则逐条添加到 redact.rs core_rules()：
+  SSN、护照、IBAN、生日、MAC、序列号、用户名(home)、用户名/主机名(user@host)、
+  HOSTNAME 赋值、USERNAME 赋值、IPv4/IPv6、云桶(s3://gs://等)
+- Magpie _test.go 约 80 个不依赖模型的测试移植（当前已有 74 个自编测试）
+- Go/Rust golden 逐行差异分析与修复
+- 误报通过率从 60% 提升到 100%
+
+四、编译修复记录（不作成功证据，保留）
+1. 花括号转义（{{ vs {）、数组长度（55→69、82→89）、u8 vs str contains
+2. chars_next_cmp clippy（重构比较逻辑）
+3. gram u32 乘法溢出（Go uint32 vs Rust u64）
+4. 正则字符类连字符转义（/-+ → /\-+）
+5. CJK Unicode 转义（\u{201c} → 直接用字符）
+6. include_str! 路径层级（4 层 → 5 层）
+7. thread_local → 全局 leaked Box（生命周期）
+8. SECRET 规则 ok 极性修正（not_a_slug 取反错误）
+
+五、新会话续接指南
+- 分支 feat/aicli-client-v1 @ 5da3ad22
+- CI 基线 run 42347452586 全绿
+- 下一步：按 more.go 的 moreRules 列表顺序，把每条规则的字段（kind/pattern/
+  markers/bound/ok/at/cat/groups）逐条翻译到 redact.rs 的 core_rules() 中
+- 语料/expected/false_positives 已就绪可作回归
+- 工具 magpie_golden 的 -raw 模式可生成 Go 侧完整输出用于对照
+
+六、E-03 规则表完成记录（@ 第二轮）
+- redact.rs::core_rules() 现与 Magpie redact.go `rules` + more.go `moreRules`
+  逐条对齐，共 38 条：
+  - 主表补齐 9 条：gh/github_pat/glpat、AIza、xox、(sk|rk)_live_、AKIA/ASIA、
+    hf_/gsk_/xai-/npm_/pypi-/dop_v1_/SG.、仅名 key 的字段（16+）、
+    英文名+CJK 系词（apikey 为 …/token 是 …/API Key：…）
+  - CJK 密码/密钥两条替换为 cjkNamed 完整名单（13+22 个称呼），
+    secretCh 含 `.` 与 Go 一致
+  - more.go 18 条全部移植：SSN×2、PASSPORT、IBAN(fix)、BIRTHDAY、MAC、
+    SERIAL、USERNAME 家目录×2（unix+windows）、user@host×2（groups 拆分
+    USERNAME/HOSTNAME）、HOSTNAME/USERNAME 行（anyGroup）、IP×4/6、
+    云桶×3（groups BUCKET）
+- 引擎补齐 Magpie mask 的完整规则循环语义：
+  - fold 标记 + back/ahead 窗口匹配（rule.matches 的窗口合并算法）
+  - groups/groupOK 逐组遮盖 + split 段内 EMAIL 去重
+  - anyGroup（取第一个匹配的组）、fix（替代 ok）、takes 的 b<=a 检查
+  - lowerASCII（仅 ASCII 小写化，位置一一对应）
+- more.rs 修复两处既有 bug：
+  - public_ip IPv6 分支：原 `seg[0]&0xff00==0xff00 && (seg[0]&0xe000)==0x2000`
+    恒假（全球单播全被拒）；改为 Go 原意 `(seg[0]>>8)&0xe0==0x20`（2000::/3）
+  - 测试恒真断言 `public_ip(...)|| true` 改为真实的解析器排除断言
+- 测试：privacy 92 个全过（新增 16 个 more.go 移植测试 + fold/pattern 同源测试）
+- 验收夹具：expected.json 13/13 遮盖；false_positives.json 37/37 通过
+  （上一轮 60% 基线 → 本轮 100%，无需放宽阈值）
+- 已知源参考污染（source-reference/magpie/internal/redact/more.go）：
+  notIPs 含 `100.64.0.0/10`、resolvers 含 `149.112.112.112`，
+  系源码入库存档时被本地网关遮盖所致；more.rs 移植版为真实值，不受影响。
+  golden 逐行对照时这两条以 more.rs 为准。
+- 待办（E-03 收尾）：magpie_golden -raw 生成 Go 侧输出做逐行差异分析；
+  more_test.go 其余用例按需补移植
+
+七、E-03 golden 差异分析（@ 第三轮，收尾）
+- 流程：corpus.jsonl（522 条）→ target/corpus_full.json；
+  Go 侧 `go run ./tools/magpie_golden -corpus … -raw target/go_raw.txt`；
+  Rust 侧新加 #[ignore] 测试 redact::tests::write_rust_raw_for_golden_diff
+  （同固定密钥、同 Options{secrets,personal}）写 target/rust_raw.txt
+- 结果：**522/522 行逐字节一致，差异为 0**（含占位符 kind 与后缀全等）
+- 差异分析中抓到并修复 1 个真 bug：
+  phone.rs field_name 全角冒号前视 `&s[i-3..i]` 在多字节字符中间切片
+  panic（语料「记录ID 138…」触发）；改为字节比较（Go 字节切片不 panic，
+  行为对齐）
+- 局限说明：corpus.jsonl 存档时部分原值已被本地网关替换为 {{TAG_xxx}}
+  占位符，两侧输入一致故对照仍有效，但真实敏感值形态的覆盖以
+  expected/false_positives 夹具与本轮新增测试补足
+- 结论：E-03 检测规则移植完成——规则表 38 条对齐、引擎语义对齐、
+  golden 0 差异、验收夹具 100% 通过
+
+- 追记：首次推送（run 42347452586 之后的 782dfb0f）触发 A3-01 baseline
+  `-D warnings` clippy 两处 lint（question_mark、needless_range_loop），
+  修复后 86e0c688 全绿；golden 输出复验仍逐字节一致
+
+=====================================================================
+审查修正（2026-11-07，统一验收审查，见清单第 12 节）
+=====================================================================
+提交：0f419b1e fix(aicli): E-02/E-03/E-05 harden privacy engine from review
+新增 privacy/fuzz_tests.rs（proptest，每项 512 例；推送前本地临时加到每项 20000 例
+全过）：任意字节不 panic、纯文本与四种协议 JSON 正文遮盖后还原等于原文、流式任意
+切分与一次喂入一致且拼回原文。6 项随 A3-01 基线运行（未单列 item 组）。
+
+一、多字节文本切片 panic（随机测试发现，修正前必崩）
+- rules/redact.rs fold 窗口：按字节回退 back 后切 &s[start..at] 找换行，start 落在
+  多字节字符中间；输入 "😀一一一一手机号：" 即 panic。改为按字节 rposition 找换行；
+  窗口终点 i+ahead 向前收到字符边界。
+- rules/phone.rs phone_at：号码前 32 字节切 &s[a-32..a]，落在汉字中间；输入
+  "记录ID aAA0A0：：一一一一13800138000" 即 panic。起点向后收到字符边界。
+- 两处均与 Go 按字节切串等价（Go 侧开头半个字符成 U+FFFD，只影响前缀，不影响
+  后缀/正则判断）；expected 13/13、false_positives 37/37、golden 均不变。
+- 回归：fuzz_tests::multibyte_context_before_markers_does_not_panic（三条最小失败输入）。
+二、清理
+- 删除 rules/redact.rs 文件级 #![allow(dead_code)]（E-03 WIP 遗留），删除后无新告警。
+- job `Rust item tests (Linux)`：E-03-unit 68 passed（不变）。
+
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42377030461（ea9cd2b8，六 job 全 success）
+- job `A3-01 baseline (Linux)`：cargo clippy -D warnings 通过；Rust 4686 passed /
+  11 skipped（原有 10 + E-03 的 #[ignore] golden 生成测试）；前端 264 文件 3360 passed。
+- 推送前本地（Rust 1.95，独立验证工程软链接真实源码）：privacy 136 passed，
+  lib clippy -D warnings 通过，rustfmt --check 通过。
+
+补充（2026-11-07）：ede6fb9a fix(aicli): E-03 clear clippy lints in rule tests——dateword.rs
+测试去掉 i32→i32 转换、ids.rs 测试直接传字面量；只改测试写法，不改断言。推送前本地
+privacy 模块 clippy --lib --tests -D warnings 无告警、136 passed。CI
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/42385215888 六 job 全 success。
+
+三、已知值记忆接线（2026-11-08，E-03/E-04 遗留补齐）
+问题（E-07/E-08 验收复核发现）：known.rs 移植了索引与再匹配，但生产路径从未
+登记（KnownIndex::add 只有测试调用），Magpie「遮过一次的值以后在任何上下文都
+遮」不生效——例如先发「数据库密码：X」，之后代码里单独出现 X 不遮。同时发现
+两处半成品：再匹配片段的种类留空（注释写「引擎层填入」但没有填），再遮会变成
+{{SECRET_…}} 而不是原占位符；standsAlone 移植了但 knownSpans 没调用，已知值
+会在更长字母数字串中间被切出来遮。
+修复：
+1. placeholder.rs：PlaceholderEngine::mask 新值入表时登记进已知值索引
+   （Magpie placeholder → addKnown）；make_room 淘汰后按剩余值重建索引
+   （Magpie makeRoom → reindexKnown），被淘汰的值不再再匹配。
+2. known.rs：KnownValue.kind 驻留为 &'static str 并带进 Span.kind，再遮得到
+   与第一次相同的占位符；knownSpans 只认 stands_alone 的命中。
+3. 测试构建（cfg(test)）里索引每线程一份：cargo test 一测试一线程，避免测试
+   之间互相污染；生产构建仍为进程级全局，与 CI 的 nextest（一测试一进程）
+   行为一致。
+测试：
+- redact::tests::masked_value_is_remembered_in_later_requests（先证规则单独
+  不遮裸值 → 凭「密码：」遮一次 → 裸值遮成同一占位符；secrets 关不再匹配）
+- placeholder::tests::known_index_follows_value_table（登记；淘汰后遗忘）
+- known::tests::spans_carry_kind_and_require_standing_alone
+- e2e 第 19 项 masked_value_is_remembered_across_requests（真实代理，两次
+  请求，上游第二次收到同一占位符）
+- 既有规则测试 3 处「同值换条件不遮」（birthday_after_label 的无标注日期、
+  home_folder_username 与 user_at_host_prompt 的类别默认关）在该步之前清空
+  已知值索引：断言检验的是规则本身，不清空会由已知值再匹配遮掉（Magpie 的
+  预期行为，由上面新测试覆盖）。断言未放宽。
+变异验证（各自改回后跑 privacy 全量）：去掉登记 → 2 个新测试失败；去掉淘汰后
+重建 → known_index_follows_value_table 失败；去掉 stands_alone → known 新测试
+失败；种类留空 → 2 个测试失败。
+回归：549 条对照语料（共用引擎按序）我方输出与接线前逐行相同（0 行变化，
+语料中值不重复出现）；本地 privacy 151 passed / 2 ignored，逐个独立进程跑
+153 个全过；clippy --tests 与 rustfmt --check 无告警。
+未做：已知值再匹配不按类别开关过滤（Magpie knownSpans 只看 secrets，照移植；
+PERSON 例外见 E-08）。类别关闭后，之前在开启时遮过的值仍会再遮——方向为多遮。
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42459880184（752e1e79，五 job 全
+success；A3-01 Rust 4711 passed / 12 skipped；e2e 第 19 项 masked_value_is_remembered_across_requests
+通过）。
+附：3dfe5ab0 的 CI（42457516540）两次失败于 commands::aicli::tests::
+refresh_validates_kinds_and_requires_a_binding（缓存条数先 2 后 1，期望 3）。该测试在
+refresh("all") 刚派出后台刷新时就断言缓存条数，属测试自身竞态，与本次改动无关；752e1e79
+改为派出后等缓存空闲再读，断言不变。nextest 首个失败即停，故以 752e1e79 的全量通过为准。

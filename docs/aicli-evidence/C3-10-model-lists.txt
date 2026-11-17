@@ -1,0 +1,120 @@
+C3-10 补充（2026-11-13，负责人 Windows 实测反馈）
+
+## 1. 从预设新建时满屏冲突（e09fc4d4）
+
+现象：多分组都有的模型算冲突；「从预设新建」打开编辑器即显示大量「冲突：未处理」，保存不可用。
+原因：后端 ProfileStore::copy_preset 把复制视为确认预设的分组顺序；前端 copyPreset 原样复制，
+未确认。修复：前端与后端一致，复制时把这些模型记为按分组顺序。之后新增分组产生的冲突照旧需处理，
+保存把关不变。前端测试本机全过（vitest 130 文件）。
+
+## 2. Claude Code / Codex 的 /model 只有自带模型（e64f7d71）
+
+现象：接管后 Claude Code、Codex 的模型选择器只显示自带模型。
+原因：C3-10（负责人 2026-11-04）决定 Claude、Codex、Gemini 沿用现有投影，接管只改地址；方案 v2
+第 4.5 节的模型发布未接入。C5-GATE 的「别名可见」用 /v1/models 验证，没看选择器。
+负责人 2026-11-13 决定：列出配置集全部模型；Claude Code 自带行由用户选择是否保留，默认保留且在前。
+实现：
+- Claude Code：prepare_projection 给种子行补临时字段（不落库）：配置集可路由模型及其 C2-02 别名
+  aicli-claude-<模型>；模式控制器复用 Stack 的 modelPicker 写入 settings.json（Claude Code
+  2.1.287 起支持）。保留自带行时不写 replaceBuiltInOptions（自带行在前），隐藏时写上。档位和
+  CLAUDE_CODE_MAX_CONTEXT_TOKENS 不变。
+- Codex：种子行带 modelCatalog.models，沿用路由投影生成目录文件并写 model_catalog_json。目录
+  没有窗口数据，条目按生成器默认 128K。
+- 配置集或目录变化时重写（投影监视加入 Claude、Codex）；停止接管照旧逐字节还原。
+- 设置 aicliClaudeKeepBuiltinModels（设备级 settings.json，未设 = 保留），只经
+  aicli_set_claude_keep_builtin_models 写，已接管时立即重写；全量保存保留该值。开关在 Claude Code
+  客户端页，五种语言。Gemini CLI 不变。
+
+CI：e64f7d71 | job `Rust item tests (Linux)`：C3-10-model-lists 3 passed（别名与默认保留、设置关、
+Codex 目录 = 配置集模型且无 sk-；选择器两种形态且契约摘要随选择变化；全量保存保留选择）；C3-10-unit
+15、J-02-opencode-unit 3、C4-02-unit 8 passed；job `A3-01 baseline (Linux)`：Rust 4551 passed /
+9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43564355142
+
+未做：真实 Claude Code / Codex 读取新选择器和目录（交 Windows 测试机复测）；Codex 目录窗口数据。
+
+## 3. 排序与说明（4ac68a84，负责人 2026-11-13 选定）
+
+排序：配置集模型按厂商分组再按名字（Claude、GPT/o 系列、Gemini、Grok、DeepSeek、通义千问、GLM、
+Kimi、MiniMax、豆包、其他）；Claude Code 自带行（保留时）仍在最前。
+说明：首选分组与倍率、可回退分组数、能力标签，如「首选 vip ×1 · 还可走 2 个分组 · tools · vision」；
+倍率未知不写倍率；标签按目录原样；跟随应用语言（zh、zh-TW、en、ja、tr），换语言后下次刷新生效。
+Codex 目录生成器新增可选 description（未给时仍用显示名）。
+CI：4ac68a84 | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed（含 aicli::picker::tests 3、
+catalog_entry_takes_an_explicit_description）、C3-10-unit 15 passed；job `A3-01 baseline (Linux)`：
+Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43594191653
+
+## 4. 推荐在前、生图视频在后、隐藏 codex-auto-*（f4d6094e，负责人 2026-11-14）
+
+现象：Codex 的 /model 显示「Codex Auto Review」和「All models」，配置集模型都在 All models 里。
+原因：线上目录（/api/pricing 只读确认）含 codex-auto-review；Codex（codex-rs tui
+chatwidget/model_popups.rs）只要列表里有 codex-auto-* 就把 /model 变成「快捷自动模式 + All models」。
+修复：codex-auto-* 在 Codex 目录中保留、visibility 设为 hide（自动审批仍可用），Claude Code 不列。
+顺序：推荐（后台标签「推荐」/recommended）→ 其余文本模型 → 生图 → 视频；段内按厂商再按名字。
+说明：推荐行以「⭐ 推荐」开头；生图/视频行写「不是文本模型，不能当主聊天模型」。生图/视频按标签
+（生图、视频、image、video 等）识别，无标签时按名字（gpt-image、-image、seedance、video、sora、
+veo-、kling）。线上目前无「推荐」标签，需负责人在后台打。
+CI：f4d6094e | job `Rust item tests (Linux)`：C3-10-model-lists 7 passed、C3-10-unit 15 passed；
+job `A3-01 baseline (Linux)`：Rust 4555 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43598672330
+
+## 5. 实测用安装包（负责人 2026-11-14 要求）
+
+Release 演练 run 43600459821（b84276a9，未签名），全部 job success，「Publish GitHub Release」跳过。
+Windows 便携版 aicli-client.exe 含「Codex 自动审批用」文案，确认是本轮代码。
+线上 /api/pricing 复查：「推荐」标签已出现在 claude-opus-5-5（负责人打标签后接口有缓存延迟）。
+
+## 6. 说明行采用 new-api 模型描述（09c9276b，负责人 2026-11-14）
+
+线上 /api/pricing（只读）62 个模型中 43 个有 description。说明行：文本模型「<描述> · vip ×1」，推荐
+「⭐ 推荐 · <描述> · vip ×1」，生图/视频「生图模型，不能当主聊天模型 · <描述>」；无描述时沿用原格式。
+空白与换行压成单个空格，超过 60 字截断加「…」。
+CI：09c9276b | job `Rust item tests (Linux)`：C3-10-model-lists 8 passed；job `A3-01 baseline (Linux)`：
+Rust 4556 passed / 9 skipped，前端 130 文件全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43604540998
+
+## 7. Codex 官方条目也听行里的隐藏与说明（06a552e6，负责人 Windows 实测 Codex CLI 0.165.0）
+
+现象：实测目录里 codex-auto-review 为 visibility list、说明为 OpenAI 原文，hidden 总数 0；/model 仍是
+「Codex Auto Review + All models」。Codex 0.165（rust-v0.165.0 model-provider/src/provider.rs）读到
+model_catalog_json 即只用它，原因在目录：命中 OpenAI 官方列表的模型（codex-auto-review、GPT 系列）由
+codex_official_model_entry 生成，强制 list 并保留官方说明，行里的 hidden/description 只在模板路径生效。
+修复：apply_codex_spec_overrides 对模板、官方、厂商三条路径统一套用；官方提示词与工具不变。
+CI：06a552e6 | job `Rust item tests (Linux)`：C3-10-model-lists 9 passed（含
+official_entries_take_the_rows_hidden_and_description）；job `A3-01 baseline (Linux)`：Rust 4557 passed /
+9 skipped，前端 130 文件全过；五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43611880267
+
+## 8. 自家厂商在前、新版本与档次在前（4ee51a8f，负责人 2026-11-14）
+
+每个分组内当前客户端的自家厂商在前（Claude Code 是 Claude，Codex 是 GPT/o 系列），其余厂商顺序不变。
+同厂商内按名字里的版本号新的在前（claude-opus-5-5 先于 claude-opus-4-5，gpt-5.1 先于 gpt-5）；同版本按
+档次 Fable > Opus > Sonnet > Haiku、Astra > Sol > Terra > Luna；再按日期后缀（-20250929 等）新的在前，
+最后按名字。推荐分组仍在最前。已知：o3 读作版本 3，排在 gpt-4.1 之后。
+CI：该提交的 run 43684183855 被下一次推送取消，代码由 2359c5ec 的 run 一并验证（见第 9 节）。
+
+## 9. 上下文窗口取后台窗口标签，1M 模型在 Claude Code 带 [1M]（2359c5ec，负责人 2026-11-14）
+
+线上 /api/pricing（只读）55 个模型的窗口标签：1M 19 个、1.1M 9 个、200K 5 个、500K 3 个、1K 1 个（视频）。
+文本模型取窗口标签（多个取最大），生图/视频不取。Claude Code：窗口 ≥1M 的行 id 带 [1M]；其余按标签
+窗口走 Stack 规则（非 1M 最小窗口写 CLAUDE_CODE_MAX_CONTEXT_TOKENS，等于默认 200K 不写，无标签按
+200K）。Codex：目录行带 contextWindow。解析器：精确名无路由时去掉 [1M]/[1m] 再查，上游收到的是上游名。
+CI：2359c5ec | job `Rust item tests (Linux)`：C3-10-model-lists 全过（picker 新增
+each_client_lists_its_own_family_first、newest_version_first_then_tier_then_date、
+versions_and_date_stamps_come_from_the_name、windows_come_from_tags_of_text_models）；job `A3-01 baseline
+(Linux)`：Rust 4563 passed / 9 skipped，含 one_m_marker_on_a_claude_code_id_resolves_to_the_plain_route、
+aicli_picker_windows_follow_the_catalog_tags；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43684331496
+未做：Windows 实测——Claude Code 选 1M 模型发超过 200K 上下文，确认 new-api 透传 context-1m beta 且上游
+接受；Codex /model 窗口显示为 1.1M。
+
+## 10. Codex 路由表显示名 AICLI；绑定页链接改安全与访问（2eaca87d、44c5f18b，负责人 2026-11-15）
+
+现象：Codex App 左下角显示 custom。负责人实测确认显示的是 [model_providers.custom] 的 name；代理契约
+proxy_route_table(ROUTE_ID, …) 把表 id 当作 name 写入。修复：路由供应商 category 为 aicli 时 name 写 AICLI，
+表 id 仍为 custom（会话分桶、resume 不变），换回别家恢复 custom。
+绑定页「打开网页获取令牌」改开 https://aicliapi.com/security；说明与 sk- 错误文案写网页侧边栏「安全与访问」、
+模块「访问令牌」，五种语言同步，清单 0.4 节与 F-03 记录同步。
+CI：44c5f18b | job `A3-01 baseline (Linux)`：Rust 4564 passed / 9 skipped（含
+codex_proxy_names_the_aicli_route_table_aicli），前端 130 文件 1321 用例全过；五个 job 全部 success |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/43697604290

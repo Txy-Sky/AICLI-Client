@@ -643,8 +643,9 @@ wire_api = "responses"
         "enabling takeover should point Codex config.toml at the local proxy"
     );
     assert!(
-        config_after_takeover.contains("PROXY_MANAGED"),
-        "enabling takeover should move the proxy placeholder into config.toml"
+        config_after_takeover
+            .contains(&cc_switch_lib::aicli::local_auth::token_for(&state.db, "codex").unwrap()),
+        "enabling takeover should write the registered local token into config.toml"
     );
     assert!(
         !config_after_takeover.contains("https://api.deepseek.com/v1"),
@@ -673,6 +674,8 @@ wire_api = "responses"
         !restored_config.contains("PROXY_MANAGED"),
         "restored live config must not keep the proxy placeholder"
     );
+    assert!(!restored_config
+        .contains(&cc_switch_lib::aicli::local_auth::token_for(&state.db, "codex").unwrap()));
 }
 
 #[test]
@@ -2014,7 +2017,7 @@ model = "deepseek-chat"
 
 [model_providers.deepseek]
 name = "DeepSeek"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:15821/v1"
 wire_api = "responses"
 experimental_bearer_token = "PROXY_MANAGED"
 "#;
@@ -2210,7 +2213,7 @@ fn switch_packycode_gemini_updates_security_selected_type() {
     ProviderService::switch(&state, AppType::Gemini, "packy-gemini")
         .expect("switching to PackyCode Gemini should succeed");
 
-    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.aicli-client/settings.json
     let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
@@ -2265,7 +2268,7 @@ fn packycode_partner_meta_triggers_security_flag_even_without_keywords() {
     ProviderService::switch(&state, AppType::Gemini, "packy-meta")
         .expect("switching to partner meta provider should succeed");
 
-    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.cc-switch/settings.json
+    // Gemini security settings are written to ~/.gemini/settings.json, not ~/.aicli-client/settings.json
     let settings_path = home.join(".gemini").join("settings.json");
     assert!(
         settings_path.exists(),
@@ -2984,7 +2987,7 @@ fn recover_from_crash_without_backup_cleans_placeholder_instead_of_writing_it_ba
     // 接管态 Claude Live，且 DB 中无备份（模拟切换 app_config_dir 后新库首启的场景）
     let taken_over_live = json!({
         "env": {
-            "ANTHROPIC_BASE_URL": "http://127.0.0.1:15721",
+            "ANTHROPIC_BASE_URL": "http://127.0.0.1:15821",
             "ANTHROPIC_AUTH_TOKEN": "PROXY_MANAGED"
         }
     });
@@ -3228,7 +3231,7 @@ fn claude_editor_global_settings_reach_account_dirs() {
     );
 
     // 本机账号表里有一个账号，目录已经建好
-    let app_dir = home.join(".cc-switch");
+    let app_dir = home.join(cc_switch_lib::APP_DIR_NAME);
     let local_id = "0123456789abcdef0123456789abcdef";
     let config_dir = app_dir
         .join("claude-accounts")
@@ -3672,7 +3675,11 @@ fn claude_editor_never_leaves_the_row_and_live_apart() {
     let (row, base) = open_claude_editor(&state, "a");
     let mut edited = base.clone();
     edited["env"]["ANTHROPIC_AUTH_TOKEN"] = json!("sk-new");
-    let db = rusqlite::Connection::open(home.join(".cc-switch/cc-switch.db")).expect("open db");
+    let db = rusqlite::Connection::open(
+        home.join(cc_switch_lib::APP_DIR_NAME)
+            .join("aicli-client.db"),
+    )
+    .expect("open db");
     db.execute_batch(
         "CREATE TRIGGER fail_edit BEFORE UPDATE OF settings_config ON providers \
          BEGIN SELECT RAISE(ABORT, 'injected save failure'); END;",

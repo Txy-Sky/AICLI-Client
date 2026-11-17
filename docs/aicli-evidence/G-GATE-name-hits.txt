@@ -1,0 +1,266 @@
+    1  88API
+    5  88api
+    1  9527CODE
+    4  9527code
+    1  A6API
+    1  AICodeMirror
+    2  AICodeWith
+    1  AICoding
+    2  AIComing
+    1  AIGoCode
+    1  APIKEY.FUN
+    1  APINebula
+    6  AWS Bedrock
+    3  AiHubMix
+    2  AllTokens
+    1  AllTokens SI
+    2  Amux
+    1  Astron Coding Plan
+    2  AtlasCloud
+  220  Auto
+    3  Azure OpenAI
+    1  BaiLing
+    1  Baidu Qianfan
+    2  Baseten
+    2  BotCF
+    2  BuyToken
+    1  BytePlus
+    1  CCSub
+    1  CherryIN
+    3  Claude Desktop Official
+    2  Claude Fable 5.1
+    2  Claude Haiku 4.5
+    2  Claude Haiku 5.5
+    6  Claude Official
+    1  Claude Opus 4.5
+    9  Claude Opus 5
+    2  Claude Opus 5.5
+    5  Claude Sonnet 5
+    2  Claude Sonnet 5.5
+    1  ClaudeAPI
+    1  ClaudeCN
+    3  ClinePass
+    1  Code0
+ 3859  Codex
+    8  Command Code
+    1  CrazyRouter
+    2  Cubence
+    2  DIT.ai
+    1  DMXAPI
+    2  DeepInfra
+  325  DeepSeek
+    1  DeepSeek R1
+    1  DeepSeek V3.2
+   17  DeepSeek V4 Flash
+   10  DeepSeek V4 Pro
+    5  DeepSeek V4.1 Flash
+    2  DigitalOcean
+    2  Doubao Seed 2.1 Pro
+    2  E-FlowCode
+    1  FennoAI
+    1  Fireworks AI
+   21  GLM-5
+    2  GLM-5.1
+    7  GLM-5.2
+    8  GLM-5.3
+    6  GLM-5.3-Flash
+   20  GPT-5.6 Sol
+    2  GPT-6 Astra
+    1  GPT-6 Luna
+   10  GPT-6 Sol
+    5  GPT-6.1 Sol
+    1  Gemini 2.5 Flash Lite
+    2  Gemini 3.6 Flash
+   11  Gemini 3.8 Flash
+    6  Gemini 4 Argon
+   16  Gemini Native
+   37  GitHub Copilot
+    6  Google Official
+    4  Grok Official
+    1  GrooRoute Pro
+    2  Groq
+    1  Hugging Face
+    4  Hy3
+    1  IKunCode
+    2  JieKou AI
+  543  Kimi
+    6  Kimi For Coding
+    1  Kimi K2.6
+    2  Kimi K2.7 Code
+    1  Kimi K2.7 Code HighSpeed
+   14  Kimi K3
+    4  Kimi K3.1 Pro
+    9  LM Studio
+    1  Longcat
+    1  MiMo V2.6 Flash
+    2  MiMo V2.6 Pro
+    1  MiMo V2.6 Pro UltraSpeed
+    1  Micu
+  191  MiniMax
+    2  MiniMax M2.7
+   11  MiniMax M3
+    1  MiniMax M3.1 Flash
+   28  MiniMax-M3
+    1  Mistral Medium 3.5
+    1  Mistral Small 4
+    7  ModelScope
+    1  Modelflare
+    1  NekoCode
+    9  NewAPI
+    5  Novita AI
+    3  Nvidia
+    2  Oh My OpenCode
+    1  Oh My OpenCode Slim
+   11  Ollama
+   12  OpenAI Official
+   12  OpenCode Go
+    5  OpenCode Zen
+    1  OpenModel
+   98  OpenRouter
+    2  PIPELLM
+    3  PPIO
+   13  PackyCode
+    1  PatewayAI
+    3  Qwen3 Coder Plus
+    2  Qwen3.5
+    1  Qwen3.6 27B
+    2  Qwen3.6 Plus
+    1  Qwen3.7 Max
+    1  Qwen3.7 Plus
+    1  Qwen3.8 Flash
+    1  Qwen3.8 Max
+    1  QwenCloud
+    1  RelaxyCode
+    3  RightCode
+    1  RunAPI
+    1  RunToken
+    4  SSSAiCode
+    2  SambaNova
+    1  Shengsuanyun
+   17  SiliconFlow
+    2  SoleAPI
+    1  SoruxGPT
+    2  Soshow
+    2  Step 3.5 Flash
+    1  Step 3.5 Flash 2603
+    1  Step 3.7 Flash
+    4  Step 5 Preview
+   12  StepFun
+    1  StreamLake
+    1  SubRouter
+    1  SudoCode.chat
+    1  SudoCode.us
+    2  TeamoRouter
+    1  Tencent Hunyuan
+    2  TheRouter
+    1  Together AI
+    2  TokenFactory
+    1  TokenFlux
+    1  Tu-zi
+    2  V-API
+    4  Xiaomi MiMo
+    1  XycAi
+    2  YYLX
+    3  Zhipu GLM
+    1  Zhipu GLM en
+    5  a6api
+    2  aicodemirror
+    4  aicodewith
+    2  aicoding
+    4  aicoming
+    5  aigocode
+   47  aihubmix
+   11  alltokens
+    4  amux
+    5  apikeyfun
+    5  apinebula
+    1  ark_agentplan
+    5  atlascloud
+    6  bailing
+    4  baseten
+    4  botcf
+    4  buytoken
+    7  byteplus
+    3  cc-switch-minimax
+    5  ccsub
+    5  cherryin
+    9  claude-haiku-4-5-20251001
+   85  claude-opus-5
+   88  claude-sonnet-5
+    6  claudecn
+    1  clinepass
+   18  cloudflare
+    5  code0
+    3  compshare
+    1  compshare_coding
+    2  crazyrouter
+    5  cubence
+    4  deepinfra
+  679  deepseek
+   85  deepseek-v4-flash
+    7  digitalocean
+    6  dmxapi
+    7  eflowcode
+    6  fenno
+   11  gpt-5.2-codex
+    8  gpt-5.3-codex
+   34  gpt-5.6-sol
+    4  groq
+    3  hao.ai
+    5  ikuncode
+    4  jiekou
+  853  kimi
+    9  llama.cpp
+   19  longcat
+ 1999  meta
+    2  micu
+   11  mistral
+    5  modelflare
+   10  modelscope
+    4  nebius
+    5  nekocode
+    4  nous
+   17  novita
+    7  nvidia
+    2  ollama-local
+    5  openmodel
+  115  openrouter
+   16  packycode
+    7  pipellm
+    4  ppio
+    6  qianwenai
+    5  qiniu
+    4  qwencloud
+   25  rightcode
+    6  runapi
+    5  runtoken
+    4  sambanova
+    6  shengsuanyun
+   24  siliconflow
+    1  siliconflow_en
+    4  soleapi
+    5  soruxgpt
+    5  soshow
+    5  sssaicode
+   33  stepfun
+    5  streamlake
+    6  subrouter
+   10  sudocode
+    5  teamorouter
+    6  therouter
+   30  together
+    4  tokenfactory
+    5  tokenflux
+    5  tuzi
+    3  vLLM
+    4  vapi
+    1  xAI (Grok)
+    2  xiaomi_mimo
+    1  xiaomi_mimo_token_plan
+    5  xycai
+    4  yylx
+    3  zhipu_glm
+    1  zhipu_glm_en
+    1  千问AI平台
+    1  模力方舟
+    1  火山 Coding Plan

@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import i18n from "i18next";
@@ -6,6 +7,13 @@ import { initReactI18next } from "react-i18next";
 import { server } from "./msw/server";
 import { resetProviderState } from "./msw/state";
 import "./msw/tauriMocks";
+
+// findBy*/waitFor 默认 1s 超时在 Windows jsdom 上不够（大 DOM 的 role
+// 查询本身就很慢，参见 docs/aicli-handover/E-GATE.md）；慢平台放宽等待窗口，
+// 断言本身不变。
+if (process.platform === "win32") {
+  configure({ asyncUtilTimeout: 10_000 });
+}
 
 beforeAll(async () => {
   server.listen({ onUnhandledRequest: "warn" });
@@ -24,11 +32,12 @@ beforeAll(async () => {
 
 afterEach(() => {
   cleanup();
-  // 页面数据的本地缓存（src/lib/localCache.ts）和用量页记住的选择不能从一个用例带到下一个
+  // 页面数据的本地缓存（src/lib/localCache.ts）、用量页和发现栏记住的选择不能从一个用例带到下一个
   for (const key of Object.keys(localStorage)) {
     if (
       key.startsWith("cc-switch-cache:") ||
-      key.startsWith("cc-switch.usage.")
+      key.startsWith("cc-switch.usage.") ||
+      key.endsWith(".discoverView")
     )
       localStorage.removeItem(key);
   }

@@ -1,0 +1,21 @@
+F-12 残留「供应商」文案验收记录（2026-11-09 / 11-10）
+
+状态：[x] 完成
+提交：8361c8d7 feat(aicli): F-12 drop the leftover provider copy
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42746413907（aa825ee7，含 8361c8d7；四 job 及汇总全 success；前端 139 文件 / 1364 测试；
+    B-07 插值检查通过）
+
+来由：负责人 2026-11-09 第七条——搜索「供应商」看哪些没去除第三方供应商；G-01/G-02 以外的可见文案。
+
+实现
+1. 欢迎弹窗：改为 AICLI 的工作方式（一键接管，请求经本机代理发往 AICLI；接管前配置完整备份，在「客户端」
+   页停止接管即原样还原，例如回到官方登录或自己的设置）。
+2. 删除「界面改版了」提示（NewLayoutDialog，面向 cc-switch 老用户，指向已删授权中心）；WhatsNew 不再
+   等它。删除测试 tests/components/NewLayoutDialog.test.tsx；WhatsNewNotice 用例「等改版提示」删除，
+   「改版提示不适用时显示」改为「不再等已删除的改版提示」。
+3. 删除「通用 → 额度显示」设置行（只影响已删供应商卡片与授权中心）。
+4. 五种语言改写帮助文字：本地路由服务、应用显示（改为「客户端」页）、MCP 重写时机、OpenClaw 无模型、
+   终端设置、应用页说明。只改值、键保留，B-07 插值检查不变。
+5. 托盘的「添加 / 切换供应商」文案与菜单属 G-04，未改。
+
+测试（CI 同一 run）：WhatsNewNotice 8 passed；设置、配置、集成测试通过。

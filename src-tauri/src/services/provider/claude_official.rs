@@ -233,26 +233,6 @@ fn pointer_account(db: &Database) -> Option<String> {
     bound_account(providers.get(&current)?)
 }
 
-/// 账号在默认槽位、要用默认目录开终端时：Claude Code 现在用的必须是官方卡，否则
-/// `settings.json` 里那一家的地址、Key（或本地路由）会盖过这个账号的登录。
-pub fn ensure_default_terminal_is_official(db: &Database) -> Result<(), AppError> {
-    let app = AppType::Claude;
-    let in_use = if crate::mode::current::is_proxy(&app) {
-        None
-    } else {
-        crate::mode::current::provider_for(db, &app, crate::mode::current::Purpose::Direct)?
-            .and_then(|id| db.get_all_providers(app.as_str()).ok()?.get(&id).cloned())
-    };
-    if in_use.as_ref().is_some_and(is_official) {
-        return Ok(());
-    }
-    Err(AppError::localized(
-        "claude.account.default_taken",
-        "这个账号现在在 Claude Code 的默认登录里，但 Claude Code 当前用的是其他供应商或本地路由，打开的终端不会用这个账号。请先切到这张卡（或任一官方卡）再打开终端",
-        "This account is Claude Code's current sign-in, but Claude Code is set to another provider or the local router, so a new terminal wouldn't use this account. Switch to this card (or any official card) first, then open the terminal.",
-    ))
-}
-
 fn with_snapshot_ctx<R>(
     data_dir: &std::path::Path,
     f: impl FnOnce(&snapshot::Ctx<'_>) -> Result<R, AppError>,
@@ -308,46 +288,6 @@ pub async fn refresh_live_after_account_change(
     .await
     .map_err(|error| error.to_string())?
     .map_err(|error| error.to_string())
-}
-
-/// 从卡片打开终端时，绑号卡的 `claude` 用哪里的登录。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AccountTerminal {
-    /// 账号自己的目录（`CLAUDE_CONFIG_DIR=<目录>`）
-    Dir(std::path::PathBuf),
-    /// 账号正在默认槽位里（切卡时移进去的，它自己的目录这时是空的）：用默认目录
-    Default,
-}
-
-/// 绑了本机账号的官方卡打开终端时用哪里的登录（所有平台）；没绑为 `None`。
-/// 绑的账号不在这台电脑上时报错，免得悄悄用错号。
-pub fn terminal_account(provider: &Provider) -> Result<Option<AccountTerminal>, AppError> {
-    let Some(account) = bound_account(provider) else {
-        return Ok(None);
-    };
-    let dir = claude_account::config_dir_on_disk(&crate::config::get_app_config_dir(), &account);
-    // 账号目录里有自己的登录就用它；没有、而这个号在默认槽位里（切卡时移进去的）才用默认目录。
-    // 只看身份不够：默认目录和账号目录可能各登着同一个号（用户自己在 Claude Code 里登的）
-    if let Some(dir) = dir.as_ref().filter(|dir| snapshot::dir_has_login(dir)) {
-        return Ok(Some(AccountTerminal::Dir(dir.clone())));
-    }
-    if snapshot::is_live(&account) {
-        return Ok(Some(AccountTerminal::Default));
-    }
-    match dir {
-        Some(dir) => Ok(Some(AccountTerminal::Dir(dir))),
-        None => Err(AppError::localized(
-            "claude.account.not_on_device",
-            format!(
-                "「{}」绑定的 Claude 账号不在这台电脑上。请在授权中心添加它，或编辑卡片换一个账号",
-                provider.name
-            ),
-            format!(
-                "The Claude account bound to \"{}\" isn't on this computer. Add it in the Auth Center, or edit the card to choose another account.",
-                provider.name
-            ),
-        )),
-    }
 }
 
 #[cfg(test)]
@@ -410,12 +350,5 @@ mod tests {
             doc,
             json!({"env": {"CLAUDE_CONFIG_DIR": "/home/me/work-claude"}})
         );
-    }
-
-    #[test]
-    fn unbound_card_on_unknown_account_writes_nothing() {
-        // 绑了但本机没有这个账号：打开终端报错，默认登录的卡不设目录
-        assert!(terminal_account(&official(Some("missing:acc"))).is_err());
-        assert!(terminal_account(&official(None)).unwrap().is_none());
     }
 }

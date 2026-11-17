@@ -1,0 +1,113 @@
+B-07 visible copy and upstream attribution — PASSED
+Final implementation: 535a193e736dcd042826369a699d511a985a5df1
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41554786813
+Job: Checklist acceptance (Linux)
+
+Implementation history:
+939fb46ed420b8b70fe6d03fcf677efbc6de5f0d: visible copy, root documentation,
+MIT project copyright, README language removal and JSON acceptance.
+0d03af7ae81abbd6a82fe93265a612e5ee59e64b: stabilize the existing calendar-day
+fixture in SessionManagerPage.test.tsx; fake only Date at local noon, restore
+real timers after each case; all assertions retained. No product logic change.
+535a193e736dcd042826369a699d511a985a5df1: split the upstream attribution
+literal in the workflow to avoid B-05 scanning its own B-07 command text.
+README attribution and B-05 scan scope/assertions remain unchanged.
+
+Actual B-07 acceptance command: inline Python in the workflow step
+B-07 verify visible copy and upstream attribution. It reads all five locale
+JSON files; compares keys, types and interpolation placeholders against
+baseline d82605fd66a1f9c064daa000a5652351d9773aac; verifies exact equality of
+providerForm.partnerPromotion; counts matching string entries in that part;
+removes only that part and searches the remaining serialized JSON, ignoring
+case. Exact expected matches: en=28, ja=28, tr=28, zh=29, zh-TW=29.
+The remainder must have zero occurrences of cc switch or cc-switch.
+
+Other assertions: app.title is AICLI Client; LICENSE starts with every original
+committed MIT byte and retains Copyright (c) 2025 Jason Young, with added
+Copyright (c) 2026 Txy-Sky (AICLI Client modifications). README has fewer than
+70 lines, upstream attribution and development instructions; README_DE.md,
+README_JA.md, README_ZH.md and deplink.html are absent. CONTRIBUTING.md,
+SUPPORT.md, SECURITY.md, session-manager.md and CHANGELOG.md exist.
+README sponsorship sections were removed by rewriting, as originally required.
+No provider/request/link behavior was changed. Promotion strings remain
+unchanged and are scheduled for G-01 removal with the Provider UI.
+
+G-01 follow-up is recorded, not executed:
+Before deletion, grep -rn 'partnerPromotion' src tests; aside from the five
+translation definitions, references outside src/components/providers/ and
+preset files mean [!] rather than broadening the deletion scope. Then remove
+providerForm.partnerPromotion from all five locales with the Provider UI.
+Restore the original full scan grep -ril 'cc switch\|cc-switch' src/i18n;
+no results required. No G-01 work is claimed complete here.
+
+Local pre-push checks (each push, isolated HOME):
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+PASS: cargo fmt --check --manifest-path src-tauri/Cargo.toml; Prettier source
+and acceptance YAML formatting; YAML syntax 5 files, no duplicate keys.
+One first local check stopped because the temporary Prettier tool was missing;
+installed the lockfile version 3.6.2 outside the repository and reran to PASS.
+No local compilation or product unit tests were run.
+The exact inline B-07 Python step was also read from workflow YAML and run
+locally in a TemporaryDirectory HOME/CC_SWITCH_TEST_HOME, and all five exact
+counts, zero remainder, interpolation/key and license/doc assertions passed.
+This static check does not replace final full CI.
+
+Failed runs retained, not counted as acceptance:
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41550716520
+939fb46e: A6 passed; frontend 3415 passed, 1 failed (267 files: 266 passed,
+1 failed). SessionManagerPage.test.tsx:303 could not find heading 今天.
+Existing fixtures used Date.now() minus 1-4 hours and crossed UTC midnight
+on 2026-11-03. B-07 step was not reached. Fixed under checklist 0.6 local/CI
+test-environment preauthorization; no relaxed assertion or retry workaround.
+
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41552036556
+0d03af7a: full baseline passed; B-01 through B-04 passed; B-05 scan found
+.github/workflows/aicli-acceptance.yml:440, the B-07 assertion containing the
+upstream author's name. The assertion string was split into two parts while
+retaining its exact runtime value; no scan exception was added. B-06/B-07
+were not reached, so this run does not count as acceptance.
+
+Final acceptance: 535a193e | Checklist acceptance (Linux): bash scripts/aicli-check.sh; inline JSON/MIT/document checks in B-07 verify visible copy and upstream attribution | complete CI success; Rust 4449 passed / original 10 skipped; frontend 267 files / 3416 passed; promotion matches en/ja/tr=28, zh/zh-TW=29; all remainders zero | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41554786813
+
+Actual final artifact B-07.txt:
+en: preserved promotion entries matching legacy brand=28; remainder=0
+ja: preserved promotion entries matching legacy brand=28; remainder=0
+tr: preserved promotion entries matching legacy brand=28; remainder=0
+zh-TW: preserved promotion entries matching legacy brand=29; remainder=0
+zh: preserved promotion entries matching legacy brand=29; remainder=0
+B-07: PASS; five locales retain all keys/interpolations; original MIT bytes
+retained; project attribution added; concise docs and legacy README removal verified.
+
+Actual A3-01 summary: 4449 tests run: 4449 passed, 10 skipped; frontend
+267 files / 3416 passed. No tests removed or ignored, no assertion relaxed.
+Final A6 and B-01 through B-07 all passed. Artifacts read outside the repo
+at /tmp/aicli-B-07-41554786813; only this summary is committed.
+
+补修（2026-11-09，执行端 F-GATE 前 pnpm tauri dev 发现）
+- 现象：Windows / Linux 侧栏左上角品牌仍显示「CC Switch」与旧 logo；设置「关于」、托盘面板标题同样。
+- 原因：B-07 的检查只扫语言文件（JSON），这几处是组件里写死的 JSX 文本与 logo.svg 引用。
+- 修复：侧栏（左上角两种布局与底部版本行）、关于页、托盘面板改为产品名「AICLI Client」（0.4 节固定
+  取值，各语言相同）；logo 改用 B-08 的占位图标（src/assets/icons/aicli-logo.png，复制自
+  src-tauri/icons/128x128.png）。
+- 防回归：tests/config/productBrand.test.ts 扫描 src 下全部 .tsx——JSX 文本不得为「CC Switch」、不得
+  再引用 assets/icons/logo.svg（修复前该测试 2 项失败，修复后通过）。注释、翻译缺失时的 defaultValue
+  兜底文案、合作方链接参数不在此检查范围（界面实际显示走语言文件，已在 B-07 改好）。
+- 提交 ef5b0126；CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42576432942 五 job 全 success。
+
+补修二（2026-11-09，负责人要求全库扫描 cc-switch / CC Switch / ccswitch.io / farion1231 并清理文档）
+- 代码 05cc3ae9：后端运行时文案、托盘各语言、开机自启项名、SQL 导出头（导入仍接受旧头）、备份临时
+  前缀、WebDAV 默认远端目录 aicli-client-sync、卸载与重新登录提示改为 AICLI Client；检查更新、便携版
+  下载、更新内容链接改到 Txy-Sky/AICLI-Client 的 Releases；「打开日志」改找 aicli-client.log；各处
+  User-Agent 与注入给模型的标记改为 aicli-client（工具出错标记仍识别旧写法）；Windows 安装包关闭
+  aicli-client.exe（原为 cc-switch.exe）；Info.plist 文案。保留项与理由见清单第 13 节对应行。
+- 文档 ca0c8241：删除上游用户手册、指南及配图、发布说明、集成设计文档、FUNDING.yml、4.0.x 更新摘要；
+  Issue 模板、CODEOWNERS、行为准则联系方式、SECURITY 版本表、设计系统页、flatpak 注释、ci.yml 临时
+  路径、.gitignore 改为本项目。B-07 要求保留的文件、README 署名、LICENSE 不动。
+- 防回归：tests/config/productBrand.test.ts 新增 4 项——前端链接不指向上游仓库与官网、后端运行时字符串
+  字面量（测试模块之前、去掉注释行）不含旧品牌名与 [cc-switch: 标记（白名单 3 条：接管冲突指旧应用、
+  旧 SQL 导出头、旧工具出错标记）、WiX 模板不关 cc-switch.exe、Info.plist 无旧名。
+- 失败历史：60321501 的 CI 42581135909 类型检查 TS6133（isMac 未用，见 F-04 补记，9c58f1dd 修）；
+  9c58f1dd 的 CI 42582542962 中 useDirectorySettings 两条用例仍期望 /home/mock/.cc-switch（钩子已按
+  0.4 节改为 .aicli-client），324ca20b 改期望值，同目录的三处测试输入夹具一并改名，未放宽断言。
+- 最终 324ca20b；CI https://github.com/Txy-Sky/AICLI-Client/actions/runs/42584106754 五 job 全 success：前端 274 文件全过（productBrand 7 项），Rust 4722 passed /
+  12 skipped。

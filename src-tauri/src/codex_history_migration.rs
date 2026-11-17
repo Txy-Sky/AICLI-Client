@@ -5,7 +5,6 @@
 
 use crate::codex_config::{
     get_codex_config_dir, read_codex_config_text, CC_SWITCH_CODEX_MODEL_PROVIDER_ID,
-    CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID,
 };
 use crate::codex_rollout_file;
 use crate::codex_state_db::{codex_state_db_is_lockable, codex_state_db_paths};
@@ -52,6 +51,8 @@ pub(crate) fn lock_history_op_for_backup_cleanup() -> std::sync::MutexGuard<'sta
 /// Codex 内建默认 provider id：config.toml 没有 `model_provider` 键时会话归入此桶。
 /// 官方订阅（ChatGPT OAuth / OpenAI API key）的历史会话都记录这个 id。
 const OFFICIAL_OPENAI_CODEX_MODEL_PROVIDER_ID: &str = "openai";
+// Preserve the legacy migration identity independently of the AICLI runtime identity.
+const CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID: &str = "cc-switch-official";
 const LEGACY_CC_SWITCH_CODEX_MODEL_PROVIDER_ID: &str = "ccswitch";
 // If a Codex preset ever used a temporary routing key, keep that old key here
 // so local history can be bucketed under the current custom provider id.
@@ -1497,7 +1498,7 @@ base_url = "https://aihubmix.example/v1"
             "model_provider = \"openai\"\n"
         ));
         assert!(!codex_config_text_routes_custom(
-            "base_url = \"http://127.0.0.1:15721/codex\"\n"
+            "base_url = \"http://127.0.0.1:15821/codex\"\n"
         ));
         assert!(!codex_config_text_routes_custom(""));
         assert!(!codex_config_text_routes_custom("not toml ["));
@@ -2936,7 +2937,7 @@ model_provider = "aihubmix"
         let session_dir = codex_dir.join("sessions/2026/09/01");
         fs::create_dir_all(&session_dir).expect("create session dir");
         // 休眠 custom 表保持原样：迁移不碰 config.toml。
-        let config = "model = \"gpt-5.5\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nexperimental_bearer_token = \"PROXY_MANAGED\"\n";
+        let config = "model = \"gpt-5.5\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"http://127.0.0.1:15821/v1\"\nexperimental_bearer_token = \"PROXY_MANAGED\"\n";
         fs::write(codex_dir.join("config.toml"), config).expect("write config");
 
         let plain = session_dir.join("rollout-legacy.jsonl");

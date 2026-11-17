@@ -6,17 +6,19 @@ import {
   ArrowLeft,
   BookOpen,
   ChartColumn,
+  Wallet,
   ChevronsLeft,
   ChevronsRight,
   Database,
   Folder,
   Globe,
   History,
+  House,
   Info,
-  KeyRound,
   Layers,
-  LayoutGrid,
+  MonitorSmartphone,
   Route,
+  ShieldCheck,
   Server,
   Settings,
   SlidersHorizontal,
@@ -40,12 +42,30 @@ import {
   resolveSidebarToday,
   type SidebarTodayItem,
 } from "@/components/usage/format";
-import { useSidebarStatus, type AppNavStatus } from "@/hooks/useSidebarStatus";
+import { useSidebarStatus } from "@/hooks/useSidebarStatus";
+import {
+  useAicliProfiles,
+  useAicliTakeoverStatus,
+} from "@/hooks/useAicliProfiles";
+import {
+  useAicliAccount,
+  useAicliCachedValue,
+  useAicliPrivacy,
+} from "@/hooks/useAicliAccount";
+import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
+import { useAicliPrivacySummary } from "@/hooks/useAicliPrivacyRecords";
+import { useProxyStatusQuery } from "@/lib/query/proxy";
+import {
+  AICLI_TAKEOVER_APPS,
+  takeoverDisplay,
+} from "@/components/aicli/takeover/useAicliTakeoverFlow";
 import { HoverTip } from "@/components/ui/hover-tip";
 import { DRAG_REGION_ATTR, DRAG_REGION_STYLE, isMac } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import ccswitchLogo from "@/assets/icons/logo.svg";
-import { APP_DISPLAY_NAME, APP_SIDEBAR_NAME, AppGlyph } from "./AppGlyph";
+// 产品名与占位图标（清单 0.4 节产品名、B-08 占位图标）
+import appLogo from "@/assets/icons/aicli-logo.png";
+
+const PRODUCT_NAME = "AICLI Client";
 
 const NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
@@ -56,7 +76,6 @@ interface SidebarProps {
   view: View;
   visibleApps: VisibleApps;
   settingsSection: SettingsSection;
-  onSelectApp: (app: AppId) => void;
   onSelectPage: (page: GlobalPage | "settings") => void;
   onSelectSettingsSection: (section: SettingsSection) => void;
   onExitSettings: () => void;
@@ -145,13 +164,13 @@ function SidebarTopBar({
           style={DRAG_REGION_STYLE as React.CSSProperties}
         >
           <img
-            src={ccswitchLogo}
+            src={appLogo}
             alt=""
             draggable={false}
             className="pointer-events-none h-5 w-5 shrink-0"
           />
           <span className="pointer-events-none me-auto min-w-0 truncate text-strong font-semibold text-fg-1">
-            CC Switch
+            {PRODUCT_NAME}
           </span>
           {toggleButton}
         </div>
@@ -190,13 +209,13 @@ function SidebarTopBar({
         // 图片不接收指针事件，拖它也是在拖窗口
         <span className="pointer-events-none me-auto flex min-w-0 items-center gap-2 ps-1.5">
           <img
-            src={ccswitchLogo}
+            src={appLogo}
             alt=""
             draggable={false}
             className="h-[22px] w-[22px] shrink-0"
           />
           <span className="truncate text-strong font-semibold text-fg-1">
-            CC Switch
+            {PRODUCT_NAME}
           </span>
         </span>
       )}
@@ -209,10 +228,8 @@ function SidebarTopBar({
 
 function MainDirectory({
   collapsed,
-  activeApp,
   view,
   visibleApps,
-  onSelectApp,
   onSelectPage,
   appsUpdateAvailable = false,
 }: DirectoryProps) {
@@ -220,24 +237,31 @@ function MainDirectory({
   const { moneyShort } = useMoneyFormat();
   const { data: settings } = useSettingsQuery();
   const { hasUpdate } = useUpdate();
-  const {
-    appStatus,
-    todayCost,
-    todayTokens,
-    todayRequests,
-    todayHitRate,
-    authNeedsAttention,
-  } = useSidebarStatus();
-  // 顺序跟应用页拖出来的一致
-  const apps = orderAppIds(settings?.appOrder).filter(
-    (app) => visibleApps[app],
-  );
-  const onAppPage = isAppPage(view);
+  const { appStatus, todayCost, todayTokens, todayRequests, todayHitRate } =
+    useSidebarStatus();
+  const takeover = useAicliTakeoverStatus();
+  const { data: proxyStatus } = useProxyStatusQuery();
+  const privacyOn = useAicliPrivacy().data?.privacy_enabled ?? false;
+  const privacySummary = useAicliPrivacySummary(1, privacyOn).data;
+  const profilesView = useAicliProfiles().data;
+  // W 阶段：「钱包」行尾写余额（与首页同一份服务端缓存，缓存优先）
+  const aicliAccount = useAicliAccount().data;
+  const aicliBound =
+    aicliAccount?.state === "bound" || aicliAccount?.state === "needs_rebind";
+  const accountCache = useAicliCachedValue("account", aicliBound).data;
+  const privacyToday = privacySummary?.total_values ?? 0;
 
   // 选了的项里是 0 的不写（没配定价时金额总是 0）；命中率在今天还没有请求时不写；
   // 全都没有就整个不显示。两项都有时只写数、上下两行（「今日」放进悬停和读屏）：
   // 带上「今日」，换成新台币这类长币种后一行放不下，会把「用量统计」挤成省略号
   const locale = getLocaleFromLanguage(getResolvedLang(i18n));
+  const walletBalance = aicliBound
+    ? formatAicliQuota(
+        readAccountQuota(accountCache?.value).remaining,
+        aicliAccount?.quota_display,
+        locale,
+      )
+    : null;
   const todayValue = (item: SidebarTodayItem): string | null => {
     switch (item) {
       case "cost":
@@ -265,23 +289,51 @@ function MainDirectory({
       : undefined;
   const todayTrailing = todayValues.length > 1 ? todayValues : todayText;
 
-  const globals: {
+  // F-08：客户端只占一行；行尾写已接管数量，有客户端需要处理时打红点
+  const activeTakeovers = (takeover.data ?? []).filter(
+    (entry) =>
+      AICLI_TAKEOVER_APPS.includes(entry.app as AppId) &&
+      visibleApps[entry.app as AppId] !== false &&
+      takeoverDisplay(entry.state) === "active",
+  ).length;
+  const clientsNeedAttention =
+    orderAppIds(settings?.appOrder)
+      .filter((app) => visibleApps[app])
+      .some((app) => appStatus(app).alert) ||
+    (activeTakeovers > 0 && proxyStatus !== undefined && !proxyStatus.running);
+
+  type GlobalItem = {
     page: GlobalPage;
     label: string;
     icon: IconComponent;
     trailing?: string | string[];
     trailingLabel?: string;
     alert?: string;
-  }[] = [
-    { page: "mcp", label: "MCP", icon: Server },
-    { page: "skills", label: "Skills", icon: SkillsIcon },
-    { page: "prompts", label: t("nav.prompts"), icon: BookOpen },
-    { page: "sessions", label: t("nav.sessions"), icon: History },
+    dot?: boolean;
+    title?: string;
+  };
+  // 2026-11 改版（设计稿各页的侧栏）：首页、客户端、用量、隐私脱敏、配置集；
+  //「应用」（安装与升级）并入客户端页，侧栏少一项，工具有更新时在「客户端」上打点
+  const profileCount =
+    (profilesView?.profiles.length ?? 0) + (profilesView?.presets.length ?? 0);
+  const primary: GlobalItem[] = [
     {
-      page: "auth",
-      label: t("nav.auth"),
-      icon: KeyRound,
-      alert: authNeedsAttention ? t("nav.authNeedsReauth") : undefined,
+      page: "home",
+      label: t("nav.home"),
+      icon: House,
+    },
+    {
+      page: "clients",
+      label: t("nav.clients"),
+      icon: MonitorSmartphone,
+      trailing: activeTakeovers > 0 ? String(activeTakeovers) : undefined,
+      trailingLabel:
+        activeTakeovers > 0
+          ? t("nav.clientsActive", { count: activeTakeovers })
+          : undefined,
+      alert: clientsNeedAttention ? t("nav.needsAttention") : undefined,
+      dot: appsUpdateAvailable,
+      title: appsUpdateAvailable ? t("nav.appsHasUpdate") : undefined,
     },
     {
       page: "usage",
@@ -290,10 +342,64 @@ function MainDirectory({
       trailing: todayTrailing,
       trailingLabel: todayText,
     },
+    {
+      // W 阶段：充值、兑换码、订阅套餐、邀请返利
+      page: "wallet",
+      label: t("nav.wallet"),
+      icon: Wallet,
+      trailing: walletBalance ?? undefined,
+    },
+    {
+      // F-09：隐私脱敏独立页；开启时行尾写今天遮盖的个数
+      page: "privacy",
+      label: t("nav.privacy"),
+      icon: ShieldCheck,
+      trailing:
+        privacyOn && privacyToday > 0
+          ? formatTokensCompact(privacyToday, locale)
+          : undefined,
+      trailingLabel:
+        privacyOn && privacyToday > 0
+          ? t("nav.privacyToday", { count: privacyToday })
+          : undefined,
+    },
+    {
+      page: "profiles",
+      label: t("nav.profiles"),
+      icon: Layers,
+      trailing:
+        profileCount > 0
+          ? t("nav.profilesCount", { count: profileCount })
+          : undefined,
+    },
+  ];
+  const secondary: GlobalItem[] = [
+    { page: "mcp", label: "MCP", icon: Server },
+    { page: "skills", label: "Skills", icon: SkillsIcon },
+    { page: "prompts", label: t("nav.prompts"), icon: BookOpen },
+    { page: "sessions", label: t("nav.sessions"), icon: History },
   ];
 
   const isGlobalSelected = (page: GlobalPage) =>
-    view === page || (page === "skills" && view === "skillsDiscovery");
+    view === page ||
+    (page === "skills" && view === "skillsDiscovery") ||
+    (page === "clients" && (isAppPage(view) || view === "apps"));
+
+  const renderItem = (item: GlobalItem) => (
+    <NavItem
+      key={item.page}
+      collapsed={collapsed}
+      selected={isGlobalSelected(item.page)}
+      icon={item.icon}
+      label={item.label}
+      trailing={item.trailing}
+      trailingLabel={item.trailingLabel}
+      alert={item.alert}
+      dot={item.dot}
+      title={item.title}
+      onClick={() => onSelectPage(item.page)}
+    />
+  );
 
   return (
     <>
@@ -304,45 +410,16 @@ function MainDirectory({
           collapsed && "no-scrollbar",
         )}
       >
+        <div className="flex shrink-0 flex-col">{primary.map(renderItem)}</div>
         <div
-          role="group"
-          aria-label={t("nav.appsGroup")}
-          className="flex shrink-0 flex-col"
-        >
-          {apps.map((app) => (
-            <AppNavItem
-              key={app}
-              app={app}
-              collapsed={collapsed}
-              selected={onAppPage && activeApp === app}
-              status={appStatus(app)}
-              onSelect={() => onSelectApp(app)}
-            />
-          ))}
+          className={cn(
+            "h-px shrink-0 bg-border",
+            collapsed ? "mx-[18px] my-1.5" : "mx-4 my-1.5",
+          )}
+        />
+        <div className="flex shrink-0 flex-col">
+          {secondary.map(renderItem)}
         </div>
-      </div>
-
-      <div
-        className={cn(
-          "h-px shrink-0 bg-border",
-          collapsed ? "mx-[18px] my-1.5" : "mx-4 mb-1.5 mt-0.5",
-        )}
-      />
-
-      <div className="flex shrink-0 flex-col">
-        {globals.map((item) => (
-          <NavItem
-            key={item.page}
-            collapsed={collapsed}
-            selected={isGlobalSelected(item.page)}
-            icon={item.icon}
-            label={item.label}
-            trailing={item.trailing}
-            trailingLabel={item.trailingLabel}
-            alert={item.alert}
-            onClick={() => onSelectPage(item.page)}
-          />
-        ))}
       </div>
 
       {/* 和上面那条分隔线同样缩进、上下各留 6px，选中的最后一项不会贴着线 */}
@@ -356,25 +433,12 @@ function MainDirectory({
       <div
         className={cn(
           "flex shrink-0 pb-2",
-          // 收起时竖排，和上面全局项一样无间隙
-          collapsed ? "flex-col" : "gap-1 px-2",
+          // 收起时竖排，和上面全局项一样无间隙；只剩「设置」一项，占满一行
+          "flex-col",
         )}
       >
         <NavItem
           collapsed={collapsed}
-          compact={!collapsed}
-          selected={view === "apps"}
-          icon={LayoutGrid}
-          label={t("nav.apps")}
-          title={
-            appsUpdateAvailable ? t("nav.appsHasUpdate") : t("nav.appsTitle")
-          }
-          dot={appsUpdateAvailable}
-          onClick={() => onSelectPage("apps")}
-        />
-        <NavItem
-          collapsed={collapsed}
-          compact={!collapsed}
           selected={false}
           icon={Settings}
           label={t("nav.settings")}
@@ -385,132 +449,6 @@ function MainDirectory({
         />
       </div>
     </>
-  );
-}
-
-function modeTag(
-  status: AppNavStatus,
-  t: (key: string) => string,
-): { label: string; className: string } | null {
-  if (status.mode === "route") {
-    return {
-      label: t("nav.mode.route"),
-      className: "bg-route-soft text-route-text",
-    };
-  }
-  if (status.mode === "stack") {
-    return {
-      label: t("nav.mode.stack"),
-      className: "bg-stack-soft text-stack-text",
-    };
-  }
-  return null;
-}
-
-function AppNavItem({
-  app,
-  collapsed,
-  selected,
-  status,
-  onSelect,
-}: {
-  app: AppId;
-  collapsed: boolean;
-  selected: boolean;
-  status: AppNavStatus;
-  onSelect: () => void;
-}) {
-  const { t } = useTranslation();
-  // 侧栏显示短名，悬停提示和无障碍名用全名
-  const name = APP_DISPLAY_NAME[app];
-  const shortName = APP_SIDEBAR_NAME[app] ?? name;
-  const tag = modeTag(status, t);
-  const modeName =
-    status.mode === "route"
-      ? t("nav.mode.route")
-      : status.mode === "stack"
-        ? t("nav.mode.stack")
-        : null;
-  const tip = status.alert
-    ? `${name} · ${t("nav.needsAttention")}`
-    : modeName
-      ? `${name} · ${modeName}`
-      : name;
-  const badgeBg = selected ? "bg-selected" : "bg-sidebar";
-
-  if (collapsed) {
-    const marker = status.alert
-      ? { className: "bg-danger text-action-fg", icon: AlertGlyph }
-      : status.mode === "stack"
-        ? { className: "bg-stack-solid text-stack-on", icon: Layers }
-        : status.mode === "route"
-          ? { className: "bg-route-solid text-route-on", icon: Route }
-          : null;
-    return (
-      <HoverTip content={tip} side="right" disableHoverableContent>
-        <button
-          type="button"
-          onClick={onSelect}
-          aria-label={tip}
-          aria-current={selected ? "page" : undefined}
-          className={cn(
-            "mx-auto flex h-8 w-12 shrink-0 items-center justify-center rounded-control transition-colors hover:bg-subtle",
-            selected && "bg-selected hover:bg-selected",
-          )}
-        >
-          <span className="relative flex">
-            <AppGlyph app={app} size={20} badgeClassName={badgeBg} />
-            {marker && (
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2",
-                  selected ? "border-selected" : "border-sidebar",
-                  marker.className,
-                )}
-              >
-                <marker.icon className="h-2 w-2" strokeWidth={3} />
-              </span>
-            )}
-          </span>
-        </button>
-      </HoverTip>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? "page" : undefined}
-      className={cn(
-        "mx-2 flex h-7 w-[184px] shrink-0 items-center gap-2 rounded-control px-2 text-start transition-colors hover:bg-subtle",
-        selected && "bg-selected font-medium hover:bg-selected",
-      )}
-    >
-      <AppGlyph app={app} size={16} badgeClassName={badgeBg} />
-      <span className="min-w-0 flex-1 truncate">{shortName}</span>
-      {status.alert ? (
-        <span
-          role="img"
-          aria-label={t("nav.needsAttention")}
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
-        />
-      ) : (
-        // 选中的应用不再显示模式标签：页头下面的模式行已经写明
-        tag &&
-        !selected && (
-          <span
-            className={cn(
-              "h-[18px] whitespace-nowrap rounded-full px-1.5 text-badge leading-[18px]",
-              tag.className,
-            )}
-          >
-            {tag.label}
-          </span>
-        )
-      )}
-    </button>
   );
 }
 
@@ -592,7 +530,7 @@ function NavItem({
       {collapsed && alert && (
         <span
           className={cn(
-            "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-danger text-action-fg",
+            "absolute -end-[7px] -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 bg-danger text-white",
             ring,
           )}
         >
@@ -769,7 +707,7 @@ function SettingsDirectory({
       </div>
       {!collapsed && version && (
         <div className="shrink-0 px-4 pb-4 text-caption text-fg-3">
-          CC Switch v{version}
+          {PRODUCT_NAME} v{version}
         </div>
       )}
     </>

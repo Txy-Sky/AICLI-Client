@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import type { AppId } from "@/lib/api";
-import * as authApi from "@/lib/api/auth";
-import type { ManagedAuthProvider } from "@/lib/api/auth";
 import { useProxyStatusQuery } from "@/lib/query/proxy";
 import { proxyApi } from "@/lib/api/proxy";
 import { useUsageSummary } from "@/lib/query/usage";
@@ -18,14 +16,9 @@ export interface AppNavStatus {
 }
 
 const TODAY: UsageRangeSelection = { preset: "today" };
-const MANAGED_AUTH_PROVIDERS: ManagedAuthProvider[] = [
-  "github_copilot",
-  "codex_oauth",
-  "xai_oauth",
-];
 
 /**
- * 侧栏需要的状态：每个应用的模式标签和提醒、今日花费与 Token、授权中心是否有账号要重新登录。
+ * 侧栏需要的状态：每个应用的模式标签和提醒、今日花费与 Token。
  */
 export function useSidebarStatus() {
   const { data: proxyStatus } = useProxyStatusQuery();
@@ -38,14 +31,6 @@ export function useSidebarStatus() {
   });
   const { data: todaySummary } = useUsageSummary(TODAY, undefined, {
     refetchInterval: 60_000,
-  });
-
-  const authStatuses = useQueries({
-    queries: MANAGED_AUTH_PROVIDERS.map((provider) => ({
-      queryKey: ["managed-auth-status", provider],
-      queryFn: () => authApi.authGetStatus(provider),
-      staleTime: 60_000,
-    })),
   });
 
   const serviceRunning = proxyStatus?.running ?? false;
@@ -74,18 +59,11 @@ export function useSidebarStatus() {
   const todayRequests = todaySummary?.totalRequests ?? 0;
   const todayHitRate = todaySummary?.cacheHitRate ?? 0;
 
-  const authNeedsAttention = authStatuses.some((query) =>
-    query.data?.accounts.some(
-      (account) => account.requires_reauth || account.reauth_required === true,
-    ),
-  );
-
   return {
     appStatus,
     todayCost,
     todayTokens,
     todayRequests,
     todayHitRate,
-    authNeedsAttention,
   };
 }

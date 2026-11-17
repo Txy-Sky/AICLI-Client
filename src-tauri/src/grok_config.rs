@@ -5,10 +5,6 @@ use std::path::PathBuf;
 use crate::config::get_home_dir;
 use crate::error::AppError;
 
-pub const DEFAULT_MODEL: &str = "grok-4.5";
-pub const DEFAULT_API_BACKEND: &str = "responses";
-pub const DEFAULT_CONTEXT_WINDOW: i64 = 500_000;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrokModelConfig {
     pub profile: String,
@@ -235,7 +231,9 @@ pub fn extract_base_url(config_toml: &str) -> Option<String> {
 pub fn has_proxy_placeholder(config_toml: &str, token_placeholder: &str) -> bool {
     extract_model_config(config_toml)
         .and_then(|config| config.api_key)
-        .is_some_and(|api_key| api_key == token_placeholder)
+        .is_some_and(|api_key| {
+            api_key == token_placeholder || crate::aicli::local_auth::is_proxy_token(&api_key)
+        })
 }
 
 /// Remove MCP projections from a provider-owned Grok Build settings snapshot.

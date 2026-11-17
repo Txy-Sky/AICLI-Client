@@ -1,0 +1,27 @@
+B-03 product identity metadata — PASSED
+Final implementation: f141974ecb91b1e191a60a4ce7ccc74038a70059
+Evidence: f141974e | Checklist acceptance (Linux), B-03 verify product identity metadata: cargo check --manifest-path src-tauri/Cargo.toml; pnpm typecheck; grep -n -E 'ccswitch|CC Switch' src-tauri/tauri.conf.json src-tauri/Cargo.toml package.json; diff -u of complete expected and actual output | cargo check success (38.16s); typecheck success; diff exit 0; B-03: PASS; complete CI success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41412991201
+Job ID: 125170076386
+Builds and tests ran only in Actions Linux with isolated HOME.
+
+Exact expected and actual scan (line numbers did not drift):
+src-tauri/tauri.conf.json:61:        "schemes": ["ccswitch"]
+src-tauri/tauri.conf.json:67:        "https://dl.ccswitch.io/latest.json",
+The workflow compares the whole output using diff; extra or missing lines fail.
+Owner decision: retain B-03 -> B-04 -> B-05 order. B-04 must leave only
+updater line; B-05 must leave zero matches and record both this scan and its
+own original scan. No additional exceptions; K-03 full scan unchanged.
+
+Regression: bash scripts/aicli-check.sh passed. Frontend 266 files / 3415
+passed, Rust 4446 passed / 10 original skipped; renderer build passed.
+Product identity: AICLI Client / com.aicliapi.com / 0.1.0;
+Cargo lib cc_switch_lib retained. Navigation integration fixtures updated
+along with storage keys; assertions retained. Flatpak filenames renamed.
+
+Failed runs retained, not acceptance:
+ed35b335 | Checklist acceptance (Linux), B-03 scan | original no-match scan
+failed with exactly scheme and updater rows above, exit 1; owner subsequently
+decided staged exact-output comparison | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41408109801
+49475382 | workflow validation | run failed before jobs existed because
+heredoc content lacked YAML block indentation; no tests ran; corrected by
+f141974e without changing expected output | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41412331489

@@ -15,7 +15,7 @@ use super::{
         claude_stream_usage_event_filter, codex_stream_usage_event_filter, CLAUDE_PARSER_CONFIG,
         CODEX_PARSER_CONFIG, GEMINI_PARSER_CONFIG, OPENAI_PARSER_CONFIG,
     },
-    handler_context::RequestContext,
+    handler_context::{RequestContext, RouteInput},
     providers::{
         codex_chat_common::extract_reasoning_field_text,
         codex_chat_history::record_responses_sse_stream,
@@ -53,6 +53,7 @@ use bytes::Bytes;
 use futures::StreamExt;
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
+#[cfg(test)]
 use subtle::ConstantTimeEq;
 
 // ============================================================================
@@ -76,54 +77,228 @@ pub async fn get_status(State(state): State<ProxyState>) -> Result<Json<ProxySta
     Ok(Json(status))
 }
 
-/// GET /v1/models — Codex model list (reachability check)
-///
-/// Codex CLI probes this endpoint at startup and deserializes the response as a
-/// catalog with a top-level `models` field.  Return the cc-switch–managed model
-/// catalog file directly so the format always matches what the current version
-/// of Codex expects.
-///
-/// Only serves the catalog when the live config.toml still references the
-/// cc-switch–owned `model_catalog_json`, using the same path ownership rules as
-/// Codex live-setting import.
-///
-/// Claude Code 的模型发现（`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`）也打到这里：
-/// 按 [`is_claude_model_discovery`] 认出来，返回 Anthropic 形状的 Stack 模型列表。
+/// Publish the selected AICLI profile, with the client's alias and envelope.
 pub async fn handle_models(
     State(state): State<ProxyState>,
     uri: axum::http::Uri,
     headers: axum::http::HeaderMap,
-) -> Result<Json<Value>, ProxyError> {
-    if is_claude_model_discovery(&uri, &headers) {
-        return Ok(Json(claude_model_discovery(&state)));
-    }
-    let config_dir = crate::codex_config::get_codex_config_dir();
-    let active_catalog_path = match crate::codex_config::read_codex_config_text() {
-        Ok(config_text) => {
-            crate::codex_config::resolve_cc_switch_catalog_path(&config_text, &config_dir)
-        }
-        Err(_) => None,
-    };
-
-    let catalog = if let Some(catalog_path) =
-        active_catalog_path.as_ref().filter(|path| path.exists())
-    {
-        match crate::codex_config::read_codex_model_catalog_text(catalog_path) {
-            Ok(text) => serde_json::from_str(&text).unwrap_or(json!({"models": []})),
-            Err(error) => {
-                log::warn!("[models] 拒绝读取越界或过大的目录文件: {error}");
-                json!({"models": []})
-            }
-        }
+) -> Result<axum::response::Response, ProxyError> {
+    let app = if is_claude_model_discovery(&uri, &headers) {
+        AppType::Claude
     } else {
-        if active_catalog_path.is_none() {
-            log::debug!(
-                "[models] stale guard: catalog not served (model_catalog_json not set to cc-switch catalog)"
-            );
-        }
-        json!({"models": []})
+        AppType::Codex
     };
-    Ok(Json(catalog))
+    aicli_model_list(&state, &app, &app, &headers)
+}
+
+/// `app` owns the profile, session pin and alias; `envelope` picks the
+/// response shape (Anthropic for Claude clients, OpenAI otherwise).
+fn aicli_model_list(
+    state: &ProxyState,
+    app: &AppType,
+    envelope: &AppType,
+    headers: &axum::http::HeaderMap,
+) -> Result<axum::response::Response, ProxyError> {
+    let Some(models) = crate::aicli::resolver::list_models(&state.aicli, app, headers)
+        .map_err(|_| ProxyError::Internal("AICLI model discovery unavailable".into()))?
+    else {
+        return Ok(route_miss_response(
+            crate::aicli::resolver::RouteMiss::NotBound,
+            envelope,
+        ));
+    };
+    let anthropic = matches!(envelope, AppType::Claude | AppType::ClaudeDesktop);
+    let data = models
+        .into_iter()
+        .map(|model| {
+            let id = crate::aicli::alias::encode(app, &model, Some(&state.db))
+                .map_err(|_| ProxyError::Internal("AICLI model alias unavailable".into()))?;
+            Ok(if anthropic {
+                json!({"type":"model", "id":id, "display_name":model,
+                "created_at":crate::claude_desktop_config::DEFAULT_CREATED_AT})
+            } else {
+                json!({"object":"model", "id":id, "created":0, "owned_by":"aicli"})
+            })
+        })
+        .collect::<Result<Vec<Value>, ProxyError>>()?;
+    let response = if anthropic {
+        json!({"first_id":data.first().map(|m| &m["id"]), "last_id":data.last().map(|m| &m["id"]), "data":data, "has_more":false})
+    } else {
+        json!({"object":"list", "data":data})
+    };
+    Ok(Json(response).into_response())
+}
+
+fn route_miss_response(
+    miss: crate::aicli::resolver::RouteMiss,
+    app: &AppType,
+) -> axum::response::Response {
+    let (status, body) = miss.response(app);
+    (status, Json(body)).into_response()
+}
+
+/// `app` is the app whose adapter and seed Provider carry the request. A
+/// `/app/:client/...` request also brings `client`, which owns the profile,
+/// session pin and alias, and never falls back to a legacy Provider.
+fn resolve_route(
+    state: &ProxyState,
+    app: &AppType,
+    client: Option<&AppClient>,
+    protocol: &str,
+    headers: &axum::http::HeaderMap,
+    uri: &axum::http::Uri,
+    body: &mut Value,
+) -> Result<RouteInput, Box<axum::response::Response>> {
+    use crate::aicli::resolver::{self, Resolved, RouteMiss};
+    let identity = client.map_or(app, |client| &client.app);
+    match resolver::resolve_for(
+        &state.aicli,
+        identity,
+        app,
+        protocol,
+        headers,
+        &uri.to_string(),
+        body,
+    )
+    .map_err(|_| {
+        Box::new(ProxyError::Internal("AICLI route resolution unavailable".into()).into_response())
+    })? {
+        Resolved::Hit(decision) => Ok(RouteInput::Aicli(decision)),
+        Resolved::Plain if client.is_some() => Err(Box::new(route_miss_response(
+            RouteMiss::ModelNotInProfile,
+            app,
+        ))),
+        Resolved::Plain => Ok(RouteInput::None),
+        Resolved::NotBound => Err(Box::new(route_miss_response(RouteMiss::NotBound, app))),
+        Resolved::Miss(miss) => Err(Box::new(route_miss_response(miss, app))),
+    }
+}
+
+// ============================================================================
+// J-01 Tier 2 通用入口：/app/:client/...
+// ============================================================================
+
+/// The Tier 2 client named in `/app/:client/...`. The path after the client
+/// decides the protocol, and with it the adapter and seed Provider; the client
+/// itself only owns the profile binding, session pin and usage `app_type`.
+#[derive(Clone, Debug)]
+pub(crate) struct AppClient {
+    pub app: AppType,
+    pub name: &'static str,
+}
+
+fn app_client(name: &str) -> Option<AppClient> {
+    let (app, name) = match name {
+        "opencode" => (AppType::OpenCode, "opencode"),
+        "openclaw" => (AppType::OpenClaw, "openclaw"),
+        "hermes" => (AppType::Hermes, "hermes"),
+        "pi" => (AppType::Pi, "pi"),
+        "mcode" => (AppType::Mcode, "mcode"),
+        "kimi" => (AppType::Kimi, "kimi"),
+        "dsh" => (AppType::Dsh, "dsh"),
+        "omp" => (AppType::Omp, "omp"),
+        "agy" => (AppType::Agy, "agy"),
+        _ => return None,
+    };
+    Some(AppClient { app, name })
+}
+
+fn unknown_app_client() -> Box<axum::response::Response> {
+    Box::new(
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {
+                "message": "Unknown client",
+                "type": "invalid_request_error",
+                "code": "unknown_client",
+            }})),
+        )
+            .into_response(),
+    )
+}
+
+/// Reject unknown clients with 404, tag the request with the client, and drop
+/// the `/app/<client>` prefix so the protocol handler sees its canonical path.
+fn enter_app_client(
+    client: &str,
+    request: &mut axum::extract::Request,
+) -> Result<AppClient, Box<axum::response::Response>> {
+    let found = app_client(client).ok_or_else(unknown_app_client)?;
+    let uri = request
+        .uri()
+        .path_and_query()
+        .map(|value| value.as_str())
+        .unwrap_or_else(|| request.uri().path())
+        .strip_prefix("/app/")
+        .and_then(|rest| rest.strip_prefix(found.name))
+        .and_then(|rest| rest.parse::<axum::http::Uri>().ok())
+        .ok_or_else(unknown_app_client)?;
+    *request.uri_mut() = uri;
+    request.extensions_mut().insert(found.clone());
+    Ok(found)
+}
+
+pub async fn handle_app_messages(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_messages_for_app(state, request, AppType::Claude, "Claude", "claude", None).await
+}
+
+pub async fn handle_app_chat_completions(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_chat_completions(State(state), request).await
+}
+
+pub async fn handle_app_responses(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    handle_responses_for_app(state, request, AppType::Codex, "Codex", "codex").await
+}
+
+pub async fn handle_app_gemini(
+    State(state): State<ProxyState>,
+    axum::extract::Path((client, _path)): axum::extract::Path<(String, String)>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    if let Err(rejected) = enter_app_client(&client, &mut request) {
+        return Ok(*rejected);
+    }
+    let uri = request.uri().clone();
+    handle_gemini(State(state), uri, request).await
+}
+
+/// The client's own profile, in the envelope its SDK asks for.
+pub async fn handle_app_models(
+    State(state): State<ProxyState>,
+    axum::extract::Path(client): axum::extract::Path<String>,
+    mut request: axum::extract::Request,
+) -> Result<axum::response::Response, ProxyError> {
+    let client = match enter_app_client(&client, &mut request) {
+        Ok(client) => client,
+        Err(rejected) => return Ok(*rejected),
+    };
+    let envelope = if is_claude_model_discovery(request.uri(), request.headers()) {
+        AppType::Claude
+    } else {
+        AppType::Codex
+    };
+    aicli_model_list(&state, &client.app, &envelope, request.headers())
 }
 
 // ============================================================================
@@ -147,6 +322,7 @@ fn is_claude_model_discovery(uri: &axum::http::Uri, headers: &axum::http::Header
 
 /// Claude Code 的 Stack 模型列表（Anthropic 形状）。只读数据库和 `live-state.json`，不做网络
 /// 请求：客户端只等 3 秒。不在代理模式、名单为空时返回空列表。
+#[cfg(test)]
 fn claude_model_discovery(state: &ProxyState) -> Value {
     let models = crate::mode::stack::claude_published_now(&state.db).unwrap_or_else(|error| {
         log::warn!("[Claude] 读取 Stack 模型失败，返回空列表: {error}");
@@ -177,6 +353,7 @@ fn claude_model_discovery(state: &ProxyState) -> Value {
 /// 不解码。普通模型名不读任何状态，路由请求的路径不变。
 ///
 /// `Err` 是在进入路由之前就拒绝的请求，直接返回给客户端（装箱：`Response` 太大）。
+#[cfg(test)]
 fn resolve_stack_target(
     state: &ProxyState,
     app_type: &AppType,
@@ -217,7 +394,7 @@ fn resolve_stack_target(
 
 /// Stack 模型解不出来时的错误体：Claude Code、Claude Desktop 用 Anthropic 的错误信封，Codex 用
 /// OpenAI 的。
-fn stack_miss_body(app_type: &AppType, message: &str) -> Value {
+pub(crate) fn stack_miss_body(app_type: &AppType, message: &str) -> Value {
     match app_type {
         AppType::Claude | AppType::ClaudeDesktop => json!({
             "type": "error",
@@ -254,7 +431,16 @@ pub async fn handle_claude_desktop_messages(
     State(state): State<ProxyState>,
     request: axum::extract::Request,
 ) -> Result<axum::response::Response, ProxyError> {
-    validate_claude_desktop_gateway_auth(&state, request.headers())?;
+    if !state
+        .aicli
+        .bound_for_routing()
+        .map_err(|_| ProxyError::Internal("AICLI binding unavailable".into()))?
+    {
+        return Ok(route_miss_response(
+            crate::aicli::resolver::RouteMiss::NotBound,
+            &AppType::ClaudeDesktop,
+        ));
+    }
     handle_messages_for_app(
         state,
         request,
@@ -269,40 +455,23 @@ pub async fn handle_claude_desktop_messages(
 pub async fn handle_claude_desktop_models(
     State(state): State<ProxyState>,
     headers: axum::http::HeaderMap,
-) -> Result<Json<Value>, ProxyError> {
-    validate_claude_desktop_gateway_auth(&state, &headers)?;
-    let providers = state
-        .provider_router
-        .select_providers("claude-desktop")
-        .await
-        .map_err(|e| ProxyError::DatabaseError(e.to_string()))?;
-    let provider = providers.first().ok_or(ProxyError::NoAvailableProvider)?;
-    let mut response = crate::claude_desktop_config::model_list_response(provider)
-        .map_err(|e| ProxyError::ConfigError(e.to_string()))?;
-    // 聚合模式下 profile 里关了模型发现，这里补上聚合的模型只是让两边一致
-    let stacked = crate::mode::stack::desktop_published_now(&state.db).unwrap_or_else(|error| {
-        log::warn!("[Claude Desktop] 读取聚合模型失败，只返回路由那家的: {error}");
-        Vec::new()
-    });
-    if let Some(data) = response.get_mut("data").and_then(Value::as_array_mut) {
-        data.extend(stacked.into_iter().map(|model| {
-            let mut item = json!({
-                "type": "model",
-                "id": model.id,
-                "display_name": model.label,
-                "created_at": crate::claude_desktop_config::DEFAULT_CREATED_AT,
-            });
-            if model.supports_1m {
-                item["supports1m"] = json!(true);
-            }
-            item
-        }));
-        let last_id = data.last().and_then(|item| item.get("id")).cloned();
-        if let Some(last_id) = last_id {
-            response["last_id"] = last_id;
-        }
+) -> Result<axum::response::Response, ProxyError> {
+    if !state
+        .aicli
+        .bound_for_routing()
+        .map_err(|_| ProxyError::Internal("AICLI binding unavailable".into()))?
+    {
+        return Ok(route_miss_response(
+            crate::aicli::resolver::RouteMiss::NotBound,
+            &AppType::ClaudeDesktop,
+        ));
     }
-    Ok(Json(response))
+    aicli_model_list(
+        &state,
+        &AppType::ClaudeDesktop,
+        &AppType::ClaudeDesktop,
+        &headers,
+    )
 }
 
 async fn handle_messages_for_app(
@@ -325,8 +494,18 @@ async fn handle_messages_for_app(
         .to_bytes();
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
-    let stack = match resolve_stack_target(&state, &app_type, &mut body) {
-        Ok(stack) => stack,
+    let client = extensions.get::<AppClient>().cloned();
+    let app_type_str = client.as_ref().map_or(app_type_str, |client| client.name);
+    let route = match resolve_route(
+        &state,
+        &app_type,
+        client.as_ref(),
+        "anthropic",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
 
@@ -337,7 +516,7 @@ async fn handle_messages_for_app(
         app_type.clone(),
         tag,
         app_type_str,
-        stack,
+        route,
     )
     .await?;
 
@@ -381,6 +560,7 @@ async fn handle_messages_for_app(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let resolved_api_format = result.claude_api_format.is_some();
     let api_format = result
         .claude_api_format
@@ -442,13 +622,7 @@ fn claude_response_needs_transform(
     )
 }
 
-fn validate_claude_desktop_gateway_auth(
-    state: &ProxyState,
-    headers: &axum::http::HeaderMap,
-) -> Result<(), ProxyError> {
-    validate_claude_desktop_gateway_auth_for_db(state.db.as_ref(), headers)
-}
-
+#[cfg(test)]
 fn validate_claude_desktop_gateway_auth_for_db(
     db: &crate::database::Database,
     headers: &axum::http::HeaderMap,
@@ -459,6 +633,7 @@ fn validate_claude_desktop_gateway_auth_for_db(
     validate_claude_desktop_gateway_token(headers, &expected)
 }
 
+#[cfg(test)]
 fn validate_claude_desktop_gateway_token(
     headers: &axum::http::HeaderMap,
     expected: &str,
@@ -482,6 +657,7 @@ fn validate_claude_desktop_gateway_token(
 /// own explicit setting — may send `Authorization: Bearer <token>`. This
 /// helper accepts either and returns the raw token bytes, with no validity
 /// check; the caller is responsible for comparing to the expected token.
+#[cfg(test)]
 fn extract_gateway_token(headers: &axum::http::HeaderMap) -> Option<String> {
     // Prefer `Authorization` if present (more specific).
     if let Some(value) = headers.get(axum::http::header::AUTHORIZATION) {
@@ -518,6 +694,10 @@ struct ClaudeUsageLog {
     latency_ms: u64,
     status_code: u16,
     is_streaming: bool,
+    /// C4-03：AICLI 上游请求 id，None 表示非 AICLI 请求。
+    upstream_request_id: Option<String>,
+    /// C4-04：(line, profile)，None 表示非 AICLI 请求。
+    aicli_route: Option<(String, String)>,
 }
 
 fn prepare_claude_usage_log(
@@ -551,6 +731,8 @@ fn prepare_claude_usage_log(
         latency_ms: ctx.latency_ms(),
         status_code,
         is_streaming,
+        upstream_request_id: ctx.aicli_upstream_request_id.clone(),
+        aicli_route: crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref()),
     })
 }
 
@@ -568,6 +750,8 @@ async fn write_claude_usage_log(state: &ProxyState, log: ClaudeUsageLog) {
         log.is_streaming,
         log.status_code,
         Some(log.session_id),
+        log.upstream_request_id,
+        log.aicli_route,
     )
     .await;
 }
@@ -674,6 +858,8 @@ async fn handle_claude_transform(
             let status_code = status.as_u16();
             let start_time = ctx.start_time;
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             // 用 ctx 的 app_type：Claude Desktop 网关也走此转换路径，硬编码
             // "claude" 会把 claude-desktop 的行错记到 claude 名下
             let app_type_str = ctx.app_type_str;
@@ -694,6 +880,8 @@ async fn handle_claude_transform(
                         let session_id = session_id.clone();
                         let request_model = request_model.clone();
                         let outbound_model = fallback_model.clone();
+                        let upstream_request_id = upstream_request_id.clone();
+                        let aicli_route = aicli_route.clone();
 
                         tokio::spawn(async move {
                             log_usage(
@@ -709,6 +897,8 @@ async fn handle_claude_transform(
                                 true,
                                 status_code,
                                 Some(session_id),
+                                upstream_request_id,
+                                aicli_route,
                             )
                             .await;
                         });
@@ -986,8 +1176,17 @@ pub async fn handle_chat_completions(
     let body_bytes = decode_codex_request_body(&mut headers, body_bytes)?;
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
-    let stack = match resolve_stack_target(&state, &AppType::Codex, &mut body) {
-        Ok(stack) => stack,
+    let client = extensions.get::<AppClient>().cloned();
+    let route = match resolve_route(
+        &state,
+        &AppType::Codex,
+        client.as_ref(),
+        "openai",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
 
@@ -997,8 +1196,8 @@ pub async fn handle_chat_completions(
         &headers,
         AppType::Codex,
         "Codex",
-        "codex",
-        stack,
+        client.as_ref().map_or("codex", |client| client.name),
+        route,
     )
     .await?;
     let endpoint = endpoint_with_query(&uri, "/chat/completions");
@@ -1034,6 +1233,7 @@ pub async fn handle_chat_completions(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     process_response(
@@ -1057,7 +1257,7 @@ pub async fn handle_responses_websocket() -> (StatusCode, Json<Value>) {
             "error": {
                 "type": "invalid_request_error",
                 "code": "websocket_not_supported",
-                "message": "CC Switch local routing does not support Responses over WebSocket; use HTTP",
+                "message": "AICLI Client local routing does not support Responses over WebSocket; use HTTP",
             }
         })),
     )
@@ -1105,8 +1305,18 @@ async fn handle_responses_for_app(
     let body_bytes = decode_codex_request_body(&mut headers, body_bytes)?;
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
-    let stack = match resolve_stack_target(&state, &app_type, &mut body) {
-        Ok(stack) => stack,
+    let client = extensions.get::<AppClient>().cloned();
+    let app_type_str = client.as_ref().map_or(app_type_str, |client| client.name);
+    let route = match resolve_route(
+        &state,
+        &app_type,
+        client.as_ref(),
+        "openai-response",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
 
@@ -1117,7 +1327,7 @@ async fn handle_responses_for_app(
         app_type.clone(),
         tag,
         app_type_str,
-        stack,
+        route,
     )
     .await?;
     let endpoint = endpoint_with_query(&uri, "/responses");
@@ -1160,6 +1370,7 @@ async fn handle_responses_for_app(
     let codex_upstream_format = result.codex_upstream_format;
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     if codex_upstream_format == Some(CodexUpstreamFormat::Anthropic) {
@@ -1350,8 +1561,21 @@ async fn handle_codex_standalone_passthrough(
         .map_err(|e| ProxyError::Internal(format!("Failed to read request body: {e}")))?
         .to_bytes();
     let body_bytes = decode_codex_request_body(&mut headers, body_bytes)?;
-    let body: Value = serde_json::from_slice(&body_bytes)
+    let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::InvalidRequest(format!("Failed to parse request body: {e}")))?;
+
+    let route = match resolve_route(
+        &state,
+        &AppType::Codex,
+        None,
+        "openai",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
+        Err(rejected) => return Ok(*rejected),
+    };
 
     let mut ctx = RequestContext::new(
         &state,
@@ -1360,7 +1584,7 @@ async fn handle_codex_standalone_passthrough(
         AppType::Codex,
         "Codex",
         "codex",
-        None,
+        route,
     )
     .await?;
     let endpoint = endpoint_with_query(&uri, canonical_endpoint);
@@ -1391,6 +1615,7 @@ async fn handle_codex_standalone_passthrough(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
 
     process_response(
         result.response,
@@ -1438,8 +1663,16 @@ async fn handle_responses_compact_for_app(
     let mut body: Value = serde_json::from_slice(&body_bytes)
         .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?;
     // 压缩请求也带着客户端选中的模型：不解码的话，会带着前缀落到默认路由。
-    let stack = match resolve_stack_target(&state, &app_type, &mut body) {
-        Ok(stack) => stack,
+    let route = match resolve_route(
+        &state,
+        &app_type,
+        None,
+        "openai-response",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
         Err(rejected) => return Ok(*rejected),
     };
 
@@ -1450,7 +1683,7 @@ async fn handle_responses_compact_for_app(
         app_type.clone(),
         tag,
         app_type_str,
-        stack,
+        route,
     )
     .await?;
     let endpoint = endpoint_with_query(&uri, "/responses/compact");
@@ -1489,6 +1722,7 @@ async fn handle_responses_compact_for_app(
     let codex_upstream_format = result.codex_upstream_format;
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     if codex_upstream_format == Some(CodexUpstreamFormat::Anthropic) {
@@ -1692,6 +1926,9 @@ async fn handle_codex_xai_native_responses_rewrite(
                     let state = state.clone();
                     let provider_id = ctx.provider.id.clone();
                     let session_id = ctx.session_id.clone();
+                    let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+                    let aicli_route =
+                        crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
                     let latency_ms = ctx.latency_ms();
                     async move {
                         log_usage(
@@ -1707,6 +1944,8 @@ async fn handle_codex_xai_native_responses_rewrite(
                             false,
                             status.as_u16(),
                             Some(session_id),
+                            upstream_request_id,
+                            aicli_route,
                         )
                         .await;
                     }
@@ -1769,6 +2008,8 @@ async fn handle_codex_chat_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let request_model = ctx.request_model.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             // 接管/模型覆写场景的归因兜底：出站真值优先于客户端请求别名
             let fallback_model = ctx
                 .outbound_model
@@ -1805,6 +2046,8 @@ async fn handle_codex_chat_to_responses_transform(
                     let request_model = request_model.clone();
                     let outbound_model = fallback_model.clone();
                     let session_id = session_id.clone();
+                    let upstream_request_id = upstream_request_id.clone();
+                    let aicli_route = aicli_route.clone();
 
                     tokio::spawn(async move {
                         log_usage(
@@ -1820,6 +2063,8 @@ async fn handle_codex_chat_to_responses_transform(
                             true,
                             status.as_u16(),
                             Some(session_id),
+                            upstream_request_id,
+                            aicli_route,
                         )
                         .await;
                     });
@@ -1926,6 +2171,8 @@ async fn handle_codex_chat_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -1941,6 +2188,8 @@ async fn handle_codex_chat_to_responses_transform(
                     false,
                     status.as_u16(),
                     Some(session_id),
+                    upstream_request_id,
+                    aicli_route,
                 )
                 .await;
             }
@@ -2091,6 +2340,8 @@ async fn handle_codex_anthropic_to_responses_transform(
             let state = state.clone();
             let provider_id = ctx.provider.id.clone();
             let session_id = ctx.session_id.clone();
+            let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+            let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
             let latency_ms = ctx.latency_ms();
             async move {
                 log_usage(
@@ -2106,6 +2357,8 @@ async fn handle_codex_anthropic_to_responses_transform(
                     false,
                     status.as_u16(),
                     Some(session_id),
+                    upstream_request_id,
+                    aicli_route,
                 )
                 .await;
             }
@@ -2156,6 +2409,8 @@ fn build_codex_anthropic_sse_response(
         let app_type_str = ctx.app_type_str;
         let start_time = ctx.start_time;
         let session_id = ctx.session_id.clone();
+        let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+        let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
         Some(SseUsageCollector::new(
             start_time,
@@ -2178,6 +2433,8 @@ fn build_codex_anthropic_sse_response(
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
                 let session_id = session_id.clone();
+                let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage(
@@ -2193,6 +2450,8 @@ fn build_codex_anthropic_sse_response(
                         true,
                         status.as_u16(),
                         Some(session_id),
+                        upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -2429,12 +2688,12 @@ fn codex_proxy_error_json(
         // 413 来自上游渠道商的网关（典型是 nginx 的 client_max_body_size），不是 CC
         // Switch 本地代理的限制（本地 DefaultBodyLimit 已放到 200MB）。上游响应体往往是
         // 一整段 nginx HTML，对用户毫无价值，这里替换成明确指向上游 + 可操作的指引，
-        // 避免「以为是 CC Switch 封装了 nginx / 是本地代理的锅」这种反复出现的误解。
+        // 避免「以为是 AICLI Client 封装了 nginx / 是本地代理的锅」这种反复出现的误解。
         format!(
             concat!(
                 "Upstream provider rejected the request with HTTP 413 (Payload Too Large). ",
                 "The request body exceeds the upstream gateway's size limit; this is the ",
-                "provider's server-side limit, not a CC Switch limit. ",
+                "provider's server-side limit, not a AICLI Client limit. ",
                 "Provider: {provider}; model: {model}; endpoint: {endpoint}. ",
                 "To recover, shrink the request: run /compact, remove large pasted logs or ",
                 "inline images, or ask the provider to raise its request body limit ",
@@ -2455,7 +2714,7 @@ fn codex_proxy_error_json(
             .map(|status| format!("; upstream_status: HTTP {status}"))
             .unwrap_or_default();
         format!(
-            "CC Switch local proxy failed while handling Codex endpoint {endpoint}. Provider: {provider_name}; model: {request_model}{status_fragment}; cause: {cause}"
+            "AICLI Client local proxy failed while handling Codex endpoint {endpoint}. Provider: {provider_name}; model: {request_model}{status_fragment}; cause: {cause}"
         )
     };
 
@@ -2520,7 +2779,8 @@ fn codex_proxy_error_code(error: &ProxyError) -> &'static str {
         ProxyError::UpstreamError { .. } => "cc_switch_upstream_error",
         ProxyError::DatabaseError(_) => "cc_switch_database_error",
         ProxyError::Internal(_) => "cc_switch_internal_error",
-        ProxyError::AlreadyRunning
+        ProxyError::ClientAbort
+        | ProxyError::AlreadyRunning
         | ProxyError::NotRunning
         | ProxyError::BindFailed(_)
         | ProxyError::StopTimeout
@@ -2565,11 +2825,25 @@ pub async fn handle_gemini(
         .to_bytes();
     // GET 类只读端点（/v1beta/models、/v1beta/models/<model> 等）没有请求体，
     // 不能强制 parse 为 JSON —— 否则空 body 会被拒绝。
-    let body: Value = if body_bytes.is_empty() {
+    let mut body: Value = if body_bytes.is_empty() {
         Value::Null
     } else {
         serde_json::from_slice(&body_bytes)
             .map_err(|e| ProxyError::Internal(format!("Failed to parse request body: {e}")))?
+    };
+
+    let client = extensions.get::<AppClient>().cloned();
+    let route = match resolve_route(
+        &state,
+        &AppType::Gemini,
+        client.as_ref(),
+        "gemini",
+        &headers,
+        &uri,
+        &mut body,
+    ) {
+        Ok(route) => route,
+        Err(rejected) => return Ok(*rejected),
     };
 
     // Gemini 的模型名称在 URI 中
@@ -2579,17 +2853,13 @@ pub async fn handle_gemini(
         &headers,
         AppType::Gemini,
         "Gemini",
-        "gemini",
-        None,
+        client.as_ref().map_or("gemini", |client| client.name),
+        route,
     )
     .await?
     .with_model_from_uri(&uri);
 
-    // 提取完整的路径和查询参数
-    let endpoint = uri
-        .path_and_query()
-        .map(|pq| pq.as_str())
-        .unwrap_or(uri.path());
+    let endpoint = gemini_routed_endpoint(&uri, ctx.route.as_deref());
 
     let is_stream = body
         .get("stream")
@@ -2601,7 +2871,7 @@ pub async fn handle_gemini(
         .forward_with_retry(
             &AppType::Gemini,
             method,
-            endpoint,
+            &endpoint,
             body,
             headers,
             extensions,
@@ -2622,6 +2892,7 @@ pub async fn handle_gemini(
     let connection_guard = result.connection_guard.take();
     ctx.outbound_model = result.outbound_model.take();
     ctx.provider = result.provider;
+    ctx.aicli_upstream_request_id = result.aicli_upstream_request_id.take();
     let response = result.response;
 
     process_response(
@@ -2633,6 +2904,31 @@ pub async fn handle_gemini(
         connection_guard,
     )
     .await
+}
+
+fn gemini_routed_endpoint(
+    uri: &axum::http::Uri,
+    route: Option<&crate::aicli::resolver::RouteDecision>,
+) -> String {
+    let original = uri
+        .path_and_query()
+        .map(|v| v.as_str())
+        .unwrap_or(uri.path());
+    let Some(route) = route else {
+        return original.into();
+    };
+    let Some((prefix, tail)) = uri.path().split_once("/models/") else {
+        return original.into();
+    };
+    let action = tail
+        .split_once(':')
+        .map(|(_, action)| format!(":{action}"))
+        .unwrap_or_default();
+    let query = uri
+        .query()
+        .map(|query| format!("?{query}"))
+        .unwrap_or_default();
+    format!("{prefix}/models/{}{action}{query}", route.upstream_model)
 }
 
 fn should_use_claude_transform_streaming(
@@ -3311,6 +3607,8 @@ async fn log_usage(
     is_streaming: bool,
     status_code: u16,
     session_id: Option<String>,
+    upstream_request_id: Option<String>,
+    aicli_route: Option<(String, String)>,
 ) {
     use super::usage::logger::UsageLogger;
 
@@ -3320,10 +3618,18 @@ async fn log_usage(
 
     let dedup_scope = super::usage::parser::dedup_scope_for_app(app_type, provider_id);
     let request_id = usage.dedup_request_id(dedup_scope);
+    // C4-03：行写入后按同一 id 回填账单；闭包会 move 走 request_id，先留一份。
+    let bill_request_id = request_id.clone();
 
     // #7818：使用量写入要拿 Database 的单把 std::sync::Mutex<Connection> 并做
     // 磁盘 IO，同步执行会卡住 tokio worker，移到阻塞线程池执行。计费模式
     // 读取走同一把锁，一并移入。
+    // AICLI 行的计价依据（站点价格行 + 路由第一个分组的倍率），按上游模型、请求模型依次匹配
+    let aicli_billing = aicli_route.as_ref().and_then(|(_, profile)| {
+        state
+            .aicli
+            .usage_billing(profile, &[outbound_model, request_model, model])
+    });
     let db = state.db.clone();
     let provider_id = provider_id.to_string();
     let app_type = app_type.to_string();
@@ -3355,6 +3661,10 @@ async fn log_usage(
             session_id,
             None, // provider_type
             is_streaming,
+            aicli_route
+                .as_ref()
+                .map(|(line, profile)| (line.as_str(), profile.as_str())),
+            aicli_billing.as_ref(),
         )
     });
     if let Err(e) = write.await.unwrap_or_else(|e| {
@@ -3363,6 +3673,12 @@ async fn log_usage(
         )))
     }) {
         log::warn!("[USG-001] 记录使用量失败: {e}");
+    } else if let Some(upstream) = upstream_request_id.filter(|id| !id.is_empty()) {
+        // C4-03：AICLI 请求完成——写上游请求 id 并入队账单回填（1s/3s/10s）。
+        state
+            .aicli
+            .record_upstream_request(&bill_request_id, &upstream)
+            .await;
     }
 }
 
@@ -3517,8 +3833,14 @@ mod tests {
     #[tokio::test]
     async fn claude_desktop_gateway_auth_entry_uses_uniform_401_response() {
         let db = Database::memory().expect("in-memory database");
-        db.set_setting("claude_desktop_gateway_token", TEST_GATEWAY_TOKEN)
-            .expect("seed gateway token");
+        db.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO aicli_local_token VALUES('claude-desktop',?1,0)",
+                [TEST_GATEWAY_TOKEN],
+            )
+            .unwrap();
 
         assert!(validate_claude_desktop_gateway_auth_for_db(
             &db,
@@ -4238,7 +4560,7 @@ data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\"}}\n
         let body = codex_proxy_error_json("DeepSeek", "deepseek-chat", "/responses", &error);
 
         let message = body["error"]["message"].as_str().unwrap();
-        assert!(message.contains("CC Switch local proxy failed"));
+        assert!(message.contains("AICLI Client local proxy failed"));
         assert!(message.contains("DeepSeek"));
         assert!(message.contains("deepseek-chat"));
         assert!(message.contains("/responses"));
@@ -4283,7 +4605,7 @@ data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"message\"}}\n
 
         let message = body["error"]["message"].as_str().unwrap();
         // 不再误导成「本地代理失败」
-        assert!(!message.contains("CC Switch local proxy failed"));
+        assert!(!message.contains("AICLI Client local proxy failed"));
         // 明确指向上游 + 体积超限 + 可操作指引
         assert!(message.contains("413"));
         assert!(message.to_lowercase().contains("upstream"));
@@ -4393,15 +4715,31 @@ mod stack_tests {
         ProxyState::for_test(Arc::new(Database::memory().expect("memory db")))
     }
 
-    fn post(path: &str, model: &str) -> axum::extract::Request {
-        axum::http::Request::builder()
-            .method("POST")
-            .uri(path)
-            .header("content-type", "application/json")
-            .body(axum::body::Body::from(
-                json!({ "model": model, "messages": [], "input": [] }).to_string(),
-            ))
-            .unwrap()
+    // The HTTP entry now uses AICLI. Keep the legacy Stack regression at its
+    // resolver/context boundary, without bypassing the new production handlers.
+    async fn legacy_stack_request(
+        state: ProxyState,
+        app: AppType,
+        model: &str,
+    ) -> Result<axum::response::Response, ProxyError> {
+        let mut body = json!({"model":model});
+        let target = match resolve_stack_target(&state, &app, &mut body) {
+            Ok(target) => target,
+            Err(response) => return Ok(*response),
+        };
+        RequestContext::new(
+            &state,
+            &body,
+            &axum::http::HeaderMap::new(),
+            app,
+            "legacy fixture",
+            "claude",
+            target
+                .map(|target| RouteInput::Stack(Box::new(target)))
+                .unwrap_or(RouteInput::None),
+        )
+        .await?;
+        Ok((StatusCode::OK, Json(json!({"resolved":true}))).into_response())
     }
 
     async fn json_of(response: axum::response::Response) -> (StatusCode, Value) {
@@ -4423,11 +4761,11 @@ mod stack_tests {
             AppType::Codex,
             "Codex",
             "codex",
-            Some(crate::mode::stack::StackTarget {
+            RouteInput::Stack(Box::new(crate::mode::stack::StackTarget {
                 provider,
                 upstream_model: "gemini-3.8-flash-high".into(),
                 original_model: model.into(),
-            }),
+            })),
         )
         .await
         .unwrap();
@@ -4490,12 +4828,10 @@ mod stack_tests {
         // 名单为空、没有任何供应商：回落到默认路由的话会报「没有供应商」，而不是 400。
         let state = proxy_state();
 
-        let response = handle_messages(
-            State(state.clone()),
-            post("/v1/messages", "ccs-claude-kimi--kimi-k3"),
-        )
-        .await
-        .expect("response");
+        let response =
+            legacy_stack_request(state.clone(), AppType::Claude, "ccs-claude-kimi--kimi-k3")
+                .await
+                .expect("response");
         let (status, body) = json_of(response).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(body["type"], "error");
@@ -4506,24 +4842,15 @@ mod stack_tests {
             .contains("ccs-claude-kimi--kimi-k3"));
 
         for response in [
-            handle_responses(
-                State(state.clone()),
-                post("/v1/responses", "ccs-kimi/kimi-k3"),
-            )
-            .await
-            .expect("responses"),
-            handle_responses_compact(
-                State(state.clone()),
-                post("/v1/responses/compact", "ccs-kimi/kimi-k3"),
-            )
-            .await
-            .expect("compact"),
-            handle_chat_completions(
-                State(state.clone()),
-                post("/v1/chat/completions", "ccs-kimi/kimi-k3"),
-            )
-            .await
-            .expect("chat"),
+            legacy_stack_request(state.clone(), AppType::Codex, "ccs-kimi/kimi-k3")
+                .await
+                .expect("responses"),
+            legacy_stack_request(state.clone(), AppType::Codex, "ccs-kimi/kimi-k3")
+                .await
+                .expect("compact"),
+            legacy_stack_request(state.clone(), AppType::Codex, "ccs-kimi/kimi-k3")
+                .await
+                .expect("chat"),
         ] {
             let (status, body) = json_of(response).await;
             assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -4532,17 +4859,10 @@ mod stack_tests {
         }
 
         // 普通模型名照旧走代理路由（这里没有供应商，所以是路由那边的错误）。
-        let routed = handle_messages(
-            State(state.clone()),
-            post("/v1/messages", "claude-sonnet-5"),
-        )
-        .await;
+        let routed = legacy_stack_request(state.clone(), AppType::Claude, "claude-sonnet-5").await;
         assert!(routed.is_err());
-        let routed = handle_grokbuild_responses(
-            State(state),
-            post("/grokbuild/v1/responses", "ccs-kimi/kimi-k3"),
-        )
-        .await;
+        let routed =
+            legacy_stack_request(state.clone(), AppType::GrokBuild, "ccs-kimi/kimi-k3").await;
         assert!(routed.is_err(), "Grok Build model ids are not decoded");
     }
 
@@ -4577,7 +4897,7 @@ mod stack_tests {
             AppType::Claude,
             "Claude",
             "claude",
-            Some(target),
+            RouteInput::Stack(Box::new(target)),
         )
         .await
         .expect("context");
@@ -4622,17 +4942,9 @@ mod stack_tests {
         assert!(!is_claude_model_discovery(&uri("/v1/models"), &none));
     }
 
-    #[tokio::test]
-    async fn claude_model_discovery_lists_nothing_outside_proxy_mode() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("anthropic-version", "2023-06-01".parse().unwrap());
-        let Json(body) = handle_models(
-            State(proxy_state()),
-            "/v1/models?limit=1000".parse().unwrap(),
-            headers,
-        )
-        .await
-        .expect("models");
+    #[test]
+    fn claude_model_discovery_lists_nothing_outside_proxy_mode() {
+        let body = claude_model_discovery(&proxy_state());
         assert_eq!(body, json!({ "data": [], "has_more": false }));
     }
 }

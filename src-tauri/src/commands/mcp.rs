@@ -221,3 +221,59 @@ pub async fn resync_mcp_to_apps(
     }
     Ok(outcomes)
 }
+
+/// 官方 MCP Registry 的服务器列表接口
+const MCP_REGISTRY_URL: &str = "https://registry.modelcontextprotocol.io/v0/servers";
+/// Registry 常要十几到几十秒才响应（参考 magpie），超时放宽到 60 秒
+const MCP_REGISTRY_TIMEOUT_SECS: u64 = 60;
+/// 响应体上限：一页 100 条通常不到 1MB，超出就是异常响应
+const MCP_REGISTRY_MAX_BYTES: usize = 8 * 1024 * 1024;
+
+async fn fetch_mcp_registry_once(url: &url::Url) -> Result<serde_json::Value, (bool, String)> {
+    let client = crate::proxy::http_client::get();
+    let mut resp = client
+        .get(url.clone())
+        .header("Accept", "application/json")
+        .timeout(std::time::Duration::from_secs(MCP_REGISTRY_TIMEOUT_SECS))
+        .send()
+        .await
+        .map_err(|e| (false, e.to_string()))?;
+    let status = resp.status();
+    if !status.is_success() {
+        // 503 之类的临时错误值得再试一次
+        return Err((status.is_server_error(), format!("HTTP {status}")));
+    }
+    let mut body: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| (false, e.to_string()))? {
+        if body.len() + chunk.len() > MCP_REGISTRY_MAX_BYTES {
+            return Err((false, "MCP Registry response too large".to_string()));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&body).map_err(|e| (false, e.to_string()))
+}
+
+/// 在官方 MCP Registry 里按关键字搜索（只取最新版本、一页 100 条）。
+///
+/// 只负责取数：原样返回 Registry 的 JSON，筛选、转换成可安装的配置都在前端
+/// （`src/lib/mcpRegistry.ts`）。不写任何本地配置。
+#[tauri::command]
+pub async fn search_mcp_registry(query: String) -> Result<serde_json::Value, String> {
+    let query = query.trim();
+    if query.is_empty() || query.chars().count() > 200 {
+        return Err("invalid MCP Registry query".to_string());
+    }
+    let url = url::Url::parse_with_params(
+        MCP_REGISTRY_URL,
+        &[("search", query), ("limit", "100"), ("version", "latest")],
+    )
+    .map_err(|e| e.to_string())?;
+    match fetch_mcp_registry_once(&url).await {
+        Ok(value) => Ok(value),
+        Err((true, _)) => {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            fetch_mcp_registry_once(&url).await.map_err(|(_, e)| e)
+        }
+        Err((false, e)) => Err(e),
+    }
+}

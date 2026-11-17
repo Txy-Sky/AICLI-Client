@@ -1,0 +1,37 @@
+F-06 设置和请求详情验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：1d4c453e feat(aicli): F-06 routing settings and server bill in request detail
+      0783dc77 fix(aicli): F-06 name the privacy settings row type for clippy
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42572790513（0783dc77，五 job 全 success；
+    前端 272 文件 / 3464 测试；Rust 4720 passed / 12 skipped）
+
+实现
+- 设置 → 本地路由（RoutingSection）：删除与供应商相关的分组（路由中的应用、全部回到直连、故障转移
+  队列）及其失去引用的代码；保留服务、请求日志、整流。「停止服务」的拦截条件改为有客户端处于
+  AICLI 接管中。新增 AicliRoutingSettings：
+  · 线路说明：每条线路的类型、首字节超时、流式 / 非流式最长时长，标出当前线路，附切换说明；
+  · 隐私：开关、失败模式（隐私优先 / 可用性优先，各有说明）、允许未扫描媒体、自定义遮盖词（每行
+    一个）与自定义规则（前缀或正则，可增删），整体保存，校验失败显示原因；
+  · secret 后端降级提示：系统钥匙串不可用、凭据已改存本机文件时显示；
+  · 接管中的客户端（带「前往」打开客户端页）。
+- RequestDetailPanel：新增「服务端账单」区块（线路、配置集、服务端分组、服务端实扣额度，按网页端规则
+  换算并标「实扣」）；billed_at 为空显示「等待服务端记账」，不以估算值冒充实扣；无 AICLI 记录时不显示。
+  本机费用区块标题与合计行标「预估」。
+- 后端（第 12 节）：aicli_account 幂等补列 privacy_custom_json；新增 aicli_set_privacy_custom（命令共
+  21 个）；aicli_get_privacy 带出 custom_words / custom_rules / secret_backend；PrivacyGate 随设置
+  修订号读取自定义项并用于 mask_request；扫描接入用户规则（E-03 移植时 custom_rules 从未被读取，
+  变异验证：去掉接线后 user_words_and_rules_are_masked_with_their_kind 失败）；SecretStore::backend()。
+- aicli.settings / aicli.bill 文案写入 5 种语言。
+
+验收
+- tests/components/RequestDetailPanel.test.tsx 新增 3 项：本机费用标「预估」且无记录时不显示服务端
+  账单；未记账显示「等待服务端记账」（线路、配置集、分组可见）；已记账显示「实扣」与 $2。
+- tests/components/aicli/AicliRoutingSettings.test.tsx 7 项：线路说明、隐私开关 / 失败模式 / 媒体走
+  aicli_set_privacy、自定义词与规则一起保存、拒绝原因、降级提示有 / 无、接管中的客户端与跳转。
+- Rust：用户词与规则按种类遮盖、自定义项进入 mask_request 且坏 JSON 按空处理、整理与校验、命令往返
+  与校验（未绑定 not_bound、坏正则 invalid_input 且不改已存内容、内存存储无 backend）。
+
+失败历史
+- 1d4c453e 的 CI 42571564696：clippy type_complexity（layer.rs 读设置的元组类型），0783dc77 改用
+  类型别名；该次 clippy 失败导致 A3-01 未跑到 Rust 全量，以 42572790513 为准。

@@ -1402,9 +1402,14 @@ mod tests {
         #[cfg(windows)]
         let linked = std::os::windows::fs::symlink_dir(&enc, sub.join("cycle"));
         if let Err(err) = linked {
-            // Windows 在 \\wsl.localhost 上建不了符号链接（Incorrect function），夹具无从构造
-            assert!(crate::config::is_wsl_path(temp.path()), "symlink: {err}");
-            eprintln!("cannot create symlinks on WSL share ({err}); skipping");
+            // Windows 在 \\wsl.localhost 上建不了符号链接（Incorrect function）；未开
+            // 开发者模式/管理员时无 SeCreateSymbolicLinkPrivilege（error 1314）。
+            // 两种情况夹具都无从构造，跳过。
+            assert!(
+                crate::config::is_wsl_path(temp.path()) || err.raw_os_error() == Some(1314),
+                "symlink: {err}"
+            );
+            eprintln!("cannot create symlinks here ({err}); skipping");
             return;
         }
 

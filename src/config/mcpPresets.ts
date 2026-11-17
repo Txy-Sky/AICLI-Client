@@ -6,7 +6,7 @@ export type McpPreset = Omit<McpServer, "enabled" | "description">;
 // 创建跨平台 npx 命令配置
 // Windows 需要使用 cmd /c wrapper 来执行 npx.cmd
 // Mac/Linux 可以直接执行 npx
-const createNpxCommand = (
+export const createNpxCommand = (
   packageName: string,
   extraArgs: string[] = [],
 ): { command: string; args: string[] } => {

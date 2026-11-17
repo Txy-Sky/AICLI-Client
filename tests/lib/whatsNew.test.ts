@@ -87,10 +87,12 @@ describe("language and links", () => {
     expect(resolveWhatsNewLanguage("fr")).toBe("en");
   });
 
-  it("links to the website changelog, Traditional Chinese uses the zh pages", () => {
+  it("links to the project release pages, the same for every language", () => {
     expect(changelogUrl("en", "4.0.2")).toBe(
-      "https://ccswitch.io/en/changelog/4.0.2",
+      "https://github.com/Txy-Sky/AICLI-Client/releases/tag/v4.0.2",
     );
-    expect(changelogUrl("zh-TW")).toBe("https://ccswitch.io/zh/changelog");
+    expect(changelogUrl("zh-TW")).toBe(
+      "https://github.com/Txy-Sky/AICLI-Client/releases",
+    );
   });
 });

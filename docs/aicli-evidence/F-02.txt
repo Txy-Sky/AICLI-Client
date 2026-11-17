@@ -1,0 +1,32 @@
+F-02 导航和冷启动验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：24aecd21 feat(aicli): F-02 client page, no auth page, cold start on usage
+      cdb5ccaa fix(aicli): F-02 let the B-07 copy check accept added translation keys
+      （同轮另含 3ef58763 test(aicli): E-06 install the rustls provider in the privacy e2e fixture）
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42547322746（cdb5ccaa，五 job 全 success）
+
+实现
+- src/lib/navigation.ts：AppPage "providers" → "client"（appPageBelongsTo 同步）；GlobalPage 删除
+  "auth"；readStoredView() 恒返回 "usage"；删除 storeView；LEGACY_VIEWS 增加
+  providers → usage、auth → usage。
+- src/App.tsx：删除视图持久化（原 storeView effect）；"providers" 视图判断全部改为 "client"；
+  删除授权中心页及其失去引用的 import（AuthCenterPanel、Badge、HelpTip、KeyRound）。
+- src/components/shell/Sidebar.tsx：删除授权中心入口。
+- 5 种语言新增 appPage.client（客户端 / 用戶端 / Client / クライアント / İstemci）。
+
+验收
+- 冷启动：tests/integration/App.test.tsx 新增 6 个用例，localStorage 分别存 providers / auth /
+  skillsDiscovery / skills / mcp / settings 时冷启动都停在用量页（侧栏用量项 aria-current=page，
+  无供应商列表 / Skills 面板 / 设置页）；tests/lib/navigation.test.ts 11 项（8 种存储值 →
+  usage、旧名映射、client/auth 归属、应用专属页归属）。
+- 运行期切页：新增「切页不持久化」用例；原有依赖起始页的 15 个用例改为先点侧栏应用行进入客户端页
+  后照旧通过（切应用、未保存保护、OpenClaw/Hermes 分段等）。原「存 skillsDiscovery 打开发现段」
+  用例的前提被 F-02 取消，改为上述冷启动用例。
+- 前端 266 文件 / 3406 测试全过。
+
+失败历史
+- 24aecd21 的 CI 42545854393：① B-07 工作流断言要求语言文件键与改名基线逐一相等，新增
+  appPage.client 即失败——清单 B-07 不要求键不变，cdb5ccaa 改为「基线键全部保留、允许新增」，
+  记第 12 节；② E-06 e2e second_request_completes_while_stream_is_open_full_chain 偶发失败，
+  原因是测试进程未安装 rustls CryptoProvider（与 F-02 无关），3ef58763 修复。

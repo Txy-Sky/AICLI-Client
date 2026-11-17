@@ -16,12 +16,14 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@/lib/toast";
 import { getVersion } from "@tauri-apps/api/app";
 import { settingsApi } from "@/lib/api";
+import { UPDATER_ENABLED } from "@/lib/updater";
 import { useUpdate } from "@/contexts/UpdateContext";
 import { Badge } from "@/components/ui/badge";
 import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 import { WHATS_NEW_ENTRIES, entriesUpTo } from "@/lib/whatsNew";
-import ccswitchLogo from "@/assets/icons/logo.svg";
+import appLogo from "@/assets/icons/aicli-logo.png";
 import { extractErrorMessage } from "@/utils/errorUtils";
+import { RELEASES_URL, REPOSITORY_URL, WEBSITE_URL } from "@/config/branding";
 
 interface AboutSectionProps {
   isPortable: boolean;
@@ -103,15 +105,11 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           : "";
 
       if (!displayVersion) {
-        await settingsApi.openExternal(
-          "https://github.com/farion1231/cc-switch/releases",
-        );
+        await settingsApi.openExternal(RELEASES_URL);
         return;
       }
 
-      await settingsApi.openExternal(
-        `https://github.com/farion1231/cc-switch/releases/tag/${displayVersion}`,
-      );
+      await settingsApi.openExternal(`${RELEASES_URL}/tag/${displayVersion}`);
     } catch (error) {
       console.error("[AboutSection] Failed to open release notes", error);
       toast.error(t("settings.openReleaseNotesFailed"));
@@ -119,7 +117,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
   }, [t, updateInfo?.availableVersion, version]);
 
   const handleOpenGithub = useCallback(() => {
-    void settingsApi.openExternal("https://github.com/farion1231/cc-switch");
+    void settingsApi.openExternal(REPOSITORY_URL);
   }, []);
 
   const handleDismissStarPrompt = useCallback(() => {
@@ -198,13 +196,13 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
     <div className="divide-y divide-border overflow-hidden rounded-panel border border-border bg-surface">
       <div className="flex flex-wrap items-center gap-4 px-5 py-4">
         <img
-          src={ccswitchLogo}
+          src={appLogo}
           alt=""
           draggable={false}
           className="h-10 w-10 shrink-0 p-1"
         />
         <div className="min-w-0 flex-1">
-          <div className="text-title text-fg-1">CC Switch</div>
+          <div className="text-title text-fg-1">AICLI Client</div>
           <div className="flex flex-wrap items-center gap-2 text-caption text-fg-2">
             {isLoadingVersion ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -222,37 +220,39 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
             )}
           </div>
         </div>
-        <Button
-          type="button"
-          variant={hasUpdate ? "solid" : "neutral"}
-          size="regular"
-          onClick={handleCheckUpdate}
-          disabled={isChecking || isDownloading}
-        >
-          {isDownloading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t("settings.updating")}
-            </>
-          ) : hasUpdate ? (
-            <>
-              <Download className="h-3.5 w-3.5" />
-              {t("settings.updateTo", {
-                version: updateInfo?.availableVersion ?? "",
-              })}
-            </>
-          ) : isChecking ? (
-            <>
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              {t("settings.checking")}
-            </>
-          ) : (
-            <>
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("settings.checkForUpdates")}
-            </>
-          )}
-        </Button>
+        {UPDATER_ENABLED && (
+          <Button
+            type="button"
+            variant={hasUpdate ? "solid" : "neutral"}
+            size="regular"
+            onClick={handleCheckUpdate}
+            disabled={isChecking || isDownloading}
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t("settings.updating")}
+              </>
+            ) : hasUpdate ? (
+              <>
+                <Download className="h-3.5 w-3.5" />
+                {t("settings.updateTo", {
+                  version: updateInfo?.availableVersion ?? "",
+                })}
+              </>
+            ) : isChecking ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                {t("settings.checking")}
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("settings.checkForUpdates")}
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {hasUpdate && updateInfo && (
@@ -287,7 +287,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
           type="button"
           variant="neutral"
           size="compact"
-          onClick={() => settingsApi.openExternal("https://ccswitch.io")}
+          onClick={() => settingsApi.openExternal(WEBSITE_URL)}
         >
           <Globe className="h-3.5 w-3.5" />
           {t("settings.officialWebsite")}
@@ -314,7 +314,7 @@ export function AboutSection({ isPortable }: AboutSectionProps) {
         )}
       </div>
 
-      {/* 下载与更新都走 ccswitch.io，用户不再经过仓库页，邀 Star 单独占一行；按钮即 GitHub 入口。
+      {/* 邀 Star 单独占一行，按钮即项目仓库入口（branding.REPOSITORY_URL）。
           关掉后链接行补回 GitHub 按钮 */}
       {!starPromptDismissed && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3 bg-action-soft py-3.5 ps-5 pe-3">

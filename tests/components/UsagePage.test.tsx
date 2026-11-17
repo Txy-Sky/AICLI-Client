@@ -1,13 +1,14 @@
-import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsagePage } from "@/components/usage/UsagePage";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
+import { renderWithQueryClient } from "../utils/testQueryClient";
 
 const autoSaveSettings = vi.hoisted(() => vi.fn());
 const settingsState = vi.hoisted(() => ({
   current: null as null | {
     usageDashboardRefreshIntervalMs: number;
     sessionAutoSyncEnabled: boolean;
+    usageIncludeSessionLogs?: boolean;
   },
 }));
 vi.mock("@/hooks/useSettings", () => ({
@@ -29,7 +30,7 @@ describe("UsagePage settings persistence", () => {
 
   it("tells the dashboard settings are not ready until they load", () => {
     settingsState.current = null;
-    const { rerender } = render(<UsagePage />);
+    const { rerender } = renderWithQueryClient(<UsagePage />);
     expect(vi.mocked(UsageDashboard).mock.lastCall![0]).toMatchObject({
       settingsReady: false,
     });
@@ -51,7 +52,7 @@ describe("UsagePage settings persistence", () => {
         finish = resolve;
       }),
     );
-    render(<UsagePage />);
+    renderWithQueryClient(<UsagePage />);
     const onChange =
       vi.mocked(UsageDashboard).mock.calls[0][0]!.onRefreshIntervalChange!;
     const settled = vi.fn();
@@ -72,7 +73,7 @@ describe("UsagePage settings persistence", () => {
       if (failure === "rejected")
         autoSaveSettings.mockRejectedValue(new Error("save failed"));
       else autoSaveSettings.mockResolvedValue(null);
-      render(<UsagePage />);
+      renderWithQueryClient(<UsagePage />);
       const props = vi.mocked(UsageDashboard).mock.calls[0][0]!;
       await expect(props.onRefreshIntervalChange!(5000)).resolves.toBe(false);
       await expect(props.onSessionAutoSyncEnabledChange!(false)).resolves.toBe(
@@ -80,4 +81,15 @@ describe("UsagePage settings persistence", () => {
       );
     },
   );
+
+  it("counts session logs only after the switch is saved", async () => {
+    autoSaveSettings.mockResolvedValue({ requiresRestart: false });
+    renderWithQueryClient(<UsagePage />);
+    const props = vi.mocked(UsageDashboard).mock.calls[0][0]!;
+    expect(props.includeSessionLogs).toBe(false);
+    await props.onIncludeSessionLogsChange!(true);
+    expect(autoSaveSettings).toHaveBeenCalledWith({
+      usageIncludeSessionLogs: true,
+    });
+  });
 });

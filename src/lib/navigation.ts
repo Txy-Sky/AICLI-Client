@@ -3,20 +3,28 @@ import type { AppId } from "@/lib/api";
 /**
  * 主窗口的导航模型（v7）：侧栏选一个应用或一个全局页；设置单独占一屏。
  *
- * - 应用页：点侧栏应用行进入供应商页；OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
- * - 全局页：用量统计、授权中心、MCP、Skills、提示词、会话、应用（安装与显示），每样只出现一次。
+ * - 客户端（F-08）：侧栏只有一个「客户端」入口，进入客户端总览；点卡片进入单个应用的
+ *   客户端页，OpenClaw、Hermes 在页头下用分段控件切到自己的专属页。
+ * - 全局页（2026-11 改版，负责人同意改 F-02/F-03/F-10 的口径）：首页（AICLI 账户与请求链路）、
+ *   客户端总览、用量（本机统计）、钱包（W 阶段，负责人 2026-11-15 新增）、隐私脱敏、配置集，以及 MCP、Skills、提示词、会话，每样只出现一次。
+ *   「应用」（安装与升级）不在侧栏，从客户端页进入。
  * - 设置：侧栏换成设置目录，6 个分组。
+ * - 冷启动恒进首页（F-02）：不再记住上次停留的页面。
  */
 
 export type AppPage =
-  | "providers"
+  | "client"
   | "workspace"
   | "openclawConfig"
   | "hermesMemory";
 
 export type GlobalPage =
+  | "home"
+  | "clients"
+  | "privacy"
   | "usage"
-  | "auth"
+  | "wallet"
+  | "profiles"
   | "mcp"
   | "skills"
   | "skillsDiscovery"
@@ -44,15 +52,19 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ];
 
 const APP_PAGES: AppPage[] = [
-  "providers",
+  "client",
   "workspace",
   "openclawConfig",
   "hermesMemory",
 ];
 
 const GLOBAL_PAGES: GlobalPage[] = [
+  "home",
+  "clients",
+  "privacy",
   "usage",
-  "auth",
+  "wallet",
+  "profiles",
   "mcp",
   "skills",
   "skillsDiscovery",
@@ -61,14 +73,20 @@ const GLOBAL_PAGES: GlobalPage[] = [
   "apps",
 ];
 
-export const VIEW_STORAGE_KEY = "cc-switch-last-view";
-export const APP_STORAGE_KEY = "cc-switch-last-app";
+/** 旧版存过的上次视图的键；F-02 起不再读写（冷启动恒进首页）。 */
+export const VIEW_STORAGE_KEY = "aicli-client-last-view";
+export const APP_STORAGE_KEY = "aicli-client-last-app";
 
-/** 旧版视图名 → 新视图（OpenClaw 的三个配置页合成了一个）。 */
+/**
+ * 旧版视图名 → 新视图：OpenClaw 的三个配置页合成了一个；供应商页、授权中心
+ * 在 AICLI 客户端里不再存在，落到首页。
+ */
 const LEGACY_VIEWS: Record<string, View> = {
   openclawEnv: "openclawConfig",
   openclawTools: "openclawConfig",
   openclawAgents: "openclawConfig",
+  providers: "home",
+  auth: "home",
 };
 
 export function isAppPage(view: View): view is AppPage {
@@ -88,10 +106,10 @@ export function parseView(value: string | null | undefined): View | null {
   return null;
 }
 
-/** 应用专属页只对它所属的应用成立；换了应用就回到供应商页。 */
+/** 应用专属页只对它所属的应用成立；换了应用就回到客户端页。 */
 export function appPageBelongsTo(page: AppPage, app: AppId): boolean {
   switch (page) {
-    case "providers":
+    case "client":
       return true;
     case "workspace":
     case "openclawConfig":
@@ -101,20 +119,12 @@ export function appPageBelongsTo(page: AppPage, app: AppId): boolean {
   }
 }
 
+/**
+ * 冷启动的视图：恒为首页（F-02），不论 localStorage 里存过什么旧值。
+ * 运行期切页不持久化。
+ */
 export function readStoredView(): View {
-  try {
-    return parseView(localStorage.getItem(VIEW_STORAGE_KEY)) ?? "providers";
-  } catch {
-    return "providers";
-  }
-}
-
-export function storeView(view: View) {
-  try {
-    localStorage.setItem(VIEW_STORAGE_KEY, view);
-  } catch {
-    // 存不了就算了：下次启动回到供应商页
-  }
+  return "home";
 }
 
 /**

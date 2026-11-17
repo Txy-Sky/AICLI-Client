@@ -131,17 +131,6 @@ pub fn account_slot(data_dir: &Path, account: &str) -> Option<Slot> {
     crate::services::claude_account::config_dir_on_disk(data_dir, account).map(Slot::Account)
 }
 
-/// 账号目录里有没有能用的登录（读凭据判断；钥匙串条目在、里面只剩 MCP 授权也算没有）。
-pub fn dir_has_login(config_dir: &Path) -> bool {
-    creds::read_login(
-        store::platform_store().as_ref(),
-        &Slot::Account(config_dir.to_path_buf()),
-    )
-    .ok()
-    .flatten()
-    .is_some()
-}
-
 /// 凭据里 Claude Code 记的套餐。
 pub fn credential_plan(secret: &store::Secret) -> crate::services::claude_account::AccountPlan {
     creds::credential_plan(secret)

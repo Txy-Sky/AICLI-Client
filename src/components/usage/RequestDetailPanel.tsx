@@ -30,6 +30,14 @@ import {
 } from "./format";
 import { appDisplayName } from "./RequestLogTable";
 import { getUsageProviderLabel } from "./providerLabel";
+import { useAicliRequestBill } from "@/hooks/useAicliUsage";
+import { useAicliAccount } from "@/hooks/useAicliAccount";
+import { formatAicliQuota } from "@/lib/aicliQuota";
+import { useAicliProfiles } from "@/hooks/useAicliProfiles";
+import {
+  aicliProfileName,
+  isAicliPresetId,
+} from "@/components/aicli/profiles/profileName";
 
 interface RequestDetailPanelProps {
   /** 要看的请求；null 时抽屉关闭 */
@@ -83,7 +91,11 @@ function DetailSection({ title, rows }: { title: string; rows: DetailRow[] }) {
   );
 }
 
-function useDetailSections(request: RequestLog) {
+/**
+ * `isAicli`：有 AICLI 账单记录的请求。它的成本明细只列模型原价（站点单价、不乘分组倍率）
+ * 的预估，合计为各项之和；分组倍率和实扣在「服务端账单」一节显示。
+ */
+function useDetailSections(request: RequestLog, isAicli: boolean) {
   const { t, i18n } = useTranslation();
   const { money, moneyTitle } = useMoneyFormat();
   const usd = (value: string) => money(value, 4);
@@ -203,24 +215,46 @@ function useDetailSections(request: RequestLog) {
       value: usd(request.cacheCreationCostUsd),
     },
   ];
-  if (multiplier != null && multiplier !== 1) {
+  if (isAicli) {
+    // 模型原价合计 = 各项之和（不乘分组倍率）；各项全为 0 说明价格未知
+    const listTotal = [
+      request.inputCostUsd,
+      request.outputCostUsd,
+      request.cacheReadCostUsd,
+      request.cacheCreationCostUsd,
+    ]
+      .map((value) => parseFiniteNumber(value) ?? 0)
+      .reduce((sum, value) => sum + value, 0);
+    const unknown = listTotal <= 0;
     cost.push({
-      key: "multiplier",
-      label: t("usage.costMultiplier"),
-      value: `×${request.costMultiplier}`,
+      key: "total",
+      label: t("usage.detail.total"),
+      value: unknown ? t("usage.unpriced") : usd(String(listTotal)),
+      strong: !unknown,
+      muted: unknown,
+      title: unknown ? undefined : moneyTitle(String(listTotal), 6),
+    });
+  } else {
+    if (multiplier != null && multiplier !== 1) {
+      cost.push({
+        key: "multiplier",
+        label: t("usage.costMultiplier"),
+        value: `×${request.costMultiplier}`,
+      });
+    }
+    // F-06：本机按定价算出的是预估值，不是服务端实扣，合计行必须标「预估」
+    cost.push({
+      key: "total",
+      label:
+        multiplier != null && multiplier !== 1
+          ? `${t("usage.detail.total")} (${t("usage.withMultiplier")}) · ${t("aicli.bill.estimated")}`
+          : `${t("usage.detail.total")} · ${t("aicli.bill.estimated")}`,
+      value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
+      strong: !unpriced,
+      muted: unpriced,
+      title: unpriced ? undefined : moneyTitle(request.totalCostUsd, 6),
     });
   }
-  cost.push({
-    key: "total",
-    label:
-      multiplier != null && multiplier !== 1
-        ? `${t("usage.detail.total")} (${t("usage.withMultiplier")})`
-        : t("usage.detail.total"),
-    value: unpriced ? t("usage.unpriced") : usd(request.totalCostUsd),
-    strong: !unpriced,
-    muted: unpriced,
-    title: unpriced ? undefined : moneyTitle(request.totalCostUsd, 6),
-  });
 
   let performance: DetailRow[];
   if (!isProxy) {
@@ -316,19 +350,87 @@ function useDetailSections(request: RequestLog) {
   return { basic, tokens, cost, performance };
 }
 
+/**
+ * F-06：服务端账单（线路、配置集、服务端分组、服务端实扣额度）。billed_at 为空 =
+ * 尚未记账，显示「等待服务端记账」，不拿本机估算值冒充实扣。没有 AICLI 记录时不显示。
+ */
+function useServerBillRows(requestId: string): DetailRow[] | null {
+  const { t, i18n } = useTranslation();
+  const bill = useAicliRequestBill(requestId).data;
+  const display = useAicliAccount().data?.quota_display ?? null;
+  // 用户配置集的名字要查本机配置集；系统预设直接按语言翻译（F-11）
+  const userProfileId =
+    bill?.profile_id && !isAicliPresetId(bill.profile_id)
+      ? bill.profile_id
+      : null;
+  const profiles = useAicliProfiles(userProfileId != null).data;
+  if (!bill) return null;
+  const profileName = bill.profile_id
+    ? aicliProfileName(
+        t,
+        profiles?.profiles.find((item) => item.id === bill.profile_id),
+        bill.profile_id,
+      )
+    : null;
+  const pending = bill.billed_at == null;
+  const charged = pending
+    ? null
+    : formatAicliQuota(bill.billed_quota, display, i18n.language);
+  return [
+    {
+      key: "line",
+      label: t("aicli.bill.line"),
+      value: bill.line_id ? t(`aicli.lines.${bill.line_id}`) : "—",
+      muted: !bill.line_id,
+    },
+    {
+      key: "profile",
+      label: t("aicli.bill.profile"),
+      value: profileName ?? "—",
+      muted: !profileName,
+    },
+    {
+      key: "group",
+      label: t("aicli.bill.serverGroup"),
+      value: bill.server_group ?? "—",
+      muted: !bill.server_group,
+    },
+    {
+      key: "groupRatio",
+      label: t("aicli.bill.groupRatio"),
+      value: bill.group_ratio != null ? `×${bill.group_ratio}` : "—",
+      muted: bill.group_ratio == null,
+    },
+    {
+      key: "billed",
+      label: `${t("aicli.bill.serverCharge")} · ${t("aicli.bill.charged")}`,
+      value: pending ? t("aicli.bill.pending") : (charged ?? "—"),
+      muted: pending,
+      strong: !pending,
+    },
+  ];
+}
+
 function RequestDetailBody({ request }: { request: RequestLog }) {
   const { t } = useTranslation();
   const { currency } = useMoneyFormat();
-  const sections = useDetailSections(request);
+  const isAicli = Boolean(useAicliRequestBill(request.requestId).data);
+  const sections = useDetailSections(request, isAicli);
+  const serverBill = useServerBillRows(request.requestId);
   return (
     <div className="flex flex-col gap-4">
       <DetailSection title={t("usage.basicInfo")} rows={sections.basic} />
+      {serverBill && (
+        <DetailSection title={t("aicli.bill.title")} rows={serverBill} />
+      )}
       <DetailSection
         title={t("usage.detail.tokensTitle")}
         rows={sections.tokens}
       />
       <DetailSection
-        title={t("usage.detail.costTitle", { currency })}
+        title={`${t("usage.detail.costTitle", { currency })} · ${t(
+          isAicli ? "aicli.bill.listPriceEstimated" : "aicli.bill.estimated",
+        )}`}
         rows={sections.cost}
       />
       <DetailSection

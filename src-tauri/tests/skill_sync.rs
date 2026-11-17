@@ -18,13 +18,13 @@ fn write_skill(dir: &std::path::Path, name: &str) {
 }
 
 #[cfg(unix)]
-fn symlink_dir(src: &std::path::Path, dest: &std::path::Path) {
-    std::os::unix::fs::symlink(src, dest).expect("create symlink");
+fn symlink_dir(src: &std::path::Path, dest: &std::path::Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(src, dest)
 }
 
 #[cfg(windows)]
-fn symlink_dir(src: &std::path::Path, dest: &std::path::Path) {
-    std::os::windows::fs::symlink_dir(src, dest).expect("create symlink");
+fn symlink_dir(src: &std::path::Path, dest: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(src, dest)
 }
 
 #[test]
@@ -78,7 +78,10 @@ fn import_from_apps_does_not_rewrite_selected_app_directory() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_skill_dir = home.join(".cc-switch").join("skills").join("codex-skill");
+    let ssot_skill_dir = home
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("skills")
+        .join("codex-skill");
     write_skill(&ssot_skill_dir, "Stale SSOT Skill");
     fs::write(ssot_skill_dir.join("prompt.md"), "stale ssot").expect("write stale ssot prompt");
 
@@ -125,7 +128,7 @@ fn sync_to_app_removes_disabled_and_orphaned_ssot_symlinks() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_dir = home.join(".cc-switch").join("skills");
+    let ssot_dir = home.join(cc_switch_lib::APP_DIR_NAME).join("skills");
     let disabled_skill = ssot_dir.join("disabled-skill");
     let orphan_skill = ssot_dir.join("orphan-skill");
     write_skill(&disabled_skill, "Disabled");
@@ -133,8 +136,25 @@ fn sync_to_app_removes_disabled_and_orphaned_ssot_symlinks() {
 
     let opencode_skills_dir = home.join(".config").join("opencode").join("skills");
     fs::create_dir_all(&opencode_skills_dir).expect("create opencode skills dir");
-    symlink_dir(&disabled_skill, &opencode_skills_dir.join("disabled-skill"));
-    symlink_dir(&orphan_skill, &opencode_skills_dir.join("orphan-skill"));
+    for (src, dest) in [
+        (&disabled_skill, opencode_skills_dir.join("disabled-skill")),
+        (&orphan_skill, opencode_skills_dir.join("orphan-skill")),
+    ] {
+        if let Err(err) = symlink_dir(src, &dest) {
+            // Windows 未开开发者模式/管理员时无符号链接权限
+            // （ERROR_PRIVILEGE_NOT_HELD = 1314），夹具无从构造，跳过。
+            #[cfg(windows)]
+            {
+                assert!(err.raw_os_error() == Some(1314), "create symlink: {err}");
+                eprintln!("cannot create symlinks without privilege ({err}); skipping");
+                return;
+            }
+            #[cfg(not(windows))]
+            {
+                panic!("create symlink: {err}");
+            }
+        }
+    }
 
     let state = create_test_state().expect("create test state");
     state
@@ -173,7 +193,10 @@ fn uninstall_skill_creates_backup_before_removing_ssot() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_skill_dir = home.join(".cc-switch").join("skills").join("backup-skill");
+    let ssot_skill_dir = home
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("skills")
+        .join("backup-skill");
     write_skill(&ssot_skill_dir, "Backup Skill");
     fs::write(ssot_skill_dir.join("prompt.md"), "backup me").expect("write prompt.md");
 
@@ -241,7 +264,10 @@ fn restore_skill_backup_restores_files_to_ssot_and_current_app() {
     reset_test_fs();
     let home = ensure_test_home();
 
-    let ssot_skill_dir = home.join(".cc-switch").join("skills").join("restore-skill");
+    let ssot_skill_dir = home
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("skills")
+        .join("restore-skill");
     write_skill(&ssot_skill_dir, "Restore Skill");
     fs::write(ssot_skill_dir.join("prompt.md"), "restore me").expect("write prompt.md");
 
@@ -289,7 +315,7 @@ fn restore_skill_backup_restores_files_to_ssot_and_current_app() {
         "restore should only enable the selected app"
     );
     assert!(
-        home.join(".cc-switch")
+        home.join(cc_switch_lib::APP_DIR_NAME)
             .join("skills")
             .join("restore-skill")
             .join("prompt.md")
@@ -321,7 +347,7 @@ fn delete_skill_backup_removes_backup_directory() {
     let home = ensure_test_home();
 
     let ssot_skill_dir = home
-        .join(".cc-switch")
+        .join(cc_switch_lib::APP_DIR_NAME)
         .join("skills")
         .join("delete-backup-skill");
     write_skill(&ssot_skill_dir, "Delete Backup Skill");

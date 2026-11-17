@@ -1,0 +1,120 @@
+C3-10 takeover snapshot restore and managed-client projection
+Initial implementation: a38e0757
+Final implementation: 95aa3cbc01cd352801212425e7d09c83e0a546c7
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41959620296
+All four parallel jobs and Checklist acceptance (Linux) succeeded.
+
+Rust item tests (Linux), job 127022611802:
+  Default and test-hooks sets both passed.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::takeover::tests
+  7 passed: grok_default_selection_three_levels;
+  desktop_over_limit_and_empty_catalog_never_touch_client_files;
+  legacy_conflict_requires_confirmation_and_preserves_original_backup;
+  fingerprint_change_resyncs_desktop_and_grok_without_replacing_backup;
+  projection_models_and_empty_profile_are_exact;
+  pending_takeover_recovers_on_startup_then_restores_original_bytes;
+  five_clients_restore_exact_bytes_and_keep_seed_rows_keyless.
+  Covers byte-exact restore for Claude/Codex/Gemini/Grok/Desktop, cc-switch
+  legacy conflict confirmation preserving the original backup, NoModels and
+  the 200-model limit writing no client files, Grok three-level default
+  with context_window=128000, fingerprint resync without replacing the
+  backup, pending takeover recovery on startup, and keyless seed rows.
+  Default set aicli::account::tests 12 passed including
+  unbind_restores_takeovers_removes_credentials_and_account_tables_and_preserves_logs.
+A3-01 baseline (Linux), job 127022611644:
+  bash scripts/aicli-check.sh
+  Rust 4613 passed / original 10 skipped (+7 versus C3-09); frontend
+  267 files / 3416 passed.
+  Typecheck, format, renderer build and Clippy passed.
+B stage desktop checks (Linux), job 127022611322: success.
+A6 test environment (Linux), job 127022611685: success.
+  Coverage decision: testenv=true; c106_observe=true; reason "test
+  environment or its CI infrastructure changed" (a38e0757 touched the
+  acceptance workflow and scripts). C1-06 observation actually ran:
+  601.39s, audited /api/* request count=39 (limit 40, includes audit
+  observers), all 30 days persisted. A6-05 mock observations unchanged
+  (upstream_attempts=1, no duplicate content).
+Checklist acceptance (Linux), job 127028437362: success.
+
+Owner decisions applied (2026-11-04, checklist C3-10): projection fields
+completed from the compiled current profile (app binding > global binding >
+active_profile_id > recommended); key is always the C3-08 local token,
+never a real sk- token; Desktop lists all compatible models with alias
+encoding and a 200-model cap; Grok writes one "aicli" table with
+three-level default selection and fixed context_window=128000; NoModels is
+returned before any file write; fingerprint change resyncs via the
+existing resync_route. Legacy detection per the 2026-11-02 pre-decision:
+takeover.rs:23-24 defines exactly LEGACY_CC_SWITCH_PORT and
+LEGACY_CC_SWITCH_DESKTOP_PROFILE_ID, and scripts/aicli-check-legacy-port.py
+asserts those two lines are the only 15721 references under src-tauri/src
+and src.
+
+Failure history (not acceptance):
+  Run 41862008626 (a38e0757): E0308 — cached_projection() returned
+  Arc<RoutesSnapshot> where RoutesSnapshot was expected (takeover.rs:190,
+  controller.rs:72).
+  Run 41947281077 (cb3a53fa): lib test compile error "no rules expected
+  `.`" in the projection fixture macro.
+  Runs 41949362860 (70e1001c), 41951356794 (24eb3f0b), 41953292252
+  (ec8bea87): takeover regressions; 3/2/2 tests failed among
+  five_clients_restore_exact_bytes_and_keep_seed_rows_keyless,
+  legacy_conflict_requires_confirmation_and_preserves_original_backup and
+  fingerprint_change_resyncs_desktop_and_grok_without_replacing_backup;
+  diagnostic commits exposed sanitized failure causes and isolated the
+  takeover test listener port.
+  Runs 41955210860 (87a098f1), 41957543117 (2c3cd760): only
+  five_clients_restore_exact_bytes_and_keep_seed_rows_keyless failed;
+  sanitized cause: Codex provider config missing 'auth' field (panic at
+  takeover.rs:628). Final fix 95aa3cbc provides a keyless Codex auth
+  object. No assertion removed, weakened, ignored, or bypassed;
+  cancelled/superseded runs are not successful acceptance evidence.
+
+Security: downloaded job evidence artifact (14 files) and the three key
+job logs of the final run scanned for long model-key/Bearer candidates
+(counts only, no values recorded). Final count 0/0.
+No real credentials, production operations, local builds or tests.
+Local pre-push (WSL Ubuntu, external pinned prettier 3.6.2):
+scripts/aicli-pre-push-check.sh — cargo fmt --check, Prettier and workflow
+YAML syntax all passed; git diff --check clean.
+
+=====================================================================
+负责人复核修正（2026-11-05，见清单第 12 节）
+=====================================================================
+最终验收提交：eaf90fa5（bdfbb1b2、da8a5796、eaf90fa5；与 C3-11 修正合并验收）
+最终 CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42037730010（五 job 全 success）
+
+一、运行中快照优先（mode/controller.rs provider()）
+- 新增 ProxyService::aicli_runtime_now()（try_read 同步取运行中代理运行时）。
+- provider() 解析隐藏种子时优先用运行中运行时的 snapshot()；代理未运行才新建运行时，
+  回退分支保持 cached_projection()（构造期 load_cached 依赖钥匙串令牌，无令牌时
+  快照为空，cached_projection 只读数据库——这正是中间两轮失败的原因，见下）。
+- 新测试 mode::controller::mode_tests::aicli_projection_prefers_the_running_runtime_snapshot：
+  运行中快照与重编译 fingerprint 必须不同（夹具保证），接管投影默认模型跟随运行中
+  快照（alpha），代理停止后回退重编译（beta）。
+
+二、ProfileNeedsRepair（takeover.rs prepare_projection）
+- 新增 TakeoverError::ProfileNeedsRepair：配置集整体停用（conservative 编译，routes
+  为空）或所选配置集全部模型都在受影响名单时返回；命令错误码 profile_needs_repair
+  （前端提示「配置集需要修复」随 F-04 落地）。目录缺失等与修复无关的原因仍返回
+  NoModels。
+- 新测试 4 项（aicli::takeover::tests）：conservative、全部受影响、目录缺失仍
+  NoModels、部分受影响仍投影剩余模型。
+
+三、专项与基线
+- job Rust item tests：aicli::takeover::tests 11 passed（原 7 + 新 4）；mode::controller
+  新测试随 A3-01 基线 PASS（日志可见）。
+- job A3-01 baseline：Rust 4539 passed / 原有 10 skipped、前端 264 文件 3360 passed，
+  clippy -D warnings 通过。
+
+四、失败历史（4 轮，不作成功证据）
+1. run 42025328511（bdfbb1b2）：测试夹具类型错误（with_remote 需 Arc<dyn CacheRemote>、
+   fingerprint 不能移出 Arc），E0308/E0507×4。
+2. run 42028275514（8f768bca）：takeover 三个既有用例 Err(Client)——回退分支误用
+   snapshot()，夹具无钥匙串令牌时快照为空；另 C3-11 的 finish_usage_refresh 漏改
+   （丢弃写入仍发事件，计数 2≠1）。
+3. run 42031200035（63a99c27）：同 Client 根因未除——enter 启动代理后的二次 provider
+   解析走运行中运行时；修正：夹具向 KeyringStore（隔离 HOME 文件回退）播种访问令牌，
+   resync 测试改由真实运行时的 projection_changes 驱动（新增测试钩子
+   reload_from_cache_for_test，等价 refresh 的本地部分）；误提交的 E0507（钩子内
+   fingerprint 未 clone）在 run 42034772591 暴露。
+4. 最终 eaf90fa5 全绿。

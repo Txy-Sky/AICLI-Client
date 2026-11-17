@@ -8,6 +8,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ProxyError {
+    #[allow(dead_code)]
+    #[error("客户端已断开")]
+    ClientAbort,
+
     #[error("上游响应体超过大小上限: {0} 字节")]
     ResponseBodyTooLarge(usize),
 
@@ -116,6 +120,7 @@ impl IntoResponse for ProxyError {
             }
             _ => {
                 let (http_status, message) = match &self {
+                    ProxyError::ClientAbort => (StatusCode::REQUEST_TIMEOUT, self.to_string()),
                     ProxyError::AlreadyRunning => (StatusCode::CONFLICT, self.to_string()),
                     ProxyError::NotRunning => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
                     ProxyError::BindFailed(_) => {

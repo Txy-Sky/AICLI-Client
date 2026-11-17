@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
+import { usageKeys } from "@/lib/query/usage";
 import type { SettingsFormState } from "@/hooks/useSettings";
 import type { AppTypeFilter } from "@/types/usage";
 import { UsageDashboard } from "./UsageDashboard";
@@ -8,14 +11,23 @@ interface UsagePageProps {
   initialAppType?: AppTypeFilter;
   /** 打开设置 → 本地路由（「记录请求用量」开关在那里） */
   onOpenRoutingSettings?: () => void;
+  /** 标题旁的数据来源标注（F-03 首页用）。 */
+  sourceNote?: string;
+  /** F-10：本机统计上方、同一滚动区里的面板（首页的 AICLI 账户面板）。 */
+  leading?: ReactNode;
+  localTitle?: string;
 }
 
 /** 侧栏「用量统计」全局页（v7 S6）：不开路由也有数据（读会话日志）。 */
 export function UsagePage({
   initialAppType,
   onOpenRoutingSettings,
+  sourceNote,
+  leading,
+  localTitle,
 }: UsagePageProps = {}) {
   const { settings, autoSaveSettings } = useSettings();
+  const queryClient = useQueryClient();
 
   const save = async (updates: Partial<SettingsFormState>) => {
     try {
@@ -41,6 +53,16 @@ export function UsagePage({
       onOpenRoutingSettings={onOpenRoutingSettings}
       usageDisplay={settings?.usageDisplay}
       onUsageDisplayChange={(usageDisplay) => save({ usageDisplay })}
+      sourceNote={sourceNote}
+      leading={leading}
+      localTitle={localTitle}
+      includeSessionLogs={settings?.usageIncludeSessionLogs ?? false}
+      onIncludeSessionLogsChange={async (usageIncludeSessionLogs) => {
+        // 后端按此设置过滤所有用量查询：保存后整页重新取数
+        if (await save({ usageIncludeSessionLogs })) {
+          await queryClient.invalidateQueries({ queryKey: usageKeys.all });
+        }
+      }}
     />
   );
 }

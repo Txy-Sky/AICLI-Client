@@ -1264,7 +1264,7 @@ wire_api = "responses"
         use crate::codex_config::{codex_disables_web_search, CodexCatalogToolProfile};
         use crate::live::project::codex::{CodexProjection, RowInput};
 
-        for base_url in ["https://api.githubcopilot.com", "http://localhost:15721/v1"] {
+        for base_url in ["https://api.githubcopilot.com", "http://localhost:15821/v1"] {
             let mut provider = create_copilot_provider();
             provider.settings_config = json!({
                 "auth": {},

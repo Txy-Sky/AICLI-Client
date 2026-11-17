@@ -1,0 +1,47 @@
+C3-08 local proxy authentication
+Initial implementation: 07a6ba277f4ce54c8050d030d792c5077ac0be02
+Final implementation: 29aad72eb0ce82077fc84073c190f0f49b9810e6
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41852363857
+All four parallel jobs and Checklist acceptance (Linux) succeeded.
+
+Rust item tests (Linux), job 126651746926:
+  cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::local_auth::tests
+  2 passed: persistent distinct per-app token format, all credential carriers,
+  health/status exemptions, Origin rejection and removal of incoming credentials.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_local_credentials
+  1 passed: local credentials rejected for all upstream destinations.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing
+  9 passed / 0 skipped: includes actual proxy 401 missing/wrong/PROXY_MANAGED,
+  all five app tokens with three header forms, Origin 403, health 200 and mock
+  assertions that no local token reaches headers or URL.
+A3-01 baseline (Linux), job 126651747042:
+  bash scripts/aicli-check.sh
+  Rust 4606 passed / original 10 skipped; frontend 267 files / 3416 passed.
+  Typecheck, format, renderer build and Clippy passed.
+B stage desktop checks (Linux), job 126651747156: all checks and startup passed.
+A6 test environment (Linux), job 126651747109:
+  A6 integrations ran and passed, testenv=true (AICLI client inputs changed).
+  c106_observe=false (cache refresh inputs unchanged): no 601s observation.
+Checklist acceptance (Linux), job 126658872444: success.
+
+Implementation:
+  aicli_local_token persistence, constant-time comparisons, shared middleware,
+  credential stripping and five client projections use generated local tokens.
+  Desktop uses the same table/middleware. Legacy marker remains detection only.
+  token_for explicitly takes Database to use the caller's isolated database.
+
+Failure history (not acceptance):
+  07a6ba27, run 41847964624: existing seed HTTP fixtures returned 401 because
+  they supplied upstream fixture credentials rather than a local credential.
+  ba91bed9 added generated local credentials; first run superseded/cancelled.
+  ba91bed9, run 41849664257: all item/A6/desktop jobs passed; baseline failed
+  two inline-thinking HTTP regressions at their unchanged 200 assertions (401).
+  29aad72e supplies generated local credentials to those requests as well.
+  No assertions removed/weakened; no auth bypass, workflow edits or retries.
+
+Pre-push local checks (temporary HOME, formatting only), each push:
+  AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+  git diff --check
+  PASS; no local compilation/tests.
+Public logs and downloaded evidence: long sk/Bearer candidates both 0 in the
+initial two runs (61 files) and the final run (60 files).

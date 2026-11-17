@@ -32,7 +32,6 @@ function interpolationVariables(value: string): string[] {
 const reference = flattenStrings(en);
 const piKeysOutsideNamespace = new Set([
   "apps.pi",
-  "deeplink.api",
   "sessionManager.piDiscoveryUnavailable",
   "sessionManager.piRelativeSessionDir",
   "settings.browsePlaceholderPi",
@@ -124,16 +123,8 @@ describe("Turkish locale", () => {
   it("preserves protocol fields, configuration literals, and commands", () => {
     const translations = flattenStrings(tr);
     const exactLiterals = [
-      "opencode.extraOptionKeyPlaceholder",
-      "opencode.modelExtraFieldKeyPlaceholder",
-      "opencode.modelOptionKeyPlaceholder",
-      "opencode.modelOptionValuePlaceholder",
-      "opencode.providerKeyPlaceholder",
       "openclaw.providerKeyPlaceholder",
       "hermes.form.providerKeyPlaceholder",
-      "grokBuild.rawConfig",
-      "codexConfig.configToml",
-      "providerPreset.plan.aksk",
       "mcp.envPlaceholder",
       "mcp.wizard.envPlaceholder",
       "skills.searchSource.skillssh",
@@ -143,20 +134,11 @@ describe("Turkish locale", () => {
       expect(translations.get(key), key).toBe(reference.get(key));
     }
 
-    expect(translations.get("usageScript.fieldRemaining")).toContain(
-      "• remaining:",
-    );
-    expect(translations.get("usageScript.fieldUnit")).toContain("• unit:");
-    expect(translations.get("usageScript.fieldTotal")).toContain("• total:");
-    expect(translations.get("usageScript.fieldUsed")).toContain("• used:");
-    expect(translations.get("usageScript.fieldExtra")).toContain("• extra:");
-    expect(translations.get("settings.s3Sync.presets.r2Hint")).toContain(
-      "'auto'",
-    );
-    expect(translations.get("settings.s3Sync.presets.cosHint")).toContain(
-      "ap-beijing",
-    );
-    expect(translations.get("hermes.webui.launchConfirmMessage")).toContain(
+    // G-01：opencode / grokBuild / codexConfig / providerPreset / usageScript 的
+    // 字面量随供应商表单与用量脚本一起删除；G-04 又移除了 settings.s3Sync
+    // （WebDAV / S3 云同步）命名空间，协议字面量随之删除
+    // 2026-11 改版：命令从正文挪到确认框的补充小字里，仍须原样保留
+    expect(translations.get("hermes.webui.launchConfirmHint")).toContain(
       "pip install hermes-agent[web]",
     );
     expect(

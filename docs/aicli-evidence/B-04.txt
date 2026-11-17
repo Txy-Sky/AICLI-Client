@@ -1,0 +1,36 @@
+B-04 AICLI deep-link registration and pending-error URL privacy — PASSED
+Final implementation: 73cecdcc8a042500508fe24e419d6cc444610999
+Evidence: 73cecdcc | Checklist acceptance (Linux): cargo nextest run --manifest-path src-tauri/Cargo.toml deeplink; cargo build --manifest-path src-tauri/Cargo.toml --example aicli-deeplink-probe; xvfb-run -a "$RUNNER_TEMP/aicli-deeplink-probe/aicli-client"; original brand grep and complete-output diff -u | 107 passed / 4351 other tests filtered; real plugin generated handler; exact one-row scan passed; complete CI success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41428843145
+
+Real registration output, isolated HOME (plugin tauri-plugin-deep-link 2.4.7):
+B-04 generated handler: /home/runner/work/_temp/aicli-test-home/.local/share/applications/aicli-client-handler.desktop
+B-04 handler scheme: aicliapi
+B-04: PASS
+The probe clears windows, initializes the real plugin, registers all configured
+schemes, reads the generated file, asserts aicliapi present and ccswitch absent.
+Its compiled executable is named aicli-client, matching the package binary.
+No production settings or real HOME are used.
+
+Exact expected and actual brand scan (diff exit 0):
+src-tauri/tauri.conf.json:67:        "https://dl.ccswitch.io/latest.json",
+Actual line number is 67, no drift. B-05 must reduce this scan to no matches.
+
+New tests passed:
+test_deeplink_rejects_legacy_scheme
+test_deeplink_pending_error_drops_query_secret
+The latter exercises the same pending-construction function used by the app,
+asserting PendingDeepLink::Error.url has neither SECRET nor query.
+Existing successful parse/import fixture URLs switched to aicliapi; assertions
+unchanged. WiX already uses deep_link_protocols from config, no literal scheme
+at checklist location; template retained and documented in section 13.
+
+Regression: bash scripts/aicli-check.sh passed; frontend 266 files / 3415
+passed; Rust 4448 passed / 10 original skipped; renderer build passed.
+
+History, not acceptance:
+62db5e18 | run 41426565540 cancelled after da7c9acd superseded it; not counted
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41426565540
+da7c9acd | baseline cargo fmt --check failed on wrapping of two new lines;
+frontend passed; B-04 targeted tests/probe not reached. 73cecdcc applies exactly
+the reported formatting, without removing assertions or ignoring tests.
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41427076964

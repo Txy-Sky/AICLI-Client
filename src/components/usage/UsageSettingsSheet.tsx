@@ -33,6 +33,9 @@ interface UsageSettingsSheetProps {
   onOpenChange: (open: boolean) => void;
   sessionAutoSyncEnabled: boolean;
   onSessionAutoSyncEnabledChange?: (next: boolean) => void;
+  /** 统计是否包含各 CLI 的会话日志（关闭 = 只统计经过本地代理的请求）；不传不显示开关 */
+  includeSessionLogs?: boolean;
+  onIncludeSessionLogsChange?: (next: boolean) => void;
   /** 「刚刚同步」「N 分钟前同步」；还没手动同步过时为空 */
   syncedLabel?: string;
   syncing: boolean;
@@ -143,6 +146,8 @@ export function UsageSettingsSheet({
   onOpenChange,
   sessionAutoSyncEnabled,
   onSessionAutoSyncEnabledChange,
+  includeSessionLogs,
+  onIncludeSessionLogsChange,
   syncedLabel,
   syncing,
   onSyncNow,
@@ -181,6 +186,30 @@ export function UsageSettingsSheet({
         <SheetBody className="flex flex-col gap-6 border-t border-border">
           <SettingsGroup title={t("usage.dataSources")}>
             <div className="divide-y divide-border overflow-hidden rounded-panel border border-border">
+              {onIncludeSessionLogsChange && (
+                <SettingsRow
+                  title={t("aicli.usage.includeSessionLogs")}
+                  help={{
+                    title: t("aicli.usage.includeSessionLogs"),
+                    body: t("aicli.usage.includeSessionLogsHelp"),
+                  }}
+                  trailing={
+                    <Switch
+                      checked={includeSessionLogs ?? false}
+                      onCheckedChange={(value) =>
+                        onIncludeSessionLogsChange(value)
+                      }
+                      aria-label={t("aicli.usage.includeSessionLogs")}
+                    />
+                  }
+                >
+                  <p className="m-0 text-caption text-fg-2">
+                    {includeSessionLogs
+                      ? t("aicli.usage.includeSessionLogsOn")
+                      : t("aicli.usage.includeSessionLogsOff")}
+                  </p>
+                </SettingsRow>
+              )}
               <SettingsRow
                 title={t("usage.sources.scanTitle")}
                 help={{

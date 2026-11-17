@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { HoverTip } from "./hover-tip";
 import { SegmentThumb, useSlidingIndicator } from "./sliding-indicator";
 
 /**
@@ -19,6 +20,8 @@ export interface SegmentedItem<T extends string> {
   /** 选中项以外的附加样式（例如生效但没在看的模式格用模式 soft 底） */
   className?: string;
   disabled?: boolean;
+  /** 悬停提示：纯图标项（label 只给读屏）用它说明这一项是什么 */
+  tip?: React.ReactNode;
 }
 
 export interface SegmentedControlProps<T extends string> {
@@ -62,9 +65,8 @@ export function SegmentedControl<T extends string>({
       {items.map((item) => {
         const pressed = item.value === value;
         const Icon = item.icon;
-        return (
+        const button = (
           <button
-            key={item.value}
             type="button"
             aria-pressed={pressed}
             disabled={item.disabled}
@@ -87,6 +89,15 @@ export function SegmentedControl<T extends string>({
             {item.label}
             {item.trailing}
           </button>
+        );
+        return (
+          <React.Fragment key={item.value}>
+            {item.tip ? (
+              <HoverTip content={item.tip}>{button}</HoverTip>
+            ) : (
+              button
+            )}
+          </React.Fragment>
         );
       })}
     </div>

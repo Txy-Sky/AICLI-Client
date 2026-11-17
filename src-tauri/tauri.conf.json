@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CC Switch",
-  "version": "4.0.21",
-  "identifier": "com.ccswitch.desktop",
+  "productName": "AICLI Client",
+  "version": "0.1.2",
+  "identifier": "com.aicliapi.com",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",
@@ -58,14 +58,13 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["ccswitch"]
+        "schemes": ["aicliapi"]
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM4MDI4QzlBNTczOTI4RTMKUldUaktEbFhtb3dDeUM5US9kT0FmdGR5Ti9vQzcwa2dTMlpibDVDUmQ2M0VGTzVOWnd0SGpFVlEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1NUQxOUU1NEIwMDA2RUUKUldUdUJnQkw1UmxkNWN2ckp4NGZRR0x5TVFMWDBSRm5hYkR1S2VtUTRyVU9aai9qVm1LTG84ZW0K",
       "endpoints": [
-        "https://dl.ccswitch.io/latest.json",
-        "https://github.com/farion1231/cc-switch/releases/latest/download/latest.json"
+        "https://github.com/Txy-Sky/AICLI-Client/releases/download/updater/latest.json"
       ]
     }
   }

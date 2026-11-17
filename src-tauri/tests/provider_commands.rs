@@ -16,7 +16,7 @@ use support::{
 };
 
 fn settings_path(home: &Path) -> PathBuf {
-    home.join(".cc-switch").join("settings.json")
+    home.join(cc_switch_lib::APP_DIR_NAME).join("settings.json")
 }
 
 #[test]
@@ -313,7 +313,7 @@ fn codex_startup_import_fresh_install_imports_once_and_syncs_current_setting() {
 
     state
         .db
-        .init_default_official_providers()
+        .seed_official_providers_for_app(AppType::Codex)
         .expect("seed official providers");
     let providers_after_seed = state
         .db
@@ -439,7 +439,7 @@ fn codex_startup_import_skips_when_only_official_seed_exists() {
     let state = create_test_state().expect("create test state");
     state
         .db
-        .init_default_official_providers()
+        .seed_official_providers_for_app(AppType::Codex)
         .expect("seed official providers");
 
     let providers_before = state
@@ -750,11 +750,11 @@ fn switch_provider_updates_claude_live_and_state() {
     // 验证数据已持久化到数据库
     let home_dir = std::env::var("HOME").expect("HOME should be set by ensure_test_home");
     let db_path = std::path::Path::new(&home_dir)
-        .join(".cc-switch")
-        .join("cc-switch.db");
+        .join(cc_switch_lib::APP_DIR_NAME)
+        .join("aicli-client.db");
     assert!(
         db_path.exists(),
-        "switching provider should persist to cc-switch.db"
+        "switching provider should persist to aicli-client.db"
     );
 
     // 验证当前供应商已更新

@@ -34,7 +34,6 @@ import { AppPageHeader } from "@/components/shell/AppPageHeader";
 import { DirectoryInput } from "@/components/settings/DirectorySettings";
 import { ImportExportSection } from "@/components/settings/ImportExportSection";
 import { BackupListSection } from "@/components/settings/BackupListSection";
-import { WebdavSyncSection } from "@/components/settings/WebdavSyncSection";
 import { AboutSection } from "@/components/settings/AboutSection";
 import { RoutingSection } from "@/components/settings/sections/RoutingSection";
 import { GlobalProxySettings } from "@/components/settings/GlobalProxySettings";
@@ -73,6 +72,8 @@ interface SettingsPageProps {
   onOpenApps: () => void;
   /** 本地路由 →「正在使用路由的应用」的「前往」 */
   onOpenApp: (app: AppId) => void;
+  /** F-09：本地路由里的「隐私脱敏」入口。 */
+  onOpenPrivacy?: () => void;
 }
 
 /**
@@ -85,6 +86,7 @@ export function SettingsPage({
   onImportSuccess,
   onOpenApps,
   onOpenApp,
+  onOpenPrivacy,
 }: SettingsPageProps) {
   const { t } = useTranslation();
   const {
@@ -390,7 +392,9 @@ export function SettingsPage({
           />
         );
       case "routing":
-        return <RoutingSection onOpenApp={onOpenApp} />;
+        return (
+          <RoutingSection onOpenApp={onOpenApp} onOpenPrivacy={onOpenPrivacy} />
+        );
       case "network":
         return (
           <SettingsBlock
@@ -479,22 +483,6 @@ export function SettingsPage({
                   backupIntervalHours={settings.backupIntervalHours}
                   backupRetainCount={settings.backupRetainCount}
                   onSettingsChange={(updates) => handleAutoSave(updates)}
-                />
-              </div>
-            </SettingsBlock>
-            <SettingsBlock
-              title={t("settings.advanced.cloudSync.title")}
-              help={{
-                title: t("settings.advanced.cloudSync.title"),
-                body: t("settings.advanced.cloudSync.description"),
-              }}
-            >
-              <div className="rounded-panel border border-border bg-surface p-5">
-                <WebdavSyncSection
-                  config={settings.webdavSync}
-                  s3Config={settings.s3Sync}
-                  settings={settings}
-                  onAutoSave={handleAutoSave}
                 />
               </div>
             </SettingsBlock>

@@ -32,7 +32,6 @@ vi.mock("@/hooks/useSidebarStatus", () => ({
     todayTokens: status.todayTokens,
     todayRequests: status.todayRequests,
     todayHitRate: status.todayHitRate,
-    authNeedsAttention: false,
   }),
 }));
 
@@ -48,7 +47,6 @@ const renderSidebar = (settings: Partial<Settings>) => {
         view="usage"
         visibleApps={{} as VisibleApps}
         settingsSection="general"
-        onSelectApp={vi.fn()}
         onSelectPage={vi.fn()}
         onSelectSettingsSection={vi.fn()}
         onExitSettings={vi.fn()}

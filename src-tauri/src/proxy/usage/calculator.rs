@@ -17,7 +17,7 @@ pub struct CostBreakdown {
 }
 
 /// 模型定价信息
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModelPricing {
     pub input_cost_per_million: Decimal,
     pub output_cost_per_million: Decimal,

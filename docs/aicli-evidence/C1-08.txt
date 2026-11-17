@@ -1,0 +1,87 @@
+C1-08 route profile persistence, compilation and repair baselines
+Initial implementation: 45b36286fef8dac202dbe5bb9e6dbe35acd32b8f
+Final implementation and acceptance: 05c80736615a57ce09f123c2ed4fa9a9aa6eb22b
+Job: Checklist acceptance (Linux), 126305566798, completed/success.
+Started 2026-11-04T00:35:23Z; completed 2026-11-04T01:26:39Z (51m16s).
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41747863675
+
+Actual acceptance commands:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::profiles::tests
+bash scripts/aicli-check.sh
+The latter ran, in order: pnpm install --frozen-lockfile; pnpm typecheck;
+pnpm format:check; pnpm test:unit; pnpm build:renderer;
+cargo fmt --check --manifest-path src-tauri/Cargo.toml;
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings;
+cargo nextest run --manifest-path src-tauri/Cargo.toml.
+CI ran with isolated HOME/CC_SWITCH_TEST_HOME, including a separate temporary
+HOME for the complete baseline. No local compilation or cargo tests were run.
+
+Actual results, with terminal formatting removed:
+2026-11-04T00:58:59.4478178Z Summary [0.981s] 20 tests run: 20 passed, 4521 skipped
+2026-11-04T01:18:53.1450071Z Test Files 267 passed (267)
+2026-11-04T01:18:53.1498262Z Tests 3416 passed (3416)
+2026-11-04T01:23:18.1749680Z Summary [81.936s] 4531 tests run: 4531 passed, 10 skipped
+The 4521 targeted-run skips are filtering, not new ignored tests. The complete
+Rust suite increased from C1-07's 4511 to 4531 (+20); frontend counts are unchanged.
+No tests/assertions were removed or weakened and no ignores were added.
+Formatting, typecheck, renderer build, Clippy -D warnings, all A6 steps,
+desktop startup and B-01 through B-08 all passed in this run.
+C1-06's real 601-second observation passed in 601.46s: 39 audited requests
+including the observers, every one of 30 days persisted.
+
+Coverage of the 20 profile tests:
+- Read-only, unpersisted recommended/low_cost presets; absent explicit profile
+  selects recommended. Unknown ratios sort last; fixed and cost-first order
+  are stable. Both orders compile the 69-model, four-cluster fixture into
+  exactly four distinct ordered group lists (at most eight required).
+- Exact unresolved-conflict list; explicit bindings resolve conflicts; invalid
+  identity/revision/source/line/model/group/empty alias are rejected; alias
+  collisions include implicit model names. Stale revisions preserve stored data.
+- Explicit source remains first; fallback never leaves selected_groups and
+  follows the selection mode. Unselected source_group fails saving. Exceeding
+  max_count returns an error, never truncates.
+- Copy and reset both presets with source=system_copy, empty model_bindings
+  and current multi-source models confirmed. Compilation matches the preset.
+  New catalog conflicts compile normally but fail the next save and are not
+  automatically added to persisted resolved_conflicts.
+- Successful compilation persists a three-field baseline under
+  profile_baseline:<profile_id> in aicli_cache, with route fingerprint and time;
+  profile body/revision are unchanged and no schema changes are made.
+- A revoked fallback marks its model affected, as explicitly confirmed by the
+  owner. A disappeared unique model remains affected via its baseline route.
+  Missing explicit sources also contribute affected public names/aliases.
+  Unaffected models remain available; needs_repair never overwrites the baseline.
+- Missing groups without a baseline disable all routes and set conservative=true;
+  the profile is preserved and no baseline is created. Failed compilation and
+  stale deletion preserve the baseline; successful deletion removes only that
+  profile's baseline and scope references.
+- Final correction additionally prevents a revoked alias source from publishing
+  the previously hidden unaliased upstream model name.
+
+Scope: this item supplies CompiledProfile/RepairStatus, including affected_models
+and conservative, for C3-01's later Miss::NeedsRepair mapping and F-05's later UI.
+It does not claim those later integration items are implemented or accepted.
+The owner's three decisions are recorded in checklist sections C1-08, 12 and 13.
+
+History retained:
+45b36286 run 41747590072 was superseded/cancelled after the alias correction;
+it is not successful acceptance evidence.
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41747590072
+Only the complete successful run on final implementation 05c80736 is used above.
+
+Actual local checks before evidence push:
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+PASS: cargo fmt --check, lockfile-version Prettier, all five workflow/action
+YAML files parsed with duplicate-key rejection; isolated temporary HOME.
+git diff --check
+PASS. A local read-only scan of the four changed implementation/checklist paths
+found zero long model-key or Bearer-value candidates.
+
+Final public job-log verification:
+gh run view 41747863675 -R Txy-Sky/AICLI-Client --json headSha,status,conclusion,url,jobs
+gh run view 41747863675 -R Txy-Sky/AICLI-Client --job 126305566798 --log
+Verified exact headSha and completed/success for the run and job. Downloaded
+3796305 bytes of raw job logs to a private temporary directory outside the repo;
+raw job/container logs are not included here. Python regex counts were zero for
+sk-[A-Za-z0-9_-]{24,} and case-insensitive Bearer\s+[A-Za-z0-9._~-]{24,}.
+No online credentials, production operations, releases or signing were used.

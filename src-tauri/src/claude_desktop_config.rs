@@ -18,14 +18,14 @@ use crate::mode::stack::DesktopStackModel;
 use crate::mode::state::{self, PendingTarget};
 use crate::provider::{ClaudeDesktopMode, Provider};
 
-pub const PROFILE_ID: &str = "00000000-0000-4000-8000-000000157210";
-pub const PROFILE_NAME: &str = "CC Switch";
+pub const PROFILE_ID: &str = "00000000-0000-4000-8000-000000158210";
+pub const PROFILE_NAME: &str = "AICLI Client";
 
 #[cfg(any(target_os = "macos", windows, target_os = "linux", test))]
 const CONFIG_FILE: &str = "claude_desktop_config.json";
 #[cfg(any(target_os = "macos", windows, target_os = "linux", test))]
 const CONFIG_LIBRARY_DIR: &str = "configLibrary";
-const GATEWAY_TOKEN_SETTING_KEY: &str = "claude_desktop_gateway_token";
+
 const CLAUDE_DESKTOP_PROXY_PREFIX: &str = "/claude-desktop";
 pub const DEFAULT_CREATED_AT: &str = "2024-01-01T00:00:00Z";
 /// `inferenceModels` 的上限（Desktop 的 schema 写着 `maxItems: 200`）。
@@ -253,10 +253,18 @@ pub fn get_status(db: &Database, proxy_running: bool) -> Result<ClaudeDesktopSta
         })
         .unwrap_or(false);
     let gateway_token_configured = db
-        .get_setting(GATEWAY_TOKEN_SETTING_KEY)
+        .conn
+        .lock()
         .ok()
-        .flatten()
-        .is_some_and(|token| !token.trim().is_empty());
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM aicli_local_token WHERE app_type='claude-desktop'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .ok()
+        })
+        .is_some_and(|count| count > 0);
     // 路由模式下看路由那家，直连模式下看直连那家。
     let routed = crate::mode::current::is_proxy(&AppType::ClaudeDesktop);
     let current_provider = crate::mode::current::provider_in_use(db, &AppType::ClaudeDesktop)
@@ -296,6 +304,17 @@ pub fn get_status(db: &Database, proxy_running: bool) -> Result<ClaudeDesktopSta
         missing_route_mappings,
         gateway_token_configured,
     })
+}
+
+/// Files changed by the existing Desktop projection; snapshot before takeover.
+pub(crate) fn takeover_file_paths() -> Result<Vec<PathBuf>, AppError> {
+    let paths = current_platform_paths()?;
+    Ok(vec![
+        paths.normal_config_path,
+        paths.threep_config_path,
+        paths.profile_path,
+        paths.meta_path,
+    ])
 }
 
 pub fn get_config_library_path() -> Result<PathBuf, AppError> {
@@ -393,16 +412,7 @@ fn inference_model_json(spec: &InferenceModelSpec) -> Value {
 }
 
 pub fn get_or_create_gateway_token(db: &Database) -> Result<String, AppError> {
-    if let Some(token) = db.get_setting(GATEWAY_TOKEN_SETTING_KEY)? {
-        let trimmed = token.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
-        }
-    }
-
-    let token = format!("ccs-{}", uuid::Uuid::new_v4().simple());
-    db.set_setting(GATEWAY_TOKEN_SETTING_KEY, &token)?;
-    Ok(token)
+    crate::aicli::local_auth::token_for(db, "claude-desktop")
 }
 
 pub fn direct_gateway_credentials(
@@ -563,7 +573,7 @@ fn has_proxy_base_url_and_key(provider: &Provider) -> bool {
         .map(str::trim)
         .is_some_and(|value| !value.is_empty());
 
-    if is_managed_oauth_proxy_provider(provider) {
+    if crate::aicli::seed::is_hidden(provider) || is_managed_oauth_proxy_provider(provider) {
         return has_base_url;
     }
 
@@ -817,6 +827,7 @@ fn next_catalog_safe_route_id(
     }
 }
 
+#[cfg(test)]
 pub fn model_list_response(provider: &Provider) -> Result<Value, AppError> {
     let routes = proxy_model_routes(provider)?;
     let data: Vec<Value> = routes
@@ -1492,6 +1503,13 @@ fn detect_installed(paths: &ClaudeDesktopPaths, app_bundles: &[PathBuf]) -> bool
         || app_bundles.iter().any(|bundle| bundle.is_dir())
 }
 
+/// C4-02 首次绑定的「已安装」推断：与状态页同一套 `detect_installed`。
+pub(crate) fn is_installed() -> bool {
+    current_platform_paths()
+        .map(|paths| detect_installed(&paths, &macos_app_bundle_candidates()))
+        .unwrap_or(false)
+}
+
 fn macos_app_bundle_candidates() -> Vec<PathBuf> {
     if cfg!(target_os = "macos") {
         vec![
@@ -1664,7 +1682,7 @@ mod tests {
                 .join("Application Support")
                 .join("Claude-3p"),
         );
-        paths.device = DeviceStore::at(home.join(".cc-switch"));
+        paths.device = DeviceStore::at(home.join(crate::config::APP_DIR_NAME));
         paths
     }
 
@@ -1945,6 +1963,54 @@ mod tests {
     }
 
     #[test]
+    fn claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile() {
+        let temp = TempDir::new().expect("tempdir");
+        let paths = test_paths(temp.path());
+        let db = test_db();
+        let legacy_entry: Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/legacy_desktop_profile_entry.json"
+        ))
+        .expect("legacy entry fixture");
+        let legacy_id = legacy_entry["id"].as_str().expect("legacy id");
+        let legacy_path = paths.config_library_path.join(format!("{legacy_id}.json"));
+        let legacy_bytes = b"{\r\n  \"userSetting\": true\r\n}\r\n";
+        fs::create_dir_all(&paths.config_library_path).expect("create configLibrary");
+        fs::write(&legacy_path, legacy_bytes).expect("seed legacy profile");
+        write_json_file(
+            &paths.meta_path,
+            &json!({"entries": [legacy_entry.clone()], "appliedId": legacy_id}),
+        )
+        .expect("seed legacy meta");
+
+        apply_provider_to_paths(&db, &direct_provider("aicli"), &paths).expect("apply AICLI");
+        for after_cleanup in [false, true] {
+            if after_cleanup {
+                restore_official(&paths).expect("clean up AICLI");
+            }
+            assert_eq!(
+                fs::read(&legacy_path).expect("legacy profile"),
+                legacy_bytes
+            );
+            let meta: Value = read_json_file(&paths.meta_path).expect("read meta");
+            let entries = meta["entries"].as_array().expect("entries");
+            assert!(
+                entries.contains(&legacy_entry),
+                "legacy entry must be intact"
+            );
+            assert_eq!(
+                entries.iter().any(|entry| entry["id"] == json!(PROFILE_ID)),
+                !after_cleanup
+            );
+            if !after_cleanup {
+                assert_eq!(meta["appliedId"], json!(PROFILE_ID));
+                assert!(entries.iter().any(|entry| {
+                    entry["id"] == json!(PROFILE_ID) && entry["name"] == json!("AICLI Client")
+                }));
+            }
+        }
+    }
+
+    #[test]
     fn claude_desktop_direct_can_write_optional_safe_model_ids() {
         let temp = TempDir::new().expect("tempdir");
         let paths = test_paths(temp.path());
@@ -2086,12 +2152,12 @@ mod tests {
             }
             let before = serde_json::to_value(&provider).expect("provider snapshot");
             let db = test_db();
-            let profile = route_profile(&db, &provider, "http://127.0.0.1:15721", &[])
+            let profile = route_profile(&db, &provider, "http://127.0.0.1:15821", &[])
                 .expect("native provider should not need a pre-existing mapping");
 
             assert_eq!(
                 profile["inferenceGatewayBaseUrl"],
-                json!("http://127.0.0.1:15721/claude-desktop")
+                json!("http://127.0.0.1:15821/claude-desktop")
             );
             assert_eq!(
                 profile["inferenceModels"],
@@ -2169,7 +2235,7 @@ mod tests {
 
         let error = validate_proxy_provider(&provider).expect_err("mapping is required");
         assert!(error.to_string().contains("至少需要一个模型路由映射"));
-        route_profile(&test_db(), &provider, "http://127.0.0.1:15721", &[])
+        route_profile(&test_db(), &provider, "http://127.0.0.1:15821", &[])
             .expect_err("an empty mapping must not silently become native defaults");
     }
 
@@ -2196,7 +2262,7 @@ mod tests {
         let profile: Value = read_json_file(&paths.profile_path).expect("read profile");
         assert_eq!(
             profile["inferenceGatewayBaseUrl"],
-            json!("http://127.0.0.1:15721/claude-desktop")
+            json!("http://127.0.0.1:15821/claude-desktop")
         );
         assert_eq!(profile["inferenceGatewayAuthScheme"], json!("bearer"));
         assert_eq!(profile["coworkEgressAllowedHosts"], json!(["*"]));
@@ -2204,7 +2270,11 @@ mod tests {
         assert!(profile["inferenceGatewayApiKey"]
             .as_str()
             .expect("gateway token")
-            .starts_with("ccs-"));
+            .starts_with("aicli-local-"));
+        assert_eq!(
+            profile["inferenceGatewayApiKey"],
+            crate::aicli::local_auth::token_for(&db, "claude-desktop").unwrap()
+        );
         assert_eq!(
             profile["inferenceModels"],
             json!([{ "name": "claude-sonnet-4-6", "labelOverride": "Kimi K2", "supports1m": true, "prefer1m": true }])
@@ -2230,7 +2300,7 @@ mod tests {
             let profile: Value = read_json_file(&paths.profile_path).expect("read profile");
             assert_eq!(
                 profile["inferenceGatewayBaseUrl"],
-                json!("http://127.0.0.1:15721/claude-desktop")
+                json!("http://127.0.0.1:15821/claude-desktop")
             );
             assert_eq!(
                 profile["inferenceModels"],

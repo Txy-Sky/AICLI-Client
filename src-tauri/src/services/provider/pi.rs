@@ -1,7 +1,7 @@
 use super::{ProviderService, SwitchResult};
 use crate::app_config::AppType;
 use crate::error::AppError;
-use crate::provider::{Provider, ProviderMeta, UsageScript};
+use crate::provider::{Provider, ProviderMeta};
 use crate::store::AppState;
 use indexmap::IndexMap;
 use serde_json::Value;
@@ -79,38 +79,6 @@ pub(super) fn add(
         }
         return Err(error);
     }
-    Ok(true)
-}
-
-// Pi、Omp 的用量脚本只更新数据库，避免用旧快照覆盖外部修改过的原生配置。
-pub(super) fn update_usage_script(
-    state: &AppState,
-    app_type: AppType,
-    id: &str,
-    script: UsageScript,
-) -> Result<bool, AppError> {
-    if !matches!(app_type, AppType::Pi | AppType::Omp) {
-        return Err(AppError::InvalidInput(
-            "Usage metadata updates only support Pi and Omp".into(),
-        ));
-    }
-    let _guard =
-        futures::executor::block_on(state.proxy_service.lock_switch_for_app(app_type.as_str()));
-    super::validate_usage_script(&script)?;
-
-    let mut provider = state
-        .db
-        .get_provider_by_id(id, app_type.as_str())?
-        .ok_or_else(|| {
-            AppError::InvalidInput(format!("{} provider '{id}' not found", app_type.as_str()))
-        })?;
-    provider
-        .meta
-        .get_or_insert_with(ProviderMeta::default)
-        .usage_script = Some(script);
-    strip_unsupported_pi_metadata(&mut provider);
-    ProviderService::normalize_usage_script_credential_overrides(&app_type, &mut provider);
-    state.db.save_provider(app_type.as_str(), &provider)?;
     Ok(true)
 }
 
@@ -338,26 +306,6 @@ mod tests {
             icon: None,
             icon_color: None,
             in_failover_queue: false,
-        }
-    }
-
-    fn usage_script(code: &str) -> UsageScript {
-        UsageScript {
-            enabled: true,
-            language: "javascript".to_string(),
-            code: code.to_string(),
-            timeout: Some(5),
-            api_key: None,
-            base_url: None,
-            access_token: None,
-            user_id: None,
-            template_type: None,
-            auto_query_interval: Some(10),
-            coding_plan_provider: None,
-            access_key_id: None,
-            secret_access_key: None,
-            team_organization_id: None,
-            team_project_id: None,
         }
     }
 
@@ -675,51 +623,6 @@ mod tests {
             crate::pi_config::read_pi_native_provider("cc-switch-test")
                 .expect("read restored provider"),
             Some(minimal)
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn usage_metadata_update_does_not_rewrite_native_provider_settings() {
-        let _agent = TestAgentDir::new();
-        let state = state();
-        let baseline = input("model-a");
-        ProviderService::add(&state, AppType::Pi, baseline.clone(), true).expect("add provider");
-
-        let mut external = baseline.settings_config.clone();
-        external["apiKey"] = json!("rotated-outside");
-        external["futureField"] = json!({ "preserve": true });
-        crate::pi_config::replace_pi_provider(
-            "cc-switch-test",
-            &baseline.settings_config,
-            &external,
-        )
-        .expect("edit native provider");
-
-        ProviderService::update_pi_usage_script(
-            &state,
-            AppType::Pi,
-            "cc-switch-test",
-            usage_script("return {}"),
-        )
-        .expect("save usage metadata");
-        assert_eq!(
-            crate::pi_config::read_pi_native_provider("cc-switch-test")
-                .expect("read native provider")
-                .expect("native provider"),
-            external
-        );
-
-        let providers = ProviderService::list(&state, AppType::Pi).expect("sync provider");
-        let saved = &providers["cc-switch-test"];
-        assert_eq!(saved.settings_config, external);
-        assert_eq!(
-            saved
-                .meta
-                .as_ref()
-                .and_then(|meta| meta.usage_script.as_ref())
-                .map(|script| script.code.as_str()),
-            Some("return {}")
         );
     }
 

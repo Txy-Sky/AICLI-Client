@@ -1,0 +1,30 @@
+F-08 侧栏合并为「客户端」验收记录（2026-11-09）
+
+状态：[x] 完成（与 F-10 按第 0.6 节第 5 条合并验收）
+提交：85515a50 feat(aicli): F-08 one 'Clients' entry and a client overview page
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42737752251（199f9bd0，含 85515a50、c42b504f；四 job 及汇总
+    `Checklist acceptance (Linux)` 全 success；前端 138 文件 / 1360 测试；Rust 4723 passed / 12 skipped）
+
+来由：负责人 2026-11-09 第二条——左侧 14 个客户端各占一行，点进去内容几乎一样（只有 5 个支持接管）。
+负责人选定：侧栏合并为一个「客户端」入口，进入后是卡片网格。
+
+实现
+1. 侧栏：去掉逐个应用的列表；主区为「客户端」（行尾已接管数量；任一客户端需要处理，或已接管而本地
+   代理未运行时红点）与「用量统计」，下面是 MCP、Skills、提示词、会话；应用详情页时「客户端」为选中。
+2. 新全局页 clients（AicliClientsPage）：已接管 N / 5 摘要与「停止接管即回到原来的用法」说明；支持接管
+   的客户端卡片（状态胶囊：已接管·经 AICLI / 未接管·使用原配置 / 处理中 / 需确认覆盖；所用配置集与
+   模型数；一键接管或停止接管，均先确认；点卡片进入详情）；OpenClaw、Hermes 列为「其他客户端」进入
+   原专属页；其余为「即将支持」不可点；尊重 visibleApps 与 appOrder；代理未运行时红色提示。
+3. 接管流程抽成 takeover/useAicliTakeoverFlow 与 AicliTakeoverDialog，客户端详情页与总览共用；
+   resolveClientProfile 抽出配置集解析。停止接管确认文案写明还原为接管前的配置（例如官方登录）。
+4. App：详情页页头左侧「返回客户端」；托盘 add 意图只打开应用页（G-01）；⋯ 菜单改为「从客户端列表隐藏」。
+5. i18n：nav.clients、nav.clientsActive、aicli.clients.*，接管 / 停止接管确认文案改值，五种语言。
+
+测试（CI 同一 run）
+- AicliClientsPage.test.tsx 7 passed：各状态卡片与顺序、接管须确认、停止接管说明还原、卡片与专属页
+  入口、即将支持不可点、隐藏客户端、代理未运行提示。
+- AicliClientPage.test.tsx 13 passed（重构后原用例不变）。
+- tests/integration/App.test.tsx 19 passed：进入应用页改为「客户端」入口 + 卡片；新增「侧栏不再逐个
+  列应用、应用页时客户端入口选中、返回按钮回到总览」。
+
+偏差：见第 13 节「F-02/F-04 → F-08（侧栏与客户端页）」。

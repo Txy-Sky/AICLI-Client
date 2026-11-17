@@ -21,8 +21,8 @@ pub const CC_SWITCH_CODEX_MODEL_PROVIDER_ID: &str = "custom";
 /// provider is routed through CC Switch.  A dedicated id is an ownership
 /// marker: unlike a generic localhost `base_url`, it can be detected and
 /// cleaned up without mistaking a user's own local provider for takeover.
-pub const CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID: &str = "cc-switch-official";
-pub const CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME: &str = "cc-switch-model-catalog.json";
+pub const CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID: &str = "aicli-official";
+pub const CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME: &str = "aicli-model-catalog.json";
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -311,9 +311,12 @@ fn extract_codex_managed_oauth_account_id(auth: &Value) -> Option<String> {
         return None;
     }
 
-    let api_key_is_clearable = auth
-        .get("OPENAI_API_KEY")
-        .is_none_or(|value| value.is_null() || value.as_str() == Some("PROXY_MANAGED"));
+    let api_key_is_clearable = auth.get("OPENAI_API_KEY").is_none_or(|value| {
+        value.is_null()
+            || value
+                .as_str()
+                .is_some_and(crate::aicli::local_auth::is_proxy_token)
+    });
     if !api_key_is_clearable {
         return None;
     }
@@ -1327,10 +1330,17 @@ fn codex_catalog_model_entry(
     let display_name = spec.display_name.as_deref().unwrap_or(&spec.model);
     let context_window = spec.context_window.unwrap_or(default_context_window);
     entry_obj.insert("slug".to_string(), json!(spec.model));
-    // Explicitly configured models must be listed even when the cached template is hidden.
-    entry_obj.insert("visibility".to_string(), json!("list"));
+    // Explicitly configured models must be listed even when the cached template is hidden,
+    // unless the row asks to be kept out of the picker.
+    entry_obj.insert(
+        "visibility".to_string(),
+        json!(if spec.hidden { "hide" } else { "list" }),
+    );
     entry_obj.insert("display_name".to_string(), json!(display_name));
-    entry_obj.insert("description".to_string(), json!(display_name));
+    entry_obj.insert(
+        "description".to_string(),
+        json!(spec.description.as_deref().unwrap_or(display_name)),
+    );
     entry_obj.insert("context_window".to_string(), json!(context_window));
     entry_obj.insert("max_context_window".to_string(), json!(context_window));
     entry_obj.insert("priority".to_string(), json!(1000 + priority));
@@ -1419,6 +1429,13 @@ fn codex_catalog_model_entry(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CodexCatalogModelSpec {
     model: String,
+    /// Explicit value only: the picker's line under the name. Falls back to
+    /// the display name (AICLI writes the route profile's group and tags).
+    description: Option<String>,
+    /// Listed in the catalog but not in Codex's `/model` (`visibility: hide`):
+    /// AICLI keeps Codex's own `codex-auto-*` models this way, since any listed
+    /// one turns `/model` into "quick auto modes + All models".
+    hidden: bool,
     /// Explicit user value only. Entries fall back to the model id — except
     /// official vendor catalog entries, which keep the vendor's display name.
     display_name: Option<String>,
@@ -1538,8 +1555,20 @@ fn codex_catalog_model_specs(settings: &Value) -> Vec<CodexCatalogModelSpec> {
             .filter(|level| !level.is_empty())
             .map(str::to_string);
 
+        let description = model_config
+            .get("description")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(str::to_string);
+        let hidden = model_config
+            .get("hidden")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
         specs.push(CodexCatalogModelSpec {
             model: model.to_string(),
+            description,
+            hidden,
             display_name,
             context_window,
             supports_parallel_tool_calls,
@@ -2066,7 +2095,10 @@ fn codex_vendor_catalog_model_entry(
         let display_name = spec.display_name.as_deref().unwrap_or(&spec.model);
         entry_obj.insert("slug".to_string(), json!(spec.model));
         entry_obj.insert("display_name".to_string(), json!(display_name));
-        entry_obj.insert("description".to_string(), json!(display_name));
+        entry_obj.insert(
+            "description".to_string(),
+            json!(spec.description.as_deref().unwrap_or(display_name)),
+        );
         entry_obj.insert("priority".to_string(), json!(1000 + priority));
         // Unknown model: don't inherit the flagship entry's modalities —
         // resolve from the registry/fail-open logic instead, so a vision
@@ -2352,6 +2384,23 @@ fn is_codex_official_mirror(entry: &Value, model: &str, official: &Value) -> boo
 
 /// The catalog for one provider's models: its official vendor catalog when the
 /// gateway ships one, otherwise the profile's template.
+/// A row's own picker settings win over whatever its entry was built from (the neutral
+/// template, an official OpenAI entry or a vendor's): an explicit description, and
+/// `hidden` (`visibility: hide`). Official entries are otherwise forced to `list`, which
+/// put AICLI's hidden `codex-auto-review` (an official model) back in `/model` and turned
+/// it into "quick auto modes + All models".
+fn apply_codex_spec_overrides(entry: &mut Value, spec: &CodexCatalogModelSpec) {
+    let Some(obj) = entry.as_object_mut() else {
+        return;
+    };
+    if let Some(description) = spec.description.as_deref() {
+        obj.insert("description".to_string(), json!(description));
+    }
+    if spec.hidden {
+        obj.insert("visibility".to_string(), json!("hide"));
+    }
+}
+
 fn codex_catalog_from_specs_for_row(
     specs: &[CodexCatalogModelSpec],
     config_text: &str,
@@ -2369,6 +2418,7 @@ fn codex_catalog_from_specs_for_row(
             .enumerate()
             .map(|(index, spec)| {
                 let mut entry = codex_vendor_catalog_model_entry(&vendor_models, spec, index);
+                apply_codex_spec_overrides(&mut entry, spec);
                 if windows.window.is_some()
                     || windows.limit.is_some()
                     || spec.context_window.is_some()
@@ -2427,6 +2477,7 @@ fn codex_catalog_from_specs_for_row(
                     default_context_window,
                 ),
             };
+            apply_codex_spec_overrides(&mut entry, spec);
             // A changed window needs a matching compaction threshold in single-provider
             // catalogs too. Otherwise an official/template threshold can stay at 244800
             // even after the user requests 1M. Keep untouched official defaults intact.
@@ -2477,20 +2528,6 @@ pub(crate) fn plan_codex_model_catalog(
     })
 }
 
-/// 只含一个模型的目录（GPT 模型照样镜像官方条目）：行里没配目录、又得盖掉别家留下的目录
-/// 指针时用（`-c` 删不掉键）。
-pub(crate) fn codex_single_model_catalog(
-    model: &str,
-    config_text: &str,
-    profile: CodexCatalogToolProfile,
-) -> Result<Value, AppError> {
-    let spec = CodexCatalogModelSpec {
-        model: model.to_string(),
-        ..CodexCatalogModelSpec::default()
-    };
-    codex_catalog_from_specs_for_row(&[spec], config_text, profile)
-}
-
 /// 一家第三方供应商发布的模型：行里的模型目录；没有配置目录时只有行的 `model`。
 fn codex_published_specs(settings: &Value, config_text: &str) -> Vec<CodexCatalogModelSpec> {
     let specs = codex_catalog_model_specs(settings);
@@ -2500,6 +2537,8 @@ fn codex_published_specs(settings: &Value, config_text: &str) -> Vec<CodexCatalo
     codex_top_level_model(config_text)
         .map(|model| {
             vec![CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model,
                 ..CodexCatalogModelSpec::default()
             }]
@@ -2748,7 +2787,7 @@ fn sink_row_windows(entry: &mut Value, windows: &RowWindows, third_party: bool) 
 ///
 /// We only reverse-parse catalogs whose `model_catalog_json` path is the
 /// cc-switch–generated file (identified by filename
-/// `cc-switch-model-catalog.json`). A user-managed external catalog file is
+/// `aicli-model-catalog.json`). A user-managed external catalog file is
 /// left alone — surfacing its richer structure as the simplified table would
 /// be a downgrade we can't safely round-trip.
 ///
@@ -2806,11 +2845,6 @@ pub(crate) fn read_limited_string(path: &Path, max_bytes: u64) -> Result<String,
     fs::read_to_string(path).map_err(|error| AppError::io(path, error))
 }
 
-/// Read the cc-switch Codex model catalog file with a size cap.
-pub(crate) fn read_codex_model_catalog_text(path: &Path) -> Result<String, AppError> {
-    read_limited_string(path, MAX_CODEX_CATALOG_BYTES)
-}
-
 /// Given `config.toml` text, resolve the on-disk path of the cc-switch–owned
 /// catalog file (returns `None` if `model_catalog_json` is absent or points at
 /// a file we don't own). Relative paths are resolved under `base_dir`;
@@ -2858,7 +2892,7 @@ pub(crate) fn resolve_cc_switch_catalog_path(
     }
 
     // 词法包含不等于运行时包含：配置目录内的符号链接（如 ~/.codex/link ->
-    // /etc）能让 `link/cc-switch-model-catalog.json` 通过上面的检查，读取却
+    // /etc）能让 `link/aicli-model-catalog.json` 通过上面的检查，读取却
     // 落到目录外。文件存在时把真实路径 canonicalize 出来再校验一次，并把
     // canonical 路径返回给调用方——后续读取不再经过 symlink 组件。
     if resolved.exists() {
@@ -3086,7 +3120,7 @@ pub fn read_codex_live_settings() -> Result<Value, AppError> {
 }
 
 /// Whether a live Codex config is the official route projected by an older CC Switch
-/// (`model_provider = "cc-switch-official"`).
+/// (`model_provider = "aicli-official"`).
 pub fn codex_config_has_official_proxy_route(config_text: &str) -> bool {
     if !config_text.contains(CC_SWITCH_CODEX_OFFICIAL_PROXY_PROVIDER_ID) {
         return false;
@@ -3220,15 +3254,15 @@ mod tests {
 
     #[test]
     fn official_proxy_route_is_recognized_by_its_address() {
-        let proxy = |url: &str| url == "http://127.0.0.1:15721/v1";
+        let proxy = |url: &str| url == "http://127.0.0.1:15821/v1";
         for (config, expected) in [
-            ("openai_base_url = \"http://127.0.0.1:15721/v1/\"\n", true),
-            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", true),
-            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15721/v1\"\nrequires_openai_auth = true\n", true),
+            ("openai_base_url = \"http://127.0.0.1:15821/v1/\"\n", true),
+            ("model_provider = \"openai\"\nopenai_base_url = \"http://127.0.0.1:15821/v1\"\n", true),
+            ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nbase_url = \"http://127.0.0.1:15821/v1\"\nrequires_openai_auth = true\n", true),
             // 别的地址（比如其他工具改道到自己的本地服务）不算。
             ("openai_base_url = \"http://127.0.0.1:10531/v1\"\n", false),
             // 选了别的 provider，改道不生效。
-            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:15721/v1\"\n", false),
+            ("model_provider = \"relay\"\nopenai_base_url = \"http://127.0.0.1:15821/v1\"\n", false),
             // 官方直连的统一会话镜像表没有地址。
             ("model_provider = \"custom\"\n[model_providers.custom]\nname = \"OpenAI\"\nrequires_openai_auth = true\n", false),
             ("model = \"gpt-5.5\"\n", false),
@@ -3350,7 +3384,7 @@ mod tests {
         crate::config::write_json_file(&get_codex_auth_path(), &auth).expect("seed live auth R1");
         crate::config::write_text_file(
             &get_codex_config_path(),
-            "# cas-guard-sentinel\nmodel = \"gpt-5.5\"\nmodel_catalog_json = \"cc-switch-model-catalog.json\"\n",
+            "# cas-guard-sentinel\nmodel = \"gpt-5.5\"\nmodel_catalog_json = \"aicli-model-catalog.json\"\n",
         )
         .expect("seed live config");
         crate::config::write_json_file(
@@ -3890,6 +3924,8 @@ experimental_bearer_token = "stale-table-key"
         let mut template = json!({ "slug": "gpt-5.5" });
         fill_template_fields_from_static(&mut template);
         let specs = vec![CodexCatalogModelSpec {
+            description: None,
+            hidden: false,
             model: "k3".to_string(),
             display_name: Some("Kimi K3".to_string()),
             context_window: Some(262_144),
@@ -4411,6 +4447,8 @@ experimental_bearer_token = "stale-table-key"
         });
         let specs = vec![
             CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model: "gpt-5.4".to_string(),
                 display_name: Some("GPT 5.4".to_string()),
                 context_window: Some(128_000),
@@ -4421,6 +4459,8 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model: "qwen/qwen3-coder-plus".to_string(),
                 display_name: Some("Qwen3 Coder Plus".to_string()),
                 context_window: Some(128_000),
@@ -4431,6 +4471,8 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model: "glm-5.2v".to_string(),
                 display_name: Some("GLM 5.2V".to_string()),
                 context_window: Some(128_000),
@@ -4441,6 +4483,8 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model: "deepseek-v4-flash".to_string(),
                 display_name: Some("Explicit Visual Override".to_string()),
                 context_window: Some(128_000),
@@ -4451,6 +4495,8 @@ experimental_bearer_token = "stale-table-key"
                 default_reasoning_level: None,
             },
             CodexCatalogModelSpec {
+                description: None,
+                hidden: false,
                 model: "custom-text-alias".to_string(),
                 display_name: Some("Explicit Text Override".to_string()),
                 context_window: Some(128_000),
@@ -4762,6 +4808,8 @@ wire_api = "responses"
     fn proxy_catalog_profiles_keep_apply_patch_and_disable_original_image_detail() {
         let template = load_codex_native_responses_template();
         let specs = vec![CodexCatalogModelSpec {
+            description: None,
+            hidden: false,
             model: "x".to_string(),
             display_name: Some("x".to_string()),
             context_window: Some(128_000),
@@ -4983,7 +5031,7 @@ wire_api = "responses"
     #[test]
     fn resolve_catalog_path_accepts_cc_switch_owned_file() {
         let base = PathBuf::from("/tmp/.codex");
-        let config = r#"model_catalog_json = "/tmp/.codex/cc-switch-model-catalog.json"
+        let config = r#"model_catalog_json = "/tmp/.codex/aicli-model-catalog.json"
 "#;
         let resolved = resolve_cc_switch_catalog_path(config, &base).expect("path resolves");
         assert_eq!(resolved, base.join(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME));
@@ -5172,6 +5220,63 @@ wire_api = "responses"
             .as_array()
             .unwrap()
             .clone()
+    }
+
+    /// AICLI 给每个模型写一行说明（首选分组、倍率、标签）；没给说明的条目仍用显示名。
+    #[test]
+    fn catalog_entry_takes_an_explicit_description() {
+        let entries = catalog_for(
+            json!([
+                { "model": "deepseek-v4", "displayName": "deepseek-v4", "description": "首选 g-cheap ×0.5 · tools" },
+                { "model": "plain-model" },
+                { "model": "codex-auto-review", "hidden": true },
+            ]),
+            "",
+            CodexCatalogToolProfile::NativeResponses,
+        );
+        assert_eq!(entries[0]["description"], "首选 g-cheap ×0.5 · tools");
+        assert_eq!(entries[0]["display_name"], "deepseek-v4");
+        assert_eq!(entries[1]["description"], "plain-model");
+        // AICLI 把 Codex 自己的 codex-auto-* 留在目录里但不进 /model
+        assert_eq!(entries[1]["visibility"], "list");
+        assert_eq!(entries[2]["visibility"], "hide");
+        // 顺序即传入顺序（priority 递增），AICLI 已按厂商排好
+        assert!(entries[0]["priority"].as_u64() < entries[1]["priority"].as_u64());
+    }
+
+    /// 走官方条目的模型（`codex-auto-review`、GPT 系列）同样听行里的「隐藏」和说明：官方
+    /// 路径原先一律设成 list、照搬官方英文说明，AICLI 要隐藏的 codex-auto-review 回到了
+    /// /model，把它变成「快捷自动模式 + All models」（负责人 2026-11-14 Windows 实测）。
+    #[test]
+    fn official_entries_take_the_rows_hidden_and_description() {
+        let mut rows = official_gpt_rows();
+        rows.extend(
+            normalize_codex_native_rows(vec![official_gpt_row(
+                "codex-auto-review",
+                "review prompt",
+            )])
+            .unwrap(),
+        );
+        let entries = with_official_models(rows, || {
+            catalog_for(
+                json!([
+                    { "model": "gpt-6-sol", "description": "后台写的说明 · vip ×1" },
+                    { "model": "gpt-5.5" },
+                    { "model": "codex-auto-review", "description": "Codex 自动审批用", "hidden": true },
+                ]),
+                "",
+                CodexCatalogToolProfile::NativeResponses,
+            )
+        });
+        // 官方提示词照旧保留（照搬官方条目的原因）
+        assert_eq!(entries[0]["base_instructions"], "GPT-6 Sol prompt");
+        assert_eq!(entries[0]["description"], "后台写的说明 · vip ×1");
+        assert_eq!(entries[0]["visibility"], "list");
+        // 没给说明的官方条目仍是官方的
+        assert_eq!(entries[1]["visibility"], "list");
+        assert_eq!(entries[2]["slug"], "codex-auto-review");
+        assert_eq!(entries[2]["visibility"], "hide");
+        assert_eq!(entries[2]["description"], "Codex 自动审批用");
     }
 
     #[test]
@@ -6336,7 +6441,7 @@ wire_api = "responses"
     #[test]
     fn resolve_catalog_finds_relative_filename() {
         let config_text = r#"model_provider = "custom"
-model_catalog_json = "cc-switch-model-catalog.json"
+model_catalog_json = "aicli-model-catalog.json"
 "#;
         let base_dir = PathBuf::from("/home/user/.codex");
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
@@ -6349,7 +6454,7 @@ model_catalog_json = "cc-switch-model-catalog.json"
 
     #[test]
     fn resolve_catalog_rejects_absolute_path_outside_config_dir() {
-        let config_text = r#"model_catalog_json = "/tmp/secret/cc-switch-model-catalog.json"
+        let config_text = r#"model_catalog_json = "/tmp/secret/aicli-model-catalog.json"
 "#;
         let base_dir = PathBuf::from("/home/user/.codex");
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
@@ -6361,7 +6466,7 @@ model_catalog_json = "cc-switch-model-catalog.json"
 
     #[test]
     fn resolve_catalog_accepts_absolute_path_inside_config_dir() {
-        let config_text = r#"model_catalog_json = "/home/user/.codex/cc-switch-model-catalog.json"
+        let config_text = r#"model_catalog_json = "/home/user/.codex/aicli-model-catalog.json"
 "#;
         let base_dir = PathBuf::from("/home/user/.codex");
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
@@ -6374,7 +6479,7 @@ model_catalog_json = "cc-switch-model-catalog.json"
 
     #[test]
     fn resolve_catalog_rejects_traversal_to_parent_directory() {
-        let config_text = r#"model_catalog_json = "../cc-switch-model-catalog.json"
+        let config_text = r#"model_catalog_json = "../aicli-model-catalog.json"
 "#;
         let base_dir = PathBuf::from("/home/user/.codex");
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
@@ -6387,7 +6492,7 @@ model_catalog_json = "cc-switch-model-catalog.json"
     #[test]
     fn resolve_catalog_rejects_symlink_escaping_config_dir() {
         // 词法包含可被符号链接绕过：~/.codex/link -> 外部目录，
-        // "link/cc-switch-model-catalog.json" 词法上在 base 内，真实读取却落到
+        // "link/aicli-model-catalog.json" 词法上在 base 内，真实读取却落到
         // base 外。canonicalize 之后的二次校验必须拒绝。
         let temp = tempfile::tempdir().expect("tempdir");
         let base_dir = temp.path().join("codex");
@@ -6402,13 +6507,18 @@ model_catalog_json = "cc-switch-model-catalog.json"
         #[cfg(windows)]
         let linked = std::os::windows::fs::symlink_dir(&outside_dir, base_dir.join("link"));
         if let Err(err) = linked {
-            // Windows 在 \\wsl.localhost 上建不了符号链接（Incorrect function），夹具无从构造
-            assert!(crate::config::is_wsl_path(temp.path()), "symlink: {err}");
-            eprintln!("cannot create symlinks on WSL share ({err}); skipping");
+            // Windows 在 \\wsl.localhost 上建不了符号链接（Incorrect function）；未开
+            // 开发者模式/管理员时无 SeCreateSymbolicLinkPrivilege（error 1314）。
+            // 两种情况夹具都无从构造，跳过。
+            assert!(
+                crate::config::is_wsl_path(temp.path()) || err.raw_os_error() == Some(1314),
+                "symlink: {err}"
+            );
+            eprintln!("cannot create symlinks here ({err}); skipping");
             return;
         }
 
-        let config_text = r#"model_catalog_json = "link/cc-switch-model-catalog.json"
+        let config_text = r#"model_catalog_json = "link/aicli-model-catalog.json"
 "#;
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
         let via_link = base_dir
@@ -6438,7 +6548,7 @@ model_catalog_json = "cc-switch-model-catalog.json"
         let catalog_file = base_dir.join(CC_SWITCH_CODEX_MODEL_CATALOG_FILENAME);
         fs::write(&catalog_file, r#"{"models":[]}"#).expect("write catalog");
 
-        let config_text = r#"model_catalog_json = "cc-switch-model-catalog.json"
+        let config_text = r#"model_catalog_json = "aicli-model-catalog.json"
 "#;
         let result = resolve_cc_switch_catalog_path(config_text, &base_dir);
         let resolved = result.expect("real file inside config dir should be accepted");

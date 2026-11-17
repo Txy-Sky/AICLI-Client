@@ -526,6 +526,8 @@ pub(crate) fn create_usage_collector(
     let stream_parser = parser_config.stream_parser;
     let model_extractor = parser_config.model_extractor;
     let session_id = ctx.session_id.clone();
+    let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+    let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
     Some(SseUsageCollector::new(
         start_time,
@@ -540,6 +542,8 @@ pub(crate) fn create_usage_collector(
                 let session_id = session_id.clone();
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
+                let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage_internal(
@@ -555,6 +559,8 @@ pub(crate) fn create_usage_collector(
                         true, // is_streaming
                         status_code,
                         Some(session_id),
+                        upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -566,6 +572,8 @@ pub(crate) fn create_usage_collector(
                 let session_id = session_id.clone();
                 let request_model = request_model.clone();
                 let outbound_model = fallback_model.clone();
+                let upstream_request_id = upstream_request_id.clone();
+                let aicli_route = aicli_route.clone();
 
                 tokio::spawn(async move {
                     log_usage_internal(
@@ -581,6 +589,8 @@ pub(crate) fn create_usage_collector(
                         true, // is_streaming
                         status_code,
                         Some(session_id),
+                        upstream_request_id,
+                        aicli_route,
                     )
                     .await;
                 });
@@ -619,6 +629,8 @@ fn spawn_log_usage(
         .unwrap_or_else(|| ctx.request_model.clone());
     let latency_ms = ctx.latency_ms();
     let session_id = ctx.session_id.clone();
+    let upstream_request_id = ctx.aicli_upstream_request_id.clone();
+    let aicli_route = crate::aicli::usage::route_of(&ctx.provider.id, ctx.route.as_deref());
 
     tokio::spawn(async move {
         log_usage_internal(
@@ -634,6 +646,8 @@ fn spawn_log_usage(
             is_streaming,
             status_code,
             Some(session_id),
+            upstream_request_id,
+            aicli_route,
         )
         .await;
     });
@@ -667,11 +681,15 @@ async fn log_usage_internal(
     is_streaming: bool,
     status_code: u16,
     session_id: Option<String>,
+    upstream_request_id: Option<String>,
+    aicli_route: Option<(String, String)>,
 ) {
     use super::usage::logger::UsageLogger;
 
     let dedup_scope = super::usage::parser::dedup_scope_for_app(app_type, provider_id);
     let request_id = usage.dedup_request_id(dedup_scope);
+    // C4-03：行写入后按同一 id 回填账单；闭包会 move 走 request_id，先留一份。
+    let bill_request_id = request_id.clone();
 
     log::debug!(
         "[{app_type}] 记录请求日志: id={request_id}, provider={provider_id}, model={model}, streaming={is_streaming}, status={status_code}, latency_ms={latency_ms}, first_token_ms={first_token_ms:?}, session={}, input={}, output={}, cache_read={}, cache_creation={}",
@@ -685,6 +703,12 @@ async fn log_usage_internal(
     // #7818：使用量写入要拿 Database 的单把 std::sync::Mutex<Connection> 并做
     // 磁盘 IO，同步执行会卡住 tokio worker，移到阻塞线程池执行。计费模式
     // 读取走同一把锁，一并移入。
+    // AICLI 行的计价依据（站点价格行 + 路由第一个分组的倍率），按上游模型、请求模型依次匹配
+    let aicli_billing = aicli_route.as_ref().and_then(|(_, profile)| {
+        state
+            .aicli
+            .usage_billing(profile, &[outbound_model, request_model, model])
+    });
     let db = state.db.clone();
     let provider_id = provider_id.to_string();
     let app_type = app_type.to_string();
@@ -716,6 +740,10 @@ async fn log_usage_internal(
             session_id,
             None, // provider_type
             is_streaming,
+            aicli_route
+                .as_ref()
+                .map(|(line, profile)| (line.as_str(), profile.as_str())),
+            aicli_billing.as_ref(),
         )
     });
     if let Err(e) = write.await.unwrap_or_else(|e| {
@@ -724,6 +752,12 @@ async fn log_usage_internal(
         )))
     }) {
         log::warn!("[USG-001] 记录使用量失败: {e}");
+    } else if let Some(upstream) = upstream_request_id.filter(|id| !id.is_empty()) {
+        // C4-03：AICLI 请求完成——写上游请求 id 并入队账单回填（1s/3s/10s）。
+        state
+            .aicli
+            .record_upstream_request(&bill_request_id, &upstream)
+            .await;
     }
 }
 
@@ -757,9 +791,14 @@ pub fn create_logged_passthrough_stream(
             None
         };
 
+        let total_deadline = (timeout_config.total_timeout > 0).then(|| tokio::time::Instant::now()+Duration::from_secs(timeout_config.total_timeout));
         tokio::pin!(stream);
 
         loop {
+            if total_deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+                yield Err(std::io::Error::other("流式响应总时长超时"));
+                break;
+            }
             // 选择超时时间：首字节超时或静默期超时
             let timeout_duration = if is_first_chunk {
                 first_byte_timeout
@@ -767,6 +806,12 @@ pub fn create_logged_passthrough_stream(
                 idle_timeout
             };
 
+            let total_remaining = total_deadline.map(|deadline|deadline.saturating_duration_since(tokio::time::Instant::now()));
+            let total_is_limit = total_remaining.is_some_and(|remaining| timeout_duration.is_none_or(|duration|remaining <= duration));
+            let timeout_duration = match (timeout_duration,total_remaining) {
+                (Some(a),Some(b)) => Some(a.min(b)),
+                (a,b) => a.or(b),
+            };
             let chunk_result = match timeout_duration {
                 Some(duration) => {
                     match tokio::time::timeout(duration, stream.next()).await {
@@ -774,7 +819,7 @@ pub fn create_logged_passthrough_stream(
                         Ok(None) => None, // 流结束
                         Err(_) => {
                             // 超时
-                            let timeout_type = if is_first_chunk { "首字节" } else { "静默期" };
+                            let timeout_type = if total_is_limit { "总时长" } else if is_first_chunk { "首字节" } else { "静默期" };
                             log::error!("[{tag}] 流式响应{}超时 ({}秒)", timeout_type, duration.as_secs());
                             yield Err(std::io::Error::other(format!("流式响应{timeout_type}超时")));
                             break;
@@ -984,6 +1029,7 @@ mod tests {
             StreamingTimeoutConfig {
                 first_byte_timeout: 0,
                 idle_timeout: 0,
+                total_timeout: 0,
             },
             None,
         );
@@ -1278,6 +1324,8 @@ mod tests {
             false,
             200,
             None,
+            None,
+            None,
         )
         .await;
 
@@ -1344,6 +1392,8 @@ mod tests {
             None,
             false,
             200,
+            None,
+            None,
             None,
         )
         .await;
@@ -1438,6 +1488,8 @@ mod tests {
                 None,
                 false,
                 200,
+                None,
+                None,
                 None,
             )
             .await;

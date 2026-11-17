@@ -1,0 +1,38 @@
+C3-09 wire credentials and parser-owned session affinity
+Initial implementation: 101245471c7db4da5266c6e8df5e595f60c8e848
+Final implementation: 091bce7c8013f5c38c04b690323a0d2b7cfce2d6
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41858885415
+All four parallel jobs and Checklist acceptance (Linux) succeeded.
+
+Rust item tests (Linux), job 126675837310:
+  cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing aicli_credentials_follow_wire
+  1 passed: real proxy requests for anthropic/openai/openai-response/gemini
+  assert exact upstream auth headers, absence of other credential carriers,
+  parser-owned session affinity, forged header removal, absent-session removal,
+  and captured logs without credentials.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing
+  10 passed / 0 skipped.
+A3-01 baseline (Linux), job 126675837203:
+  bash scripts/aicli-check.sh
+  Rust 4606 passed / original 10 skipped; frontend 267 files / 3416 passed.
+  Typecheck, format, renderer build and Clippy passed.
+B stage desktop checks (Linux), job 126675836723: success.
+A6 test environment (Linux), job 126675837670: success.
+  Final coverage: testenv=false; c106_observe=false. Docker and 601-second
+  observation skipped according to successful ancestor 29aad72e and unchanged
+  coverage inputs. Do not treat this final run as new A6/601-second evidence.
+Checklist acceptance (Linux), job 126683232116: success.
+
+Failure history (not acceptance):
+  Initial run 41857059005 failed existing standalone image generation/edit
+  regressions: their auth assertions still expected the Provider fixture key.
+  The resolver credential now correctly wins. Final fix updates all seven exact
+  auth expectations to the existing resolver fixture key. No assertion removed,
+  weakened, ignored, or bypassed. Initial A6 passed; cancelled/superseded jobs
+  are not successful acceptance evidence.
+
+Security: downloaded job evidence and complete public job log scanned for long
+model-key/Bearer candidates (counts only, no values recorded). Final count 0/0.
+No real credentials, production operations, local builds or tests.
+Local pre-push: scripts/aicli-pre-push-check.sh (external pinned Prettier),
+cargo fmt --check, Prettier and workflow YAML syntax all passed; git diff --check.

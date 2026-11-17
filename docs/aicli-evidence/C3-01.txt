@@ -1,0 +1,58 @@
+C3-01 profile and fixed-line resolver
+
+Final implementation: 594eb8d8faea32b3853213f483eb19633a37dff9
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41817318022
+Entire run: success; all four parallel jobs and the summary job passed.
+C3-02 was accepted and its evidence pushed before this implementation push.
+
+Rust item tests (Linux), job 126531262853:
+  Command: cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::resolver::tests
+  Result: 13 passed, 4581 filtered out; exit code 0.
+  Coverage:
+  - Unbind, missing access credential, rotated credential, and rebound account
+    cannot use the previous account snapshot.
+  - Plain requests and misses preserve request input and do not create pins.
+  - Claude and Desktop aliases decode; public aliases rewrite to upstream names;
+    keys stay out of Provider DTOs and RouteDecision Debug output.
+  - Pin > session > app > global > active > recommended; project is skipped.
+    Pinned sessions retain the old catalog after a successful refresh.
+  - Generated session ids neither pin nor produce an affinity key; subsequent
+    requests reselect the profile. Gemini reads its model from the URL, excluding
+    the query string. Codex reuses the existing session extractor.
+  - NeedsRepair precedes lookup for affected models that vanished from the
+    catalog, leaves unaffected models usable, and covers conservative repair.
+  - Missing profile, token, key, catalog, wire and unavailable capability misses.
+  - Profile line policy precedes selected line, remaining fixed lines sort by
+    priority; each Provider id has the exact four timeout values from its Line.
+  - Both line and line/model cooldowns apply; expired and other-model cooldowns
+    do not block; all-cooling probes exactly the earliest effective recovery.
+  - Four client error envelopes and four distinct codes, including bind HTTP 401.
+
+A3-01 baseline (Linux), job 126531259995:
+  Command: bash scripts/aicli-check.sh
+  Result: Rust 4584 passed, original 10 skipped; frontend 267 files / 3416 passed;
+  typecheck, formatting, renderer build, Clippy and full nextest baseline passed.
+
+A6 test environment (Linux), job 126531259281:
+  Result: A6-01 PASS; A6-02 14 passed; A6-03 1 passed; A6-04 3 passed;
+  A6-05 5 passed; C1-04 integration 1 passed; C1-07 integration 2 passed;
+  C1-09 integration 1 passed.
+  CI-OPT-coverage.txt: testenv=true; c106_observe=false because cache refresh
+  inputs were unchanged. The 601-second C1-06 observation was NOT rerun.
+
+B stage desktop checks (Linux), job 126531259178: passed.
+Checklist acceptance (Linux), job 126536305008: passed.
+
+Owner decisions from 7644c285 were followed: use accepted seed::clone_for and
+only fixed LINES; skip project and preferred_line; copy four LineTimeouts values.
+Handler integration and conversion to StreamingTimeoutConfig remain C3-03/C3-07.
+No new product fields or schema changes were introduced in this item.
+
+Local checks before implementation push:
+  AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+  git diff --check
+  Result: PASS; no local compilation or tests were run.
+All test execution used isolated HOME in CI and synthetic mock credentials.
+Downloaded evidence artifacts and the complete public job logs were scanned:
+long sk- credential-shaped values: 0; long Bearer credential candidates: 0.
+No raw container startup logs or credentials are committed in this evidence.

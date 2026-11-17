@@ -1,0 +1,30 @@
+C2-02 model aliases
+
+Final implementation: 375c5ec15db8215b63340dd29384c85b6dcc1a9a
+Initial implementation: 6ade666e4c53c47077e339b97393c82839c6537f
+Final run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41784815814
+Initial failed run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41783174947
+
+Rust item tests (Linux), job 126424436644:
+  Command: cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::alias::tests
+  Result: 5 passed, 4566 filtered out; exit code 0.
+
+A3-01 baseline (Linux), job 126424436563:
+  Command: bash scripts/aicli-check.sh
+  Result: Rust 4566 passed, 10 skipped; frontend typecheck, format, unit tests,
+  renderer build, Clippy, and full Rust nextest baseline passed; exit code 0.
+
+A6 test environment (Linux), job 126424436274:
+  Command: A6 integration coverage selected by the workflow.
+  Result: passed. CI-OPT-coverage.txt recorded testenv=true and c106_observe=false;
+  the 601-second observation was skipped because its inputs were unchanged.
+
+B stage desktop checks (Linux), job 126424436722: passed.
+Checklist acceptance (Linux), job 126428926411: passed.
+
+The initial run failed only because the test expected Desktop to preserve an
+8-digit date suffix. The existing Desktop identity rule strips that suffix.
+The correction verifies generated 6-digit aliases are preserved and 8-digit
+date suffixes are stripped. No production rule or assertion was weakened.
+The final run's job logs and downloaded evidence artifacts were scanned for
+long secret-shaped values and Bearer candidates; no matches were found.

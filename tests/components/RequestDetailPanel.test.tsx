@@ -5,6 +5,17 @@ import { RequestDetailPanel } from "@/components/usage/RequestDetailPanel";
 import type { RequestLog } from "@/types/usage";
 
 const useRequestDetailMock = vi.hoisted(() => vi.fn());
+const useAicliRequestBillMock = vi.hoisted(() =>
+  vi.fn((_id: string) => ({ data: undefined as unknown })),
+);
+
+vi.mock("@/hooks/useAicliUsage", () => ({
+  useAicliRequestBill: (id: string) => useAicliRequestBillMock(id),
+}));
+
+vi.mock("@/hooks/useAicliAccount", () => ({
+  useAicliAccount: () => ({ data: { quota_display: null } }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -203,5 +214,102 @@ describe("RequestDetailPanel", () => {
 
     expect(screen.getByText("usage.requestNotFound")).toBeInTheDocument();
     expect(screen.queryByText("usage.requestLoadFailed")).toBeNull();
+  });
+
+  // ---- F-06：服务端账单与「预估」标注 ----
+
+  const bill = (patch: Record<string, unknown> = {}) => ({
+    request_id: "req_1",
+    created_at: 1,
+    app_type: "claude",
+    model: "claude-opus-5-5",
+    status_code: 200,
+    line_id: "main",
+    profile_id: "recommended",
+    upstream_request_id: "up-1",
+    server_group: "vip",
+    group_ratio: null,
+    billed_quota: null,
+    billed_at: null,
+    ...patch,
+  });
+
+  it("labels the local cost as an estimate", () => {
+    renderWith(log({}));
+    expect(
+      screen.getByText("usage.detail.costTitle · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("usage.detail.total · aicli.bill.estimated"),
+    ).toBeInTheDocument();
+    // 没有 AICLI 账单记录时不显示服务端账单
+    expect(screen.queryByText("aicli.bill.title")).not.toBeInTheDocument();
+  });
+
+  it("waits for the server bill instead of passing off an estimate as charged", () => {
+    useAicliRequestBillMock.mockReturnValue({ data: bill() });
+    renderWith(log({}));
+    expect(screen.getByText("aicli.bill.title")).toBeInTheDocument();
+    expect(screen.getByText("aicli.bill.pending")).toBeInTheDocument();
+    expect(screen.getByText("aicli.lines.main")).toBeInTheDocument();
+    // F-11：系统预设按语言显示名称，不显示 id
+    expect(
+      screen.getByText("aicli.profiles.presets.recommended.name"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("recommended")).not.toBeInTheDocument();
+    expect(screen.getByText("vip")).toBeInTheDocument();
+    expect(useAicliRequestBillMock).toHaveBeenCalledWith("req_1");
+  });
+
+  it("shows the server's charged quota once billed", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ billed_quota: 1_000_000, billed_at: 2 }),
+    });
+    renderWith(log({}));
+    expect(
+      screen.getByText("aicli.bill.serverCharge · aicli.bill.charged"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("$2")).toBeInTheDocument();
+    expect(screen.queryByText("aicli.bill.pending")).not.toBeInTheDocument();
+  });
+
+  it("shows the group ratio under the server group of an AICLI request", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ server_group: "gpt", group_ratio: 0.18 }),
+    });
+    renderWith(log({}));
+    const group = screen.getByText("aicli.bill.serverGroup");
+    const ratio = screen.getByText("aicli.bill.groupRatio");
+    // 分组倍率紧跟在服务端分组之后
+    expect(
+      group.compareDocumentPosition(ratio) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("×0.18")).toBeInTheDocument();
+  });
+
+  it("prices an AICLI request's cost breakdown at the model's list price", () => {
+    useAicliRequestBillMock.mockReturnValue({
+      data: bill({ billed_quota: 8_527, billed_at: 2, group_ratio: 0.18 }),
+    });
+    renderWith(
+      log({
+        costMultiplier: "0.180005",
+        inputCostUsd: "0.07878",
+        outputCostUsd: "0.00468",
+        cacheReadCostUsd: "0.011282",
+        cacheCreationCostUsd: "0",
+        totalCostUsd: "0.017054",
+      }),
+    );
+    expect(
+      screen.getByText(
+        "usage.detail.costTitle · aicli.bill.listPriceEstimated",
+      ),
+    ).toBeInTheDocument();
+    // 合计 = 各项之和（模型原价，不乘分组倍率），倍数行不在成本明细里
+    expect(screen.getByText("usage.detail.total")).toBeInTheDocument();
+    expect(screen.getByText("$0.0947")).toBeInTheDocument();
+    expect(screen.queryByText("usage.costMultiplier")).not.toBeInTheDocument();
+    expect(screen.queryByText("×0.180005")).not.toBeInTheDocument();
   });
 });

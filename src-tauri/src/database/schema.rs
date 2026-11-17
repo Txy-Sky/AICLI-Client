@@ -136,7 +136,7 @@ impl Database {
         conn.execute("CREATE TABLE IF NOT EXISTS proxy_config (
             app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','grokbuild')),
             proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
+            listen_port INTEGER NOT NULL DEFAULT 15821, enable_logging INTEGER NOT NULL DEFAULT 1,
             enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
             max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
             streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
@@ -217,7 +217,9 @@ impl Database {
             duration_ms INTEGER, status_code INTEGER NOT NULL, error_message TEXT, session_id TEXT,
             provider_type TEXT, is_streaming INTEGER NOT NULL DEFAULT 0,
             cost_multiplier TEXT NOT NULL DEFAULT '1.0', created_at INTEGER NOT NULL,
-            data_source TEXT NOT NULL DEFAULT 'proxy'
+            data_source TEXT NOT NULL DEFAULT 'proxy',
+            aicli_line_id TEXT, aicli_profile_id TEXT, upstream_request_id TEXT,
+            server_group TEXT, billed_quota INTEGER, billed_at INTEGER
         )", []).map_err(|e| AppError::Database(e.to_string()))?;
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_provider ON proxy_request_logs(provider_id, app_type)", [])
@@ -395,7 +397,7 @@ impl Database {
             [],
         );
         let _ = conn.execute(
-            "ALTER TABLE proxy_config ADD COLUMN listen_port INTEGER NOT NULL DEFAULT 15721",
+            "ALTER TABLE proxy_config ADD COLUMN listen_port INTEGER NOT NULL DEFAULT 15821",
             [],
         );
         let _ = conn.execute(
@@ -433,6 +435,8 @@ impl Database {
             "BOOLEAN NOT NULL DEFAULT 0",
         )?;
 
+        crate::aicli::schema::create_tables(conn)?;
+
         // 删除旧的 failover_queue 表（如果存在）
         let _ = conn.execute("DROP INDEX IF EXISTS idx_failover_queue_order", []);
         let _ = conn.execute("DROP TABLE IF EXISTS failover_queue", []);
@@ -444,6 +448,17 @@ impl Database {
             [],
         );
 
+        Ok(())
+    }
+
+    fn migrate_v24_to_v25(conn: &Connection) -> Result<(), AppError> {
+        crate::aicli::schema::create_tables(conn)?;
+        // Historical migration fixtures may contain only selected preexisting tables.
+        if Self::table_exists(conn, "proxy_request_logs")? {
+            for (column, definition) in crate::aicli::schema::REQUEST_LOG_COLUMNS {
+                Self::add_column_if_missing(conn, "proxy_request_logs", column, definition)?;
+            }
+        }
         Ok(())
     }
 
@@ -648,6 +663,10 @@ impl Database {
                         }
                         Self::set_user_version(conn, 24)?;
                     }
+                    24 => {
+                        Self::migrate_v24_to_v25(conn)?;
+                        Self::set_user_version(conn, 25)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -656,6 +675,8 @@ impl Database {
                 }
                 version = Self::get_user_version(conn)?;
             }
+            // 版本迁移之外的幂等补列（已在最新版本的旧库也会走到这里）。
+            crate::aicli::schema::ensure_columns(conn)?;
             Ok(())
         })();
 
@@ -771,7 +792,7 @@ impl Database {
                 conn,
                 "proxy_config",
                 "listen_port",
-                "INTEGER NOT NULL DEFAULT 15721",
+                "INTEGER NOT NULL DEFAULT 15821",
             )?;
             Self::add_column_if_missing(
                 conn,
@@ -981,7 +1002,7 @@ impl Database {
         conn.execute("CREATE TABLE proxy_config_new (
             app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','grokbuild')),
             proxy_enabled INTEGER NOT NULL DEFAULT 0, listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-            listen_port INTEGER NOT NULL DEFAULT 15721, enable_logging INTEGER NOT NULL DEFAULT 1,
+            listen_port INTEGER NOT NULL DEFAULT 15821, enable_logging INTEGER NOT NULL DEFAULT 1,
             enabled INTEGER NOT NULL DEFAULT 0, auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
             max_retries INTEGER NOT NULL DEFAULT 3, streaming_first_byte_timeout INTEGER NOT NULL DEFAULT 60,
             streaming_idle_timeout INTEGER NOT NULL DEFAULT 120, non_streaming_timeout INTEGER NOT NULL DEFAULT 600,
@@ -1544,7 +1565,7 @@ impl Database {
                 app_type TEXT PRIMARY KEY CHECK (app_type IN ('claude','codex','gemini','grokbuild')),
                 proxy_enabled INTEGER NOT NULL DEFAULT 0,
                 listen_address TEXT NOT NULL DEFAULT '127.0.0.1',
-                listen_port INTEGER NOT NULL DEFAULT 15721,
+                listen_port INTEGER NOT NULL DEFAULT 15821,
                 enable_logging INTEGER NOT NULL DEFAULT 1,
                 enabled INTEGER NOT NULL DEFAULT 0,
                 auto_failover_enabled INTEGER NOT NULL DEFAULT 0,
@@ -1571,7 +1592,7 @@ impl Database {
             ("app_type", "'claude'"),
             ("proxy_enabled", "0"),
             ("listen_address", "'127.0.0.1'"),
-            ("listen_port", "15721"),
+            ("listen_port", "15821"),
             ("enable_logging", "1"),
             ("enabled", "0"),
             ("auto_failover_enabled", "0"),

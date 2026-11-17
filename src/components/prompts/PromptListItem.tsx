@@ -17,7 +17,7 @@ import { promptMenuContentClass, promptMenuItemClass } from "./PromptPageFrame";
 interface PromptListItemProps {
   id: string;
   prompt: Prompt;
-  /** 启用中的那条：常驻浅底 +「已启用」徽标，按钮变「停用」 */
+  /** 启用中的那条：常驻品牌浅青底 +「已启用」徽标，按钮变「停用」 */
   active: boolean;
   /** 第二行：说明（没有就用正文第一行）· 大小 · 更新时间 */
   detail: string;
@@ -59,9 +59,10 @@ const PromptListItem: React.FC<PromptListItemProps> = ({
         onEdit(id);
       }}
       className={cn(
-        "flex h-[60px] cursor-pointer items-center gap-3 pe-2 ps-4 transition-colors duration-150 hover:bg-subtle",
+        "flex h-[60px] cursor-pointer items-center gap-3 pe-2 ps-4 transition-colors duration-150",
         !first && "border-t border-border",
-        active && "bg-subtle",
+        // 2026-11 改版（画板 10）：启用中的那条用品牌浅青底，和「已接管」「已开启」同一种颜色
+        active ? "bg-action-soft" : "hover:bg-subtle",
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col">
@@ -73,7 +74,7 @@ const PromptListItem: React.FC<PromptListItemProps> = ({
             {prompt.name}
           </span>
           {active ? (
-            <span className="inline-flex h-[18px] shrink-0 items-center whitespace-nowrap rounded-full bg-success-soft px-[7px] text-badge text-success-text">
+            <span className="inline-flex h-[18px] shrink-0 items-center whitespace-nowrap rounded-full bg-action px-[7px] text-badge text-action-fg">
               {t("prompts.enabled")}
             </span>
           ) : null}

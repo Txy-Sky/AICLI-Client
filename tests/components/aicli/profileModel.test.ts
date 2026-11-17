@@ -1,0 +1,250 @@
+import { describe, expect, it } from "vitest";
+import {
+  applyAlias,
+  applyChoice,
+  confirmAllByGroupOrder,
+  copyPreset,
+  diffModelLists,
+  effectiveGroupOrder,
+  landingGroups,
+  moveGroup,
+  moveGroupBefore,
+  newProfileId,
+  normalizeForSave,
+  previewModels,
+  toggleGroup,
+  unresolvedConflicts,
+} from "@/components/aicli/profiles/profileModel";
+import type { AicliCatalog, AicliProfileBody } from "@/types/aicli";
+
+const catalog: AicliCatalog = {
+  groups: {
+    cheap: { description: "", ratio: 0.5, ratio_known: true },
+    mid: { description: "", ratio: 1, ratio_known: true },
+    vip: { description: "", ratio: null, ratio_known: false },
+  },
+  auto_available: false,
+  auto_groups: [],
+  models: {
+    shared: {
+      groups: ["cheap", "mid"],
+      wire: { openai: "openai" },
+      compat: {},
+      pricing: { tags: "tools,vision" },
+    },
+    unique: {
+      groups: ["mid"],
+      wire: { anthropic: "anthropic" },
+      compat: {},
+      pricing: {},
+    },
+    elsewhere: { groups: ["vip"], wire: {}, compat: {}, pricing: {} },
+  },
+};
+
+const body = (patch: Partial<AicliProfileBody> = {}): AicliProfileBody => ({
+  selected_groups: ["mid", "cheap"],
+  selection_mode: "fixed_priority",
+  model_bindings: [],
+  resolved_conflicts: [],
+  line_policy: "inherit",
+  allow_fallback: true,
+  excluded_models: [],
+  ...patch,
+});
+
+describe("profile model (mirrors backend validate)", () => {
+  it("previews models from selected groups in group order and flags conflicts", () => {
+    const rows = previewModels(body(), catalog);
+    expect(rows.map((row) => row.model)).toEqual(["shared", "unique"]);
+    const shared = rows.find((row) => row.model === "shared")!;
+    expect(shared.sourceGroups).toEqual(["mid", "cheap"]);
+    expect(shared.status).toBe("conflict");
+    expect(shared.tags).toEqual(["tools", "vision"]);
+    expect(rows.find((row) => row.model === "unique")!.status).toBe("single");
+    expect(unresolvedConflicts(body(), catalog)).toEqual(["shared"]);
+  });
+
+  it("resolves conflicts by confirming, choosing a source, aliasing or excluding", () => {
+    expect(
+      unresolvedConflicts(confirmAllByGroupOrder(body(), catalog), catalog),
+    ).toEqual([]);
+    const source = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "cheap",
+    });
+    expect(source.model_bindings).toEqual([
+      { model: "shared", source_group: "cheap", alias: null },
+    ]);
+    expect(unresolvedConflicts(source, catalog)).toEqual([]);
+    const aliased = applyAlias(body(), "shared", "shared-cheap");
+    expect(unresolvedConflicts(aliased, catalog)).toEqual([]);
+    expect(previewModels(aliased, catalog)[0].publicName).toBe("shared-cheap");
+    const excluded = applyChoice(source, "shared", { kind: "exclude" });
+    expect(excluded.excluded_models).toEqual(["shared"]);
+    expect(excluded.model_bindings).toEqual([]);
+    expect(
+      previewModels(excluded, catalog).find((r) => r.model === "shared")!
+        .status,
+    ).toBe("excluded");
+    // 回到按分组顺序：撤掉排除，记为已确认
+    const back = applyChoice(excluded, "shared", { kind: "order" });
+    expect(back.excluded_models).toEqual([]);
+    expect(back.resolved_conflicts).toEqual(["shared"]);
+  });
+
+  it("clearing an alias without a source brings the conflict back", () => {
+    const aliased = applyAlias(body(), "shared", "x");
+    const cleared = applyAlias(aliased, "shared", "  ");
+    expect(cleared.model_bindings).toEqual([]);
+    expect(unresolvedConflicts(cleared, catalog)).toEqual(["shared"]);
+  });
+
+  it("drops source bindings to a group when it is unticked", () => {
+    const source = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "cheap",
+    });
+    const unticked = toggleGroup(source, "cheap", false);
+    expect(unticked.selected_groups).toEqual(["mid"]);
+    expect(unticked.model_bindings[0].source_group).toBeNull();
+    expect(toggleGroup(body(), "vip", true).selected_groups).toEqual([
+      "mid",
+      "cheap",
+      "vip",
+    ]);
+  });
+
+  it("normalizes stale records before saving", () => {
+    const stale = body({
+      selected_groups: ["mid"],
+      model_bindings: [
+        { model: "elsewhere", source_group: null, alias: "x" },
+        { model: "unique", source_group: null, alias: null },
+      ],
+      resolved_conflicts: ["shared", "gone"],
+      excluded_models: ["elsewhere"],
+    });
+    const clean = normalizeForSave(stale, catalog);
+    expect(clean.model_bindings).toEqual([]);
+    expect(clean.resolved_conflicts).toEqual(["shared"]);
+    expect(clean.excluded_models).toEqual([]);
+  });
+
+  it("reorders groups and ignores out-of-range moves", () => {
+    expect(moveGroup(body(), 1, 0).selected_groups).toEqual(["cheap", "mid"]);
+    expect(moveGroup(body(), 0, -1)).toEqual(body());
+  });
+
+  it("copies a preset as a new local profile", () => {
+    const preset = {
+      id: "recommended",
+      name: "推荐",
+      source: "system",
+      preset_id: "recommended",
+      revision: 0,
+      body: body(),
+    };
+    const copy = copyPreset(preset, "user-1", "推荐（副本）", catalog);
+    expect(copy).toMatchObject({
+      id: "user-1",
+      name: "推荐（副本）",
+      source: "system_copy",
+      preset_id: "recommended",
+      revision: 0,
+    });
+    // 复制即按分组顺序确认：shared 来自 mid、cheap 两组，不再是未处理冲突
+    expect(copy.body.resolved_conflicts).toEqual(["shared"]);
+    expect(unresolvedConflicts(copy.body, catalog)).toEqual([]);
+    expect(preset.body.resolved_conflicts).toEqual([]);
+    copy.body.selected_groups.push("vip");
+    expect(preset.body.selected_groups).toEqual(["mid", "cheap"]);
+    expect(newProfileId(["user-a"], 10)).toBe("user-a-1");
+    expect(newProfileId([], 10)).toBe("user-a");
+  });
+
+  it("diffs model lists by public name", () => {
+    expect(diffModelLists(["a", "b"], ["b", "c"])).toEqual({
+      onlyInPreset: ["a"],
+      onlyInOther: ["c"],
+    });
+  });
+
+  it("summarises where models land and points at a cheaper group further down", () => {
+    // mid（×1）在前：shared 和 unique 都落在 mid；shared 在后面的 cheap 只要 ×0.5
+    expect(landingGroups(body(), catalog)).toEqual([
+      {
+        group: "mid",
+        models: 2,
+        ratio: 1,
+        cheaper: { group: "cheap", ratio: 0.5, models: 1 },
+      },
+    ]);
+    const moved = moveGroupBefore(body(), "cheap", "mid");
+    expect(moved.selected_groups).toEqual(["cheap", "mid"]);
+    expect(landingGroups(moved, catalog)).toEqual([
+      { group: "cheap", models: 1, ratio: 0.5, cheaper: null },
+      { group: "mid", models: 1, ratio: 1, cheaper: null },
+    ]);
+    // 已经在前面的分组不动
+    expect(moveGroupBefore(moved, "cheap", "mid")).toBe(moved);
+  });
+
+  it("does not suggest reordering for pinned or excluded models, or unknown ratios", () => {
+    const pinned = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "mid",
+    });
+    expect(landingGroups(pinned, catalog)[0].cheaper).toBeNull();
+    const pinnedCheap = applyChoice(body(), "shared", {
+      kind: "source",
+      group: "cheap",
+    });
+    expect(
+      landingGroups(pinnedCheap, catalog).map((item) => [
+        item.group,
+        item.models,
+      ]),
+    ).toEqual([
+      ["mid", 1],
+      ["cheap", 1],
+    ]);
+    const excluded = applyChoice(body(), "shared", { kind: "exclude" });
+    expect(landingGroups(excluded, catalog)).toEqual([
+      { group: "mid", models: 1, ratio: 1, cheaper: null },
+    ]);
+    // vip 倍率未知：不拿它和别的分组比价
+    expect(
+      landingGroups(body({ selected_groups: ["vip", "mid"] }), catalog),
+    ).toEqual([
+      { group: "vip", models: 1, ratio: null, cheaper: null },
+      { group: "mid", models: 2, ratio: 1, cheaper: null },
+    ]);
+    expect(landingGroups(body(), null)).toEqual([]);
+  });
+
+  it("orders groups by ratio for cost-first profiles, as the backend does", () => {
+    const costFirst = body({
+      selected_groups: ["vip", "mid", "cheap"],
+      selection_mode: "cost_first",
+    });
+    expect(effectiveGroupOrder(costFirst, catalog)).toEqual([
+      "cheap",
+      "mid",
+      "vip",
+    ]);
+    expect(effectiveGroupOrder(body(), catalog)).toEqual(["mid", "cheap"]);
+    // 按倍率选来源时没有「移到前面」的建议
+    expect(
+      landingGroups(costFirst, catalog).map((item) => [
+        item.group,
+        item.models,
+        item.cheaper,
+      ]),
+    ).toEqual([
+      ["cheap", 1, null],
+      ["mid", 1, null],
+      ["vip", 1, null],
+    ]);
+  });
+});

@@ -1,0 +1,806 @@
+//! Cache-first runtime. Snapshots contain public routing facts, never credentials.
+use std::collections::{BTreeMap, HashMap};
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
+
+use futures::future::BoxFuture;
+use lru::LruCache;
+use rusqlite::{params, OptionalExtension};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+
+use super::catalog::Catalog;
+use super::newapi::{NewApiClient, NewApiError};
+use super::profiles::{preset, CompiledProfile, Profile, ProfileError, ProfileStore};
+use super::secrets::{KeyringStore, SecretError, SecretStore};
+use super::tokens::{groups_hash, TokenError, TokenRemote, TokenService};
+use crate::Database;
+
+const SESSION_CAPACITY: usize = 4096;
+const SESSION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
+pub use super::cooldown::Cooldown;
+
+#[derive(Debug, Clone)]
+pub struct ProfileRoutes {
+    pub profile: Profile,
+    pub compiled: CompiledProfile,
+    pub token_ids: BTreeMap<String, i64>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RoutesSnapshot {
+    pub fingerprint: String,
+    pub catalog: Option<Catalog>,
+    pub profiles: BTreeMap<String, ProfileRoutes>,
+    pub active_profile_id: Option<String>,
+    pub selected_line_id: String,
+}
+
+#[derive(Clone)]
+pub struct SessionPin {
+    pub profile_id: String,
+    pub snapshot: Arc<RoutesSnapshot>,
+    created_at: Instant,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RuntimeError {
+    #[error("Runtime storage is unavailable")]
+    Storage,
+    #[error(transparent)]
+    Api(#[from] NewApiError),
+    #[error(transparent)]
+    Profile(#[from] ProfileError),
+    #[error(transparent)]
+    Secret(#[from] SecretError),
+    #[error(transparent)]
+    Token(#[from] TokenError),
+}
+
+pub type RuntimeValues = (Value, Value, Value, Value);
+type Binding = (i64, String, Option<String>, String);
+type BuiltRoutes = (RoutesSnapshot, Vec<Vec<String>>);
+
+struct BoundTokenService {
+    user_id: i64,
+    line: String,
+    access: String,
+    service: Arc<TokenService>,
+}
+
+/// The response values are public account/catalog facts. Credentials are supplied
+/// from SecretStore at operation time, so a rebind cannot retain an old client.
+pub trait RuntimeRemote: Send + Sync {
+    fn fetch<'a>(
+        &'a self,
+        api: &'a NewApiClient,
+    ) -> BoxFuture<'a, Result<RuntimeValues, NewApiError>>;
+    fn tokens(&self, api: NewApiClient) -> Arc<dyn TokenRemote>;
+}
+
+struct HttpRemote;
+impl RuntimeRemote for HttpRemote {
+    fn fetch<'a>(
+        &'a self,
+        api: &'a NewApiClient,
+    ) -> BoxFuture<'a, Result<RuntimeValues, NewApiError>> {
+        Box::pin(async move {
+            let account = api.user_self().await?;
+            let groups = api.user_groups().await?;
+            let pricing = api.pricing().await?;
+            let auto = api.auto_groups_setting().await?;
+            Ok((account, groups, pricing, auto))
+        })
+    }
+    fn tokens(&self, api: NewApiClient) -> Arc<dyn TokenRemote> {
+        Arc::new(api)
+    }
+}
+
+#[cfg(any(test, feature = "test-hooks"))]
+type LocalProviderSource =
+    dyn Fn(&crate::AppType, &str, &str) -> Option<crate::provider::Provider> + Send + Sync;
+
+pub struct AicliRuntime {
+    #[cfg(any(test, feature = "test-hooks"))]
+    local_provider_source: RwLock<Option<Arc<LocalProviderSource>>>,
+    store: Arc<dyn SecretStore>,
+    db: Arc<Database>,
+    remote: Arc<dyn RuntimeRemote>,
+    routes: RwLock<Arc<RoutesSnapshot>>,
+    projection_changes: tokio::sync::watch::Sender<String>,
+    credentials: RwLock<HashMap<i64, String>>,
+    session_pins: Mutex<LruCache<String, SessionPin>>,
+    /// Injectable (behind a lock because tests share the runtime through an
+    /// `Arc`) so tests can exercise expiry without backdating an `Instant`
+    /// past the boot-time epoch, which is unrepresentable on hosts that have
+    /// been up for less than the TTL.
+    session_ttl: Mutex<Duration>,
+    pub cooldown: Cooldown,
+    refresh_lock: tokio::sync::Mutex<()>,
+    background_started: std::sync::atomic::AtomicBool,
+    token_service: Mutex<Option<BoundTokenService>>,
+    identity: Mutex<Option<(i64, String)>>,
+    /// C4-03 账单回填：内存队列 + 后台 worker，随运行时销毁而清空。
+    bills: crate::aicli::usage::BillBackfill,
+    /// E-06 隐私网关：引擎构造一次、设置内存缓存，代理中间件跨请求共享。
+    privacy: std::sync::Arc<crate::aicli::privacy::layer::PrivacyGate>,
+}
+
+impl AicliRuntime {
+    pub fn new(db: Arc<Database>) -> Arc<Self> {
+        Self::with_remote(db, Arc::new(KeyringStore::default()), Arc::new(HttpRemote))
+    }
+
+    pub fn with_remote(
+        db: Arc<Database>,
+        store: Arc<dyn SecretStore>,
+        remote: Arc<dyn RuntimeRemote>,
+    ) -> Arc<Self> {
+        let bill_db = db.clone();
+        let bill_store = store.clone();
+        let runtime = Arc::new(Self {
+            #[cfg(any(test, feature = "test-hooks"))]
+            local_provider_source: RwLock::new(None),
+            db: db.clone(),
+            store: store.clone(),
+            remote,
+            routes: RwLock::new(Arc::new(RoutesSnapshot::default())),
+            projection_changes: tokio::sync::watch::channel(String::new()).0,
+            credentials: RwLock::new(HashMap::new()),
+            session_pins: Mutex::new(LruCache::new(NonZeroUsize::new(SESSION_CAPACITY).unwrap())),
+            session_ttl: Mutex::new(SESSION_TTL),
+            cooldown: Cooldown::default(),
+            refresh_lock: Default::default(),
+            background_started: Default::default(),
+            token_service: Default::default(),
+            identity: Default::default(),
+            bills: crate::aicli::usage::BillBackfill::new(bill_db.clone()),
+            privacy: std::sync::Arc::new(crate::aicli::privacy::layer::PrivacyGate::new(
+                db.clone(),
+                store.clone(),
+            )),
+        });
+        // No network, task spawn, or block_on during construction.
+        runtime.bills.wire_production(bill_db, bill_store);
+        if runtime.load_cached().is_err() {
+            log::warn!("AICLI cached routes unavailable; starting with empty routes");
+        }
+        runtime
+    }
+
+    /// Isolated forwarding fixtures may substitute loopback Provider DTOs only.
+    /// Account/profile/session resolution still executes the production resolver.
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_local_test_provider_source(
+        &self,
+        source: impl Fn(&crate::AppType, &str, &str) -> Option<crate::provider::Provider>
+            + Send
+            + Sync
+            + 'static,
+    ) {
+        *self.local_provider_source.write().unwrap() = Some(Arc::new(source));
+    }
+
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub(crate) fn local_test_provider(
+        &self,
+        app: &crate::AppType,
+        line: &str,
+        wire: &str,
+    ) -> Result<Option<crate::provider::Provider>, RuntimeError> {
+        let Some(provider) = self
+            .local_provider_source
+            .read()
+            .map_err(|_| RuntimeError::Storage)?
+            .as_ref()
+            .and_then(|source| source(app, line, wire))
+        else {
+            return Ok(None);
+        };
+        let base = crate::proxy::providers::get_adapter(app)
+            .ok_or(RuntimeError::Storage)?
+            .extract_base_url(&provider)
+            .map_err(|_| RuntimeError::Storage)?;
+        let url = url::Url::parse(&base).map_err(|_| RuntimeError::Storage)?;
+        if url.scheme() != "http"
+            || !matches!(url.host_str(), Some("127.0.0.1" | "localhost"))
+            || !url.username().is_empty()
+            || url.password().is_some()
+        {
+            return Err(RuntimeError::Storage);
+        }
+        Ok(Some(provider))
+    }
+
+    pub(crate) fn projection_changes(&self) -> tokio::sync::watch::Receiver<String> {
+        self.projection_changes.subscribe()
+    }
+
+    /// E-06 隐私网关（引擎 + 设置缓存 + 计数）。
+    pub fn privacy(&self) -> &std::sync::Arc<crate::aicli::privacy::layer::PrivacyGate> {
+        &self.privacy
+    }
+
+    pub fn snapshot(&self) -> Arc<RoutesSnapshot> {
+        self.routes
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// 用量记录的计价依据：在当前快照里按配置集找到该模型的路由，取第一个分组的倍率
+    /// 和服务端价格行。`models` 依次尝试（上游模型名、客户端请求的公开名）。
+    /// 找不到配置集、路由、价格或分组倍率时返回 None。
+    pub fn usage_billing(
+        &self,
+        profile_id: &str,
+        models: &[&str],
+    ) -> Option<super::pricing::UsageBilling> {
+        let snapshot = self.snapshot();
+        let catalog = snapshot.catalog.as_ref()?;
+        let routes = &snapshot.profiles.get(profile_id)?.compiled.routes;
+        let route = models.iter().find_map(|model| {
+            routes
+                .iter()
+                .find(|route| route.upstream_model == *model)
+                .or_else(|| routes.iter().find(|route| route.public_model == *model))
+        })?;
+        let group = route.ordered_groups.first()?;
+        let ratio = catalog.groups.get(group)?.ratio?;
+        Some(super::pricing::UsageBilling {
+            pricing_row: catalog.models.get(&route.upstream_model)?.pricing.clone(),
+            group: group.clone(),
+            group_ratio: rust_decimal::Decimal::from_f64_retain(ratio)?
+                .round_dp(12)
+                .normalize(),
+        })
+    }
+
+    pub fn credential(&self, token_id: i64) -> Option<String> {
+        self.credentials.read().ok()?.get(&token_id).cloned()
+    }
+
+    /// C4-03：请求完成时记录上游请求 id 并入队账单回填（1s/3s/10s 三次查询，
+    /// 命中写 server_group/billed_quota/billed_at，未命中保持 NULL）。
+    pub async fn record_upstream_request(&self, request_id: &str, upstream_request_id: &str) {
+        self.bills.record(request_id, upstream_request_id).await;
+    }
+
+    /// 仅测试：缩短回填重试延迟。
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_bill_delays_for_test(&self, delays: [std::time::Duration; 3]) {
+        self.bills.set_delays_for_test(delays);
+    }
+
+    /// 仅测试 / test-hooks：注入脚本化 new-api 查询与绑定上下文。
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn set_bill_query_for_test(
+        &self,
+        query: crate::aicli::usage::BillQuery,
+        context: crate::aicli::usage::BillContext,
+    ) {
+        self.bills.set_query_for_test(query);
+        self.bills.set_context_for_test(context);
+    }
+
+    /// Recover metadata/credentials once, without replaying the failed request.
+    pub async fn recover_model_token(&self, token_id: i64) -> Result<(), RuntimeError> {
+        let _guard = self.refresh_lock.lock().await;
+        let binding = self.binding()?.ok_or(RuntimeError::Storage)?;
+        if !self.bound_for_routing()? {
+            return Err(RuntimeError::Storage);
+        }
+        let snapshot = self.snapshot();
+        let groups = snapshot
+            .profiles
+            .values()
+            .find_map(|p| {
+                p.compiled
+                    .routes
+                    .iter()
+                    .find(|r| p.token_ids.get(&r.public_model) == Some(&token_id))
+                    .map(|r| r.ordered_groups.clone())
+            })
+            .ok_or(RuntimeError::Storage)?;
+        let mut references: Vec<_> = snapshot
+            .profiles
+            .values()
+            .flat_map(|p| p.compiled.routes.iter().map(|r| r.ordered_groups.clone()))
+            .collect();
+        let profiles = ProfileStore::new(self.db.clone());
+        for id in snapshot.profiles.keys() {
+            if let Some(baseline) = profiles.baseline(id)? {
+                references.extend(baseline.routes.into_values());
+            }
+        }
+        let service = {
+            let mut saved = self
+                .token_service
+                .lock()
+                .map_err(|_| RuntimeError::Storage)?;
+            if saved.as_ref().is_none_or(|s| {
+                s.user_id != binding.0 || s.line != binding.1 || s.access != binding.3
+            }) {
+                let api = NewApiClient::new(&binding.3, &binding.1)?;
+                *saved = Some(BoundTokenService {
+                    user_id: binding.0,
+                    line: binding.1.clone(),
+                    access: binding.3.clone(),
+                    service: Arc::new(TokenService::new(
+                        self.db.clone(),
+                        self.store.clone(),
+                        self.remote.tokens(api),
+                    )),
+                });
+            }
+            saved.as_ref().ok_or(RuntimeError::Storage)?.service.clone()
+        };
+        let new_id = service
+            .recover_unauthorized(
+                token_id,
+                &groups,
+                snapshot.catalog.as_ref().is_some_and(|c| c.auto_available),
+                &references,
+            )
+            .await?;
+        if self.binding()?.as_ref() != Some(&binding) {
+            return Err(RuntimeError::Storage);
+        }
+        let key = self
+            .store
+            .get(&format!("token:{new_id}"))?
+            .ok_or(RuntimeError::Storage)?;
+        let mut credentials = self
+            .credentials
+            .write()
+            .map_err(|_| RuntimeError::Storage)?;
+        credentials.insert(new_id, key.clone());
+        // Existing session pins retain their snapshot/token id; refresh their
+        // credential lookup too, without changing their routing facts.
+        credentials.insert(token_id, key);
+        drop(credentials);
+        let mut next = (*self.snapshot()).clone();
+        for profile in next.profiles.values_mut() {
+            for id in profile.token_ids.values_mut() {
+                if *id == token_id {
+                    *id = new_id;
+                }
+            }
+        }
+        *self.routes.write().map_err(|_| RuntimeError::Storage)? = Arc::new(next);
+        Ok(())
+    }
+
+    pub(crate) fn database(&self) -> &Database {
+        &self.db
+    }
+
+    /// Do not serve an old account snapshot after unbind/rebind, even before
+    /// the background refresh has had a chance to clear it.
+    pub(crate) fn bound_for_routing(&self) -> Result<bool, RuntimeError> {
+        let Some((id, _, _, access)) = self.binding()? else {
+            return Ok(false);
+        };
+        Ok(self
+            .identity
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .as_ref()
+            .is_some_and(|(old_id, old_access)| *old_id == id && *old_access == access))
+    }
+
+    pub fn pin(&self, key: String, profile_id: String, snapshot: Arc<RoutesSnapshot>) {
+        self.session_pins
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .put(
+                key,
+                SessionPin {
+                    profile_id,
+                    snapshot,
+                    created_at: Instant::now(),
+                },
+            );
+    }
+
+    pub fn session_pin(&self, key: &str) -> Option<SessionPin> {
+        let mut pins = self.session_pins.lock().unwrap_or_else(|e| e.into_inner());
+        let ttl = *self.session_ttl.lock().unwrap_or_else(|e| e.into_inner());
+        if pins
+            .peek(key)
+            .is_some_and(|p| p.created_at.elapsed() >= ttl)
+        {
+            pins.pop(key);
+            return None;
+        }
+        pins.get(key).cloned()
+    }
+
+    fn binding(&self) -> Result<Option<Binding>, RuntimeError> {
+        let row = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .query_row(
+                "SELECT user_id,selected_line_id,active_profile_id FROM aicli_account WHERE id=1",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|_| RuntimeError::Storage)?;
+        let Some((id, line, active)) = row else {
+            return Ok(None);
+        };
+        let Some(access) = self.store.get("access-token")?.filter(|s| !s.is_empty()) else {
+            return Ok(None);
+        };
+        Ok(Some((id, line, active, access)))
+    }
+
+    fn cache(&self, kind: &str) -> Result<Option<Value>, RuntimeError> {
+        let body: Option<String> = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .query_row(
+                "SELECT body_json FROM aicli_cache WHERE kind=?1",
+                [kind],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|_| RuntimeError::Storage)?;
+        body.map(|s| serde_json::from_str(&s).map_err(|_| RuntimeError::Storage))
+            .transpose()
+    }
+
+    fn clear(&self) {
+        *self.routes.write().unwrap_or_else(|e| e.into_inner()) =
+            Arc::new(RoutesSnapshot::default());
+        self.credentials
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        self.session_pins
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        *self.token_service.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        *self.identity.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    fn build(
+        &self,
+        groups: &Value,
+        pricing: &Value,
+        auto: Option<&Value>,
+        line: String,
+        active: Option<String>,
+    ) -> Result<BuiltRoutes, RuntimeError> {
+        let mut pricing = pricing.clone();
+        if let Some(groups) = auto.and_then(|v| v.pointer("/data/groups")) {
+            pricing["auto_groups"] = groups.clone();
+        }
+        let catalog = Catalog::from_snapshots(groups, &pricing)?;
+        let max = auto
+            .and_then(|v| v.pointer("/data/max_count"))
+            .and_then(Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok())
+            .unwrap_or(usize::MAX);
+        let store = ProfileStore::new(self.db.clone());
+        let mut profiles = store.list()?;
+        profiles.push(preset("recommended", &catalog)?);
+        profiles.push(preset("low_cost", &catalog)?);
+        let mut canonical = serde_json::json!({"catalog":catalog,"profiles":profiles,"max":max,"line":line,"active":active});
+        canonical.sort_all_objects();
+        let fingerprint = format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&canonical).map_err(|_| RuntimeError::Storage)?)
+        );
+        let mut snapshot = RoutesSnapshot {
+            fingerprint,
+            catalog: Some(catalog.clone()),
+            profiles: BTreeMap::new(),
+            active_profile_id: active,
+            selected_line_id: line,
+        };
+        let mut references = Vec::new();
+        for profile in profiles {
+            let compiled = store.compile(&profile, &catalog, max)?;
+            references.extend(compiled.routes.iter().map(|r| r.ordered_groups.clone()));
+            if let Some(baseline) = store.baseline(&profile.id)? {
+                references.extend(baseline.routes.into_values());
+            }
+            snapshot.profiles.insert(
+                profile.id.clone(),
+                ProfileRoutes {
+                    profile,
+                    compiled,
+                    token_ids: BTreeMap::new(),
+                },
+            );
+        }
+        Ok((snapshot, references))
+    }
+
+    fn cached_credentials(
+        &self,
+        snapshot: &mut RoutesSnapshot,
+    ) -> Result<HashMap<i64, String>, RuntimeError> {
+        let records = {
+            let conn = self.db.conn.lock().map_err(|_| RuntimeError::Storage)?;
+            let mut s = conn
+                .prepare("SELECT groups_hash,token_id FROM aicli_managed_token")
+                .map_err(|_| RuntimeError::Storage)?;
+            let rows = s
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+                .map_err(|_| RuntimeError::Storage)?;
+            rows.collect::<Result<BTreeMap<_, _>, _>>()
+                .map_err(|_| RuntimeError::Storage)?
+        };
+        let mut credentials = HashMap::new();
+        for entry in snapshot.profiles.values_mut() {
+            for route in &entry.compiled.routes {
+                if let Some(id) = records.get(&groups_hash(&route.ordered_groups)) {
+                    if let Some(key) = self
+                        .store
+                        .get(&format!("token:{id}"))?
+                        .filter(|s| !s.is_empty())
+                    {
+                        entry.token_ids.insert(route.public_model.clone(), *id);
+                        credentials.insert(*id, key);
+                    }
+                }
+            }
+        }
+        Ok(credentials)
+    }
+
+    /// Public projection facts need no model credentials or network access.
+    pub(crate) fn cached_projection(&self) -> Result<Arc<RoutesSnapshot>, RuntimeError> {
+        let binding: Option<(String, Option<String>)> = self
+            .db
+            .conn
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .query_row(
+                "SELECT selected_line_id,active_profile_id FROM aicli_account WHERE id=1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| RuntimeError::Storage)?;
+        let Some((line, active)) = binding else {
+            return Ok(Arc::new(RoutesSnapshot::default()));
+        };
+        let (Some(groups), Some(pricing)) = (self.cache("groups")?, self.cache("pricing")?) else {
+            return Ok(Arc::new(RoutesSnapshot::default()));
+        };
+        self.build(
+            &groups,
+            &pricing,
+            self.cache("auto_groups")?.as_ref(),
+            line,
+            active,
+        )
+        .map(|(snapshot, _)| Arc::new(snapshot))
+    }
+
+    fn load_cached(&self) -> Result<(), RuntimeError> {
+        let Some((id, line, active, access)) = self.binding()? else {
+            self.clear();
+            return Ok(());
+        };
+        *self.identity.lock().map_err(|_| RuntimeError::Storage)? = Some((id, access));
+        let (Some(groups), Some(pricing)) = (self.cache("groups")?, self.cache("pricing")?) else {
+            return Ok(());
+        };
+        let (mut snapshot, _) = self.build(
+            &groups,
+            &pricing,
+            self.cache("auto_groups")?.as_ref(),
+            line,
+            active,
+        )?;
+        let credentials = self.cached_credentials(&mut snapshot)?;
+        *self
+            .credentials
+            .write()
+            .map_err(|_| RuntimeError::Storage)? = credentials;
+        *self.routes.write().map_err(|_| RuntimeError::Storage)? = Arc::new(snapshot);
+        Ok(())
+    }
+
+    /// A failed fetch, compile or credential operation never publishes half a snapshot.
+    pub async fn refresh(&self) -> Result<(), RuntimeError> {
+        let _guard = self.refresh_lock.lock().await;
+        let Some(binding) = self.binding()? else {
+            self.clear();
+            return Ok(());
+        };
+        let (id, line, active, access) = &binding;
+        let same_account = self
+            .identity
+            .lock()
+            .map_err(|_| RuntimeError::Storage)?
+            .as_ref()
+            .is_some_and(|(old_id, old_access)| old_id == id && old_access == access);
+        if !same_account {
+            self.clear();
+            self.load_cached()?;
+        }
+        let api = NewApiClient::new(access, line)?;
+        let (account, groups, pricing, auto) = self.remote.fetch(&api).await?;
+        if account.pointer("/data/id").and_then(Value::as_i64) != Some(*id) {
+            return Err(NewApiError::InvalidResponse.into());
+        }
+        if self.binding()?.as_ref() != Some(&binding) {
+            self.clear();
+            self.load_cached()?;
+            return Ok(());
+        }
+        let (mut next, references) =
+            self.build(&groups, &pricing, Some(&auto), line.clone(), active.clone())?;
+        let unchanged = next.fingerprint == self.snapshot().fingerprint;
+        let mut credentials = self.cached_credentials(&mut next)?;
+        let missing = next
+            .profiles
+            .values()
+            .any(|p| p.compiled.routes.len() != p.token_ids.len());
+        if !unchanged || missing {
+            let orders: Vec<_> = next
+                .profiles
+                .values()
+                .flat_map(|p| p.compiled.routes.iter().map(|r| r.ordered_groups.clone()))
+                .collect();
+            let service = {
+                let mut saved = self
+                    .token_service
+                    .lock()
+                    .map_err(|_| RuntimeError::Storage)?;
+                if saved
+                    .as_ref()
+                    .is_none_or(|s| s.user_id != *id || &s.line != line || &s.access != access)
+                {
+                    *saved = Some(BoundTokenService {
+                        user_id: *id,
+                        line: line.clone(),
+                        access: access.clone(),
+                        service: Arc::new(TokenService::new(
+                            self.db.clone(),
+                            self.store.clone(),
+                            self.remote.tokens(api),
+                        )),
+                    });
+                }
+                saved.as_ref().ok_or(RuntimeError::Storage)?.service.clone()
+            };
+            let ids = service
+                .ensure_compilation(
+                    &orders,
+                    next.catalog.as_ref().is_some_and(|c| c.auto_available),
+                    &references,
+                )
+                .await?;
+            for entry in next.profiles.values_mut() {
+                for route in &entry.compiled.routes {
+                    let token_id = *ids
+                        .get(&groups_hash(&route.ordered_groups))
+                        .ok_or(RuntimeError::Storage)?;
+                    let key = self
+                        .store
+                        .get(&format!("token:{token_id}"))?
+                        .ok_or(RuntimeError::Storage)?;
+                    credentials.insert(token_id, key);
+                    entry.token_ids.insert(route.public_model.clone(), token_id);
+                }
+            }
+        }
+        // A rebind/unbind while HTTP was in flight must never publish old account routes.
+        let mut conn = self.db.conn.lock().map_err(|_| RuntimeError::Storage)?;
+        let tx = conn.transaction().map_err(|_| RuntimeError::Storage)?;
+        let current = tx
+            .query_row(
+                "SELECT user_id,selected_line_id,active_profile_id FROM aicli_account WHERE id=1",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|_| RuntimeError::Storage)?;
+        let access_current = self.store.get("access-token")?;
+        if current != Some((*id, line.clone(), active.clone()))
+            || access_current.as_deref() != Some(access.as_str())
+        {
+            drop(tx);
+            drop(conn);
+            self.clear();
+            self.load_cached()?;
+            return Ok(());
+        }
+        for (kind, value) in [
+            ("account", account),
+            ("groups", groups),
+            ("pricing", pricing),
+            ("auto_groups", auto),
+        ] {
+            let body = serde_json::to_string(&value).map_err(|_| RuntimeError::Storage)?;
+            let hash = format!("{:x}", Sha256::digest(body.as_bytes()));
+            tx.execute("INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json) VALUES(?1,?2,?3,?4) ON CONFLICT(kind) DO UPDATE SET fingerprint=excluded.fingerprint,fetched_at=excluded.fetched_at,body_json=excluded.body_json",params![kind,hash,chrono::Utc::now().timestamp(),body]).map_err(|_|RuntimeError::Storage)?;
+        }
+        tx.commit().map_err(|_| RuntimeError::Storage)?;
+        // Keep older credentials in memory for snapshots held by existing session pins.
+        self.credentials
+            .write()
+            .map_err(|_| RuntimeError::Storage)?
+            .extend(credentials);
+        if !unchanged || missing {
+            let fingerprint = next.fingerprint.clone();
+            *self.routes.write().map_err(|_| RuntimeError::Storage)? = Arc::new(next);
+            self.projection_changes.send_replace(fingerprint);
+        }
+        Ok(())
+    }
+
+    /// 仅测试：从本地缓存重载快照并发布指纹，等价于 refresh 的本地部分
+    /// （refresh 需要联网，测试里用它模拟运行时发布新投影）。
+    #[cfg(test)]
+    pub(crate) fn reload_from_cache_for_test(&self) -> Result<(), RuntimeError> {
+        self.load_cached()?;
+        let fingerprint = self.snapshot().fingerprint.clone();
+        self.projection_changes.send_replace(fingerprint);
+        Ok(())
+    }
+
+    pub fn start_background(self: &Arc<Self>) {
+        use std::sync::atomic::Ordering;
+        if self.background_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        // 已回填账单的历史行：本地成本改以服务端实扣为准（一次，幂等）
+        let db = self.db.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let settled = db
+                .conn
+                .lock()
+                .map_err(|_| rusqlite::Error::InvalidQuery)
+                .and_then(|conn| crate::aicli::usage::settle_billed_costs(&conn, None));
+            match settled {
+                Ok(0) => {}
+                Ok(rows) => log::info!("AICLI settled {rows} billed usage rows to server charges"),
+                Err(error) => log::warn!("AICLI billed cost settle failed: {error}"),
+            }
+        });
+        let weak = Arc::downgrade(self);
+        tauri::async_runtime::spawn(async move {
+            loop {
+                let Some(runtime) = weak.upgrade() else {
+                    return;
+                };
+                if runtime.refresh().await.is_err() {
+                    log::warn!("AICLI background refresh failed; retaining prior route snapshot");
+                }
+                drop(runtime);
+                tokio::time::sleep(Duration::from_secs(600)).await;
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests;

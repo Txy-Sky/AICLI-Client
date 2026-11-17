@@ -368,13 +368,16 @@ mod tests {
         ];
         let sessions = scan_roots(&roots);
         assert_eq!(sessions.len(), 1);
+        // Windows 上 PathBuf 的拼接符与字面量里的 "/" 混存，只比语义路径：归一化分隔符
+        let normalize = |path: &str| path.replace('\\', "/");
         assert_eq!(
-            sessions[0].source_path.as_deref(),
-            Some(
-                logs.join("transcript_full.jsonl")
-                    .to_string_lossy()
-                    .as_ref()
-            )
+            sessions[0]
+                .source_path
+                .as_deref()
+                .map(|path| normalize(path)),
+            Some(normalize(
+                &logs.join("transcript_full.jsonl").to_string_lossy(),
+            ))
         );
     }
 

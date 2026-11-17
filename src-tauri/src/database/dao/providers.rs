@@ -792,73 +792,30 @@ impl Database {
         Ok(max.map(|v| (v + 1) as usize).unwrap_or(0))
     }
 
-    /// 启动时调用：补齐缺失的官方预设供应商（Claude / Codex / Gemini）。
+    /// （G-03 2026-11-10：原启动播种 `init_default_official_providers` 已删除——启动
+    /// 播种被 C3-02 的 AICLI 种子取代，官方登录链路用 `ensure_official_seed_by_id`
+    /// 按需插入；官方账号后端整体保留，见清单第 13 节。）
     ///
-    /// 使用 settings flag `official_providers_seeded` 保证每个数据库只执行一次：
-    /// - 全新用户：seed 三条官方预设
-    /// - 老用户升级：同样会触发一次（flag 不存在），追加到末尾，不影响已有排序
-    /// - 用户删除 seed 后：不再重建（flag 已为 true），尊重用户意图
-    ///
-    /// 与 `Database::save_provider` 的 UPSERT 语义配合，即使被意外重复调用
-    /// 也不会覆盖用户当前激活的供应商（is_current 字段会被保留）。
-    pub fn init_default_official_providers(&self) -> Result<usize, AppError> {
+    /// 按需把指定 app 的全部官方种子补齐（仅当目标表中该 id 不存在时插入）。
+    /// 与 `ensure_official_seed_by_id` 相同的幂等语义；供测试与批量修复使用。
+    pub fn seed_official_providers_for_app(
+        &self,
+        app_type: crate::app_config::AppType,
+    ) -> Result<usize, AppError> {
         use crate::database::dao::providers_seed::OFFICIAL_SEEDS;
 
-        if self
-            .get_bool_flag("official_providers_seeded")
-            .unwrap_or(false)
-        {
-            return Ok(0);
-        }
-
         let mut inserted = 0_usize;
-        let now_ms = chrono::Utc::now().timestamp_millis();
-
-        for seed in OFFICIAL_SEEDS {
-            let app_type_str = seed.app_type.as_str();
-
-            // 若该 id 已存在（极端情况：用户曾手动用过同 id），跳过
-            if self.get_provider_by_id(seed.id, app_type_str)?.is_some() {
-                continue;
+        for seed in OFFICIAL_SEEDS.iter().filter(|s| s.app_type == app_type) {
+            if self.ensure_official_seed_by_id(seed.id, app_type.clone())? {
+                inserted += 1;
             }
-
-            let next_sort_index = self.next_sort_index_for_app(app_type_str)?;
-
-            let settings_config: serde_json::Value =
-                serde_json::from_str(seed.settings_config_json).map_err(|e| {
-                    AppError::Database(format!("Seed JSON parse failed for {}: {e}", seed.id))
-                })?;
-
-            let mut provider = Provider::with_id(
-                seed.id.to_string(),
-                seed.name.to_string(),
-                settings_config,
-                Some(seed.website_url.to_string()),
-            );
-            provider.category = Some("official".to_string());
-            provider.icon = Some(seed.icon.to_string());
-            provider.icon_color = Some(seed.icon_color.to_string());
-            provider.sort_index = Some(next_sort_index);
-            provider.created_at = Some(now_ms);
-
-            self.save_provider(app_type_str, &provider)?;
-            inserted += 1;
-            log::info!(
-                "✓ Seeded official provider: {} ({})",
-                seed.name,
-                app_type_str
-            );
         }
-
-        // 即使 inserted=0（例如用户手动创建过同 id）也设置 flag 防止反复检查
-        self.set_setting("official_providers_seeded", "true")?;
-
         Ok(inserted)
     }
 
     /// 按 id 兜底插入单条 official seed（仅当目标表中该 id 不存在时插入）。
     ///
-    /// 与 `init_default_official_providers` 不同：
+    /// 与 `seed_official_providers_for_app` 不同：
     /// - 不触碰 `official_providers_seeded` 全局 flag，是 on-demand 修复
     /// - 只处理一条 seed，由调用方决定 id + app_type
     /// - 已存在则尊重用户自定义，不覆盖
@@ -947,7 +904,8 @@ mod ensure_official_seed_tests {
     #[test]
     fn ensure_skips_when_present_and_preserves_customization() {
         let db = Database::memory().expect("memory db");
-        db.init_default_official_providers().expect("seed");
+        db.seed_official_providers_for_app(AppType::ClaudeDesktop)
+            .expect("seed");
 
         let mut renamed = db
             .get_provider_by_id(
@@ -981,7 +939,8 @@ mod ensure_official_seed_tests {
     #[test]
     fn ensure_recreates_codex_official_seed_after_deletion() {
         let db = Database::memory().expect("memory db");
-        db.init_default_official_providers().expect("seed");
+        db.seed_official_providers_for_app(AppType::Codex)
+            .expect("seed");
         db.delete_provider(AppType::Codex.as_str(), CODEX_OFFICIAL_PROVIDER_ID)
             .expect("delete Codex official");
 
@@ -1000,7 +959,8 @@ mod ensure_official_seed_tests {
     #[test]
     fn ensure_recreates_grokbuild_official_seed_after_deletion() {
         let db = Database::memory().expect("memory db");
-        db.init_default_official_providers().expect("seed");
+        db.seed_official_providers_for_app(AppType::GrokBuild)
+            .expect("seed");
         db.delete_provider(AppType::GrokBuild.as_str(), GROKBUILD_OFFICIAL_PROVIDER_ID)
             .expect("delete Grok Build official");
 

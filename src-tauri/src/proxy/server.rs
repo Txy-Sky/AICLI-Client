@@ -32,6 +32,7 @@ use tokio::task::JoinHandle;
 /// 代理服务器状态（共享）
 #[derive(Clone)]
 pub struct ProxyState {
+    pub aicli: Arc<crate::aicli::runtime::AicliRuntime>,
     pub db: Arc<Database>,
     pub config: Arc<RwLock<ProxyConfig>>,
     pub status: Arc<RwLock<ProxyStatus>>,
@@ -52,6 +53,8 @@ pub struct ProxyState {
 
 /// 代理HTTP服务器
 pub struct ProxyServer {
+    #[cfg(test)]
+    observed_requests: Arc<std::sync::atomic::AtomicU64>,
     config: ProxyConfig,
     state: ProxyState,
     shutdown_tx: Arc<RwLock<Option<oneshot::Sender<()>>>>,
@@ -79,6 +82,7 @@ impl ProxyServer {
         let failover_manager = Arc::new(FailoverSwitchManager::new());
 
         let state = ProxyState {
+            aicli: crate::aicli::runtime::AicliRuntime::new(db.clone()),
             db,
             config: Arc::new(RwLock::new(config.clone())),
             status: Arc::new(RwLock::new(ProxyStatus::default())),
@@ -92,11 +96,41 @@ impl ProxyServer {
         };
 
         Self {
+            #[cfg(test)]
+            observed_requests: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             config,
             state,
             shutdown_tx: Arc::new(RwLock::new(None)),
             server_handle: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Inject a cache-backed runtime for isolated loopback integration fixtures.
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn with_test_runtime(mut self, runtime: Arc<crate::aicli::runtime::AicliRuntime>) -> Self {
+        self.state.aicli = runtime;
+        self
+    }
+
+    #[cfg(feature = "test-hooks")]
+    pub fn test_state(&self) -> ProxyState {
+        self.state.clone()
+    }
+
+    /// Existing forwarding regressions now run with a bound in-memory account.
+    /// Only the upstream DTO is supplied by the fixture, never account routing.
+    #[cfg(test)]
+    pub(crate) fn bound_forwarding_fixture(
+        config: ProxyConfig,
+        db: Arc<Database>,
+        app_handle: Option<tauri::AppHandle>,
+    ) -> Self {
+        let runtime = crate::aicli::testing::bound_provider_runtime(db.clone());
+        Self::new(config, db, app_handle).with_test_runtime(runtime)
+    }
+
+    pub(crate) fn aicli_runtime(&self) -> Arc<crate::aicli::runtime::AicliRuntime> {
+        self.state.aicli.clone()
     }
 
     pub async fn start(&self) -> Result<ProxyServerInfo, ProxyError> {
@@ -115,6 +149,19 @@ impl ProxyServer {
 
         // 构建路由
         let app = self.build_router();
+        #[cfg(test)]
+        let app = {
+            let observed = self.observed_requests.clone();
+            app.layer(axum::middleware::from_fn(
+                move |request: axum::extract::Request, next: axum::middleware::Next| {
+                    let observed = observed.clone();
+                    async move {
+                        observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        next.run(request).await
+                    }
+                },
+            ))
+        };
 
         // 绑定监听器
         let listener = tokio::net::TcpListener::bind(&addr)
@@ -126,6 +173,8 @@ impl ProxyServer {
         let actual_port = local_addr.port();
 
         log::info!("[{}] 代理服务器启动于 {local_addr}", log_srv::STARTED);
+
+        self.state.aicli.start_background();
 
         // 更新全局代理端口，用于系统代理检测
         crate::proxy::http_client::set_proxy_port(actual_port);
@@ -419,8 +468,37 @@ impl ProxyServer {
             .route("/gemini/v1beta/*path", any(handlers::handle_gemini))
             // Gemini 的 GA 版本也叫 /v1，给原 SDK 留一条出口
             .route("/gemini/v1/*path", any(handlers::handle_gemini))
+            // J-01 Tier 2 通用入口：路径决定协议，`:client` 只决定身份和统计；
+            // 未知 client 返回 404。
+            .route(
+                "/app/:client/v1/messages",
+                post(handlers::handle_app_messages),
+            )
+            .route(
+                "/app/:client/v1/chat/completions",
+                post(handlers::handle_app_chat_completions),
+            )
+            .route(
+                "/app/:client/v1/responses",
+                post(handlers::handle_app_responses),
+            )
+            .route("/app/:client/v1/models", get(handlers::handle_app_models))
+            .route(
+                "/app/:client/v1beta/*path",
+                any(handlers::handle_app_gemini),
+            )
             // 提高默认请求体大小限制（避免 413 Payload Too Large）
             .layer(DefaultBodyLimit::max(200 * 1024 * 1024))
+            // E-06 隐私中间件：axum 后加的 layer 在外层，本行写在 local_auth
+            // 之前 = 隐私层在本地鉴权之内执行（未过鉴权的请求不会读到 body）。
+            .layer(axum::middleware::from_fn_with_state(
+                self.state.clone(),
+                crate::aicli::privacy::layer::privacy_middleware,
+            ))
+            .layer(axum::middleware::from_fn_with_state(
+                self.state.clone(),
+                crate::aicli::local_auth::authenticate,
+            ))
             .with_state(self.state.clone())
     }
 
@@ -461,6 +539,25 @@ impl ProxyServer {
 
 #[cfg(test)]
 mod tests {
+    fn local_headers(db: &Database) -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "x-api-key",
+            crate::aicli::local_auth::token_for(db, "codex")
+                .unwrap()
+                .parse()
+                .unwrap(),
+        );
+        headers
+    }
+    fn local_client(db: &Database) -> reqwest::Client {
+        reqwest::Client::builder()
+            .no_proxy()
+            .default_headers(local_headers(db))
+            .build()
+            .unwrap()
+    }
+
     use super::*;
     use crate::provider::{Provider, ProviderMeta};
     use crate::AppError;
@@ -510,7 +607,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         for path in [
             "/responses",
             "/v1/responses",
@@ -536,7 +633,7 @@ mod tests {
     #[tokio::test]
     async fn codex_upstream_self_forwarding_is_rejected() {
         let db = Arc::new(Database::memory().expect("memory database"));
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 ..ProxyConfig::default()
@@ -546,6 +643,7 @@ mod tests {
         );
         let info = proxy.start().await.expect("start proxy");
         let client = reqwest::Client::builder()
+            .default_headers(local_headers(&proxy.state.db))
             .no_proxy()
             .timeout(std::time::Duration::from_secs(2))
             .build()
@@ -569,7 +667,13 @@ mod tests {
             });
             db.save_provider("codex", &provider).unwrap();
             db.set_current_provider("codex", &provider.id).unwrap();
-            let before = proxy.get_status().await.total_requests;
+            // AICLI intentionally leaves legacy ProxyStatus untouched. Count
+            // actual HTTP arrivals so the loop guard and exactly-one assertion
+            // retain their original meaning without relying on legacy stats.
+            let before = proxy
+                .observed_requests
+                .load(std::sync::atomic::Ordering::SeqCst);
+            let legacy_total = proxy.get_status().await.total_requests;
             let request = client
                 .post(format!(
                     "http://{}:{}/v1/responses",
@@ -585,7 +689,7 @@ mod tests {
             let response = tokio::select! {
                 response = request.send() => response.expect("send request"),
                 _ = async {
-                    while proxy.get_status().await.total_requests < before + 8 {
+                    while proxy.observed_requests.load(std::sync::atomic::Ordering::SeqCst) < before + 8 {
                         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
                     }
                 } => {
@@ -596,7 +700,13 @@ mod tests {
             assert_eq!(response.status(), StatusCode::BAD_REQUEST);
             let error: Value = response.json().await.unwrap();
             assert!(error.to_string().contains("own proxy listener"), "{error}");
-            assert_eq!(proxy.get_status().await.total_requests, before + 1);
+            assert_eq!(
+                proxy
+                    .observed_requests
+                    .load(std::sync::atomic::Ordering::SeqCst),
+                before + 1
+            );
+            assert_eq!(proxy.get_status().await.total_requests, legacy_total);
             tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 while proxy.get_status().await.active_connections != 0 {
                     tokio::task::yield_now().await;
@@ -658,7 +768,7 @@ mod tests {
         });
 
         let db = Arc::new(Database::memory().expect("memory database"));
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 non_streaming_timeout: 10,
@@ -668,7 +778,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
 
         let cases = [
             (
@@ -763,7 +873,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
         }
 
@@ -833,7 +943,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: true,
@@ -844,7 +954,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/images/generations",
             "/v1/images/generations",
@@ -951,7 +1061,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["model"], "gpt-image-1");
             assert_eq!(
@@ -967,7 +1077,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["model"], "gpt-image-1");
         assert_eq!(full_url_request.body["prompt"], "image generation full URL");
@@ -1043,7 +1153,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: true,
@@ -1054,7 +1164,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/images/edits",
             "/v1/images/edits",
@@ -1168,7 +1278,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["model"], "gpt-image-2");
             assert_eq!(request.body["prompt"], format!("image edit alias {index}"));
@@ -1184,7 +1294,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["model"], "gpt-image-2");
         assert_eq!(full_url_request.body["prompt"], "image edit full URL");
@@ -1268,7 +1378,7 @@ mod tests {
         db.set_current_provider("codex", &provider.id)
             .expect("select test provider");
 
-        let proxy = ProxyServer::new(
+        let proxy = ProxyServer::bound_forwarding_fixture(
             ProxyConfig {
                 listen_port: 0,
                 enable_logging: false,
@@ -1279,7 +1389,7 @@ mod tests {
             None,
         );
         let proxy_info = proxy.start().await.expect("start test proxy");
-        let client = reqwest::Client::new();
+        let client = local_client(&proxy.state.db);
         let aliases = [
             "/alpha/search",
             "/v1/alpha/search",
@@ -1372,7 +1482,7 @@ mod tests {
             );
             assert_eq!(
                 request.authorization.as_deref(),
-                Some("Bearer upstream-secret")
+                Some("Bearer synthetic-forwarding-model-key")
             );
             assert_eq!(request.body["id"], format!("search-{index}"));
             assert_eq!(request.body["model"], "gpt-5.6-sol");
@@ -1386,7 +1496,7 @@ mod tests {
         );
         assert_eq!(
             full_url_request.authorization.as_deref(),
-            Some("Bearer full-url-secret")
+            Some("Bearer synthetic-forwarding-model-key")
         );
         assert_eq!(full_url_request.body["id"], "search-full-url");
         assert_eq!(

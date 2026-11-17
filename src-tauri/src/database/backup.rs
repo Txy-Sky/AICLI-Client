@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tempfile::{Builder, NamedTempFile};
 
-const CC_SWITCH_SQL_EXPORT_HEADER: &str = "-- CC Switch SQLite 导出";
+const CC_SWITCH_SQL_EXPORT_HEADER: &str = "-- AICLI Client SQLite 导出";
+/// 改名前的导出文件头：仍然接受导入（缺少的必需表另有检查兜底）。
+const LEGACY_SQL_EXPORT_HEADER: &str = "-- CC Switch SQLite 导出";
 
 /// Bound combined INSERT batches while still amortizing statement parsing.
 /// A row larger than this cap is emitted alone because it cannot be split.
@@ -41,7 +43,7 @@ const IMPORT_ALLOWED_PRAGMAS: &[&str] = &["foreign_keys", "user_version"];
 /// 头部校验（`validate_cc_switch_sql_export`）只比较一个注释前缀，任何人都能在
 /// 合法前缀后面接着写别的语句。`ATTACH DATABASE '/path/x.db'` 的副作用发生在
 /// 暂存库的 schema 校验之前，导入即使最终失败，文件也已经被创建；而 `settings`
-/// 表不在 `SYNC_SKIP_TABLES` / `SYNC_PRESERVE_TABLES` 之列，WebDAV/S3 同步会走
+/// 表不在 `SYNC_SKIP_TABLES` 之列
 /// 同一条 `import_sql_string_inner`，所以这条路径的输入不可信。
 ///
 /// 为什么是 authorizer 而不是「扫描 ATTACH 关键字」：字符串扫描会被 `/*x*/ATTACH`、
@@ -91,17 +93,8 @@ const SYNC_SKIP_TABLES: &[&str] = &[
     "usage_daily_rollups",
     "session_log_sync",
     "session_usage_dedup",
-];
-
-/// Tables whose local data is preserved from the live database during WebDAV import.
-/// Excludes ephemeral tables like provider_health that can safely rebuild at runtime.
-const SYNC_PRESERVE_TABLES: &[&str] = &[
-    "proxy_request_logs",
-    "stream_check_logs",
-    "proxy_live_backup",
-    "usage_daily_rollups",
-    "session_log_sync",
-    "session_usage_dedup",
+    // F-09: privacy masking records stay on this device only.
+    "aicli_privacy_event",
 ];
 
 /// A database backup entry for the UI
@@ -154,12 +147,6 @@ impl Database {
     /// 从 SQL 字符串导入，返回生成的备份 ID（若无备份则为空字符串）
     pub fn import_sql_string(&self, sql_raw: &str) -> Result<String, AppError> {
         self.import_sql_string_inner(sql_raw, &[])
-    }
-
-    /// Import SQL generated for sync, then restore local-only tables from the
-    /// current live database before replacing it.
-    pub(crate) fn import_sql_string_for_sync(&self, sql_raw: &str) -> Result<String, AppError> {
-        self.import_sql_string_inner(sql_raw, SYNC_PRESERVE_TABLES)
     }
 
     fn import_sql_string_inner(
@@ -282,14 +269,16 @@ impl Database {
 
     fn validate_cc_switch_sql_export(sql: &str) -> Result<(), AppError> {
         let trimmed = sql.trim_start();
-        if trimmed.starts_with(CC_SWITCH_SQL_EXPORT_HEADER) {
+        if trimmed.starts_with(CC_SWITCH_SQL_EXPORT_HEADER)
+            || trimmed.starts_with(LEGACY_SQL_EXPORT_HEADER)
+        {
             return Ok(());
         }
 
         Err(AppError::localized(
             "backup.sql.invalid_format",
-            "仅支持导入由 CC Switch 导出的 SQL 备份文件。",
-            "Only SQL backups exported by CC Switch are supported.",
+            "仅支持导入由 AICLI Client 导出的 SQL 备份文件。",
+            "Only SQL backups exported by AICLI Client are supported.",
         ))
     }
 
@@ -512,7 +501,7 @@ impl Database {
     where
         F: FnOnce(&Path, &Path) -> Result<(), AppError>,
     {
-        let db_path = get_app_config_dir().join("cc-switch.db");
+        let db_path = get_app_config_dir().join("aicli-client.db");
         if !db_path.exists() {
             return Ok(None);
         }
@@ -533,7 +522,7 @@ impl Database {
         // discovery and retention only see the final path after the complete
         // SQLite image has been atomically published.
         let mut temp_path = Builder::new()
-            .prefix(".cc-switch-backup-")
+            .prefix(".aicli-client-backup-")
             .suffix(".tmp")
             .tempfile_in(&backup_dir)
             .map_err(|e| AppError::io(&backup_dir, e))?
@@ -671,7 +660,7 @@ impl Database {
         ))
     }
 
-    /// Validate that the external SQL created a recognizable CC Switch schema.
+    /// Validate that the external SQL created a recognizable AICLI Client schema.
     ///
     /// These tables all existed in the oldest supported SQL-export schema
     /// (v3.8.x). Checking before migrations keeps header-only/truncated files
@@ -698,8 +687,8 @@ impl Database {
             let names = missing.join(", ");
             return Err(AppError::localized(
                 "backup.sql.invalid_schema",
-                format!("导入的 SQL 缺少 CC Switch 必需表：{names}"),
-                format!("The imported SQL is missing required CC Switch tables: {names}"),
+                format!("导入的 SQL 缺少 AICLI Client 必需表：{names}"),
+                format!("The imported SQL is missing required AICLI Client tables: {names}"),
             ));
         }
         Ok(())
@@ -714,7 +703,7 @@ impl Database {
             .unwrap_or(0);
 
         output.push_str(&format!(
-            "-- CC Switch SQLite 导出\n-- 生成时间: {timestamp}\n-- user_version: {user_version}\n"
+            "-- AICLI Client SQLite 导出\n-- 生成时间: {timestamp}\n-- user_version: {user_version}\n"
         ));
         output.push_str("PRAGMA foreign_keys=OFF;\n");
         output.push_str(&format!("PRAGMA user_version={user_version};\n"));
@@ -1198,12 +1187,10 @@ mod tests {
             let temp_dir = tempfile::tempdir().expect("create isolated test home");
             let previous_test_home = std::env::var_os("CC_SWITCH_TEST_HOME");
             std::env::set_var("CC_SWITCH_TEST_HOME", temp_dir.path());
-            // Prevent the Windows legacy-HOME fallback without mutating HOME:
-            // an existing default DB keeps get_app_config_dir() anchored under
-            // CC_SWITCH_TEST_HOME and makes import exercise its safety backup.
-            let config_dir = temp_dir.path().join(".cc-switch");
+            // Seed the isolated database so import exercises its safety backup.
+            let config_dir = temp_dir.path().join(crate::config::APP_DIR_NAME);
             std::fs::create_dir_all(&config_dir).expect("create isolated config directory");
-            std::fs::File::create(config_dir.join("cc-switch.db"))
+            std::fs::File::create(config_dir.join("aicli-client.db"))
                 .expect("create isolated database sentinel");
             let guard = Self {
                 previous_test_home,
@@ -1457,8 +1444,8 @@ mod tests {
             .import_sql_string(&header_only)
             .expect_err("缺少原始 schema 的文件必须被拒绝");
         assert!(
-            error.to_string().contains("required CC Switch tables")
-                || error.to_string().contains("CC Switch 必需表"),
+            error.to_string().contains("required AICLI Client tables")
+                || error.to_string().contains("AICLI Client 必需表"),
             "应由原始 schema 校验拒绝，实际错误: {error}"
         );
 
@@ -1603,7 +1590,7 @@ mod tests {
         let exported = source.export_sql_string()?;
         let truncated = exported
             .strip_suffix("COMMIT;\nPRAGMA foreign_keys=ON;\n")
-            .expect("CC Switch export should end with a committed transaction");
+            .expect("AICLI Client export should end with a committed transaction");
 
         let target = Database::memory()?;
         {
@@ -2212,202 +2199,6 @@ mod tests {
     }
 
     #[test]
-    fn every_sync_preserved_table_is_skipped_from_remote_payloads() {
-        for table in super::SYNC_PRESERVE_TABLES {
-            assert!(
-                super::SYNC_SKIP_TABLES.contains(table),
-                "本地保留表 {table} 也必须从远端 payload 中排除"
-            );
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn sync_import_preserves_local_only_tables() -> Result<(), AppError> {
-        let _test_home = TestHomeGuard::new();
-        let remote_db = Database::memory()?;
-        {
-            let conn = crate::database::lock_conn!(remote_db.conn);
-            conn.execute_batch(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('remote-provider', 'claude', 'Remote Provider', '{}', '{}');
-                 INSERT INTO proxy_request_logs (
-                     request_id, provider_id, app_type, model,
-                     input_tokens, output_tokens, total_cost_usd,
-                     latency_ms, status_code, created_at
-                 ) VALUES ('remote-request', 'remote-provider', 'claude', 'remote-model', 1, 1, '1', 1, 200, 1);
-                 INSERT INTO usage_daily_rollups (
-                     date, app_type, provider_id, model, request_count, success_count,
-                     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
-                     total_cost_usd, avg_latency_ms
-                 ) VALUES ('2099-01-01', 'claude', 'remote-provider', 'remote-model', 1, 1, 1, 1, 0, 0, '1', 1);
-                 INSERT INTO stream_check_logs (
-                     provider_id, provider_name, app_type, status, success, message,
-                     response_time_ms, http_status, model_used, retry_count, tested_at
-                 ) VALUES ('remote-provider', 'Remote Provider', 'claude', 'failed', 0, 'remote', 1, 500, 'remote-model', 0, 1);
-                 INSERT INTO proxy_live_backup (app_type, original_config, backed_up_at)
-                 VALUES ('claude', 'remote-live', '2099-01-01');
-                 INSERT INTO provider_health (
-                     provider_id, app_type, is_healthy, consecutive_failures, updated_at
-                 ) VALUES ('remote-provider', 'claude', 0, 9, '2099-01-01');
-                 INSERT INTO session_log_sync (
-                     file_path, last_modified, last_line_offset, last_synced_at
-                 ) VALUES ('/remote/sessions/one.jsonl', 9, 99, 999);",
-            )?;
-        }
-        let remote_sql = remote_db.export_sql_string_for_sync()?;
-        let exported = Connection::open_in_memory()?;
-        exported.execute_batch(&remote_sql)?;
-        let skipped_counts: (i64, i64, i64, i64, i64, i64) = exported.query_row(
-            "SELECT
-                (SELECT COUNT(*) FROM proxy_request_logs),
-                (SELECT COUNT(*) FROM stream_check_logs),
-                (SELECT COUNT(*) FROM provider_health),
-                (SELECT COUNT(*) FROM proxy_live_backup),
-                (SELECT COUNT(*) FROM usage_daily_rollups),
-                (SELECT COUNT(*) FROM session_log_sync)",
-            [],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                ))
-            },
-        )?;
-        assert_eq!(skipped_counts, (0, 0, 0, 0, 0, 0));
-
-        let local_db = Database::memory()?;
-        {
-            let conn = crate::database::lock_conn!(local_db.conn);
-            conn.execute_batch(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('local-provider', 'claude', 'Local Provider', '{}', '{}');
-                 INSERT INTO proxy_request_logs (
-                     request_id, provider_id, app_type, model,
-                     input_tokens, output_tokens, total_cost_usd,
-                     latency_ms, status_code, created_at
-                 ) VALUES ('req-1', 'local-provider', 'claude', 'claude-3', 100, 50, '0.01', 120, 200, 1000);
-                 INSERT INTO usage_daily_rollups (
-                     date, app_type, provider_id, model, request_count, success_count,
-                     input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
-                     total_cost_usd, avg_latency_ms
-                 ) VALUES ('2026-03-01', 'claude', 'local-provider', 'claude-3', 7, 7, 700, 350, 0, 0, '0.07', 120);
-                 INSERT INTO stream_check_logs (
-                     provider_id, provider_name, app_type, status, success, message,
-                     response_time_ms, http_status, model_used, retry_count, tested_at
-                 ) VALUES ('local-provider', 'Local Provider', 'claude', 'operational', 1, 'local-ok', 42, 200, 'claude-3', 0, 1000);
-                 INSERT INTO proxy_live_backup (app_type, original_config, backed_up_at)
-                 VALUES ('claude', '{\"local\":true}', '2026-03-01');
-                 INSERT INTO provider_health (
-                     provider_id, app_type, is_healthy, consecutive_failures, updated_at
-                 ) VALUES ('local-provider', 'claude', 1, 0, '2026-03-01');
-                 INSERT INTO session_log_sync (
-                     file_path, last_modified, last_line_offset, last_synced_at
-                 ) VALUES ('/local/sessions/one.jsonl', 10, 123, 456);",
-            )?;
-        }
-
-        local_db.import_sql_string_for_sync(&remote_sql)?;
-
-        let conn = crate::database::lock_conn!(local_db.conn);
-        let providers = conn
-            .prepare("SELECT id FROM providers ORDER BY id")?
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        assert_eq!(providers, vec!["remote-provider"]);
-
-        let preserved_counts: (i64, i64, i64, i64, i64) = conn.query_row(
-            "SELECT
-                (SELECT COUNT(*) FROM proxy_request_logs),
-                (SELECT COUNT(*) FROM stream_check_logs),
-                (SELECT COUNT(*) FROM proxy_live_backup),
-                (SELECT COUNT(*) FROM usage_daily_rollups),
-                (SELECT COUNT(*) FROM session_log_sync)",
-            [],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
-            },
-        )?;
-        assert_eq!(
-            preserved_counts,
-            (1, 1, 1, 1, 1),
-            "同步导入必须替换配置，同时保留本机日志、Live 备份与会话游标"
-        );
-
-        let preserved_values: (String, String, i64, String, i64, String, i64) = conn.query_row(
-            "SELECT
-                (SELECT request_id FROM proxy_request_logs),
-                (SELECT model FROM proxy_request_logs),
-                (SELECT input_tokens FROM proxy_request_logs),
-                (SELECT date FROM usage_daily_rollups),
-                (SELECT request_count FROM usage_daily_rollups),
-                (SELECT message FROM stream_check_logs),
-                (SELECT response_time_ms FROM stream_check_logs)",
-            [],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                ))
-            },
-        )?;
-        assert_eq!(
-            preserved_values,
-            (
-                "req-1".into(),
-                "claude-3".into(),
-                100,
-                "2026-03-01".into(),
-                7,
-                "local-ok".into(),
-                42,
-            )
-        );
-
-        let live_backup: (String, String) = conn.query_row(
-            "SELECT original_config, backed_up_at FROM proxy_live_backup WHERE app_type = 'claude'",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        assert_eq!(
-            live_backup,
-            ("{\"local\":true}".into(), "2026-03-01".into())
-        );
-        let session_cursor: (String, i64, i64, i64) = conn.query_row(
-            "SELECT file_path, last_modified, last_line_offset, last_synced_at
-             FROM session_log_sync",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )?;
-        assert_eq!(
-            session_cursor,
-            ("/local/sessions/one.jsonl".into(), 10, 123, 456)
-        );
-        let provider_health_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM provider_health", [], |row| row.get(0))?;
-        assert_eq!(
-            provider_health_count, 0,
-            "同步导入应清除可重建的本地 provider_health 状态"
-        );
-        Ok(())
-    }
-
-    #[test]
     #[serial]
     fn failed_backup_publish_leaves_no_visible_or_temporary_file() -> Result<(), AppError> {
         let _test_home = TestHomeGuard::new();
@@ -2514,7 +2305,7 @@ mod tests {
                 entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(".cc-switch-backup-")
+                    .starts_with(".aicli-client-backup-")
             })
             .count();
         assert_eq!(
@@ -2596,171 +2387,6 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()?;
         provider_ids.sort();
         assert_eq!(provider_ids, vec!["first-source", "second-source"]);
-        Ok(())
-    }
-
-    #[test]
-    #[serial]
-    fn sync_import_keeps_local_writes_that_arrive_after_staging() -> Result<(), AppError> {
-        let _test_home = TestHomeGuard::new();
-        let remote_db = Database::memory()?;
-        {
-            let conn = crate::database::lock_conn!(remote_db.conn);
-            conn.execute(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('remote-provider', 'claude', 'Remote Provider', '{}', '{}')",
-                [],
-            )?;
-        }
-        let remote_sql = remote_db.export_sql_string_for_sync()?;
-
-        let local_db = Database::memory()?;
-        {
-            let conn = crate::database::lock_conn!(local_db.conn);
-            conn.execute(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('local-provider', 'claude', 'Local Provider', '{}', '{}')",
-                [],
-            )?;
-        }
-
-        local_db.import_sql_string_inner_with_hook(
-            &remote_sql,
-            super::SYNC_PRESERVE_TABLES,
-            || {
-                // Deterministically simulate writes after the remote SQL has
-                // finished staging but before the main database is replaced.
-                let conn = crate::database::lock_conn!(local_db.conn);
-                conn.execute_batch(
-                    "INSERT INTO proxy_request_logs (
-                         request_id, provider_id, app_type, model,
-                         input_tokens, output_tokens, total_cost_usd,
-                         latency_ms, status_code, created_at
-                     ) VALUES ('late-request', 'local-provider', 'claude', 'late-model', 1, 1, '0', 1, 200, 1);
-                     INSERT INTO usage_daily_rollups (
-                         date, app_type, provider_id, model, request_count, success_count,
-                         input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
-                         total_cost_usd, avg_latency_ms
-                     ) VALUES ('2026-08-04', 'claude', 'local-provider', 'late-model', 1, 1, 1, 1, 0, 0, '0', 1);
-                     INSERT INTO stream_check_logs (
-                         provider_id, provider_name, app_type, status, success, message,
-                         response_time_ms, http_status, model_used, retry_count, tested_at
-                     ) VALUES ('local-provider', 'Local Provider', 'claude', 'operational', 1, 'late', 1, 200, 'late-model', 0, 1);
-                     INSERT INTO proxy_live_backup (app_type, original_config, backed_up_at)
-                     VALUES ('claude', 'late-live', '2026-08-04');
-                     INSERT INTO session_log_sync (
-                         file_path, last_modified, last_line_offset, last_synced_at
-                     ) VALUES ('/local/sessions/late.jsonl', 1, 2, 3);",
-                )?;
-                Ok(())
-            },
-        )?;
-
-        let conn = crate::database::lock_conn!(local_db.conn);
-        let providers = conn
-            .prepare("SELECT id FROM providers ORDER BY id")?
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<Result<Vec<_>, _>>()?;
-        assert_eq!(providers, vec!["remote-provider"]);
-        let preserved_counts: (i64, i64, i64, i64, i64) = conn.query_row(
-            "SELECT
-                (SELECT COUNT(*) FROM proxy_request_logs WHERE request_id = 'late-request'),
-                (SELECT COUNT(*) FROM usage_daily_rollups WHERE date = '2026-08-04'),
-                (SELECT COUNT(*) FROM stream_check_logs WHERE message = 'late'),
-                (SELECT COUNT(*) FROM proxy_live_backup WHERE original_config = 'late-live'),
-                (SELECT COUNT(*) FROM session_log_sync WHERE file_path = '/local/sessions/late.jsonl')",
-            [],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
-            },
-        )?;
-        assert_eq!(preserved_counts, (1, 1, 1, 1, 1));
-        Ok(())
-    }
-
-    #[test]
-    #[serial]
-    fn sync_import_safety_backup_captures_late_local_writes() -> Result<(), AppError> {
-        let _test_home = TestHomeGuard::new();
-        let remote_db = Database::memory()?;
-        {
-            let conn = crate::database::lock_conn!(remote_db.conn);
-            conn.execute(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('remote-provider', 'claude', 'Remote Provider', '{}', '{}')",
-                [],
-            )?;
-        }
-        let remote_sql = remote_db.export_sql_string_for_sync()?;
-
-        let local_db = Database::init()?;
-        {
-            let conn = crate::database::lock_conn!(local_db.conn);
-            conn.execute("DELETE FROM providers", [])?;
-            conn.execute(
-                "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                 VALUES ('local-provider', 'claude', 'Local Provider', '{}', '{}')",
-                [],
-            )?;
-        }
-
-        let safety_id = local_db.import_sql_string_inner_with_hook(
-            &remote_sql,
-            super::SYNC_PRESERVE_TABLES,
-            || {
-                let conn = crate::database::lock_conn!(local_db.conn);
-                conn.execute(
-                    "INSERT INTO proxy_request_logs (
-                         request_id, provider_id, app_type, model,
-                         input_tokens, output_tokens, total_cost_usd,
-                         latency_ms, status_code, created_at
-                     ) VALUES ('late-request', 'local-provider', 'claude', 'late-model', 1, 1, '0', 1, 200, 1)",
-                    [],
-                )?;
-                Ok(())
-            },
-        )?;
-        assert!(!safety_id.is_empty());
-
-        {
-            let conn = crate::database::lock_conn!(local_db.conn);
-            let live_provider: String =
-                conn.query_row("SELECT id FROM providers", [], |row| row.get(0))?;
-            assert_eq!(live_provider, "remote-provider");
-            let late_request_count: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM proxy_request_logs WHERE request_id = 'late-request'",
-                [],
-                |row| row.get(0),
-            )?;
-            assert_eq!(late_request_count, 1);
-        }
-
-        let safety_path = crate::config::get_app_config_dir()
-            .join("backups")
-            .join(format!("{safety_id}.db"));
-        let safety_conn =
-            Connection::open_with_flags(&safety_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        let safety_provider: String =
-            safety_conn.query_row("SELECT id FROM providers", [], |row| row.get(0))?;
-        assert_eq!(
-            safety_provider, "local-provider",
-            "safety backup must capture the exact pre-import provider state"
-        );
-        let safety_late_request_count: i64 = safety_conn.query_row(
-            "SELECT COUNT(*) FROM proxy_request_logs WHERE request_id = 'late-request'",
-            [],
-            |row| row.get(0),
-        )?;
-        assert_eq!(
-            safety_late_request_count, 1,
-            "safety backup must include writes that arrived after staging"
-        );
         Ok(())
     }
 
@@ -3159,137 +2785,6 @@ mod tests {
     /// 导出 / 本地文件导入 / 同步导入三条路径的耗时与产物大小。
     ///
     /// 手动运行：`cargo test --lib perf_backup -- --ignored --nocapture`
-    #[test]
-    #[ignore = "perf harness, run explicitly"]
-    #[serial]
-    fn perf_backup_export_import_paths() -> Result<(), AppError> {
-        use std::time::Instant;
-
-        const LOG_ROWS: usize = 20_000;
-        const STREAM_ROWS: usize = 5_000;
-        const ROLLUP_ROWS: usize = 1_000;
-
-        let _test_home = TestHomeGuard::new();
-
-        fn populate(
-            db: &Database,
-            log_rows: usize,
-            stream_rows: usize,
-            rollup_rows: usize,
-        ) -> Result<(), AppError> {
-            let mut conn = crate::database::lock_conn!(db.conn);
-            let tx = conn.transaction()?;
-            for i in 0..50 {
-                tx.execute(
-                    "INSERT INTO providers (id, app_type, name, settings_config, meta)
-                     VALUES (?1, 'claude', ?2, '{}', '{}')",
-                    rusqlite::params![format!("p{i}"), format!("Provider {i}")],
-                )?;
-            }
-            for i in 0..log_rows {
-                tx.execute(
-                    "INSERT INTO proxy_request_logs (
-                        request_id, provider_id, app_type, model,
-                        input_tokens, output_tokens, total_cost_usd,
-                        latency_ms, status_code, created_at
-                    ) VALUES (?1, 'p1', 'claude', 'claude-3', 100, 50, '0.01', 120, 200, 1000)",
-                    [format!("req-{i}")],
-                )?;
-            }
-            for i in 0..stream_rows {
-                tx.execute(
-                    "INSERT INTO stream_check_logs (
-                        provider_id, provider_name, app_type, status, success, message,
-                        response_time_ms, http_status, model_used, retry_count, tested_at
-                    ) VALUES ('p1', 'Provider 1', 'claude', 'operational', 1, 'ok', 42, 200, 'claude-3', 0, ?1)",
-                    [1000i64 + i as i64],
-                )?;
-            }
-            for i in 0..rollup_rows {
-                // (date, app_type, provider_id, model, request_model, pricing_model)
-                // 上有 UNIQUE 约束，日期必须逐行唯一。
-                let date = format!(
-                    "{:04}-{:02}-{:02}",
-                    2025 + i / 336,
-                    i / 28 % 12 + 1,
-                    i % 28 + 1
-                );
-                tx.execute(
-                    "INSERT INTO usage_daily_rollups (
-                        date, app_type, provider_id, model, request_count, success_count,
-                        input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
-                        total_cost_usd, avg_latency_ms
-                    ) VALUES (?1, 'claude', 'p1', 'claude-3', 7, 7, 700, 350, 0, 0, '0.07', 120)",
-                    [date],
-                )?;
-            }
-            tx.commit()?;
-            Ok(())
-        }
-
-        let source = Database::memory()?;
-        populate(&source, LOG_ROWS, STREAM_ROWS, ROLLUP_ROWS)?;
-
-        let t = Instant::now();
-        let full_sql = source.export_sql_string()?;
-        println!(
-            "export_sql_string (full): {:?}, {} bytes",
-            t.elapsed(),
-            full_sql.len()
-        );
-
-        let t = Instant::now();
-        let import_target = Database::memory()?;
-        import_target.import_sql_string(&full_sql)?;
-        println!("import_sql_string (local file path): {:?}", t.elapsed());
-        {
-            let conn = crate::database::lock_conn!(import_target.conn);
-            let counts: (i64, i64, i64, i64) = conn.query_row(
-                "SELECT
-                    (SELECT COUNT(*) FROM providers),
-                    (SELECT COUNT(*) FROM proxy_request_logs),
-                    (SELECT COUNT(*) FROM stream_check_logs),
-                    (SELECT COUNT(*) FROM usage_daily_rollups)",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )?;
-            assert_eq!(
-                counts,
-                (50, LOG_ROWS as i64, STREAM_ROWS as i64, ROLLUP_ROWS as i64)
-            );
-        }
-
-        let sync_sql = source.export_sql_string_for_sync()?;
-        println!("sync payload: {} bytes", sync_sql.len());
-
-        // 同步导入的耗时大头在“保留本机日志表”——本机库必须带同样规模的日志行。
-        let local = Database::memory()?;
-        populate(&local, LOG_ROWS, STREAM_ROWS, ROLLUP_ROWS)?;
-        let t = Instant::now();
-        local.import_sql_string_for_sync(&sync_sql)?;
-        println!(
-            "import_sql_string_for_sync ({} preserved log rows): {:?}",
-            LOG_ROWS + STREAM_ROWS + ROLLUP_ROWS,
-            t.elapsed()
-        );
-        {
-            let conn = crate::database::lock_conn!(local.conn);
-            let counts: (i64, i64, i64) = conn.query_row(
-                "SELECT
-                    (SELECT COUNT(*) FROM proxy_request_logs),
-                    (SELECT COUNT(*) FROM stream_check_logs),
-                    (SELECT COUNT(*) FROM usage_daily_rollups)",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )?;
-            assert_eq!(
-                counts,
-                (LOG_ROWS as i64, STREAM_ROWS as i64, ROLLUP_ROWS as i64)
-            );
-        }
-        Ok(())
-    }
-
     /// 分阶段拆解 import_sql_string 的耗时，定位慢在哪一步。
     ///
     /// 手动运行：`cargo test --lib perf_import_phases -- --ignored --nocapture`

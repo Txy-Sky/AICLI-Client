@@ -241,7 +241,7 @@ export const handlers = [
   // Skills / 用量：新加的只读或重投影命令，测试里默认都成功
   http.post(`${TAURI_ENDPOINT}/resync_skills_to_apps`, () => success([])),
   http.post(`${TAURI_ENDPOINT}/get_cc_switch_skills_dir`, () =>
-    success("/home/test/.cc-switch/skills"),
+    success("/home/test/.aicli-client/skills"),
   ),
   http.post(`${TAURI_ENDPOINT}/open_cc_switch_skills_dir`, () => success(true)),
   http.post(`${TAURI_ENDPOINT}/get_session_usage_last_sync`, () =>
@@ -591,6 +591,8 @@ export const handlers = [
       userEnabled: true,
     }),
   ),
+  http.post(`${TAURI_ENDPOINT}/get_cached_discover_icon`, () => success(null)),
+  http.post(`${TAURI_ENDPOINT}/cache_discover_icon`, () => success(true)),
   http.post(`${TAURI_ENDPOINT}/get_custom_icons`, () =>
     success(listCustomIcons()),
   ),
@@ -609,4 +611,33 @@ export const handlers = [
     deleteCustomIcon(id);
     return success(null);
   }),
+  // F-03 首页：默认未绑定（各测试按需 server.use 覆盖）
+  http.post(`${TAURI_ENDPOINT}/aicli_get_account`, () =>
+    success({
+      state: "not_bound",
+      user_id: null,
+      username: null,
+      user_group: null,
+      selected_line_id: "main",
+      active_profile_id: null,
+      managed_tokens: [],
+      quota_display: null,
+    }),
+  ),
+  http.post(`${TAURI_ENDPOINT}/aicli_get_privacy`, () =>
+    success({
+      bound: false,
+      privacy_enabled: false,
+      privacy_failure_mode: "block",
+      allow_unscanned_media: false,
+      privacy_detect_cjk_names: false,
+      privacy_detect_cjk_names_available: false,
+      engine: null,
+      custom_words: [],
+      custom_rules: [],
+      secret_backend: null,
+    }),
+  ),
+  http.post(`${TAURI_ENDPOINT}/aicli_get_request_bill`, () => success(null)),
+  http.post(`${TAURI_ENDPOINT}/aicli_takeover_status`, () => success([])),
 ];

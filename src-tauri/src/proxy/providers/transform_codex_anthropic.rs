@@ -15,7 +15,7 @@ use super::transform_codex_chat::{
     build_codex_tool_context_from_request, response_tool_call_item_from_chat_name,
     response_tool_call_item_id_from_chat_name, CodexToolContext,
 };
-use super::transform_responses::{sanitize_anthropic_tool_use_input, TOOL_RESULT_ERROR_MARKER};
+use super::transform_responses::{is_tool_result_error_marker, sanitize_anthropic_tool_use_input};
 use crate::proxy::error::ProxyError;
 use crate::proxy::json_canonical::canonical_json_string;
 use crate::proxy::sse::{strip_sse_field, take_sse_block};
@@ -765,7 +765,7 @@ fn tool_result_content_from_responses_item(item: &Value) -> ToolResultContent {
                 match part.get("type").and_then(Value::as_str) {
                     Some("input_text" | "output_text") => {
                         if let Some(text) = part.get("text").and_then(Value::as_str) {
-                            if text == TOOL_RESULT_ERROR_MARKER {
+                            if is_tool_result_error_marker(text) {
                                 is_error = true;
                             } else {
                                 content.push(json!({"type":"text","text":text}));
@@ -876,7 +876,7 @@ fn append_sanitized_tool_result_value(
 ) {
     match value {
         Value::String(text) => {
-            if text == TOOL_RESULT_ERROR_MARKER {
+            if is_tool_result_error_marker(text) {
                 *is_error = true;
             } else if !text.is_empty() {
                 content.push(json!({"type":"text","text":text}));
@@ -887,7 +887,7 @@ fn append_sanitized_tool_result_value(
                 match part.get("type").and_then(Value::as_str) {
                     Some("input_text" | "output_text" | "text") => {
                         if let Some(text) = part.get("text").and_then(Value::as_str) {
-                            if text == TOOL_RESULT_ERROR_MARKER {
+                            if is_tool_result_error_marker(text) {
                                 *is_error = true;
                             } else {
                                 content.push(json!({"type":"text","text":text}));
@@ -908,7 +908,7 @@ fn append_sanitized_tool_result_value(
             ) =>
         {
             if let Some(text) = object.get("text").and_then(Value::as_str) {
-                if text == TOOL_RESULT_ERROR_MARKER {
+                if is_tool_result_error_marker(text) {
                     *is_error = true;
                 } else {
                     content.push(json!({"type":"text","text":text}));
@@ -1644,6 +1644,7 @@ fn append_str_field(block: &mut Value, field: &str, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proxy::providers::transform_responses::TOOL_RESULT_ERROR_MARKER;
 
     // ==================== Request: Responses → Anthropic ====================
 
@@ -2832,8 +2833,33 @@ mod tests {
             .filter_map(|block| block.get("text").and_then(Value::as_str))
             .all(|text| !text.contains("STRING_IMAGE_SENTINEL")));
         let serialized = response.to_string();
-        assert!(serialized.contains("[cc-switch: omitted 20000 bytes]"));
+        assert!(serialized.contains("[aicli-client: omitted 20000 bytes]"));
         assert!(!serialized.contains(&"A".repeat(64)));
+    }
+
+    #[test]
+    fn test_tool_output_error_marker_written_before_the_rename_still_counts() {
+        let response = responses_request_to_anthropic(
+            json!({
+                "model":"c",
+                "input":[
+                    {"type":"function_call","call_id":"c1","name":"inspect","arguments":"{}"},
+                    {"type":"function_call_output","call_id":"c1","output":[
+                        {"type":"input_text","text":"[cc-switch:tool-result-error]"},
+                        {"type":"input_text","text":"failed"}
+                    ]}
+                ]
+            }),
+            4096,
+        )
+        .unwrap();
+
+        let tool_result = &response["messages"][2]["content"][0];
+        assert_eq!(tool_result["is_error"], true);
+        assert_eq!(
+            tool_result["content"],
+            json!([{"type":"text","text":"failed"}])
+        );
     }
 
     #[test]

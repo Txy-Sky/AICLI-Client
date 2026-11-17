@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { isLinux } from "@/lib/platform";
 import { TerminalSelect } from "@/components/settings/TerminalSettings";
+import { AicliAccountSettings } from "@/components/aicli/AicliAccountSettings";
 import {
   SettingsBlock,
   SettingsCard,
@@ -46,6 +47,7 @@ export function GeneralSection({
 
   return (
     <>
+      <AicliAccountSettings />
       <SettingsBlock title={t("settings.general.appearance")}>
         <SettingsCard>
           <SettingsRow
@@ -101,33 +103,7 @@ export function GeneralSection({
               />
             }
           />
-          <SettingsRow
-            label={t("settings.general.quotaDisplay")}
-            help={{
-              title: t("settings.general.quotaDisplay"),
-              body: t("settings.general.quotaDisplayHelp"),
-            }}
-            control={
-              <SegmentedControl
-                size="sm"
-                aria-label={t("settings.general.quotaDisplay")}
-                value={settings.quotaDisplay ?? "left"}
-                onValueChange={(value) =>
-                  void onAutoSave({ quotaDisplay: value })
-                }
-                items={[
-                  {
-                    value: "left",
-                    label: t("settings.general.quotaDisplayLeft"),
-                  },
-                  {
-                    value: "used",
-                    label: t("settings.general.quotaDisplayUsed"),
-                  },
-                ]}
-              />
-            }
-          />
+          {/* F-12：「额度显示」只影响已删除的供应商卡片与授权中心（G-01/G-02），随之去掉 */}
         </SettingsCard>
       </SettingsBlock>
 
@@ -151,17 +127,6 @@ export function GeneralSection({
             checked={settings.showProfileSwitcher ?? false}
             onCheckedChange={(value) =>
               void onAutoSave({ showProfileSwitcher: value })
-            }
-          />
-          <SettingsSwitchRow
-            label={t("settings.appVisibility.showProviderSearch")}
-            help={{
-              title: t("settings.appVisibility.showProviderSearch"),
-              body: t("settings.appVisibility.showProviderSearchDescription"),
-            }}
-            checked={settings.showProviderSearch ?? true}
-            onCheckedChange={(value) =>
-              void onAutoSave({ showProviderSearch: value })
             }
           />
         </SettingsCard>
@@ -216,36 +181,6 @@ export function GeneralSection({
               void onAutoSave({ minimizeToTrayOnClose: value })
             }
           />
-          {/* Linux（AppIndicator）只能出原生菜单，没得选 */}
-          {!isLinux() && (
-            <SettingsRow
-              label={t("settings.general.trayStyle")}
-              help={{
-                title: t("settings.general.trayStyle"),
-                body: t("settings.general.trayStyleHelp"),
-              }}
-              control={
-                <SegmentedControl
-                  size="sm"
-                  aria-label={t("settings.general.trayStyle")}
-                  value={settings.nativeTrayMenu ? "menu" : "panel"}
-                  onValueChange={(value) =>
-                    void onAutoSave({ nativeTrayMenu: value === "menu" })
-                  }
-                  items={[
-                    {
-                      value: "panel",
-                      label: t("settings.general.trayStylePanel"),
-                    },
-                    {
-                      value: "menu",
-                      label: t("settings.general.trayStyleMenu"),
-                    },
-                  ]}
-                />
-              }
-            />
-          )}
           {isLinux() && (
             <SettingsSwitchRow
               label={t("settings.useAppWindowControls")}

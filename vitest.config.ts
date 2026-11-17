@@ -14,6 +14,18 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setupGlobals.ts", "./tests/setupTests.ts"],
     globals: true,
+    // Windows/jsdom runs several times slower than the Linux CI runners;
+    // the default 5s timeout caused mass flaky timeouts there (see
+    // docs/aicli-handover/E-GATE.md). Assertions are unaffected.
+    // Only on win32: Linux CI keeps the vitest defaults so a hang still
+    // fails fast there.
+    testTimeout: process.platform === "win32" ? 60000 : undefined,
+    hookTimeout: process.platform === "win32" ? 30000 : undefined,
+    // 24 logical cores × default worker count oversubscribes the machine and
+    // slows heavy jsdom suites several-fold on Windows; cap it there only so
+    // CI runners are unaffected.
+    maxWorkers: process.platform === "win32" ? 8 : undefined,
+    minWorkers: process.platform === "win32" ? 1 : undefined,
     coverage: {
       reporter: ["text", "lcov"],
     },

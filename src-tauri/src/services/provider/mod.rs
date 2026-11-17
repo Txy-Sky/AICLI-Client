@@ -11,7 +11,6 @@ pub(crate) mod codex_direct;
 mod codex_editor;
 mod codex_login;
 pub(crate) mod codex_official_models;
-pub(crate) mod codex_terminal;
 mod editor_toml;
 mod endpoints;
 mod gemini_auth;
@@ -930,7 +929,7 @@ mod tests {
             crate::settings::reload_settings().expect("reload settings");
             state
                 .db
-                .init_default_official_providers()
+                .seed_official_providers_for_app(crate::app_config::AppType::Codex)
                 .expect("seed official providers");
             let fixed_id = crate::database::CODEX_OFFICIAL_PROVIDER_ID;
             state
@@ -2001,7 +2000,7 @@ disable_response_storage = true
 model_reasoning_effort = "high"
 approval_policy = "on-request"
 experimental_bearer_token = "sk-live-secret"
-model_catalog_json = "cc-switch-model-catalog.json"
+model_catalog_json = "aicli-model-catalog.json"
 web_search = "disabled"
 
 [agents]
@@ -2173,7 +2172,10 @@ command = "legacy-cmd"
 
         let live: Value = read_json_file(&get_claude_settings_path()).expect("read live");
         let env = &live["env"];
-        assert_eq!(env["ANTHROPIC_API_KEY"], "PROXY_MANAGED");
+        assert_eq!(
+            env["ANTHROPIC_API_KEY"],
+            crate::aicli::local_auth::token_for(&state.db, "claude").unwrap()
+        );
         assert_eq!(env["ANTHROPIC_BASE_URL"], proxy_url.as_str());
         assert!(env.get("ANTHROPIC_MODEL").is_none(), "{live}");
         assert_eq!(
@@ -5516,7 +5518,9 @@ impl ProviderService {
             }
             return Ok(saved);
         }
-        state.db.get_all_providers(app_type.as_str())
+        let mut providers = state.db.get_all_providers(app_type.as_str())?;
+        providers.retain(|_, provider| !crate::aicli::seed::is_hidden(provider));
+        Ok(providers)
     }
 
     /// Get current provider ID
@@ -6513,15 +6517,6 @@ impl ProviderService {
             return Err(error);
         }
         Ok(true)
-    }
-
-    pub(crate) fn update_pi_usage_script(
-        state: &AppState,
-        app_type: AppType,
-        id: &str,
-        script: crate::provider::UsageScript,
-    ) -> Result<bool, AppError> {
-        pi::update_usage_script(state, app_type, id, script)
     }
 
     /// Delete a provider

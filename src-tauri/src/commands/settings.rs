@@ -14,35 +14,6 @@ fn merge_settings_for_save(
     mut incoming: crate::settings::AppSettings,
     existing: &crate::settings::AppSettings,
 ) -> crate::settings::AppSettings {
-    match (&mut incoming.webdav_sync, &existing.webdav_sync) {
-        // incoming 没有 webdav → 保留现有
-        (None, _) => {
-            incoming.webdav_sync = existing.webdav_sync.clone();
-        }
-        // incoming 有 webdav 但密码为空，且现有有密码 → 填回现有密码
-        // （get_settings_for_frontend 总是清空密码，所以通过 save_settings
-        //   传入的空密码意味着"保持现有"而非"用户主动清空"）
-        (Some(incoming_sync), Some(existing_sync))
-            if incoming_sync.password.is_empty() && !existing_sync.password.is_empty() =>
-        {
-            incoming_sync.password = existing_sync.password.clone();
-        }
-        _ => {}
-    }
-    match (&mut incoming.s3_sync, &existing.s3_sync) {
-        // incoming 没有 s3 → 保留现有
-        (None, _) => {
-            incoming.s3_sync = existing.s3_sync.clone();
-        }
-        // incoming 有 s3 但密钥为空，且现有有密钥 → 填回现有密钥
-        (Some(incoming_sync), Some(existing_sync))
-            if incoming_sync.secret_access_key.is_empty()
-                && !existing_sync.secret_access_key.is_empty() =>
-        {
-            incoming_sync.secret_access_key = existing_sync.secret_access_key.clone();
-        }
-        _ => {}
-    }
     // local_migrations 是纯后端状态（迁移完成标记），前端没有合法的修改场景，
     // 无条件取现有值。若按 incoming 透传：后端清掉 marker（如关闭统一会话
     // 开关）后、前端 query 缓存刷新前的一次全量保存会把旧 marker 重放回来，
@@ -53,7 +24,23 @@ fn merge_settings_for_save(
     incoming.proxy_client_host = existing.proxy_client_host.clone();
     // 轻量模式状态只由进入 / 退出轻量模式时写，前端缓存里的值总是旧的。
     incoming.lightweight_mode = existing.lightweight_mode;
+    // Claude Code /model 是否保留自带行：只经 aicli_set_claude_keep_builtin_models 写（它还要
+    // 重写已接管的 Claude Code），全量保存带的是前端缓存里的旧值。
+    incoming.aicli_claude_keep_builtin_models = existing.aicli_claude_keep_builtin_models;
     incoming
+}
+
+/// 合并前端发来的设置并写回（内存和 settings.json）。返回写之前的设置和写进去的设置。
+///
+/// 2026-11-11 G-04 删托盘样式开关时把这一步连带删掉了，之后 save_settings 只合并不保存：
+/// 欢迎提示点「我知道了」关不掉、语言主题等设置重启后丢失。单独拿出来便于测试。
+fn store_settings(
+    incoming: crate::settings::AppSettings,
+) -> Result<(crate::settings::AppSettings, crate::settings::AppSettings), String> {
+    let existing = crate::settings::get_settings();
+    let merged = merge_settings_for_save(incoming, &existing);
+    crate::settings::update_settings(merged.clone()).map_err(|e| e.to_string())?;
+    Ok((existing, merged))
 }
 
 /// 获取设置
@@ -65,12 +52,10 @@ pub async fn get_settings() -> Result<crate::settings::AppSettings, String> {
 /// 保存设置
 #[tauri::command]
 pub async fn save_settings(
-    app: tauri::AppHandle,
     state: tauri::State<'_, crate::store::AppState>,
     settings: crate::settings::AppSettings,
 ) -> Result<bool, String> {
-    let existing = crate::settings::get_settings();
-    let merged = merge_settings_for_save(settings, &existing);
+    let (existing, merged) = store_settings(settings)?;
     let unify_codex_changed =
         merged.unify_codex_session_history != existing.unify_codex_session_history;
     let unify_codex_enabled = merged.unify_codex_session_history;
@@ -82,13 +67,6 @@ pub async fn save_settings(
         || merged.codex_stack_subagent_reasoning_effort
             != existing.codex_stack_subagent_reasoning_effort
         || merged.codex_stack_auto_review_model != existing.codex_stack_auto_review_model;
-    let tray_style_changed = merged.native_tray_menu != existing.native_tray_menu;
-    crate::settings::update_settings(merged).map_err(|e| e.to_string())?;
-
-    // 原生托盘菜单 / 托盘面板当场切换，不用重启。
-    if tray_style_changed {
-        crate::tray::apply_tray_style(&app);
-    }
 
     // 立即重写，失败时回滚设置，免得界面显示已改好、客户端还是旧的。
     if stack_settings_changed {
@@ -277,6 +255,9 @@ pub async fn restart_app(app: AppHandle) -> Result<bool, String> {
 /// 这里把退出清理、安装和重启串在同一个后端流程中，避免依赖旧前端继续执行。
 #[tauri::command]
 pub async fn install_update_and_restart(app: AppHandle) -> Result<bool, String> {
+    if !crate::updater_enabled() {
+        return Err("AICLI Client updater is disabled".to_string());
+    }
     let builder = app.updater_builder();
     // Windows 上 updater 以 `msiexec /passive /promptrestart` 安装 MSI。passive 没有模态框、
     // 未指定重启选项时，安装目录里有文件被占用，Windows Installer 会不经确认直接重启系统
@@ -402,12 +383,47 @@ pub async fn set_auto_launch(enabled: bool) -> Result<bool, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::merge_settings_for_save;
+    use super::{merge_settings_for_save, store_settings};
     use crate::settings::{
         AppSettings, CodexOfficialHistoryUnifyMigration, CodexProviderTemplateMigration,
-        CodexThirdPartyHistoryProviderBucketMigration, LocalMigrations, S3SyncSettings,
-        WebDavSyncSettings,
+        CodexThirdPartyHistoryProviderBucketMigration, LocalMigrations,
     };
+
+    /// 回归：save_settings 必须把设置写回（内存和磁盘），不能只合并。
+    #[test]
+    #[serial_test::serial]
+    fn save_settings_should_persist_the_merged_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let previous_home = std::env::var_os("CC_SWITCH_TEST_HOME");
+        std::env::set_var("CC_SWITCH_TEST_HOME", dir.path());
+        let previous = crate::settings::get_settings();
+
+        let incoming = AppSettings {
+            first_run_notice_confirmed: Some(true),
+            ..previous.clone()
+        };
+        let result = store_settings(incoming);
+
+        let in_memory = crate::settings::get_settings().first_run_notice_confirmed;
+        let path = crate::config::get_home_dir()
+            .join(crate::config::APP_DIR_NAME)
+            .join("settings.json");
+        let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
+
+        // 先恢复，再断言：失败时也不留下被改过的全局设置
+        let _ = crate::settings::update_settings(previous);
+        match previous_home {
+            Some(home) => std::env::set_var("CC_SWITCH_TEST_HOME", home),
+            None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+        }
+
+        result.expect("store settings");
+        assert_eq!(in_memory, Some(true));
+        assert!(
+            on_disk.contains("\"firstRunNoticeConfirmed\": true"),
+            "settings.json was not written: {on_disk}"
+        );
+    }
 
     #[test]
     fn save_settings_should_keep_the_existing_lightweight_mode() {
@@ -422,6 +438,18 @@ mod tests {
     }
 
     #[test]
+    fn save_settings_should_keep_the_aicli_claude_picker_choice() {
+        let existing = AppSettings {
+            aicli_claude_keep_builtin_models: Some(false),
+            ..AppSettings::default()
+        };
+
+        let merged = merge_settings_for_save(AppSettings::default(), &existing);
+
+        assert_eq!(merged.aicli_claude_keep_builtin_models, Some(false));
+    }
+
+    #[test]
     fn save_settings_should_keep_the_existing_proxy_client_host() {
         let existing = AppSettings {
             proxy_client_host: Some("172.25.144.1".to_string()),
@@ -433,184 +461,12 @@ mod tests {
         assert_eq!(merged.proxy_client_host.as_deref(), Some("172.25.144.1"));
     }
 
-    #[test]
-    fn save_settings_should_preserve_existing_webdav_when_payload_omits_it() {
-        let existing = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.example.com".to_string(),
-                username: "alice".to_string(),
-                password: "secret".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let incoming = AppSettings::default();
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert!(merged.webdav_sync.is_some());
-        assert_eq!(
-            merged.webdav_sync.as_ref().map(|v| v.base_url.as_str()),
-            Some("https://dav.example.com")
-        );
-    }
-
-    #[test]
-    fn save_settings_should_keep_incoming_webdav_when_present() {
-        let existing = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.old.example.com".to_string(),
-                username: "old".to_string(),
-                password: "old-pass".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let incoming = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.new.example.com".to_string(),
-                username: "new".to_string(),
-                password: "new-pass".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert_eq!(
-            merged.webdav_sync.as_ref().map(|v| v.base_url.as_str()),
-            Some("https://dav.new.example.com")
-        );
-    }
-
     /// Regression test: frontend always receives empty password from
     /// get_settings_for_frontend(). If a component accidentally spreads
     /// the full settings object into save_settings, the empty password
     /// must NOT overwrite the existing one.
-    #[test]
-    fn save_settings_should_preserve_password_when_incoming_has_empty_password() {
-        let existing = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.example.com".to_string(),
-                username: "alice".to_string(),
-                password: "secret".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        // Simulate frontend sending settings with cleared password
-        let incoming = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.example.com".to_string(),
-                username: "alice".to_string(),
-                password: "".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert_eq!(
-            merged.webdav_sync.as_ref().map(|v| v.password.as_str()),
-            Some("secret"),
-            "empty password from frontend must not overwrite existing password"
-        );
-    }
-
     /// When both incoming and existing have no password, merge should
     /// work without panicking and keep the empty state.
-    #[test]
-    fn save_settings_should_handle_both_empty_passwords() {
-        let existing = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.example.com".to_string(),
-                username: "alice".to_string(),
-                password: "".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let incoming = AppSettings {
-            webdav_sync: Some(WebDavSyncSettings {
-                base_url: "https://dav.example.com".to_string(),
-                username: "alice".to_string(),
-                password: "".to_string(),
-                ..WebDavSyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert_eq!(
-            merged.webdav_sync.as_ref().map(|v| v.password.as_str()),
-            Some("")
-        );
-    }
-
-    #[test]
-    fn save_settings_should_preserve_existing_s3_when_payload_omits_it() {
-        let existing = AppSettings {
-            s3_sync: Some(S3SyncSettings {
-                bucket: "bucket".to_string(),
-                access_key_id: "ak".to_string(),
-                secret_access_key: "secret".to_string(),
-                ..S3SyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let incoming = AppSettings::default();
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert!(merged.s3_sync.is_some());
-        assert_eq!(
-            merged
-                .s3_sync
-                .as_ref()
-                .map(|v| v.secret_access_key.as_str()),
-            Some("secret")
-        );
-    }
-
-    #[test]
-    fn save_settings_should_preserve_s3_secret_when_incoming_has_empty_secret() {
-        let existing = AppSettings {
-            s3_sync: Some(S3SyncSettings {
-                bucket: "bucket".to_string(),
-                access_key_id: "ak".to_string(),
-                secret_access_key: "secret".to_string(),
-                ..S3SyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let incoming = AppSettings {
-            s3_sync: Some(S3SyncSettings {
-                bucket: "bucket".to_string(),
-                access_key_id: "ak".to_string(),
-                secret_access_key: "".to_string(),
-                ..S3SyncSettings::default()
-            }),
-            ..AppSettings::default()
-        };
-
-        let merged = merge_settings_for_save(incoming, &existing);
-
-        assert_eq!(
-            merged
-                .s3_sync
-                .as_ref()
-                .map(|v| v.secret_access_key.as_str()),
-            Some("secret")
-        );
-    }
-
     #[test]
     fn save_settings_should_preserve_local_migrations_when_payload_omits_it() {
         let existing = AppSettings {

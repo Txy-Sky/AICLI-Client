@@ -43,7 +43,7 @@ pub use dao::Profile;
 
 use crate::config::get_app_config_dir;
 use crate::error::AppError;
-use rusqlite::{hooks::Action, Connection};
+use rusqlite::Connection;
 use serde::Serialize;
 use std::sync::Mutex;
 
@@ -51,7 +51,7 @@ use std::sync::Mutex;
 
 /// 当前 Schema 版本号
 /// 每次修改表结构时递增，并在 schema.rs 中添加相应的迁移逻辑
-pub(crate) const SCHEMA_VERSION: i32 = 24;
+pub(crate) const SCHEMA_VERSION: i32 = 25;
 
 /// 安全地序列化 JSON，避免 unwrap panic
 pub(crate) fn to_json_string<T: Serialize>(value: &T) -> Result<String, AppError> {
@@ -81,24 +81,14 @@ pub struct Database {
     pub(crate) log_count_cache: Mutex<Option<crate::services::usage_stats::LogCountCache>>,
 }
 
-fn register_db_change_hook(conn: &Connection) {
-    conn.update_hook(Some(
-        |action: Action, _database: &str, table: &str, _row_id: i64| match action {
-            Action::SQLITE_INSERT | Action::SQLITE_UPDATE | Action::SQLITE_DELETE => {
-                crate::services::webdav_auto_sync::notify_db_changed(table);
-                crate::services::s3_auto_sync::notify_db_changed(table);
-            }
-            _ => {}
-        },
-    ));
-}
+// （G-04：WebDAV / S3 自动同步的 DB 变更钩子已随云同步移除。）
 
 impl Database {
     /// 初始化数据库连接并创建表
     ///
-    /// 数据库文件位于 `~/.cc-switch/cc-switch.db`
+    /// 数据库文件位于 `~/.aicli-client/aicli-client.db`
     pub fn init() -> Result<Self, AppError> {
-        let db_path = get_app_config_dir().join("cc-switch.db");
+        let db_path = get_app_config_dir().join("aicli-client.db");
         let db_exists = db_path.exists();
 
         // 确保父目录存在
@@ -117,7 +107,6 @@ impl Database {
             conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", [])
                 .map_err(|e| AppError::Database(e.to_string()))?;
         }
-        register_db_change_hook(&conn);
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -192,7 +181,6 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", [])
             .map_err(|e| AppError::Database(e.to_string()))?;
-        register_db_change_hook(&conn);
 
         let db = Self {
             conn: Mutex::new(conn),

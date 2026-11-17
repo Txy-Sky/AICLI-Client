@@ -1,0 +1,28 @@
+A5-01 / C4-05 — owner decision recorded on 2026-11-02
+
+Source: the owner's explicit instruction in this conversation:
+  Section 0.4 main and global stream-total timeout: 600s (owner decision,
+  not measured). Do not enable C4-05; mark it [-] based on this decision.
+  Keep A5-01 [-]; do not claim a measured conclusion about 120 seconds.
+
+Recorded policy:
+  main.stream_total_s = 600
+  global.stream_total_s = 600
+  C4-05 = [-], not enabled, on the owner's decision.
+  A5-01 = [-], the >180-second semantic measurement remains skipped.
+  All other timeout-table values remain unchanged.
+
+Measurement status:
+  No new streaming probe was run for this decision.
+  It remains unconfirmed whether 120 seconds is an idle or total-time limit.
+  The selected 600s does not establish either interpretation.
+  Earlier probe and CI records remain historical evidence, not proof of this
+  chosen timeout or the 120-second semantics.
+
+Scope and verification:
+  Documentation-only policy update; no product code, online settings or workflow
+  was changed. No network test, build or test suite was run for this update.
+  git diff --check was run to check document whitespace.
+  Sections 0.4, A5-01, C4-05, 12, 13 and 14 were read back for consistency.
+  Counts: 7 completed / 0 blocked / 2 skipped; A6-03 still awaits supplementary
+  acceptance, and this decision does not change any other item's test result.

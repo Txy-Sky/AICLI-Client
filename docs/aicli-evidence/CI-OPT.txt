@@ -1,0 +1,121 @@
+CI-OPT acceptance workflow efficiency — PASSED (cold and warm runs)
+Implementation: 9e4dd03c76c46635a47486cb6c8e1230aa9943a1
+Branch: feat/aicli-client-v1
+Evidence: 9e4dd03c | Checklist acceptance (Linux): fail-fast commands, coverage selector tests, bash scripts/aicli-check.sh and existing A6/B acceptance steps below | complete CI success on attempts 1 and 2; Rust 4449 passed / original 10 skipped; frontend 3416 passed; coverage selector 8 passed; Rust and pnpm cache hits on attempt 2 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41449566786/attempts/2
+
+Actual pre-push checks before the implementation push:
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+Result: PASS. Uses an isolated temporary HOME and runs:
+  cargo fmt --check --manifest-path src-tauri/Cargo.toml
+  prettier --check 'src/**/*.{js,jsx,ts,tsx,css,json}' .github/workflows/aicli-acceptance.yml .github/actions/aicli-setup/action.yml
+  python3 scripts/aicli-check-workflow-yaml.py
+Prettier: all matched files use Prettier code style.
+Workflow/composite-action YAML: 5 files parsed, no duplicate keys.
+Prettier 3.6.2 matches pnpm-lock.yaml; it was installed by itself outside the
+repository using npm --prefix /tmp/aicli-format-tools. Existing rustfmt was
+used; no local Rust compilation or frontend dependency installation/build.
+
+CI commands (job Checklist acceptance (Linux), both attempts at same SHA):
+Fail fast on formatting and types:
+  cargo fmt --check --manifest-path src-tauri/Cargo.toml
+  pnpm install --frozen-lockfile
+  pnpm format:check
+  pnpm typecheck
+  python3 -m pip install --user PyYAML==6.0.3
+  python3 scripts/aicli-check-workflow-yaml.py
+  python3 -m unittest discover -s scripts/tests -p test_aicli_ci_scope.py -v
+Coverage:
+  gh api --method GET repos/$GITHUB_REPOSITORY/actions/workflows/aicli-acceptance.yml/runs
+  (branch/status filters and exclusion of the current run; read-only built-in
+  job token, not a new repository secret; no credential value is printed)
+  python3 scripts/aicli-ci-scope.py --base "$baseline" --head "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT"
+Baseline:
+  bash scripts/aicli-check.sh
+  (unchanged commands: frozen pnpm install, typecheck, format, unit tests,
+  renderer build, Rust fmt, Clippy -D warnings, full nextest)
+Existing A6 and B-01 through B-06 acceptance steps are retained.
+
+Before/after A3-01 timing, all timestamps UTC on 2026-11-02:
+Before caches:
+  03c8c68147d75deba048f0d230ea5ee803c629f5
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/41443239346
+  A3-01: 12:18:56 -> 12:34:58 = 962 seconds = 16m02s, success.
+After enabling caches, attempt 1 (cold cache):
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/41449566786/attempts/1
+  A3-01: 13:06:26 -> 13:22:06 = 940 seconds = 15m40s, success.
+  Fail-fast: 13:03:29 -> 13:04:15 = 46 seconds, success.
+  Rust restore log: 13:03:05.0181946Z No cache found.
+  Rust post-action log: 13:27:21.2278608Z ... Saving cache ...
+  pnpm post-action log: 13:27:50.6331107Z Cache saved with the key:
+    node-cache-Linux-x64-pnpm-60e3a9e5dd53d0adde6b71d7d072db7395d476c19142dd68dff73c300a54de73
+  Full job success; Rust 4449 passed / 10 original skipped; frontend 267
+  files / 3416 passed; Codex 1122 passed; startup preservation 1 passed.
+  YAML 5 files passed; coverage selector 8 tests passed.
+  Coverage output: base=03c8c68147d75deba048f0d230ea5ee803c629f5,
+  head=9e4dd03c76c46635a47486cb6c8e1230aa9943a1, testenv=true,
+  reason="test environment or its CI infrastructure changed".
+  A6 actually ran; unchanged environment skipping is covered by selector
+  tests, not claimed as an observed job skip in this infrastructure run.
+Warm-cache rerun, attempt 2 (same implementation SHA):
+  Requested with gh run rerun 41449566786 -R Txy-Sky/AICLI-Client.
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/41449566786/attempts/2
+  A3-01: 13:33:07 -> 13:44:52 = 705 seconds = 11m45s, success.
+  Fail-fast: 13:30:10 -> 13:30:56 = 46 seconds, success.
+  pnpm: 13:29:13.3834505Z Cache hit for: node-cache-Linux-x64-pnpm-60e3a9e5dd53d0adde6b71d7d072db7395d476c19142dd68dff73c300a54de73
+  pnpm: 13:29:15.0529256Z Cache restored successfully.
+  Rust: 13:29:25.8270823Z Cache hit for: v0-rust-aicli-acceptance-Linux-x64-52e20006-3762009b
+  Rust: 13:29:43.5957902Z Cache restored successfully.
+  Full job: 13:28:59 -> 13:51:03 = 22m04s, success; job 125303744201.
+  Actual baseline: 4449 passed / 10 original skipped; frontend 267 files /
+  3416 passed. Codex filter: 1122 passed / 3337 filtered or original skips;
+  startup test filter: 1 passed / 4458 filtered or original skips.
+  YAML 5 files passed; coverage selector 8 tests passed. A6-01 through A6-05
+  all passed again. Coverage kept base=03c8c681... and testenv=true, confirming
+  the rerun does not accidentally treat its first success as a new baseline.
+  A3-01 decreased by 257 seconds versus the earlier no-cache run, or 235
+  seconds versus this same SHA's cold run. These are observations from this
+  pair of runners, not a guaranteed or isolated cache benchmark.
+
+The baseline script is unchanged, but frozen dependency installation, format
+and type checks also run earlier in the new fail-fast step. A3-01 timing alone
+therefore is not an isolated measure of cache performance. Record the extra
+step and cold/warm state; runner variability also prevents attributing every
+second of difference to the caches. No speedup is claimed from a cache miss.
+
+Coverage safeguards and execution rules:
+- Rust cache pinned exactly to Swatinem/rust-cache
+  6323deb102c322ba6fcbdcafc7e3dddab59af2b6, workspace src-tauri -> target;
+  separate aicli-acceptance shared key. setup-node has cache: pnpm and the
+  root lockfile; pnpm is installed before cache restoration.
+- Checkout fetches history. Compare with the last successful other run's
+  ancestor SHA, including superseded commits, rather than the last push.
+  GATE commit titles force A6. Testenv or acceptance infrastructure changes
+  force A6. Unknown baseline/API/diff errors cannot produce a successful
+  run that skips mandatory A6; selection falls back to full coverage or fails.
+  A run rerun excludes its own previous success as a baseline.
+- All A6 steps share the coverage condition; A6-01 startup logs and cleanup
+  retain always() within that condition. Sanitization, readiness logic,
+  existing assertions and tests are unchanged.
+- cancel-in-progress is true. No replaced/cancelled run is accepted as proof.
+- At most three independent same-stage small items may share final CI;
+  implementations and evidence remain separate per item. No GATE, online/
+  human-dependent, dependent-item or cross-stage batch. Any batch failure
+  prevents marking every item in that batch complete.
+- The explicit preauthorization rules and exceptions are in checklist 0.6;
+  uses must be recorded individually in section 13 for final review.
+- Push remains branch-only; docs-only pushes remain excluded; no release,
+  deploy, new-api source change or signing/release secrets were used.
+
+Procedure deviation, also in checklist section 13:
+One initial local Python-only coverage self-test omitted temporary HOME.
+It only evaluated the selector's pure functions and created repository-local
+bytecode; it did not access client configuration. Generated bytecode was
+removed, and the test was rerun with temporary HOME, CC_SWITCH_TEST_HOME and
+PYTHONDONTWRITEBYTECODE=1: 8/8 passed. Formal evidence is the isolated CI run,
+not that initial unisolated invocation. No local product tests were run.
+
+Read-back used gh run view --attempt 1/2 --json jobs and the two job logs.
+Both artifacts were downloaded outside the repository to /tmp directories;
+only summaries, timings and nonsecret cache keys are recorded here. No raw
+container startup logs are saved to docs or artifacts by this change.
+The final docs-only push also runs the same local pre-push check.

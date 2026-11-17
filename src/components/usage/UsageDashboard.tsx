@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
@@ -55,6 +55,7 @@ import { useUsageAutoRefresh } from "@/hooks/useUsageAutoRefresh";
 import { usageApi } from "@/lib/api/usage";
 import { getUsageRangePresetLabel, resolveUsageRange } from "@/lib/usageRange";
 import { cn } from "@/lib/utils";
+import { UsageBreakdown } from "./UsageBreakdown";
 import { UsageHero } from "./UsageHero";
 import { UsageTrendChart } from "./UsageTrendChart";
 import { RequestLogTable } from "./RequestLogTable";
@@ -242,6 +243,15 @@ interface UsageDashboardProps {
   onUsageDisplayChange?: (
     next: UsageDisplaySettings,
   ) => Promise<boolean> | boolean | void;
+  /** 标题旁的数据来源标注（F-03 首页：「来源：本机记录」）；不传不显示。 */
+  sourceNote?: string;
+  /** F-10：放在本机统计上方、同一滚动区里的面板（首页的 AICLI 账户面板）。 */
+  leading?: ReactNode;
+  /** 有 leading 时本机统计小节的标题。 */
+  localTitle?: string;
+  /** 统计是否包含各 CLI 的会话日志（设置 usageIncludeSessionLogs）；不传不显示该开关。 */
+  includeSessionLogs?: boolean;
+  onIncludeSessionLogsChange?: (next: boolean) => void;
 }
 
 /**
@@ -257,6 +267,11 @@ export function UsageDashboard({
   onOpenRoutingSettings,
   usageDisplay,
   onUsageDisplayChange,
+  sourceNote,
+  leading,
+  localTitle,
+  includeSessionLogs,
+  onIncludeSessionLogsChange,
 }: UsageDashboardProps = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
@@ -917,38 +932,53 @@ export function UsageDashboard({
     </section>
   );
 
+  // 2026-11 改版（画板 6）：花在哪个客户端、哪个模型上
+  const breakdownPanel = (
+    <UsageBreakdown
+      range={range}
+      appType={scopedAppType}
+      providerName={providerName}
+      model={model}
+      refreshIntervalMs={0}
+    />
+  );
+
+  const emptyState = (
+    <div className="mt-16 flex max-w-[440px] flex-col items-center gap-3 text-center">
+      <span
+        aria-hidden="true"
+        className="flex h-11 w-11 items-center justify-center rounded-full bg-subtle text-fg-2"
+      >
+        <ChartColumn className="h-5 w-5" strokeWidth={1.5} />
+      </span>
+      <div className="flex flex-col gap-1">
+        <p className="m-0 text-section text-fg-1">{t("usage.empty.title")}</p>
+        <p className="m-0 text-body text-fg-2">{t("usage.empty.body")}</p>
+      </div>
+      <Button
+        type="button"
+        variant="neutral"
+        size="regular"
+        disabled={syncingSession}
+        onClick={() => void runManualSessionSync()}
+      >
+        {syncingSession && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {t("usage.sessionSync.syncNow")}
+      </Button>
+      <Button
+        type="button"
+        variant="quiet"
+        size="regular"
+        onClick={() => setPricingOpen(true)}
+      >
+        {t("usage.empty.configurePricing")}
+      </Button>
+    </div>
+  );
+
   const body = isEmpty ? (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto scroll-stable px-6 pb-6">
-      <div className="mt-16 flex max-w-[440px] flex-col items-center gap-3 text-center">
-        <span
-          aria-hidden="true"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-subtle text-fg-2"
-        >
-          <ChartColumn className="h-5 w-5" strokeWidth={1.5} />
-        </span>
-        <div className="flex flex-col gap-1">
-          <p className="m-0 text-section text-fg-1">{t("usage.empty.title")}</p>
-          <p className="m-0 text-body text-fg-2">{t("usage.empty.body")}</p>
-        </div>
-        <Button
-          type="button"
-          variant="neutral"
-          size="regular"
-          disabled={syncingSession}
-          onClick={() => void runManualSessionSync()}
-        >
-          {syncingSession && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {t("usage.sessionSync.syncNow")}
-        </Button>
-        <Button
-          type="button"
-          variant="quiet"
-          size="regular"
-          onClick={() => setPricingOpen(true)}
-        >
-          {t("usage.empty.configurePricing")}
-        </Button>
-      </div>
+      {emptyState}
     </div>
   ) : (
     <div
@@ -956,9 +986,45 @@ export function UsageDashboard({
       className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto scroll-stable px-6 pb-6 pt-1"
     >
       {overviewPanel}
+      {breakdownPanel}
       {detailPanel}
     </div>
   );
+
+  // F-10：首页把 AICLI 账户面板放进来时，整页只有一个滚动区：账户面板 → 「本机统计」
+  // 小标题与筛选行（滚动时吸顶）→ 原来的面板。不传 leading 时结构与原用量页完全一样。
+  const leadingBody = leading ? (
+    <div
+      id="main-content"
+      data-testid="usage-single-scroll"
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-stable"
+    >
+      <div className="px-6 pt-4">{leading}</div>
+      <div
+        data-testid="usage-sticky-filters"
+        className="sticky top-0 z-20 bg-app pt-6"
+      >
+        <div className="flex items-baseline gap-2 px-6">
+          <h2 className="m-0 text-section text-fg-1">
+            {localTitle ?? t("nav.usage")}
+          </h2>
+          {sourceNote && (
+            <span className="text-caption text-fg-3">{sourceNote}</span>
+          )}
+        </div>
+        {filterRow}
+      </div>
+      {isEmpty ? (
+        <div className="flex flex-col items-center px-6 pb-6">{emptyState}</div>
+      ) : (
+        <div className="flex flex-col gap-8 px-6 pb-6 pt-1">
+          {overviewPanel}
+          {breakdownPanel}
+          {detailPanel}
+        </div>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -966,12 +1032,23 @@ export function UsageDashboard({
         icon={<ChartColumn className="h-5 w-5" strokeWidth={1.5} />}
         title={t("nav.usage")}
         titleExtra={
-          <HelpTip title={t("nav.usage")}>{t("usage.subtitle")}</HelpTip>
+          <>
+            <HelpTip title={t("nav.usage")}>{t("usage.subtitle")}</HelpTip>
+            {sourceNote && !leading && (
+              <span className="ms-2 text-caption font-normal text-fg-3">
+                {sourceNote}
+              </span>
+            )}
+          </>
         }
         actions={headerActions}
       />
-      {filterRow}
-      {body}
+      {leadingBody ?? (
+        <>
+          {filterRow}
+          {body}
+        </>
+      )}
 
       <RequestDetailPanel
         requestId={detailRequestId}
@@ -981,6 +1058,8 @@ export function UsageDashboard({
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         sessionAutoSyncEnabled={sessionAutoSyncEnabled}
+        includeSessionLogs={includeSessionLogs}
+        onIncludeSessionLogsChange={onIncludeSessionLogsChange}
         onSessionAutoSyncEnabledChange={(value) =>
           void onSessionAutoSyncEnabledChange?.(value)
         }
@@ -1010,6 +1089,8 @@ export function UsageDashboard({
         isOpen={showRebuildConfirm}
         title={t("usage.rebuildCodex.confirmTitle")}
         message={t("usage.rebuildCodex.confirmMessage")}
+        assurance={t("usage.rebuildCodex.confirmAssurance")}
+        note={t("usage.rebuildCodex.confirmNote")}
         confirmText={t("usage.rebuildCodex.confirmAction")}
         // 重建前会自动备份数据库，可从备份恢复：不算不可撤销，不用红色确认键
         variant="info"

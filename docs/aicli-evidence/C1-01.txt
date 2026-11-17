@@ -1,0 +1,35 @@
+C1-01 immutable line registry
+Implementation: f7b3c16d
+Final combined acceptance: a4445066c1d64f3b7c50c3978c682b08e945e5e1
+Group: C1-01, C1-02, C1-03 (section 0.6, separate item commits/evidence).
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41588458491
+Status: completed / success (gh run view --json status,conclusion,headSha).
+Actual CI commands:
+cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::lines::tests
+bash scripts/aicli-check.sh
+Results: 2 passed; 4474 filtered/existing skipped in the targeted command.
+Full baseline: 4466 Rust passed / 10 original skipped; frontend 267 files / 3416 passed.
+Targeted filtering is not an added ignore. All original tests retained.
+Both new tests passed in the full baseline too.
+
+Every field for all 3 entries checked independently against owner-approved values,
+including transport, label keys, priority and four timeouts. Unknown/case/space/URL
+inputs return None; lookup returns the actual static entry, no mutation API.
+main/global stream_total_s=600 is the owner's unmeasured decision, not a measurement.
+Label keys use aicli.lines.<id>; UI translation integration belongs to later UI items.
+
+C1-02 and C1-03 targeted acceptance also passed in this same run.
+Existing database tests, B-GATE desktop startup/IPC, A6 and B-01 through B-08 all passed.
+Downloaded artifact with gh run download to /tmp/aicli-C1-01-03-evidence and read
+C1-01.txt, C1-02.txt, C1-03.txt, A3-01.txt and CI-OPT-coverage.txt.
+Prior run 41587843001 at 71b06480 was superseded/cancelled, not acceptance evidence.
+
+Local static commands actually run before pushes:
+CC_SWITCH_TEST_HOME=/tmp/aicli-c1-format cargo fmt --manifest-path src-tauri/Cargo.toml
+git diff --check
+AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+All passed (rustfmt, Prettier and 5 YAML files/no duplicate keys).
+git pull --rebase origin feat/aicli-client-v1 before push: up to date.
+Local runtime/build tests were not run; all runtime results above are CI evidence.
+No online account or production requests, no real credentials used.

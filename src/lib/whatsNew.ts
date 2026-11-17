@@ -1,4 +1,5 @@
 import { compareVersions } from "@/lib/version";
+import { RELEASES_URL } from "@/config/branding";
 
 /**
  * 更新摘要：每个版本一份 `src/whats-new/<version>.json`，构建时打进安装包。
@@ -88,12 +89,10 @@ export function resolveWhatsNewLanguage(language: string): WhatsNewLanguage {
     : "en";
 }
 
-/** 官网更新日志：不带版本是列表页。官网只有 zh / en / ja，繁中用简中页面 */
+/** 更新日志：项目发布页（不带版本是列表页，带版本是该版本的 tag 页）。各语言同一地址。 */
 export function changelogUrl(
-  language: WhatsNewLanguage,
+  _language: WhatsNewLanguage,
   version?: string,
 ): string {
-  const siteLanguage = language === "zh-TW" ? "zh" : language;
-  const base = `https://ccswitch.io/${siteLanguage}/changelog`;
-  return version ? `${base}/${version}` : base;
+  return version ? `${RELEASES_URL}/tag/v${version}` : RELEASES_URL;
 }

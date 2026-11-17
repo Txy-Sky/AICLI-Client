@@ -1,0 +1,45 @@
+J-03～J-10（2026-11-13；后端完成，真实客户端验收未做）
+
+实现提交：
+- c58a3100 J-03..J-07 OpenClaw、Hermes、Pi、MCode、Kimi 接管与还原（后端）
+- 6a02490b J-08..J-10 DSH、OMP 接管与还原；Agy 保持不支持
+
+## 实现
+
+- 共同做法同 J-02（docs/aicli-evidence/J-02.txt）：Tier 2 不经模式控制器，用各客户端自己
+  的配置写入器写一个 id 为 aicli 的提供方，地址 <本地代理>/app/<客户端>/v1，协议 Chat
+  Completions，密钥为本地令牌；备份、状态机、逐字节还原与 C3-10 共用。
+- 各客户端写入的位置和字段见 docs/aicli-handover/J-03-J-09.md 的表。
+- DSH：写入它目标的每个 profile（web、desktop 必写，headless、acp 存在时写）的
+  cordis.patch.yml，本地令牌只写进 ~/.dsh/.credentials.yaml 的 refs，profile 里是
+  apiKeyEnv 引用。四个 profile 文件和凭据文件全部备份，原本不存在的还原时删除。
+  观察：DSH 写入器沿用 cc-switch 的引用名前缀 CC_SWITCH_DSH_<ID>，用户能在凭据文件里看到；
+  不影响功能，记入第 13 节，是否改名由负责人决定（改名需兼容已有引用）。
+- OMP：写入 OMP 当前 profile 的 models.yml（已有 aicli 节点则替换，否则插入）。
+- J-10 Agy：agy 只从进程环境读 GEMINI_API_KEY 和 GOOGLE_GEMINI_BASE_URL，真实
+  settings.json 只管 modelProvider 和 model，且应用从不改写它（agy_config 模块说明）。
+  没有配置文件可以让 agy 指向本地代理，按第 0.6 节第 14 条「选不改写用户本机其他应用数据
+  的那个」，结论为暂不支持接管：不加入 TIER2_SUPPORTED，take_over 返回 Unsupported。
+
+## 清单验收逐项
+
+1. 配置写入后的文件不含 sk- 和访问令牌 —— 单测通过（J-03..J-09 七个客户端，各自从无到有
+   与已有用户配置两种初始状态；断言全部被管理文件拼接后不含 sk-、不含访问令牌，含本地
+   令牌、/app/<客户端>/v1 地址和模型名，已有配置中的用户字段保留）。
+2. 还原后逐字节一致 —— 同一单测，停止接管后全部被管理文件与接管前快照逐字节相同，备份
+   删除、状态清空、代理停止。DSH 的「已有配置」用例种入真实 DSH 格式（llm-pi-ai 条目带
+   用户自己的提供方），不再跳过。
+3. 真实客户端发文本和工具调用请求 —— 未做。原因同 J-02（第 12 节）：审查方机器是 2 GB
+   内存的 Linux、无图形界面；且界面在真实客户端通过前不提供接管按钮。交接单
+   docs/aicli-handover/J-03-J-09.md。
+J-10：take_over(Agy) 返回 Unsupported 由单测断言。
+
+## CI
+
+6a02490b | job `Rust item tests (Linux)`：
+- `J-03-J-09-unit`（cargo nextest run aicli::takeover::tests::tier2_clients_write_only_the_local_provider_and_restore_exact_bytes）1 passed
+- `J-10-unit`（cargo nextest run aicli::takeover::tests::tier2_takeover_needs_routable_models_and_a_supported_client）1 passed
+- `J-02-opencode-unit` 3 passed（含以上两项）
+五个 job 全部 success | https://github.com/Txy-Sky/AICLI-Client/actions/runs/43538734489
+c58a3100 本身的 run 之后被界面改版提交取代；其测试同在 J-02-opencode-unit 过滤器内，
+此后每个完整 run（含 43538734489）都运行并通过。

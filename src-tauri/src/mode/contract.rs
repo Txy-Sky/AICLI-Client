@@ -101,6 +101,7 @@ mod tests {
             url,
             ProxyAuth::FollowRow,
             None,
+            crate::live::project::claude::PROXY_TOKEN_PLACEHOLDER,
         ))
     }
 
@@ -117,8 +118,8 @@ mod tests {
             "ANTHROPIC_MODEL": "claude-sonnet-4-6"
         }});
         assert_eq!(
-            contract_for(a, "http://127.0.0.1:15721").key,
-            contract_for(b, "http://127.0.0.1:15721").key
+            contract_for(a, "http://127.0.0.1:15821").key,
+            contract_for(b, "http://127.0.0.1:15821").key
         );
     }
 
@@ -129,10 +130,10 @@ mod tests {
             "ANTHROPIC_AUTH_TOKEN": "sk",
             "CLAUDE_CODE_DISABLE_ARTIFACT": "1"
         }});
-        let base = contract_for(plain.clone(), "http://127.0.0.1:15721");
+        let base = contract_for(plain.clone(), "http://127.0.0.1:15821");
         assert_ne!(
             base.key,
-            contract_for(artifact_off, "http://127.0.0.1:15721").key
+            contract_for(artifact_off, "http://127.0.0.1:15821").key
         );
         assert_ne!(base.key, contract_for(plain, "http://127.0.0.1:15722").key);
     }
@@ -150,8 +151,8 @@ mod tests {
             "ANTHROPIC_AUTH_TOKEN": "sk"
         }});
         assert_eq!(
-            contract_for(first, "http://127.0.0.1:15721").key,
-            contract_for(second, "http://127.0.0.1:15721").key
+            contract_for(first, "http://127.0.0.1:15821").key,
+            contract_for(second, "http://127.0.0.1:15821").key
         );
     }
 }

@@ -66,6 +66,23 @@ impl ProxyService {
         }
     }
 
+    pub(crate) async fn aicli_runtime(&self) -> Option<Arc<crate::aicli::runtime::AicliRuntime>> {
+        self.server
+            .read()
+            .await
+            .as_ref()
+            .map(|server| server.aicli_runtime())
+    }
+
+    /// C3-10 修正：同步取运行中代理的 AICLI 运行时，接管投影与代理正在使用的
+    /// 快照保持一致。代理未运行或锁状态不确定时返回 None，由调用方退回新建运行时。
+    pub(crate) fn aicli_runtime_now(&self) -> Option<Arc<crate::aicli::runtime::AicliRuntime>> {
+        self.server
+            .try_read()
+            .ok()
+            .and_then(|server| server.as_ref().map(|inner| inner.aicli_runtime()))
+    }
+
     /// 设置 AppHandle（在应用初始化时调用）
     pub fn set_app_handle(&self, handle: tauri::AppHandle) {
         futures::executor::block_on(async {
@@ -150,8 +167,14 @@ impl ProxyService {
             return Err(e);
         }
 
+        let projection_changes = server.aicli_runtime().projection_changes();
         // 5. 保存服务器实例
         *self.server.write().await = Some(server);
+        crate::aicli::takeover::watch_projection_changes(
+            self.clone(),
+            self.db.clone(),
+            projection_changes,
+        );
 
         log::info!("代理服务器已启动: {}:{}", info.address, info.port);
         Ok(info)
@@ -340,7 +363,11 @@ impl ProxyService {
             "OPENROUTER_API_KEY",
             "OPENAI_API_KEY",
         ] {
-            if env.get(key).and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER) {
+            if env
+                .get(key)
+                .and_then(|v| v.as_str())
+                .is_some_and(crate::aicli::local_auth::is_proxy_token)
+            {
                 return true;
             }
         }
@@ -354,7 +381,7 @@ impl ProxyService {
             .and_then(|v| v.as_object())
             .and_then(|auth| auth.get("OPENAI_API_KEY"))
             .and_then(|v| v.as_str())
-            == Some(PROXY_TOKEN_PLACEHOLDER)
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
         {
             return true;
         }
@@ -364,7 +391,7 @@ impl ProxyService {
             .and_then(|v| v.as_str())
             .and_then(crate::codex_config::extract_codex_experimental_bearer_token)
             .as_deref()
-            == Some(PROXY_TOKEN_PLACEHOLDER)
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
     }
 
     fn is_codex_live_taken_over(config: &Value) -> bool {
@@ -380,7 +407,9 @@ impl ProxyService {
             Some(env) => env,
             None => return false,
         };
-        env.get("GEMINI_API_KEY").and_then(|v| v.as_str()) == Some(PROXY_TOKEN_PLACEHOLDER)
+        env.get("GEMINI_API_KEY")
+            .and_then(|v| v.as_str())
+            .is_some_and(crate::aicli::local_auth::is_proxy_token)
     }
 
     fn is_grok_live_taken_over(config: &Value) -> bool {

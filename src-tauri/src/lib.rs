@@ -1,15 +1,19 @@
 mod agy_config;
 #[cfg(all(test, unix))]
 mod agy_smoke_tests;
+pub mod aicli;
 mod app_config;
 mod app_store;
 mod auto_launch;
+pub mod branding;
 mod claude_desktop_config;
 mod claude_mcp;
 mod claude_plugin;
 mod codex_config;
 mod codex_history_migration;
 mod codex_rollout_file;
+#[cfg(test)]
+mod codex_startup_tests;
 mod codex_state_db;
 mod commands;
 mod config;
@@ -50,7 +54,6 @@ mod store;
 mod tray;
 #[cfg(target_os = "windows")]
 mod tray_compat;
-mod tray_panel;
 mod usage_events;
 mod usage_script;
 
@@ -59,11 +62,12 @@ pub use codex_config::{
     extract_codex_experimental_bearer_token, get_codex_auth_path, get_codex_config_path,
     read_codex_live_settings, write_codex_live_atomic,
 };
-pub use commands::open_provider_terminal;
 pub use commands::*;
-pub use config::{get_claude_mcp_path, get_claude_settings_path, read_json_file};
+pub use config::{
+    get_claude_mcp_path, get_claude_settings_path, get_home_dir, read_json_file, APP_DIR_NAME,
+};
 pub use database::{Database, Profile};
-pub use deeplink::{import_provider_from_deeplink, parse_deeplink_url, DeepLinkImportRequest};
+pub use deeplink::{parse_deeplink_url, BindRequest};
 pub use error::AppError;
 pub use grok_config::get_grok_config_path;
 pub use mcp::{
@@ -262,14 +266,101 @@ pub(crate) fn error_for_log(error: &str) -> String {
         .join("\n")
 }
 
+// AICLI starts with a new identity; legacy history migrations remain callable only
+// for their existing tests, never as an automatic startup mutation.
+const AICLI_LEGACY_CODEX_STARTUP_MIGRATIONS_ENABLED: bool = false;
+
+fn run_codex_startup_migrations(db: &Database) {
+    if AICLI_LEGACY_CODEX_STARTUP_MIGRATIONS_ENABLED {
+        match crate::codex_history_migration::maybe_migrate_codex_third_party_history_provider_bucket(
+            db,
+        ) {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex history provider bucket migration skipped: {reason}");
+                } else {
+                    log::info!(
+                        "✓ Codex history provider bucket migration completed: sources={}, jsonl_files={}, state_rows={}",
+                        outcome.source_provider_ids.len(),
+                        outcome.migrated_jsonl_files,
+                        outcome.migrated_state_rows
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex history provider bucket migration failed: {e}");
+            }
+        }
+
+        match crate::codex_history_migration::maybe_migrate_codex_provider_template_bucket(db) {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex provider template bucket migration skipped: {reason}");
+                } else if !outcome.migrated_provider_ids.is_empty() {
+                    log::info!(
+                        "✓ Codex provider template bucket migration completed: providers={}",
+                        outcome.migrated_provider_ids.len()
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex provider template bucket migration failed: {e}");
+            }
+        }
+
+        // 旧版官方路由桶（cc-switch-official）迁回 openai，须在统一迁移之前：
+        // 开关开着时，紧接着的统一迁移会把它们按正常流程带进 custom。
+        match crate::codex_history_migration::maybe_migrate_codex_legacy_official_history_to_openai_bucket() {
+            Ok(outcome) => {
+                if let Some(reason) = outcome.skipped_reason {
+                    log::debug!("○ Codex legacy official history bucket migration skipped: {reason}");
+                } else {
+                    log::info!(
+                        "✓ Codex legacy official history bucket migration completed: jsonl_files={}, state_rows={}",
+                        outcome.migrated_jsonl_files,
+                        outcome.migrated_state_rows
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("✗ Codex legacy official history bucket migration failed: {e}");
+            }
+        }
+    }
+
+    // 统一会话开关的官方历史迁移：开关开启但上次未完成（如文件被占用
+    // 中途失败）时在启动期重试；函数内部自门控，开关关闭时直接跳过。
+    match crate::codex_history_migration::maybe_migrate_codex_official_history_to_unified_bucket() {
+        Ok(outcome) => {
+            if let Some(reason) = outcome.skipped_reason {
+                log::debug!("○ Codex official history unify migration skipped: {reason}");
+            } else {
+                log::info!(
+                    "✓ Codex official history unify migration completed: jsonl_files={}, state_rows={}",
+                    outcome.migrated_jsonl_files,
+                    outcome.migrated_state_rows
+                );
+            }
+        }
+        Err(e) => {
+            log::warn!("✗ Codex official history unify migration failed: {e}");
+        }
+    }
+}
+
+pub(crate) const fn updater_enabled() -> bool {
+    true
+}
+
 fn runtime_log_level_allows(level: log::Level, max_level: log::LevelFilter) -> bool {
     max_level.to_level().is_some_and(|maximum| level <= maximum)
 }
 
-/// 统一处理 ccswitch:// 深链接 URL
+/// 统一处理 aicliapi:// 深链接 URL
 ///
-/// - 解析 URL，把结果（或错误）暂存为待处理深链接，再发 `deeplink-pending` 通知前端来读
-///   （前端可能还没挂载，见 `deeplink::PendingDeepLink`）
+/// - 解析成功：暂存为待处理深链接（冷启动也能被前端读到），发空负载事件
+///   `aicli-open-bind`，由前端打开绑定窗口；不带任何 URL 参数值
+/// - 解析失败：只记日志，不暂存、不发事件（修复旧实现把原始 URL 交给前端的缺陷）
 /// - 可选：聚焦主窗口
 fn handle_deeplink_url(
     app: &tauri::AppHandle,
@@ -277,7 +368,7 @@ fn handle_deeplink_url(
     focus_main_window: bool,
     source: &str,
 ) -> bool {
-    if !url_str.starts_with("ccswitch://") {
+    if !url_str.starts_with("aicliapi://") {
         return false;
     }
 
@@ -286,30 +377,21 @@ fn handle_deeplink_url(
         url_for_log(url_str)
     );
 
-    let pending = match crate::deeplink::parse_deeplink_url(url_str) {
+    match crate::deeplink::parse_deeplink_url(url_str) {
         Ok(request) => {
-            log::info!(
-                "✓ Successfully parsed deep link: resource={}, app={:?}, name={:?}",
-                request.resource,
-                request.app,
-                request.name
-            );
-            crate::deeplink::PendingDeepLink::Import {
+            // 日志不写参数值（`line` 也是链接参数）；线路只进待处理条目
+            log::info!("✓ Bind deep link accepted");
+            crate::deeplink::set_pending_deeplink(crate::deeplink::PendingDeepLink::Bind {
                 request: Box::new(request),
+            });
+            if let Err(e) = app.emit("aicli-open-bind", ()) {
+                log::error!("✗ Failed to emit aicli-open-bind event: {e}");
             }
         }
         Err(e) => {
+            // 错误信息只含参数名，不含参数值；URL 只经 `url_for_log`（剥 query）记录
             log::error!("✗ Failed to parse deep link URL: {e}");
-            crate::deeplink::PendingDeepLink::Error {
-                url: url_str.to_string(),
-                error: e.to_string(),
-            }
         }
-    };
-    crate::deeplink::set_pending_deeplink(pending);
-
-    if let Err(e) = app.emit("deeplink-pending", ()) {
-        log::error!("✗ Failed to emit deeplink-pending event: {e}");
     }
 
     if focus_main_window {
@@ -338,11 +420,6 @@ async fn update_tray_menu(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<bool, String> {
-    if !tray_panel::uses_native_menu() {
-        // 用托盘面板、不挂原生菜单：更新图标状态，通知开着的面板重新取数据。
-        tray::refresh_tray_menu(&app);
-        return Ok(app.tray_by_id(tray::TRAY_ID).is_some());
-    }
     match tray::create_tray_menu(&app, state.inner()) {
         Ok(new_menu) => {
             if let Some(tray) = app.tray_by_id(tray::TRAY_ID) {
@@ -400,7 +477,7 @@ fn raise_open_file_limit() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 设置 panic hook，在应用崩溃时记录日志到 <app_config_dir>/crash.log（默认 ~/.cc-switch/crash.log）
+    // 设置 panic hook，在应用崩溃时记录日志到 <app_config_dir>/crash.log（默认 ~/.aicli-client/crash.log）
     panic_hook::setup_panic_hook();
 
     let mut builder = tauri::Builder::default();
@@ -474,8 +551,8 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         // 拦截窗口关闭：根据设置决定是否最小化到托盘
         .on_window_event(|window, event| {
-            // 托盘面板自己处理关闭（只隐藏），不走主窗口的「最小化到托盘 / 退出」
-            if window.label() == tray_panel::PANEL_LABEL {
+            // 支付窗口（W 阶段）关闭就是关闭：不最小化到托盘，更不能带着整个应用退出。
+            if window.label() == commands::PAY_WINDOW_LABEL {
                 return;
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -518,7 +595,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(window_state_flags())
-                .with_denylist(&[tray_panel::PANEL_LABEL])
+                .with_denylist(&[commands::PAY_WINDOW_LABEL])
                 .build(),
         )
         .setup(|app| {
@@ -528,7 +605,7 @@ pub fn run() {
             app_store::refresh_app_config_dir_override(app.handle());
             panic_hook::init_app_config_dir(crate::config::get_app_config_dir());
 
-            // 初始化日志（输出到 <app_config_dir>/logs/cc-switch.log）
+            // 初始化日志（输出到 <app_config_dir>/logs/aicli-client.log）
             {
                 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
@@ -553,7 +630,7 @@ pub fn run() {
                             Target::new(TargetKind::Stdout),
                             Target::new(TargetKind::Folder {
                                 path: log_dir,
-                                file_name: Some("cc-switch".into()),
+                                file_name: Some("aicli-client".into()),
                             }),
                         ])
                         // KeepSome(4) 保留 4 个轮转归档，加上当前文件最多约 100 MiB。
@@ -581,7 +658,7 @@ pub fn run() {
 
             // 注册 Updater 插件（桌面端）；放在 logger 之后，确保失败可诊断。
             #[cfg(desktop)]
-            {
+            if updater_enabled() {
                 if let Err(e) = app
                     .handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())
@@ -598,7 +675,7 @@ pub fn run() {
 
             // 初始化数据库
             let app_config_dir = crate::config::get_app_config_dir();
-            let db_path = app_config_dir.join("cc-switch.db");
+            let db_path = app_config_dir.join("aicli-client.db");
             let json_path = app_config_dir.join("config.json");
 
             // 检查是否需要从 config.json 迁移到 SQLite
@@ -735,7 +812,7 @@ pub fn run() {
             // 设置 AppHandle 用于代理故障转移时的 UI 更新
             app_state.proxy_service.set_app_handle(app.handle().clone());
 
-            // 补完上次崩溃时写到一半的客户端文件（写前意图在 ~/.cc-switch/live-state.json），
+            // 补完上次崩溃时写到一半的客户端文件（写前意图在 ~/.aicli-client/live-state.json），
             // 要在任何写客户端文件的启动步骤之前。
             crate::mode::operation::recover_on_startup(&app_state.db);
 
@@ -846,92 +923,18 @@ pub fn run() {
                 log::warn!("Initializing DeepSeek Harness profiles failed: {error}");
             }
 
-            match app_state.db.init_default_official_providers() {
+            match crate::aicli::seed::init(&app_state.db) {
                 Ok(count) if count > 0 => {
-                    log::info!("✓ Seeded {count} official provider(s)");
+                    log::info!("✓ Seeded {count} internal AICLI provider(s)");
                 }
                 Ok(_) => {}
-                Err(e) => log::warn!("✗ Failed to seed official providers: {e}"),
+                Err(e) => log::warn!("✗ Failed to seed AICLI providers: {e}"),
             }
 
             {
                 let db_for_codex_history_migration = app_state.db.clone();
                 tauri::async_runtime::spawn_blocking(move || {
-                    match crate::codex_history_migration::maybe_migrate_codex_third_party_history_provider_bucket(
-                        &db_for_codex_history_migration,
-                    ) {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex history provider bucket migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex history provider bucket migration completed: sources={}, jsonl_files={}, state_rows={}",
-                                    outcome.source_provider_ids.len(),
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex history provider bucket migration failed: {e}");
-                        }
-                    }
-
-                    match crate::codex_history_migration::maybe_migrate_codex_provider_template_bucket(
-                        &db_for_codex_history_migration,
-                    ) {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex provider template bucket migration skipped: {reason}");
-                            } else if !outcome.migrated_provider_ids.is_empty() {
-                                log::info!(
-                                    "✓ Codex provider template bucket migration completed: providers={}",
-                                    outcome.migrated_provider_ids.len()
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex provider template bucket migration failed: {e}");
-                        }
-                    }
-
-                    // 旧版官方路由桶（cc-switch-official）迁回 openai，须在统一迁移之前：
-                    // 开关开着时，紧接着的统一迁移会把它们按正常流程带进 custom。
-                    match crate::codex_history_migration::maybe_migrate_codex_legacy_official_history_to_openai_bucket() {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex legacy official history bucket migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex legacy official history bucket migration completed: jsonl_files={}, state_rows={}",
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex legacy official history bucket migration failed: {e}");
-                        }
-                    }
-
-                    // 统一会话开关的官方历史迁移：开关开启但上次未完成（如文件被占用
-                    // 中途失败）时在启动期重试；函数内部自门控，开关关闭时直接跳过。
-                    match crate::codex_history_migration::maybe_migrate_codex_official_history_to_unified_bucket() {
-                        Ok(outcome) => {
-                            if let Some(reason) = outcome.skipped_reason {
-                                log::debug!("○ Codex official history unify migration skipped: {reason}");
-                            } else {
-                                log::info!(
-                                    "✓ Codex official history unify migration completed: jsonl_files={}, state_rows={}",
-                                    outcome.migrated_jsonl_files,
-                                    outcome.migrated_state_rows
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            log::warn!("✗ Codex official history unify migration failed: {e}");
-                        }
-                    }
+                    run_codex_startup_migrations(&db_for_codex_history_migration);
                 });
             }
 
@@ -1135,12 +1138,12 @@ pub fn run() {
                 #[cfg(target_os = "linux")]
                 {
                     // Use Tauri's path API to get correct path (includes app identifier)
-                    // tauri-plugin-deep-link writes to: ~/.local/share/com.ccswitch.desktop/applications/cc-switch-handler.desktop
+                    // tauri-plugin-deep-link writes to: ~/.local/share/applications/aicli-client-handler.desktop
                     // Only register if .desktop file doesn't exist to avoid overwriting user customizations
                     let should_register = app
                         .path()
                         .data_dir()
-                        .map(|d| !d.join("applications/cc-switch-handler.desktop").exists())
+                        .map(|d| !d.join("applications/aicli-client-handler.desktop").exists())
                         .unwrap_or(true);
 
                     if should_register {
@@ -1183,7 +1186,7 @@ pub fn run() {
                         log::debug!("  URL[{i}]: {}", url_for_log(url_str));
 
                         if handle_deeplink_url(&app_handle, url_str, true, "on_open_url") {
-                            break; // Process only first ccswitch:// URL
+                            break; // Process only first aicliapi:// URL
                         }
                     }
                 }
@@ -1207,21 +1210,17 @@ pub fn run() {
                 Err(e) => log::warn!("读取启动时的深链接失败: {e}"),
             }
 
-            // 构建托盘：Windows 左键打开主界面，右键默认弹出面板；macOS 左右键默认都弹出面板。
-            // 设置里打开「原生托盘菜单」就挂原生菜单（`tray::apply_tray_style` 运行时切换）。
-            // Linux（AppIndicator）不派发点击事件，只能出原生菜单，菜单里有一项打开面板。
-            let native_menu = tray_panel::uses_native_menu();
+            // 构建托盘（G-04 方案 A）：Windows 左键打开主界面、右键出菜单；
+            // macOS 左右键都弹出原生菜单；Linux（AppIndicator）同样原生菜单。
+            let menu = tray::create_tray_menu(app.handle(), &app_state)?;
             let mut tray_builder = TrayIconBuilder::with_id(tray::TRAY_ID)
-                .tooltip("CC Switch") // 鼠标悬停提示
+                .tooltip("AICLI Client") // 鼠标悬停提示
+                .menu(&menu)
                 .on_tray_icon_event(tray::handle_tray_icon_event)
                 .on_menu_event(|app, event| {
                     tray::handle_tray_menu_event(app, &event.id.0);
                 })
-                .show_menu_on_left_click(tray::native_menu_on_left_click(native_menu));
-            if native_menu {
-                let menu = tray::create_tray_menu(app.handle(), &app_state)?;
-                tray_builder = tray_builder.menu(&menu);
-            }
+                .show_menu_on_left_click(tray::native_menu_on_left_click(true));
 
             // 使用平台对应的托盘图标（macOS 使用模板图标适配深浅色）；出问题时 tray.rs 换成带圆点的那张
             if let Some((icon, template)) = tray::base_tray_icon(app.handle()) {
@@ -1231,14 +1230,6 @@ pub fn run() {
             let _tray = tray_builder.build(app)?;
             #[cfg(target_os = "windows")]
             tray_compat::install(app.handle());
-            crate::services::webdav_auto_sync::start_worker(
-                app_state.db.clone(),
-                app.handle().clone(),
-            );
-            crate::services::s3_auto_sync::start_worker(
-                app_state.db.clone(),
-                app.handle().clone(),
-            );
             // 将同一个实例注入到全局状态，避免重复创建导致的不一致
             app.manage(app_state);
             app.manage(services::kimi_oauth::KimiOAuthManager::default());
@@ -1246,6 +1237,22 @@ pub fn run() {
             // 初始化 SkillService
             let skill_service = SkillService::new();
             app.manage(commands::skill::SkillServiceState(Arc::new(skill_service)));
+
+            // C3-11：AICLI 命令聚合服务（绑定、缓存、线路、配置集、接管、用量）
+            {
+                use crate::aicli::cache::{AppCacheEvents, CacheEvents};
+                use crate::aicli::secrets::{KeyringStore, SecretStore};
+
+                // Clone the managed AppState (all fields are Arc-based) so the
+                // aggregate shares the same proxy runtime and caches.
+                let app_state = app.state::<AppState>().inner().clone();
+                let secrets: Arc<dyn SecretStore> = Arc::new(KeyringStore::default());
+                let events: Arc<dyn CacheEvents> = Arc::new(AppCacheEvents(app.handle().clone()));
+                let services = commands::AicliServices::new(app_state, secrets, events);
+                services.startup();
+                app.manage(commands::AicliState(services));
+                log::info!("✓ AICLI command services initialized");
+            }
 
             // 初始化 CopilotAuthManager
             {
@@ -1354,7 +1361,9 @@ pub fn run() {
 
                 // 定下各应用的直连 / 代理模式（处理旧版遗留的接管状态），再把代理模式的
                 // 应用接上。要排在通用配置片段的自动提取之后：它读的是直连的 live。
-                crate::mode::controller::startup(&state).await;
+                if crate::aicli::takeover::startup(&state, &crate::aicli::secrets::KeyringStore::default()).await.is_err() {
+                    log::warn!("AICLI takeover recovery failed; retaining backup for recovery");
+                }
                 // #8268 测试版给 agy 装过包装脚本、改过 shell 启动文件，撤掉带标记的部分。
                 if let Err(e) =
                     crate::services::provider::agy_direct::migrate_legacy_launcher(&state.db)
@@ -1511,14 +1520,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_providers,
             commands::get_current_provider,
-            commands::add_provider,
-            commands::update_provider,
-            commands::get_provider_editor_view,
-            commands::delete_provider,
-            commands::add_provider_to_live_config,
-            commands::remove_provider_from_live_config,
             commands::switch_provider,
-            commands::import_default_config,
             commands::get_claude_desktop_status,
             commands::get_claude_desktop_default_routes,
             commands::import_claude_desktop_providers_from_claude,
@@ -1543,7 +1545,6 @@ pub fn run() {
             commands::get_common_config_snippet,
             commands::set_common_config_snippet,
             commands::extract_common_config_snippet,
-            commands::read_live_provider_settings,
             commands::get_settings,
             commands::save_settings,
             commands::has_codex_unify_history_backup,
@@ -1580,8 +1581,6 @@ pub fn run() {
             commands::delete_claude_mcp_server,
             commands::validate_mcp_command,
             // usage query
-            commands::queryProviderUsage,
-            commands::testUsageScript,
             // subscription quota
             commands::get_subscription_quota,
             commands::get_codex_oauth_quota,
@@ -1602,6 +1601,9 @@ pub fn run() {
             commands::toggle_mcp_app,
             commands::import_mcp_from_apps,
             commands::resync_mcp_to_apps,
+            commands::search_mcp_registry,
+            commands::get_cached_discover_icon,
+            commands::cache_discover_icon,
             // Prompt management
             commands::get_prompts,
             commands::upsert_prompt,
@@ -1618,7 +1620,6 @@ pub fn run() {
             commands::delete_pi_prompt_template,
             // Pi native provider and session views
             commands::get_pi_current_state,
-            commands::update_pi_provider_usage_script,
             commands::get_pi_session_discovery,
             // Oh My Pi native provider and session views
             commands::get_omp_current_state,
@@ -1635,30 +1636,13 @@ pub fn run() {
             commands::get_agy_models,
             commands::get_opencode_models,
             // ours: endpoint speed test + custom endpoint management
-            commands::test_api_endpoints,
-            commands::get_custom_endpoints,
-            commands::add_custom_endpoint,
-            commands::remove_custom_endpoint,
-            commands::update_endpoint_last_used,
             // app_config_dir override via Store
             commands::get_app_config_dir_override,
             commands::set_app_config_dir_override,
             // provider sort order management
-            commands::update_providers_sort_order,
             // theirs: config import/export and dialogs
             commands::export_config_to_file,
             commands::import_config_from_file,
-            commands::webdav_test_connection,
-            commands::webdav_sync_upload,
-            commands::webdav_sync_download,
-            commands::webdav_sync_save_settings,
-            commands::webdav_sync_clear_settings,
-            commands::webdav_sync_fetch_remote_info,
-            commands::s3_test_connection,
-            commands::s3_sync_upload,
-            commands::s3_sync_download,
-            commands::s3_sync_save_settings,
-            commands::s3_sync_fetch_remote_info,
             commands::save_file_dialog,
             commands::open_file_dialog,
             commands::open_zip_file_dialog,
@@ -1672,11 +1656,6 @@ pub fn run() {
             commands::delete_db_backup,
             commands::sync_current_providers_live,
             // Deep link import
-            commands::parse_deeplink,
-            commands::merge_deeplink_config,
-            commands::fetch_deeplink_icon,
-            commands::import_from_deeplink,
-            commands::import_from_deeplink_unified,
             commands::peek_pending_deeplink,
             commands::ack_pending_deeplink,
             update_tray_menu,
@@ -1727,13 +1706,6 @@ pub fn run() {
             commands::get_app_mode,
             commands::set_proxy_route,
             commands::take_startup_attach_failures,
-            tray::take_tray_navigation,
-            tray_panel::tray_panel_state,
-            tray_panel::tray_panel_placement,
-            tray_panel::tray_panel_layout,
-            tray_panel::tray_panel_hide,
-            tray_panel::tray_panel_action,
-            tray::tray_app_page_seen,
             commands::exit_proxy_apps_in_mode,
             commands::get_direct_provider,
             commands::get_proxy_status,
@@ -1811,25 +1783,17 @@ pub fn run() {
             commands::probe_tool_installations,
             commands::list_tool_installations,
             // Provider terminal
-            commands::open_provider_terminal,
             // Universal Provider management
-            commands::get_universal_providers,
-            commands::get_universal_provider,
-            commands::upsert_universal_provider,
-            commands::delete_universal_provider,
-            commands::sync_universal_provider,
             // Custom icon library
             commands::get_custom_icons,
             commands::add_custom_icon,
             commands::rename_custom_icon,
             commands::delete_custom_icon,
             // OpenCode specific
-            commands::import_opencode_providers_from_live,
             commands::get_opencode_live_provider_ids,
             commands::get_opencode_default_model,
             commands::set_opencode_default_model,
             // OpenClaw specific
-            commands::import_openclaw_providers_from_live,
             commands::get_openclaw_live_provider_ids,
             commands::get_openclaw_live_provider,
             commands::scan_openclaw_config_health,
@@ -1844,7 +1808,6 @@ pub fn run() {
             commands::get_openclaw_tools,
             commands::set_openclaw_tools,
             // Hermes specific
-            commands::import_hermes_providers_from_live,
             commands::get_hermes_live_provider_ids,
             commands::get_hermes_live_provider,
             commands::get_hermes_model_config,
@@ -1927,6 +1890,42 @@ pub fn run() {
             commands::enter_lightweight_mode,
             commands::exit_lightweight_mode,
             commands::is_lightweight_mode,
+            // AICLI account, routing and takeover commands (C3-11)
+            commands::aicli_get_account,
+            commands::aicli_bind,
+            commands::aicli_unbind,
+            commands::aicli_refresh,
+            commands::aicli_get_catalog,
+            commands::aicli_get_routes,
+            commands::aicli_list_lines,
+            commands::aicli_select_line,
+            commands::aicli_set_claude_keep_builtin_models,
+            commands::aicli_probe_lines,
+            commands::aicli_get_profiles,
+            commands::aicli_save_profile,
+            commands::aicli_delete_profile,
+            commands::aicli_set_active_profile,
+            commands::aicli_takeover_status,
+            commands::aicli_take_over,
+            commands::aicli_release,
+            commands::aicli_get_usage_summary,
+            commands::aicli_privacy_summary,
+            commands::aicli_privacy_events,
+            commands::aicli_privacy_preview,
+            commands::aicli_privacy_clear_events,
+            commands::aicli_get_request_bill,
+            commands::aicli_get_privacy,
+            commands::aicli_set_privacy,
+            commands::aicli_set_privacy_custom,
+            commands::aicli_wallet_get,
+            commands::aicli_wallet_quote,
+            commands::aicli_wallet_pay,
+            commands::aicli_wallet_close_pay,
+            commands::aicli_wallet_redeem,
+            commands::aicli_wallet_history,
+            commands::aicli_wallet_order_status,
+            commands::aicli_subscription_buy,
+            commands::aicli_aff_transfer,
         ]);
 
     let app = builder
@@ -2007,7 +2006,7 @@ pub fn run() {
         #[cfg(target_os = "macos")]
         {
             // macOS 在 Dock 图标被点击并重新激活应用时会触发 Reopen 事件，这里手动恢复主窗口。
-            // RunEvent::Opened（ccswitch:// 链接）不在这里处理：deep-link 插件的 on_event 已把它
+            // RunEvent::Opened（aicliapi:// 链接）不在这里处理：deep-link 插件的 on_event 已把它
             // 转成 on_open_url 回调，这里再处理一遍会让同一条链接触发两次导入。
             if let RunEvent::Reopen { .. } = event {
                 if let Some(window) = app_handle.get_webview_window("main") {
@@ -2260,7 +2259,7 @@ fn show_database_init_error_dialog(
             您的数据尚未丢失，应用不会自动删除数据库文件。\n\
             常见原因包括：数据库版本过新、文件损坏、权限不足、磁盘空间不足等。\n\n\
             建议：\n\
-            1) 先备份整个配置目录（包含 cc-switch.db）\n\
+            1) 先备份整个配置目录（包含 aicli-client.db）\n\
             2) 如果提示“数据库版本过新”，请升级到更新版本\n\
             3) 如果刚升级出现异常，可回退旧版本导出/备份后再升级\n\n\
             点击「重试」重新尝试初始化\n\
@@ -2274,7 +2273,7 @@ fn show_database_init_error_dialog(
             Your data is NOT lost - the app will not delete the database automatically.\n\
             Common causes include: newer database version, corrupted file, permission issues, or low disk space.\n\n\
             Suggestions:\n\
-            1) Back up the entire config directory (including cc-switch.db)\n\
+            1) Back up the entire config directory (including aicli-client.db)\n\
             2) If you see “database version is newer”, please upgrade CC Switch\n\
             3) If this happened right after upgrading, consider rolling back to export/backup then upgrade again\n\n\
             Click 'Retry' to attempt initialization again\n\

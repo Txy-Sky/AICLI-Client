@@ -1,7 +1,7 @@
 //! Thin adapter for Pi's native files.
 //!
 //! Pi owns account login and the active provider/model in `settings.json`.
-//! CC Switch only manages explicit provider entries in `models.json`.
+//! AICLI Client only manages explicit provider entries in `models.json`.
 
 use crate::config::{atomic_write_private, get_home_dir};
 use crate::error::AppError;
@@ -157,7 +157,7 @@ pub(crate) fn replace_pi_provider(
     })?;
     if current != expected {
         return Err(AppError::Conflict(format!(
-            "Pi provider '{provider_key}' changed outside CC Switch"
+            "Pi provider '{provider_key}' changed outside AICLI Client"
         )));
     }
     if current == replacement {
@@ -211,7 +211,7 @@ fn remove_pi_provider_inner(
     };
     if expected.is_some_and(|expected| current != *expected) {
         return Err(AppError::Conflict(format!(
-            "Pi provider '{provider_key}' changed outside CC Switch"
+            "Pi provider '{provider_key}' changed outside AICLI Client"
         )));
     }
     providers.remove(provider_key);
@@ -239,7 +239,7 @@ pub(crate) fn restore_pi_provider_if_missing(
     }
 }
 
-/// Validate the shape CC Switch can persist as one
+/// Validate the shape AICLI Client can persist as one
 /// `models.json.providers.<provider_key>` node.
 ///
 /// Provider ownership is intentionally source-based: every explicit object in
@@ -276,7 +276,7 @@ pub(crate) fn provider_base_url(config: &Value) -> Result<String, AppError> {
         .ok_or_else(|| AppError::InvalidInput("Pi provider has no request URL".to_string()))
 }
 
-/// The key CC Switch's own usage queries should send for a Pi `apiKey` value.
+/// The key AICLI Client's own usage queries should send for a Pi `apiKey` value.
 ///
 /// Pi resolves `$NAME` / `${NAME}` from the environment (`$$` and `$!` are literal
 /// `$` and `!`) and runs values starting with `!` as shell commands. Usage queries
@@ -484,7 +484,7 @@ fn ensure_models_revision(path: &Path, expected_revision: &str) -> Result<(), Ap
         Ok(())
     } else {
         Err(AppError::Conflict(format!(
-            "Pi models.json changed outside CC Switch: {}",
+            "Pi models.json changed outside AICLI Client: {}",
             path.display()
         )))
     }

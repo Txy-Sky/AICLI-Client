@@ -1,0 +1,33 @@
+F-10 用量页 AICLI 账户面板验收记录（2026-11-09）
+
+状态：[x] 完成（与 F-08 按第 0.6 节第 5 条合并验收）
+提交：c42b504f feat(aicli): F-10 AICLI account panel in the usage page's own scroll
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42737752251（199f9bd0，含 c42b504f；四 job 及汇总全 success；
+    前端 138 文件 / 1360 测试；Rust 4723 passed / 12 skipped，其中
+    commands::aicli::tests::usage_backfill_covers_the_requested_days_newest_first PASS）
+
+来由：负责人 2026-11-09 第三、六、八条——用量页新增的账号 / 线路 / 配置集与原用量页风格不统一、太素、
+重要信息不显示。
+
+实现
+1. UsageDashboard / UsagePage 新增可选 leading 与 localTitle：传入时账户面板与本机统计同一个滚动区，
+   「本机统计」小标题与筛选行吸顶；不传时结构完全不变。AicliHome 去掉 max-h-[55%] 的独立滚动区。
+2. AicliOverviewPanel 取代三张卡片（与原概览同一视觉：一块面板、内部分隔线、指标格）：
+   - 头部：账户首字头像、账户名、用户组、缓存数据徽标、来源与最后同步时间；
+   - 指标：剩余额度（大号，附已用占比条 role=meter）、已用额度、近 7/30 天服务端消耗与请求数；
+   - 服务端每日消耗柱状图（MiniBars：悬停看精确值，未同步的日期画成空槽而不是 0，今天高亮）；
+   - 线路：健康圆点、类型、延迟条、上次测速时间、当前 / 切换、测速；
+   - 配置集：翻译后的名称与说明、模型数、分组胶囊与倍率、正在使用的客户端、需要修复；
+   - 隐私：开启时状态行（模式、引擎计数），降级红色提示保留。
+   F-03 规则保留：缓存优先、同步失败显示缓存与时间、无数据写「暂无数据」不写 0、令牌失效、需要修复。
+3. 后端：aicli_get_usage_summary 增加可选 days（默认只刷新今天），首页取 30 天并经现有缓存补拉缺失
+   日期（usage_backfill_days，上限 31）。
+4. 本机统计「供应商」改称「来源」（只改值），AICLI 种子显示为「AICLI · 线路名」。
+5. 删除 AicliAccountCard、AicliLineSelector、AicliProfileCard。
+
+测试（CI 同一 run）
+- AicliHome.test.tsx 11 passed：F-03 全部状态规则；新增近 7 天服务端消耗与请求、额度占比、未同步日期为空槽。
+- UsageDashboard.test.tsx 28 passed：新增 leading 同一滚动区与吸顶筛选行、不传 leading 时原结构。
+- usageProviderLabel.test.ts 6 passed（新增种子线路名）；useAicli.test.tsx 31 passed（新增 days 参数）。
+
+偏差：见第 13 节「C1-06/F-03 → F-10」。

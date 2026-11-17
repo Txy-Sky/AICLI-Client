@@ -1,0 +1,62 @@
+C3-04 forwarding isolation
+
+Final implementation: 20becc26ec2ea5229163a22083d8469794004b18
+Initial implementation: f2f5905e2610806acf9f6501d90b329ba95d0517
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41833334099
+Entire run: success; all four parallel jobs and the summary job passed.
+
+Rust item tests (Linux), job 126585810505:
+  cargo nextest run --manifest-path src-tauri/Cargo.toml aicli_forwarder
+  Result: 4 passed; 4594 tests excluded by this targeted filter.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml --features test-hooks --test aicli_routing
+  Result: 8 passed, 0 skipped.
+  cargo nextest run --manifest-path src-tauri/Cargo.toml aicli::seed::tests
+  Result: 10 passed; 4588 tests excluded by this targeted filter.
+A3-01 baseline (Linux), job 126585810646:
+  Command: bash scripts/aicli-check.sh
+  Result: Rust 4588 passed / original 10 skipped; frontend 267 files / 3416 passed.
+  Typecheck, formatting, renderer build, Clippy (-D warnings) and nextest passed.
+B stage desktop checks (Linux), job 126585809973:
+  Command: cargo nextest run --manifest-path src-tauri/Cargo.toml codex
+  Result: 1126 passed; includes codex_upstream_self_forwarding_is_rejected.
+  Remaining B checks and real Tauri startup/IPC proxy/loopback gate passed.
+A6 test environment (Linux), job 126585810360:
+  Offline A5 checks and test-hooks probe compilation passed.
+  CI-OPT-coverage.txt: base=cb6db831, head=20becc26, testenv=false,
+  c106_observe=false. A6 Docker integration and the 601-second observation
+  were NOT rerun: test environment/probed client/cache inputs unchanged, no GATE.
+Checklist acceptance (Linux), job 126590674633: passed.
+
+Implementation boundaries:
+  RequestContext marks resolved AICLI requests and supplies the runtime.
+  Legacy routing bookkeeping and model mapping are bypassed independently of
+  Stack mode. Failure updates only AICLI cooldown, not legacy provider health,
+  breaker state, status, live-state.json or current_providers.
+  The initial cooldown window is 60 seconds, the first value specified by C3-06.
+  Error classification, model-level 429 handling and repeated-failure backoff
+  remain C3-05/C3-06 work; this item does not claim they are implemented.
+  Tests cover fallback through an already-open legacy breaker, byte-identical
+  live-state, unchanged pointers/health/status/breaker, resolved model retention
+  through retry and Desktop mapping, plus all four AICLI/Stack flag combinations.
+  Existing real HTTP routing integration now supplies a deliberately conflicting
+  Desktop legacy model mapping, retaining its resolved-upstream assertion.
+
+Failed run history (not successful acceptance evidence):
+  f2f5905e / https://github.com/Txy-Sky/AICLI-Client/actions/runs/41831233064
+  All four C3-04 tests and eight real HTTP routing tests passed. Baseline and B
+  Codex regression failed only at the old total_requests assertion in
+  proxy::server::tests::codex_upstream_self_forwarding_is_rejected.
+  20becc26 adds cfg(test) HTTP-arrival observation. The loop guard and exact
+  one-request assertion now use actual arrivals, retaining HTTP 400, own-listener
+  error and active-connection-release assertions. A new assertion verifies the
+  legacy total remains unchanged. No assertion was removed or relaxed.
+
+Local checks before implementation pushes:
+  AICLI_PRETTIER_BIN=/tmp/aicli-format-tools/node_modules/.bin/prettier bash scripts/aicli-pre-push-check.sh
+  git diff --check
+  PASS; temporary HOME, formatting only, no local compilation/tests.
+
+All tests used isolated HOME and synthetic mock credentials in CI.
+Complete public job logs and downloaded evidence were scanned for both runs:
+long sk- credential-shaped candidates: 0; long Bearer candidates: 0.
+No raw container logs or real credentials are committed here.

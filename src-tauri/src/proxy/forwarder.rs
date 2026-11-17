@@ -45,8 +45,6 @@ use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
-const PROXY_AUTH_PLACEHOLDER: &str = "PROXY_MANAGED";
-
 /// Whether the upstream belongs to the OpenCode gateway (`opencode.ai`).
 ///
 /// That gateway (<https://opencode.ai/docs/go/>) expects clients to identify
@@ -183,7 +181,7 @@ fn validate_codex_official_authorization(
         )),
         // 带占位 Key 的请求有两种来源：没重载配置的 Codex 进程；或切换前用第三方供应商建的
         // 旧会话（Codex 按会话记下的 provider 走休眠的 custom 表，重启也还是它）。
-        Some(value) if value.contains(PROXY_AUTH_PLACEHOLDER) => Err(ProxyError::AuthError(
+        Some(value) if value.split_whitespace().any(crate::aicli::local_auth::is_proxy_token) => Err(ProxyError::AuthError(
             "已切换到 OpenAI 官方供应商，但这个请求仍按第三方供应商的配置发出。如果这是切换前用第三方供应商创建的旧会话，它会一直沿用原供应商，重启也无效，请新建会话继续；否则请重启 Codex 以加载官方登录配置".to_string(),
         )),
         Some(_) => {
@@ -294,6 +292,9 @@ pub struct ForwardResult {
     /// 活跃连接 RAII guard：随响应一起流转到 response_processor / handle_claude_transform，
     /// 最终被 move 进流式 body future（或非流式响应作用域），覆盖整个响应生命周期。
     pub(crate) connection_guard: Option<ActiveConnectionGuard>,
+    /// C4-03：AICLI 请求从上游响应头取到的 `X-Oneapi-Request-Id`（流式在头部即可取到），
+    /// 由 usage 落库时写入 `proxy_request_logs.upstream_request_id` 并入队账单回填。
+    pub aicli_upstream_request_id: Option<String>,
 }
 
 pub struct ForwardError {
@@ -375,6 +376,12 @@ pub struct RequestForwarder {
     /// Stack 模型的请求（`mode::stack`）：挂在结构体上，整流器重试再次调用 `forward()` 时照样
     /// 生效。见 [`Self::routing_state_enabled`]。
     stack_request: bool,
+    aicli_request: bool,
+    aicli_timeouts: std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts>,
+    aicli_identity: Option<(i64, String)>,
+    aicli_auth: Option<(String, String, String)>,
+    aicli_retry_after: std::sync::Mutex<Option<std::time::Duration>>,
+    aicli_runtime: Option<Arc<crate::aicli::runtime::AicliRuntime>>,
 }
 
 impl RequestForwarder {
@@ -490,6 +497,12 @@ impl RequestForwarder {
             ),
             max_attempts,
             stack_request: false,
+            aicli_request: false,
+            aicli_timeouts: Default::default(),
+            aicli_identity: None,
+            aicli_auth: None,
+            aicli_retry_after: Default::default(),
+            aicli_runtime: None,
         }
     }
 
@@ -499,17 +512,61 @@ impl RequestForwarder {
         self
     }
 
+    /// AICLI routes keep their resolved model and never mutate legacy routing state.
+    pub fn aicli_request(mut self, enabled: bool) -> Self {
+        self.aicli_request = enabled;
+        self
+    }
+
+    pub fn aicli_runtime(mut self, runtime: Arc<crate::aicli::runtime::AicliRuntime>) -> Self {
+        self.aicli_runtime = Some(runtime);
+        self
+    }
+
     /// 这个请求读写路由状态吗：熔断器（许可、结果、健康度）、「正在使用」、代理统计
     /// （总数、成功率、故障转移次数、最近错误、活跃连接）、故障转移切换。Stack 模型的请求
     /// 和普通路由完全分开，一律不碰；只有用量日志照常按供应商记。以后新增路由状态也先问它。
+    pub fn aicli_timeouts(
+        mut self,
+        timeouts: std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts>,
+    ) -> Self {
+        self.aicli_timeouts = timeouts;
+        self
+    }
+
+    fn attempt_timeouts(&self, provider: &Provider) -> (std::time::Duration, std::time::Duration) {
+        if self.aicli_request {
+            if let Some(timeout) = self.aicli_timeouts.get(&provider.id) {
+                return (
+                    std::time::Duration::from_secs(timeout.non_stream_s),
+                    std::time::Duration::from_secs(timeout.first_byte_s),
+                );
+            }
+        }
+        (
+            self.non_streaming_timeout,
+            self.streaming_first_byte_timeout,
+        )
+    }
+
+    pub fn aicli_auth(mut self, credential: String, wire: String, session: String) -> Self {
+        self.aicli_auth = Some((credential, wire, session));
+        self
+    }
+
+    pub fn aicli_identity(mut self, token_id: i64, model: String) -> Self {
+        self.aicli_identity = Some((token_id, model));
+        self
+    }
+
     fn routing_state_enabled(&self) -> bool {
-        !self.stack_request
+        !self.stack_request && !self.aicli_request
     }
 
     /// 请求体里的模型名已经是这家的上游名（Stack 模型的请求）：不按角色映射、不换成行里配置
     /// 的模型。以后新增模型改写也先问它。
     fn keeps_resolved_model(&self) -> bool {
-        self.stack_request
+        self.stack_request || self.aicli_request
     }
 
     async fn record_success_result(
@@ -565,10 +622,14 @@ impl RequestForwarder {
     ) -> Option<ForwardError> {
         // Provider 错误：本家上游/网络确实出问题，下一家 provider 可能可用 → 继续故障转移。
         // 客户端错误：整流后请求仍违法，下一家也修不好 → 直接返回。
-        let is_provider_error = match &retry_err {
-            ProxyError::Timeout(_) | ProxyError::ForwardFailed(_) => true,
-            ProxyError::UpstreamError { status, .. } => *status >= 500,
-            _ => false,
+        let is_provider_error = if self.aicli_request {
+            crate::aicli::errors::categorize(&retry_err) == ErrorCategory::Retryable
+        } else {
+            match &retry_err {
+                ProxyError::Timeout(_) | ProxyError::ForwardFailed(_) => true,
+                ProxyError::UpstreamError { status, .. } => *status >= 500,
+                _ => false,
+            }
         };
 
         if is_provider_error {
@@ -621,6 +682,26 @@ impl RequestForwarder {
         ),
         codex_upstream_format: Option<CodexUpstreamFormat>,
     ) -> ForwardResult {
+        if self.aicli_request {
+            if let Some(runtime) = &self.aicli_runtime {
+                if let Some(line) = crate::aicli::lines::LINES
+                    .iter()
+                    .find(|line| provider.id == format!("aicli-{}", line.id))
+                {
+                    runtime.cooldown.success(
+                        line.id,
+                        self.aicli_identity
+                            .as_ref()
+                            .map(|(_, model)| model.as_str()),
+                    );
+                }
+            }
+        }
+        let aicli_upstream_request_id = if self.aicli_request {
+            crate::aicli::usage::upstream_request_id(response.headers())
+        } else {
+            None
+        };
         let result = ForwardResult {
             response,
             provider: provider.clone(),
@@ -628,6 +709,7 @@ impl RequestForwarder {
             codex_upstream_format,
             outbound_model,
             connection_guard: None,
+            aicli_upstream_request_id,
         };
         if !self.routing_state_enabled() {
             return result;
@@ -677,6 +759,17 @@ impl RequestForwarder {
         error: &ProxyError,
         last_error: String,
     ) {
+        if self.aicli_request {
+            if let Some(runtime) = &self.aicli_runtime {
+                if let Some(line) = crate::aicli::lines::LINES
+                    .iter()
+                    .find(|line| provider.id == format!("aicli-{}", line.id))
+                {
+                    runtime.cooldown.fail(line.id, None, None);
+                }
+            }
+            return;
+        }
         if !self.routing_state_enabled() {
             return;
         }
@@ -701,6 +794,36 @@ impl RequestForwarder {
         app_type_str: &str,
         used_half_open_permit: bool,
     ) -> ForwardError {
+        let error = if self.aicli_request {
+            if let Some(runtime) = &self.aicli_runtime {
+                if let (ProxyError::UpstreamError { status: 429, .. }, Some((_, model))) =
+                    (&error, &self.aicli_identity)
+                {
+                    if let Some(line) = crate::aicli::lines::LINES
+                        .iter()
+                        .find(|line| provider.id == format!("aicli-{}", line.id))
+                    {
+                        let delay = *self
+                            .aicli_retry_after
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        runtime.cooldown.fail(line.id, Some(model), delay);
+                    }
+                }
+                if crate::aicli::errors::code(&error) == Some("invalid_token") {
+                    if let Some((token_id, _)) = &self.aicli_identity {
+                        if runtime.recover_model_token(*token_id).await.is_err() {
+                            log::warn!(
+                                "AICLI model credential recovery unavailable; no request replay"
+                            );
+                        }
+                    }
+                }
+            }
+            crate::aicli::errors::mapped(error)
+        } else {
+            error
+        };
         if self.routing_state_enabled() {
             self.router
                 .release_permit_neutral(&provider.id, app_type_str, used_half_open_permit)
@@ -1381,6 +1504,7 @@ impl RequestForwarder {
         adapter: &dyn ProviderAdapter,
         codex_upstream_format_out: &mut Option<CodexUpstreamFormat>,
     ) -> Result<(ProxyResponse, Option<String>, Option<String>), ProxyError> {
+        let (non_streaming_timeout, first_byte_timeout) = self.attempt_timeouts(provider);
         *codex_upstream_format_out = None;
         // 使用适配器提取 base_url
         let mut base_url = adapter.extract_base_url(provider)?;
@@ -2107,7 +2231,26 @@ impl RequestForwarder {
         // 获取认证头（提前准备，用于内联替换），同时保留仅用于日志脱敏的
         // 精确认证材料。实际日志永远不输出这些值。
         let mut log_secrets: Vec<String> = Vec::new();
-        let mut auth_headers = if let Some(mut auth) = adapter.extract_auth(provider) {
+        let resolved_auth = if self.aicli_request {
+            let (credential, wire, _) = self
+                .aicli_auth
+                .as_ref()
+                .ok_or_else(|| ProxyError::AuthError("Missing AICLI request credential".into()))?;
+            let strategy = match wire.as_str() {
+                "anthropic" => AuthStrategy::Anthropic,
+                "openai" | "openai-response" => AuthStrategy::Bearer,
+                "gemini" => AuthStrategy::Google,
+                _ => {
+                    return Err(ProxyError::ConfigError(
+                        "Unsupported AICLI wire protocol".into(),
+                    ))
+                }
+            };
+            Some(AuthInfo::new(credential.clone(), strategy))
+        } else {
+            adapter.extract_auth(provider)
+        };
+        let mut auth_headers = if let Some(mut auth) = resolved_auth {
             // GitHub Copilot 特殊处理：从 CopilotAuthManager 获取真实 token
             if auth.strategy == AuthStrategy::GitHubCopilot {
                 if let Some(app_handle) = &self.app_handle {
@@ -2347,10 +2490,7 @@ impl RequestForwarder {
         //    custom UA. An explicitly configured custom UA still wins.
         let opencode_fallback_user_agent =
             if custom_user_agent.is_none() && is_opencode_upstream(upstream_host.as_deref()) {
-                Some(http::HeaderValue::from_static(concat!(
-                    "cc-switch/",
-                    env!("CARGO_PKG_VERSION")
-                )))
+                Some(http::HeaderValue::from_static(crate::branding::USER_AGENT))
             } else {
                 None
             };
@@ -2425,6 +2565,10 @@ impl RequestForwarder {
 
         for (key, value) in headers {
             let key_str = key.as_str();
+            // The affinity header is owned by the resolved AICLI decision.
+            if key_str.eq_ignore_ascii_case("x-aicli-session") {
+                continue;
+            }
 
             // --- host — 原位替换为上游 host（保持客户端原始位置） ---
             if key_str.eq_ignore_ascii_case("host") {
@@ -2607,6 +2751,19 @@ impl RequestForwarder {
             }
         }
 
+        if self.aicli_request {
+            if let Some((_, _, session)) = &self.aicli_auth {
+                if !session.is_empty() {
+                    ordered_headers.append(
+                        http::HeaderName::from_static("x-aicli-session"),
+                        http::HeaderValue::from_str(session).map_err(|_| {
+                            ProxyError::ConfigError("Invalid AICLI session header".into())
+                        })?,
+                    );
+                }
+            }
+        }
+
         // transform / SSE 路径在缺失时补 identity；普通透传不主动补 accept-encoding
         if !saw_accept_encoding && force_identity_encoding {
             ordered_headers.append(
@@ -2726,10 +2883,10 @@ impl RequestForwarder {
         );
 
         // 确定超时
-        let timeout = if self.non_streaming_timeout.is_zero() {
+        let timeout = if non_streaming_timeout.is_zero() {
             std::time::Duration::from_secs(600) // 默认 600 秒
         } else {
-            self.non_streaming_timeout
+            non_streaming_timeout
         };
 
         // 获取全局代理 URL（上游是本机地址时直连，不送进代理）
@@ -2761,18 +2918,18 @@ impl RequestForwarder {
                 // reqwest 的 timeout 是整请求超时；流式请求交给 response_processor
                 // 的首包/静默期超时控制，避免长流被总时长误杀。
                 request = request.timeout(std::time::Duration::from_secs(24 * 60 * 60));
-            } else if !self.non_streaming_timeout.is_zero() {
-                request = request.timeout(self.non_streaming_timeout);
+            } else if !non_streaming_timeout.is_zero() {
+                request = request.timeout(non_streaming_timeout);
             }
             for (key, value) in &ordered_headers {
                 request = request.header(key, value);
             }
             let send = request.body(body_bytes).send();
             let send_result = if request_is_streaming {
-                let header_timeout = if self.streaming_first_byte_timeout.is_zero() {
+                let header_timeout = if first_byte_timeout.is_zero() {
                     timeout
                 } else {
-                    self.streaming_first_byte_timeout
+                    first_byte_timeout
                 };
                 tokio::time::timeout(header_timeout, send)
                     .await
@@ -2800,7 +2957,11 @@ impl RequestForwarder {
                 ordered_headers,
                 extensions.clone(),
                 body_bytes,
-                timeout,
+                if self.aicli_request && request_is_streaming {
+                    first_byte_timeout
+                } else {
+                    timeout
+                },
                 upstream_proxy_url.as_deref(),
             )
             .await?
@@ -2811,7 +2972,12 @@ impl RequestForwarder {
 
         if status.is_success() {
             let mut response = self
-                .prepare_success_response_for_failover(response, request_is_streaming)
+                .prepare_success_response_for_failover_with_timeouts(
+                    response,
+                    request_is_streaming,
+                    non_streaming_timeout,
+                    first_byte_timeout,
+                )
                 .await?;
             // Streaming requests normally return SSE. If a compatible gateway
             // explicitly returns JSON instead, buffer and validate it inside the retry
@@ -2834,7 +3000,9 @@ impl RequestForwarder {
                     // Delay committing the downstream stream until the upstream emits
                     // either productive output or a valid non-failure terminal event.
                     // A response.failed/error before output remains failover-safe.
-                    response = self.validate_responses_stream_start(response).await?;
+                    response = self
+                        .validate_responses_stream_start(response, first_byte_timeout)
+                        .await?;
                 }
             } else if matches!(app_type, AppType::Codex | AppType::GrokBuild)
                 && !codex_responses_to_chat
@@ -2845,12 +3013,24 @@ impl RequestForwarder {
                 && carries_encrypted_agent_task(&filtered_body)
             {
                 response = self
-                    .hold_encrypted_agent_task_stream(response, &filtered_body)
+                    .hold_encrypted_agent_task_stream(response, &filtered_body, first_byte_timeout)
                     .await?;
             }
             Ok((response, resolved_claude_api_format, outbound_model))
         } else {
             let status_code = status.as_u16();
+            if self.aicli_request {
+                *self
+                    .aicli_retry_after
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = crate::aicli::errors::retry_after(
+                    response
+                        .headers()
+                        .get(http::header::RETRY_AFTER)
+                        .and_then(|v| v.to_str().ok()),
+                    std::time::SystemTime::now(),
+                );
+            }
             // 错误响应同样可能被上游压缩（content-encoding）。reqwest 未启用任何
             // 自动解压 feature，这里拿到的是原始字节；不解压的话，压缩过的错误体会
             // 在 from_utf8 处变成非 UTF-8 而被丢弃，隐藏掉上游的限流/鉴权等详情。
@@ -2880,22 +3060,41 @@ impl RequestForwarder {
     ///
     /// - 非流式：先把完整 body 读到内存，读超时/连接中断会回到 retry loop 尝试下一家。
     /// - 流式：至少等首个 chunk 到达，避免上游返回 200 后一直不吐 SSE 时被误记成功。
+    #[cfg(test)]
     async fn prepare_success_response_for_failover(
         &self,
         response: ProxyResponse,
         request_is_streaming: bool,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.prepare_success_response_for_failover_with_timeouts(
+            response,
+            request_is_streaming,
+            self.non_streaming_timeout,
+            self.streaming_first_byte_timeout,
+        )
+        .await
+    }
+
+    async fn prepare_success_response_for_failover_with_timeouts(
+        &self,
+        response: ProxyResponse,
+        request_is_streaming: bool,
+        non_streaming_timeout: std::time::Duration,
+        first_byte_timeout: std::time::Duration,
+    ) -> Result<ProxyResponse, ProxyError> {
         if request_is_streaming {
-            return self.prime_streaming_response(response).await;
+            return self
+                .prime_streaming_response_with_timeout(response, first_byte_timeout)
+                .await;
         }
 
-        if self.non_streaming_timeout.is_zero() {
+        if non_streaming_timeout.is_zero() {
             return Ok(response);
         }
 
         let status = response.status();
         let headers = response.headers().clone();
-        let body_timeout = self.non_streaming_timeout;
+        let body_timeout = non_streaming_timeout;
         let body = tokio::time::timeout(
             body_timeout,
             response.bytes_with_limit(MAX_RESPONSE_BODY_BYTES),
@@ -2971,6 +3170,7 @@ impl RequestForwarder {
     async fn validate_responses_stream_start(
         &self,
         response: ProxyResponse,
+        first_byte_timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
         const MAX_PRIME_BYTES: usize = 256 * 1024;
 
@@ -2982,15 +3182,15 @@ impl RequestForwarder {
         let mut utf8_remainder = Vec::new();
 
         loop {
-            let next = if self.streaming_first_byte_timeout.is_zero() {
+            let next = if first_byte_timeout.is_zero() {
                 stream.next().await
             } else {
-                tokio::time::timeout(self.streaming_first_byte_timeout, stream.next())
+                tokio::time::timeout(first_byte_timeout, stream.next())
                     .await
                     .map_err(|_| {
                         ProxyError::Timeout(format!(
                             "Responses stream produced no semantic output within {}s",
-                            self.streaming_first_byte_timeout.as_secs()
+                            first_byte_timeout.as_secs()
                         ))
                     })?
             };
@@ -3063,11 +3263,12 @@ impl RequestForwarder {
         &self,
         response: ProxyResponse,
         request: &Value,
+        first_byte_timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
         const MAX_HOLD_BYTES: usize = 256 * 1024;
         const MAX_HOLD: std::time::Duration = std::time::Duration::from_secs(10);
 
-        let window = match self.streaming_first_byte_timeout {
+        let window = match first_byte_timeout {
             timeout if timeout.is_zero() => MAX_HOLD,
             timeout => timeout.min(MAX_HOLD),
         };
@@ -3110,17 +3311,17 @@ impl RequestForwarder {
         Ok(ProxyResponse::streamed(status, headers, replay))
     }
 
-    async fn prime_streaming_response(
+    async fn prime_streaming_response_with_timeout(
         &self,
         response: ProxyResponse,
+        timeout: std::time::Duration,
     ) -> Result<ProxyResponse, ProxyError> {
-        if self.streaming_first_byte_timeout.is_zero() {
+        if timeout.is_zero() {
             return Ok(response);
         }
 
         let status = response.status();
         let headers = response.headers().clone();
-        let timeout = self.streaming_first_byte_timeout;
         let mut stream = Box::pin(response.bytes_stream());
 
         let first = tokio::time::timeout(timeout, stream.next())
@@ -3321,6 +3522,9 @@ impl RequestForwarder {
     }
 
     fn categorize_proxy_error(&self, error: &ProxyError, provider: &Provider) -> ErrorCategory {
+        if self.aicli_request {
+            return crate::aicli::errors::categorize(error);
+        }
         // Authentication belongs to the Codex client for an official route.
         // Every retry would reuse the selected account's inbound Authorization
         // header against another card, so no official-route error may fail over.
@@ -4240,7 +4444,16 @@ fn reject_proxy_placeholder_for_managed_account_upstream(
     url: &str,
     headers: &http::HeaderMap,
 ) -> Result<(), ProxyError> {
-    if !is_managed_account_upstream_url(url) || !headers_contain_proxy_placeholder(headers) {
+    let has_local_token = headers.values().any(|value| {
+        value.to_str().ok().is_some_and(|value| {
+            value
+                .split_whitespace()
+                .any(|token| token.starts_with("aicli-local-"))
+        })
+    });
+    if !has_local_token
+        && (!is_managed_account_upstream_url(url) || !headers_contain_proxy_placeholder(headers))
+    {
         return Ok(());
     }
 
@@ -4269,7 +4482,11 @@ fn headers_contain_proxy_placeholder(headers: &http::HeaderMap) -> bool {
     headers.values().any(|value| {
         value
             .to_str()
-            .map(|value| value.contains(PROXY_AUTH_PLACEHOLDER))
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .any(crate::aicli::local_auth::is_proxy_token)
+            })
             .unwrap_or(false)
     })
 }
@@ -4623,7 +4840,7 @@ mod tests {
             "api.anthropic.com",
             "notopencode.ai",
             "example.com",
-            "127.0.0.1:15721",
+            "127.0.0.1:15821",
         ] {
             assert!(
                 !is_opencode_upstream(Some(host)),
@@ -4805,6 +5022,12 @@ mod tests {
             streaming_first_byte_timeout,
             max_attempts: 1,
             stack_request: false,
+            aicli_request: false,
+            aicli_timeouts: Default::default(),
+            aicli_identity: None,
+            aicli_auth: None,
+            aicli_retry_after: Default::default(),
+            aicli_runtime: None,
         }
     }
 
@@ -5255,6 +5478,33 @@ mod tests {
             err,
             ProxyError::AuthError(message) if message.contains("PROXY_MANAGED")
         ));
+    }
+
+    #[test]
+    fn aicli_local_credentials_never_leave_for_any_upstream() {
+        let token = "aicli-local-00000000000040008000000000000001";
+        for url in [
+            "https://api.example.com/v1/messages",
+            "https://api.githubcopilot.com/chat/completions",
+            "http://127.0.0.1:12345/v1/messages",
+        ] {
+            for name in ["authorization", "x-api-key", "x-goog-api-key"] {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    name,
+                    HeaderValue::from_str(&if name == "authorization" {
+                        format!("Bearer {token}")
+                    } else {
+                        token.into()
+                    })
+                    .unwrap(),
+                );
+                assert!(matches!(
+                    reject_proxy_placeholder_for_managed_account_upstream(url, &headers),
+                    Err(ProxyError::AuthError(_))
+                ));
+            }
+        }
     }
 
     #[test]
@@ -7981,7 +8231,9 @@ mod tests {
                         (
                             StatusCode::from_u16(status).expect("status"),
                             [(http::header::CONTENT_TYPE, "application/json")],
-                            body.to_string(),
+                            body.as_str()
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| body.to_string()),
                         )
                     }
                 })
@@ -8526,6 +8778,560 @@ mod tests {
             assert!(requests[1]
                 .to_string()
                 .contains(crate::proxy::media_sanitizer::UNSUPPORTED_IMAGE_MARKER));
+        }
+
+        async fn delayed_aicli_upstream(
+            delay_first_byte: bool,
+            idle_gap: bool,
+            delay_headers: bool,
+        ) -> (Upstream, Arc<std::sync::atomic::AtomicUsize>) {
+            let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let observed = requests.clone();
+            let base_url=serve_upstream(axum::Router::new().fallback(move || {
+                let observed=observed.clone();
+                async move {
+                    observed.fetch_add(1,std::sync::atomic::Ordering::SeqCst);
+                    if delay_headers { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                    let stream=async_stream::stream! {
+                        if delay_first_byte && !delay_headers { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                        yield Ok::<_,std::io::Error>(Bytes::from_static(b"data: {\"type\":\"ping\"}\n\n"));
+                        if idle_gap { tokio::time::sleep(Duration::from_millis(1200)).await; }
+                        for _ in 0..20 {
+                            tokio::time::sleep(Duration::from_millis(200)).await;
+                            yield Ok(Bytes::from_static(b"data: {\"type\":\"ping\"}\n\n"));
+                        }
+                    };
+                    axum::response::Response::builder().header(http::header::CONTENT_TYPE,"text/event-stream").body(axum::body::Body::from_stream(stream)).unwrap()
+                }
+            })).await;
+            (
+                Upstream {
+                    base_url,
+                    requests: Default::default(),
+                },
+                requests,
+            )
+        }
+
+        fn aicli_test_timeouts(
+        ) -> std::collections::HashMap<String, crate::aicli::resolver::LineTimeouts> {
+            [("aicli-main", 1), ("aicli-apac", 2)]
+                .into_iter()
+                .map(|(id, seconds)| {
+                    (
+                        id.into(),
+                        crate::aicli::resolver::LineTimeouts {
+                            first_byte_s: seconds,
+                            idle_s: seconds,
+                            stream_total_s: 10,
+                            non_stream_s: seconds,
+                        },
+                    )
+                })
+                .collect()
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_first_byte_switches_with_each_lines_own_budget() {
+            for delay_headers in [false, true] {
+                let (main, main_count) = delayed_aicli_upstream(true, false, delay_headers).await;
+                let (apac, apac_count) = delayed_aicli_upstream(true, false, delay_headers).await;
+                let fwd = forwarder(2, "aicli-main")
+                    .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
+                    .aicli_timeouts(aicli_test_timeouts());
+                let mut body = plain_body();
+                body["stream"] = json!(true);
+                let result = send(
+                    &fwd,
+                    vec![provider("aicli-main", &main), provider("aicli-apac", &apac)],
+                    body,
+                )
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+                assert_eq!(result.provider.id, "aicli-apac");
+                assert_eq!(main_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                assert_eq!(apac_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                let mut stream = Box::pin(result.response.bytes_stream());
+                assert!(stream.next().await.unwrap().is_ok());
+                assert_eq!(
+                    fwd.attempt_timeouts(&provider("aicli-apac", &apac)),
+                    (Duration::from_secs(2), Duration::from_secs(2))
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_idle_after_output_never_replays() {
+            for (id, seconds, expect_timeout) in [("aicli-main", 1, true), ("aicli-apac", 2, false)]
+            {
+                let (up, count) = delayed_aicli_upstream(false, true, false).await;
+                let backup = upstream(vec![ok()]).await;
+                let fwd = forwarder(2, id)
+                    .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
+                    .aicli_timeouts(aicli_test_timeouts());
+                let mut body = plain_body();
+                body["stream"] = json!(true);
+                let result = send(
+                    &fwd,
+                    vec![provider(id, &up), provider("aicli-global", &backup)],
+                    body,
+                )
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+                let stream =
+                    super::super::super::response_processor::create_logged_passthrough_stream(
+                        result
+                            .response
+                            .bytes_stream()
+                            .map(|r| r.map_err(std::io::Error::other)),
+                        "test",
+                        None,
+                        super::super::super::handler_context::StreamingTimeoutConfig {
+                            first_byte_timeout: seconds,
+                            idle_timeout: seconds,
+                            total_timeout: 10,
+                        },
+                        None,
+                    );
+                let mut stream = Box::pin(stream);
+                assert!(stream.next().await.unwrap().is_ok());
+                let next = stream.next().await.unwrap();
+                assert_eq!(next.is_err(), expect_timeout);
+                if let Err(error) = next {
+                    assert!(error.to_string().contains("静默期"));
+                }
+                assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
+                assert_eq!(backup.requests.lock().await.len(), 0);
+            }
+        }
+
+        #[tokio::test]
+        async fn aicli_timeout_total_limits_a_continuously_active_stream() {
+            let (up, count) = delayed_aicli_upstream(false, false, false).await;
+            let backup = upstream(vec![ok()]).await;
+            let fwd = forwarder(2, "aicli-main")
+                .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
+                .aicli_timeouts(aicli_test_timeouts());
+            let mut body = plain_body();
+            body["stream"] = json!(true);
+            let result = send(
+                &fwd,
+                vec![
+                    provider("aicli-main", &up),
+                    provider("aicli-global", &backup),
+                ],
+                body,
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            let stream = super::super::super::response_processor::create_logged_passthrough_stream(
+                result
+                    .response
+                    .bytes_stream()
+                    .map(|r| r.map_err(std::io::Error::other)),
+                "test",
+                None,
+                super::super::super::handler_context::StreamingTimeoutConfig {
+                    first_byte_timeout: 2,
+                    idle_timeout: 2,
+                    total_timeout: 1,
+                },
+                None,
+            );
+            let mut stream = Box::pin(stream);
+            let mut chunks = 0;
+            let mut interrupted = false;
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(_) => chunks += 1,
+                    Err(error) => {
+                        assert!(error.to_string().contains("总时长"));
+                        interrupted = true;
+                    }
+                }
+            }
+            assert!(chunks >= 2);
+            assert!(interrupted);
+            assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 1);
+            assert_eq!(backup.requests.lock().await.len(), 0);
+        }
+
+        #[tokio::test]
+        async fn aicli_cooldown_success_clears_only_successful_line_and_model() {
+            let up = upstream(vec![ok()]).await;
+            let runtime =
+                crate::aicli::runtime::AicliRuntime::new(Arc::new(Database::memory().unwrap()));
+            runtime.cooldown.fail("main", None, None);
+            runtime.cooldown.fail("main", Some("fixture-model"), None);
+            runtime.cooldown.fail("main", Some("other-model"), None);
+            runtime.cooldown.fail("global", None, None);
+            let fwd = forwarder(1, "aicli-main")
+                .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
+                .aicli_runtime(runtime.clone())
+                .aicli_identity(17, "fixture-model".into());
+            assert!(send(&fwd, vec![provider("aicli-main", &up)], plain_body())
+                .await
+                .is_ok());
+            assert!(!runtime.cooldown.lines.lock().unwrap().contains_key("main"));
+            assert!(runtime
+                .cooldown
+                .lines
+                .lock()
+                .unwrap()
+                .contains_key("global"));
+            assert!(!runtime
+                .cooldown
+                .models
+                .lock()
+                .unwrap()
+                .contains_key(&("main".into(), "fixture-model".into())));
+            assert!(runtime
+                .cooldown
+                .models
+                .lock()
+                .unwrap()
+                .contains_key(&("main".into(), "other-model".into())));
+        }
+
+        #[tokio::test]
+        async fn aicli_error_routing_only_retries_non_json_cdn_failures() {
+            for (status, response_body, retry) in [
+                (502, "<html>bad gateway</html>", true),
+                (503, r#"{"error":{"code":"server_error"}}"#, false),
+                (401, r#"{"error":{"code":"invalid_token"}}"#, false),
+                (429, r#"{"error":{"code":"rate_limit"}}"#, false),
+            ] {
+                let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+                let observed = requests.clone();
+                let base_url = serve_upstream(axum::Router::new().fallback(move || {
+                    let observed = observed.clone();
+                    async move {
+                        observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        (
+                            StatusCode::from_u16(status).unwrap(),
+                            [(http::header::RETRY_AFTER, "180")],
+                            response_body,
+                        )
+                    }
+                }))
+                .await;
+                let failed = Upstream {
+                    base_url,
+                    requests: Default::default(),
+                };
+                let backup = upstream(vec![ok()]).await;
+                let runtime =
+                    crate::aicli::runtime::AicliRuntime::new(Arc::new(Database::memory().unwrap()));
+                let fwd = forwarder(2, "aicli-main")
+                    .aicli_request(true)
+                    .aicli_auth(
+                        "synthetic-forwarder-credential".into(),
+                        "anthropic".into(),
+                        String::new(),
+                    )
+                    .aicli_runtime(runtime.clone())
+                    .aicli_identity(17, "fixture-model".into());
+                let before = std::time::Instant::now();
+                let result = send(
+                    &fwd,
+                    vec![
+                        provider("aicli-main", &failed),
+                        provider("aicli-global", &backup),
+                    ],
+                    plain_body(),
+                )
+                .await;
+                assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 1);
+                assert_eq!(backup.requests.lock().await.len(), usize::from(retry));
+                if retry {
+                    assert_eq!(result.ok().unwrap().provider.id, "aicli-global");
+                } else {
+                    let error = result.err().unwrap().error;
+                    assert!(matches!(error,ProxyError::UpstreamError {status:s,..} if s==status));
+                    if status == 401 {
+                        assert_eq!(crate::aicli::errors::code(&error), Some("invalid_token"));
+                    }
+                }
+                assert_eq!(
+                    runtime.cooldown.lines.lock().unwrap().contains_key("main"),
+                    retry
+                );
+                let models = runtime.cooldown.models.lock().unwrap();
+                if status == 429 {
+                    assert!(
+                        models[&("main".into(), "fixture-model".into())]
+                            >= before + Duration::from_secs(180)
+                    );
+                } else {
+                    assert!(models.is_empty());
+                }
+                assert_eq!(books(&fwd).await, untouched());
+            }
+        }
+
+        #[tokio::test]
+        async fn aicli_error_routing_rectifier_uses_the_same_classification() {
+            let failed = upstream(vec![
+                error(400, SIGNATURE_ERROR),
+                error(503, "backend unavailable"),
+            ])
+            .await;
+            let backup = upstream(vec![ok()]).await;
+            let fwd = forwarder(2, "aicli-main").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
+            let result = send(
+                &fwd,
+                vec![
+                    provider("aicli-main", &failed),
+                    provider("aicli-global", &backup),
+                ],
+                body_with_thinking_signature(),
+            )
+            .await;
+            assert!(matches!(
+                result.err().unwrap().error,
+                ProxyError::UpstreamError { status: 503, .. }
+            ));
+            assert_eq!(failed.requests.lock().await.len(), 2);
+            assert_eq!(backup.requests.lock().await.len(), 0);
+            assert_eq!(books(&fwd).await, untouched());
+        }
+
+        #[tokio::test]
+        #[serial_test::serial]
+        async fn aicli_forwarder_fallback_preserves_existing_routing_state() {
+            struct Home {
+                old: Option<std::ffi::OsString>,
+                _dir: tempfile::TempDir,
+            }
+            impl Drop for Home {
+                fn drop(&mut self) {
+                    match &self.old {
+                        Some(old) => std::env::set_var("CC_SWITCH_TEST_HOME", old),
+                        None => std::env::remove_var("CC_SWITCH_TEST_HOME"),
+                    }
+                }
+            }
+            let dir = tempfile::tempdir().unwrap();
+            let home = Home {
+                old: std::env::var_os("CC_SWITCH_TEST_HOME"),
+                _dir: dir,
+            };
+            std::env::set_var("CC_SWITCH_TEST_HOME", home._dir.path());
+            let path = crate::live::engine::DeviceStore::for_device().state_path();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let sentinel = br#"{"apps":{"claude":{"mode":"proxy","proxy_route":"legacy"}}}"#;
+            std::fs::write(&path, sentinel).unwrap();
+
+            let failed = upstream(vec![(502, json!("<html>offline fixture</html>"))]).await;
+            let backup = upstream(vec![ok()]).await;
+            let db = Arc::new(Database::memory().unwrap());
+            crate::aicli::seed::init(&db).unwrap();
+            let runtime = crate::aicli::runtime::AicliRuntime::new(db.clone());
+            let mut fwd = forwarder(3, "aicli-main")
+                .aicli_request(true)
+                .aicli_auth(
+                    "synthetic-forwarder-credential".into(),
+                    "anthropic".into(),
+                    String::new(),
+                )
+                .aicli_runtime(runtime.clone());
+            fwd.router = Arc::new(ProviderRouter::new(db.clone()));
+            fwd.current_providers
+                .write()
+                .await
+                .insert("claude".into(), ("legacy".into(), "Legacy".into()));
+            // AICLI must ignore even an already-open legacy breaker.
+            for _ in 0..10 {
+                fwd.router
+                    .record_result(
+                        "aicli-global",
+                        "claude",
+                        false,
+                        false,
+                        Some("seeded legacy failure".into()),
+                    )
+                    .await
+                    .unwrap();
+            }
+            let breaker_before = serde_json::to_value(
+                fwd.router
+                    .get_circuit_breaker_stats("aicli-global", "claude")
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(breaker_before["state"], "open");
+            let health_before = db
+                .get_provider_health("aicli-global", "claude")
+                .await
+                .unwrap();
+            let providers_before = fwd.current_providers.read().await.clone();
+            let status_before = serde_json::to_value(&*fwd.status.read().await).unwrap();
+            let now = std::time::Instant::now();
+            let result = send(
+                &fwd,
+                vec![
+                    provider("aicli-main", &failed),
+                    provider("aicli-global", &backup),
+                ],
+                plain_body(),
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            assert_eq!(result.provider.id, "aicli-global");
+            assert!(result.connection_guard.is_none());
+            assert_eq!(failed.requests.lock().await.len(), 1);
+            assert_eq!(backup.requests.lock().await.len(), 1);
+            assert_eq!(std::fs::read(&path).unwrap(), sentinel);
+            assert_eq!(*fwd.current_providers.read().await, providers_before);
+            assert_eq!(
+                serde_json::to_value(&*fwd.status.read().await).unwrap(),
+                status_before
+            );
+            assert_eq!(
+                serde_json::to_value(
+                    fwd.router
+                        .get_circuit_breaker_stats("aicli-global", "claude")
+                        .await
+                        .unwrap()
+                )
+                .unwrap(),
+                breaker_before
+            );
+            assert!(fwd
+                .router
+                .get_circuit_breaker_stats("aicli-main", "claude")
+                .await
+                .is_none());
+            let health_after = db
+                .get_provider_health("aicli-global", "claude")
+                .await
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(health_after).unwrap(),
+                serde_json::to_value(health_before).unwrap()
+            );
+            let count: i64 = db
+                .conn
+                .lock()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM provider_health WHERE provider_id='aicli-main'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+            let until = runtime.cooldown.lines.lock().unwrap()["main"];
+            assert!(until >= now + Duration::from_secs(60));
+            assert!(runtime.cooldown.models.lock().unwrap().is_empty());
+        }
+
+        #[tokio::test]
+        async fn aicli_forwarder_preserves_resolved_models_through_retry() {
+            let up = upstream(vec![error(400, SIGNATURE_ERROR), ok()]).await;
+            let mut p = provider("aicli-main", &up);
+            p.settings_config["env"]["ANTHROPIC_MODEL"] = json!("must-not-map");
+            let mut body = body_with_thinking_signature();
+            body["model"] = json!("resolved-upstream");
+            let fwd = forwarder(1, "legacy").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
+            send(&fwd, vec![p], body)
+                .await
+                .map_err(|e| e.error)
+                .unwrap();
+            let requests = up.requests.lock().await;
+            assert_eq!(requests.len(), 2);
+            assert_eq!(requests[0]["model"], "resolved-upstream");
+            assert_eq!(requests[1]["model"], "resolved-upstream");
+            assert!(!requests[1].to_string().contains("\"signature\""));
+            assert_eq!(books(&fwd).await, untouched());
+        }
+
+        #[tokio::test]
+        async fn aicli_forwarder_desktop_bypasses_legacy_mapping() {
+            let up = upstream(vec![ok()]).await;
+            let mut p = provider("aicli-main", &up);
+            p.meta = Some(crate::provider::ProviderMeta {
+                claude_desktop_model_routes: [(
+                    "resolved-upstream".into(),
+                    crate::provider::ClaudeDesktopModelRoute {
+                        model: "must-not-map".into(),
+                        label_override: None,
+                        supports_1m: None,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            });
+            let fwd = forwarder(1, "legacy").aicli_request(true).aicli_auth(
+                "synthetic-forwarder-credential".into(),
+                "anthropic".into(),
+                String::new(),
+            );
+            let mut body = plain_body();
+            body["model"] = json!("resolved-upstream");
+            fwd.forward_with_retry(
+                &AppType::ClaudeDesktop,
+                http::Method::POST,
+                "/v1/messages",
+                body,
+                HeaderMap::new(),
+                Extensions::new(),
+                vec![p],
+            )
+            .await
+            .map_err(|e| e.error)
+            .unwrap();
+            assert_eq!(up.requests.lock().await[0]["model"], "resolved-upstream");
+        }
+
+        #[test]
+        fn aicli_forwarder_switches_are_independent_from_stack() {
+            for (stack, aicli, routing, keep) in [
+                (false, false, true, false),
+                (true, false, false, true),
+                (false, true, false, true),
+                (true, true, false, true),
+            ] {
+                let fwd = forwarder(1, "legacy")
+                    .stack_request(stack)
+                    .aicli_request(aicli);
+                assert_eq!(fwd.routing_state_enabled(), routing);
+                assert_eq!(fwd.keeps_resolved_model(), keep);
+            }
         }
 
         // ---- Stack 模型：不读也不写任何路由状态 ----

@@ -1,0 +1,227 @@
+{
+  "comment": "must_not_mask 中的值不应被遮盖（输出中原样保留）",
+  "cases": [
+    {
+      "text": "uuid: 5eb7f260-845f-41e3-b8ce-791599de19e9",
+      "must_not_mask": [
+        "5eb7f260-845f-41e3-b8ce-791599de19e9"
+      ]
+    },
+    {
+      "text": "session_id = 5eb7f260-845f-41e3-b8ce-791599de19e9",
+      "must_not_mask": [
+        "5eb7f260-845f-41e3-b8ce-791599de19e9"
+      ]
+    },
+    {
+      "text": "request_id: 5eb7f260-845f-41e3-b8ce-791599de19e9",
+      "must_not_mask": [
+        "5eb7f260-845f-41e3-b8ce-791599de19e9"
+      ]
+    },
+    {
+      "text": "uuid: a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a",
+      "must_not_mask": [
+        "a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a"
+      ]
+    },
+    {
+      "text": "session_id = a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a",
+      "must_not_mask": [
+        "a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a"
+      ]
+    },
+    {
+      "text": "request_id: a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a",
+      "must_not_mask": [
+        "a8741f31-a6ef-4c8e-bd55-ecc1579fdf0a"
+      ]
+    },
+    {
+      "text": "uuid: ae6998d8-e106-47a0-8099-e68a25284707",
+      "must_not_mask": [
+        "ae6998d8-e106-47a0-8099-e68a25284707"
+      ]
+    },
+    {
+      "text": "session_id = ae6998d8-e106-47a0-8099-e68a25284707",
+      "must_not_mask": [
+        "ae6998d8-e106-47a0-8099-e68a25284707"
+      ]
+    },
+    {
+      "text": "request_id: ae6998d8-e106-47a0-8099-e68a25284707",
+      "must_not_mask": [
+        "ae6998d8-e106-47a0-8099-e68a25284707"
+      ]
+    },
+    {
+      "text": "git commit 52dc580ac8c340c1bb4862ff7250d674",
+      "must_not_mask": [
+        "52dc580ac8c340c1bb4862ff7250d674"
+      ]
+    },
+    {
+      "text": "commit: 52dc580ac8c340c1bb4862ff7250d674",
+      "must_not_mask": [
+        "52dc580ac8c340c1bb4862ff7250d674"
+      ]
+    },
+    {
+      "text": "git commit 98dab1ae48af4c83a08f6b8eaf0282cc",
+      "must_not_mask": [
+        "98dab1ae48af4c83a08f6b8eaf0282cc"
+      ]
+    },
+    {
+      "text": "commit: 98dab1ae48af4c83a08f6b8eaf0282cc",
+      "must_not_mask": [
+        "98dab1ae48af4c83a08f6b8eaf0282cc"
+      ]
+    },
+    {
+      "text": "git commit 02eadb1d64b6429984d60e010960c485",
+      "must_not_mask": [
+        "02eadb1d64b6429984d60e010960c485"
+      ]
+    },
+    {
+      "text": "commit: 02eadb1d64b6429984d60e010960c485",
+      "must_not_mask": [
+        "02eadb1d64b6429984d60e010960c485"
+      ]
+    },
+    {
+      "text": "order id 12345678",
+      "must_not_mask": [
+        "12345678"
+      ]
+    },
+    {
+      "text": "订单号 12345678",
+      "must_not_mask": [
+        "12345678"
+      ]
+    },
+    {
+      "text": "order id 87654321",
+      "must_not_mask": [
+        "87654321"
+      ]
+    },
+    {
+      "text": "订单号 87654321",
+      "must_not_mask": [
+        "87654321"
+      ]
+    },
+    {
+      "text": "order id 1122334455667788",
+      "must_not_mask": [
+        "1122334455667788"
+      ]
+    },
+    {
+      "text": "订单号 1122334455667788",
+      "must_not_mask": [
+        "1122334455667788"
+      ]
+    },
+    {
+      "text": "uid=12345678",
+      "must_not_mask": [
+        "12345678"
+      ]
+    },
+    {
+      "text": "user_id: 12345678",
+      "must_not_mask": [
+        "12345678"
+      ]
+    },
+    {
+      "text": "uid=99999999",
+      "must_not_mask": [
+        "99999999"
+      ]
+    },
+    {
+      "text": "user_id: 99999999",
+      "must_not_mask": [
+        "99999999"
+      ]
+    },
+    {
+      "text": "read ~/.ssh/id_ed25519",
+      "must_not_mask": [
+        "~/.ssh/id_ed25519"
+      ]
+    },
+    {
+      "text": "read /Users/alice/.config/app/settings.json",
+      "must_not_mask": [
+        "/Users/alice/.config/app/settings.json"
+      ]
+    },
+    {
+      "text": "read /home/bob/project/src/main.rs",
+      "must_not_mask": [
+        "/home/bob/project/src/main.rs"
+      ]
+    },
+    {
+      "text": "read C:/Users/carol/Documents/file.txt",
+      "must_not_mask": [
+        "C:/Users/carol/Documents/file.txt"
+      ]
+    },
+    {
+      "text": "read internal/auth/token.go:643",
+      "must_not_mask": [
+        "internal/auth/token.go:643"
+      ]
+    },
+    {
+      "text": "version 4.0.0",
+      "must_not_mask": [
+        "4.0.0"
+      ]
+    },
+    {
+      "text": "version 9.2.0-beta1",
+      "must_not_mask": [
+        "9.2.0-beta1"
+      ]
+    },
+    {
+      "text": "version 2.4.0-beta02",
+      "must_not_mask": [
+        "2.4.0-beta02"
+      ]
+    },
+    {
+      "text": "version 1.0.0",
+      "must_not_mask": [
+        "1.0.0"
+      ]
+    },
+    {
+      "text": "version 0.15.0-rc1",
+      "must_not_mask": [
+        "0.15.0-rc1"
+      ]
+    },
+    {
+      "text": "js-tokens@4.0.0-beta.1: dev",
+      "must_not_mask": [
+        "4.0.0-beta.1"
+      ]
+    },
+    {
+      "text": "jsonwebtoken@9.2.0: prod",
+      "must_not_mask": [
+        "9.2.0"
+      ]
+    }
+  ]
+}

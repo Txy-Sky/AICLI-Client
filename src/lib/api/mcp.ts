@@ -91,6 +91,13 @@ export const mcpApi = {
   /**
    * 获取所有 MCP 服务器（统一结构）
    */
+  /**
+   * 在官方 MCP Registry 里搜索（后端只取数，原样返回 JSON；转换见 src/lib/mcpRegistry.ts）
+   */
+  async searchRegistry(query: string): Promise<unknown> {
+    return await invoke("search_mcp_registry", { query });
+  },
+
   async getAllServers(): Promise<McpServersMap> {
     return await invoke("get_mcp_servers");
   },

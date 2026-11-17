@@ -1,0 +1,36 @@
+A2-01 cloud toolchain acceptance
+Implementation: 67dc7e4570a29edb85e6554a037902188dabd603
+Job: Checklist acceptance (Linux)
+Run: https://github.com/Txy-Sky/AICLI-Client/actions/runs/41287034200
+Commands: node -v; pnpm --version; rustc -V; cargo fmt --version; cargo clippy --version; cargo nextest --version; docker --version; docker compose version; docker info --format '{{.ServerVersion}}'; go version; python3 --version; pkg-config --modversion openssl gtk+-3.0 librsvg-2.0 ayatana-appindicator3-0.1 webkit2gtk-4.1 libsoup-3.0
+Result: success; isolated HOME and CC_SWITCH_TEST_HOME assertions passed.
+
+Downloaded A2-01 artifact transcript:
+Revision: 67dc7e4570a29edb85e6554a037902188dabd603
+Runner: Linux / X64
+v22.12.0
+10.12.3
+rustc 1.95.0 (59807616e 2026-04-14)
+rustc 1.95.0 (59807616e 2026-04-14)
+rustfmt 1.9.0-stable (59807616e1 2026-04-14)
+clippy 0.1.95 (59807616e1 2026-04-14)
+cargo-nextest 0.9.146 (8af696ddc 2026-09-21)
+release: 0.9.146
+commit-hash: 8af696ddcce8fff2962d6a5168b6d138b8616a35
+commit-date: 2026-09-21
+host: x86_64-unknown-linux-gnu
+Docker version 28.0.4, build b8034c0
+Docker Compose version v2.38.2
+28.0.4
+go version go1.25.14 linux/amd64
+Python 3.12.15
+3.0.13
+3.24.41
+2.58.0
+0.5.90
+2.52.6
+3.4.4
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   61G   84G  42% /
+/dev/root       145G   61G   84G  42% /
+A2-01: PASS

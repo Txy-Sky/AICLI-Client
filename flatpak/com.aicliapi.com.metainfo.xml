@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.aicliapi.com</id>
+  <name>AICLI Client</name>
+  <summary>All-in-One Assistant for Claude Code, Codex &amp; Gemini CLI</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>AICLI Client is a desktop client for connecting to AICLI API services.</p>
+    <ul>
+      <li>Manage multiple provider configurations and endpoints</li>
+      <li>One-click switch and sync to client live configurations</li>
+      <li>MCP servers and Prompt/Skills management</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.aicliapi.com.desktop</launchable>
+  <provides>
+    <binary>aicli-client</binary>
+  </provides>
+
+  <url type="homepage">https://github.com/Txy-Sky/AICLI-Client</url>
+  <url type="bugtracker">https://github.com/Txy-Sky/AICLI-Client/issues</url>
+</component>

@@ -1,0 +1,24 @@
+B-02 proxy port and Desktop profile identity — PASSED
+
+Evidence: e78f3a7e | Checklist acceptance (Linux): bash scripts/aicli-check.sh; grep -rn 15721 src-tauri/src src; test "$(grep -R -n -o '15821' src-tauri/src src | wc -l)" -gt 0; cargo nextest run --manifest-path src-tauri/Cargo.toml claude_desktop_aicli_write_and_cleanup_preserve_legacy_profile | legacy scan no matches; new port present; Rust 4446 passed / 10 original skipped; frontend 266 files / 3415 passed; renderer build passed; Desktop targeted 1 passed, 4455 other tests filtered | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41404536037
+Final implementation: e78f3a7ed37c47dd04b4335dc25897613195781a
+Job: Checklist acceptance (Linux), ID 125143470799
+
+Scope: proxy port 15821; CC_SWITCH_PROXY_PORT environment name retained.
+Owner authorized Desktop PROFILE_ID=00000000-0000-4000-8000-000000158210
+and PROFILE_NAME=AICLI Client. docs/user-manual excluded.
+The new test preserves the old profile bytes (including CRLF) and complete
+_meta.json entry after both AICLI write and cleanup. Legacy UUID fixture:
+src-tauri/tests/fixtures/legacy_desktop_profile_entry.json.
+No C3-10 detection code added ahead of its item.
+Builds/tests ran only in Linux Actions, using isolated HOME.
+
+Failed runs retained, not counted as acceptance:
+bd3d432e | Checklist acceptance (Linux): bash scripts/aicli-check.sh |
+cargo fmt --check rejected wrapping of two new assertions; frontend passed;
+Rust execution not reached | https://github.com/Txy-Sky/AICLI-Client/actions/runs/41400590643
+bd008eb6 | Checklist acceptance (Linux): B-02 verify the proxy port migration |
+baseline and B-01 passed; legacy grep no matches; new-port check failed
+because rg was unavailable on runner; B-02 targeted command not reached |
+https://github.com/Txy-Sky/AICLI-Client/actions/runs/41401905067
+Final fix uses grep for the same new-port existence assertion.

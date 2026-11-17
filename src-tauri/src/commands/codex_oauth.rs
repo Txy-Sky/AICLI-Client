@@ -83,7 +83,7 @@ async fn query_codex_oauth_quota_for(
         &token,
         Some(&chatgpt_account_id),
         "codex_oauth",
-        "Codex OAuth access token expired or rejected. Please re-login via cc-switch.",
+        "Codex OAuth access token expired or rejected. Please re-login via AICLI Client.",
     )
     .await
 }

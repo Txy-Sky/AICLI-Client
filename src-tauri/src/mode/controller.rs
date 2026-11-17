@@ -25,9 +25,10 @@ use crate::app_config::AppType;
 use crate::claude_desktop_config::{self, DesktopTarget};
 use crate::error::AppError;
 use crate::live::engine::DeviceStore;
+#[cfg(test)]
+use crate::live::project::claude::PROXY_TOKEN_PLACEHOLDER;
 use crate::live::project::claude::{
     direct_patch, proxy_projection, ClaudeProjection, ProxyAuth, StackRoleModel,
-    PROXY_TOKEN_PLACEHOLDER,
 };
 use crate::live::project::gemini::GeminiProjection;
 use crate::live::project::grok::GrokProjection;
@@ -59,7 +60,28 @@ fn err(error: impl std::fmt::Display) -> String {
 }
 
 fn provider(state: &AppState, app: &AppType, id: &str) -> Result<Option<Provider>, String> {
-    state.db.get_provider_by_id(id, app.as_str()).map_err(err)
+    let row = state.db.get_provider_by_id(id, app.as_str()).map_err(err)?;
+    row.map(|provider| {
+        if crate::aicli::seed::is_hidden(&provider)
+            && crate::aicli::takeover::is_managed(&state.db, app)
+        {
+            // C3-10 修正：优先复用运行中代理的当前快照，避免每次新建运行时重编译
+            // 导致接管投影与代理实际使用的快照漂移；代理未运行时才新建。
+            // 回退分支保持 cached_projection：构造期 load_cached 依赖钥匙串里的
+            // 访问令牌，无令牌时快照为空，而 cached_projection 只读数据库。
+            let projection = match state.proxy_service.aicli_runtime_now() {
+                Some(runtime) => runtime.snapshot(),
+                None => crate::aicli::runtime::AicliRuntime::new(state.db.clone())
+                    .cached_projection()
+                    .map_err(err)?,
+            };
+            crate::aicli::takeover::prepare_projection(&state.db, app, &projection, provider)
+                .map_err(err)
+        } else {
+            Ok(provider)
+        }
+    })
+    .transpose()
 }
 
 fn direct_provider(state: &AppState, app: &AppType) -> Result<Option<Provider>, String> {
@@ -188,8 +210,10 @@ fn claude_contract(
     route: &Provider,
     proxy_url: &str,
     stack: &[StackModel],
+    replace_builtin: bool,
     stack_default: Option<&StackModel>,
     others: &[&Provider],
+    token: &str,
 ) -> (ClaudeProjection, Contract) {
     let mut projection = proxy_projection(
         &ClaudeProjection::of(&route.settings_config),
@@ -199,8 +223,9 @@ fn claude_contract(
             id: &model.id,
             name: &model.name,
         }),
+        token,
     );
-    with_stack_models(&mut projection, stack);
+    with_stack_models(&mut projection, stack, replace_builtin);
     if !stack.is_empty() {
         let others: Vec<_> = others
             .iter()
@@ -222,7 +247,11 @@ const CLAUDE_MODEL_PICKER: &str = "modelPicker";
 /// 发布了 Stack 模型时：`/model` 换成 Stack 模型列表；`CLAUDE_CODE_MAX_CONTEXT_TOKENS` 改由
 /// Stack 模型决定，取非 1M 模型里最小的窗口（等于默认 200K 时不写）。四档别名也写成 Stack id，
 /// 同样受 MAX 约束；1M 的 Stack 模型不受 MAX 影响。没有发布 Stack 模型时契约和原来逐字节一致。
-fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
+fn with_stack_models(
+    projection: &mut ClaudeProjection,
+    stack: &[StackModel],
+    replace_builtin: bool,
+) {
     if stack.is_empty() {
         return;
     }
@@ -236,10 +265,15 @@ fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
             })
         })
         .collect();
-    projection.top.insert(
-        CLAUDE_MODEL_PICKER.to_string(),
-        json!({ "replaceBuiltInOptions": true, "options": options }),
-    );
+    let picker = if replace_builtin {
+        json!({ "replaceBuiltInOptions": true, "options": options })
+    } else {
+        // 不写 replaceBuiltInOptions：Claude Code 自带的行在前，这里的行接在后面。
+        json!({ "options": options })
+    };
+    projection
+        .top
+        .insert(CLAUDE_MODEL_PICKER.to_string(), picker);
     projection.exclusive.shift_remove(CLAUDE_MAX_CONTEXT_ENV);
     let smallest = stack
         .iter()
@@ -252,6 +286,27 @@ fn with_stack_models(projection: &mut ClaudeProjection, stack: &[StackModel]) {
             Value::String(window.to_string()),
         );
     }
+}
+
+/// AICLI 接管时 `/model` 列的配置集模型（[`crate::provider::AicliClaudePicker`]）。窗口来自后台
+/// 的窗口标签：1M 及以上是 1M 模型（id 已带 `[1M]`）；其余按标签窗口参与
+/// `CLAUDE_CODE_MAX_CONTEXT_TOKENS`（取最小，等于默认 200K 时不写）；没有标签按默认窗口。
+fn aicli_picker_models(picker: &crate::provider::AicliClaudePicker) -> Vec<StackModel> {
+    picker
+        .options
+        .iter()
+        .map(|option| StackModel {
+            id: option.id.clone(),
+            upstream: option.label.clone(),
+            name: option.label.clone(),
+            display_name: option.label.clone(),
+            description: option.description.clone(),
+            one_m: option
+                .window
+                .is_some_and(|window| window >= crate::aicli::picker::ONE_M_WINDOW),
+            window: option.window.unwrap_or(stack::CLAUDE_DEFAULT_WINDOW),
+        })
+        .collect()
 }
 
 /// 关掉某个功能的兼容开关：任何一家要关，契约就关（值取第一个要关的那家的）。上游不支持的
@@ -399,8 +454,18 @@ async fn write_proxy(
     let unchanged = match app {
         AppType::Claude => {
             let members = published_members(state, app, &stack, route)?;
-            let published = stack::claude_published(&members);
-            let stack_default = stack::claude_route_default(&members);
+            let aicli_picker = route
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.aicli_claude_picker.as_ref());
+            let (published, replace_builtin) = match aicli_picker {
+                Some(picker) => (aicli_picker_models(picker), !picker.keep_builtin),
+                None => (stack::claude_published(&members), true),
+            };
+            let stack_default = match aicli_picker {
+                Some(_) => None,
+                None => stack::claude_route_default(&members),
+            };
             let others: Vec<&Provider> = members
                 .iter()
                 .filter(|member| !member.route)
@@ -410,8 +475,10 @@ async fn write_proxy(
                 route,
                 &proxy_url,
                 &published,
+                replace_builtin,
                 stack_default.as_ref(),
                 &others,
+                &crate::aicli::local_auth::token_for(&state.db, "claude").map_err(err)?,
             );
             let unchanged = !force && live_now.has_contract(&contract.key);
             let mut patch = direct_patch(live_now.claude_exclusive_owner().as_ref(), &projection);
@@ -430,7 +497,7 @@ async fn write_proxy(
             let projection = GeminiProjection::proxy_contract(
                 &GeminiProjection::of(&route.settings_config, false),
                 &proxy_url,
-                PROXY_TOKEN_PLACEHOLDER,
+                &crate::aicli::local_auth::token_for(&state.db, "gemini").map_err(err)?,
             );
             let contract = contract::gemini(&projection);
             let unchanged = !force && live_now.has_contract(&contract.key);
@@ -473,7 +540,7 @@ async fn write_proxy(
             let projection = GrokProjection::proxy_contract(
                 &grok_direct::projection(route).map_err(err)?,
                 &base_url,
-                PROXY_TOKEN_PLACEHOLDER,
+                &crate::aicli::local_auth::token_for(&state.db, "grokbuild").map_err(err)?,
             )
             .map_err(err)?;
             let contract = contract::grok(&projection);
@@ -960,8 +1027,12 @@ fn write_direct_for_exit(
 }
 
 /// 没有应用在代理模式（含 Claude Desktop 的路由模式）时，停掉代理服务。
-async fn stop_server_if_unused(state: &AppState) {
+pub(crate) async fn stop_server_if_unused(state: &AppState) {
     if current::proxy_flags(PROXY_APPS).contains(&true) {
+        return;
+    }
+    // J-02: a taken-over Tier 2 client has no mode flag but still needs the proxy.
+    if crate::aicli::takeover::any_tier2_managed(&state.db) {
         return;
     }
     if state.proxy_service.is_running().await {
@@ -1851,7 +1922,7 @@ async fn drain_legacy_backup(state: &AppState, app: &AppType) -> bool {
         }
     };
     let dir = crate::config::get_home_dir()
-        .join(".cc-switch")
+        .join(crate::config::APP_DIR_NAME)
         .join("backups")
         .join("proxy-live-backup");
     let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ");
@@ -1979,10 +2050,12 @@ mod tests {
         let default = stack.first().cloned();
         let (projection, contract) = claude_contract(
             route,
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:15821",
             &stack,
+            true,
             default.as_ref(),
             others,
+            PROXY_TOKEN_PLACEHOLDER,
         );
         assert_eq!(contract.exclusive, projection.exclusive);
         projection.exclusive
@@ -2069,8 +2142,15 @@ mod tests {
             }),
         );
         // 没有发布 Stack 模型（路由模式）时契约和原来一样，不看别家。
-        let (projection, _) =
-            claude_contract(&route, "http://127.0.0.1:15721", &[], None, &[&other]);
+        let (projection, _) = claude_contract(
+            &route,
+            "http://127.0.0.1:15821",
+            &[],
+            true,
+            None,
+            &[&other],
+            PROXY_TOKEN_PLACEHOLDER,
+        );
         assert_env_str(&projection.exclusive, "ENABLE_TOOL_SEARCH", Some("true"));
         assert_env_str(
             &projection.exclusive,
@@ -2079,9 +2159,122 @@ mod tests {
         );
     }
 
+    /// AICLI 接管 Claude Code：`/model` 列配置集的模型（AICLI 别名 id、模型名作显示名）。保留自带
+    /// 行时不写 `replaceBuiltInOptions`，自带的 Opus / Sonnet / Haiku 排在前面；关掉时写上。
+    #[test]
+    fn aicli_picker_lists_the_profile_and_keeps_built_in_rows_by_choice() {
+        let route = stack_member("aicli-main", json!({}));
+        let picker = crate::provider::AicliClaudePicker {
+            options: vec![
+                crate::provider::AicliPickerOption {
+                    id: "aicli-claude-gpt-6.1-sol".into(),
+                    label: "gpt-6.1-sol".into(),
+                    description: "首选 vip ×1 · tools".into(),
+                    window: None,
+                },
+                crate::provider::AicliPickerOption {
+                    id: "aicli-claude-deepseek-v4".into(),
+                    label: "deepseek-v4".into(),
+                    description: "首选 g-cheap ×0.5".into(),
+                    window: None,
+                },
+            ],
+            keep_builtin: true,
+        };
+        let models = aicli_picker_models(&picker);
+        let rows = json!([
+            { "model": "aicli-claude-gpt-6.1-sol", "label": "gpt-6.1-sol", "description": "首选 vip ×1 · tools" },
+            { "model": "aicli-claude-deepseek-v4", "label": "deepseek-v4", "description": "首选 g-cheap ×0.5" },
+        ]);
+        let mut keys = Vec::new();
+        for (keep, expected) in [
+            (true, json!({ "options": rows.clone() })),
+            (
+                false,
+                json!({ "replaceBuiltInOptions": true, "options": rows.clone() }),
+            ),
+        ] {
+            let (projection, contract) = claude_contract(
+                &route,
+                "http://127.0.0.1:15821",
+                &models,
+                !keep,
+                None,
+                &[],
+                PROXY_TOKEN_PLACEHOLDER,
+            );
+            assert_eq!(projection.top[CLAUDE_MODEL_PICKER], expected, "keep={keep}");
+            // 默认窗口不写 MAX，契约随选择变化（切换开关会重写客户端）
+            assert!(!projection.exclusive.contains_key(CLAUDE_MAX_CONTEXT_ENV));
+            keys.push(contract.key);
+        }
+        assert_ne!(
+            keys[0], keys[1],
+            "switching the choice rewrites Claude Code"
+        );
+    }
+
+    /// AICLI 行的窗口来自后台标签：1M 及以上是 1M 模型，不受 MAX 约束；其余取最小窗口写 MAX，
+    /// 没有标签的按默认 200K。
+    #[test]
+    fn aicli_picker_windows_follow_the_catalog_tags() {
+        let route = stack_member("aicli-main", json!({}));
+        let option = |model: &str, window: Option<u64>| crate::provider::AicliPickerOption {
+            id: format!("aicli-claude-{model}"),
+            label: model.into(),
+            description: "AICLI".into(),
+            window,
+        };
+        let max_of = |options: Vec<crate::provider::AicliPickerOption>| {
+            let picker = crate::provider::AicliClaudePicker {
+                options,
+                keep_builtin: true,
+            };
+            let models = aicli_picker_models(&picker);
+            let (projection, _) = claude_contract(
+                &route,
+                "http://127.0.0.1:15821",
+                &models,
+                false,
+                None,
+                &[],
+                PROXY_TOKEN_PLACEHOLDER,
+            );
+            (
+                models.iter().map(|m| m.one_m).collect::<Vec<_>>(),
+                projection.exclusive.get(CLAUDE_MAX_CONTEXT_ENV).cloned(),
+            )
+        };
+        assert_eq!(
+            max_of(vec![
+                option("claude-opus-5[1M]", Some(1_000_000)),
+                option("gpt-6-astra[1M]", Some(1_100_000)),
+                option("kimi-k3", Some(500_000)),
+            ]),
+            (vec![true, true, false], Some(json!("500000")))
+        );
+        // 有没有标签的模型：按默认 200K，等于默认不写 MAX
+        assert_eq!(
+            max_of(vec![
+                option("claude-opus-5[1M]", Some(1_000_000)),
+                option("kimi-k3", Some(500_000)),
+                option("plain", None),
+            ]),
+            (vec![true, false, false], None)
+        );
+    }
+
     /// 以 `live` 为底写入 `provider` 的代理契约，和进入代理时的补丁相同。
     fn takeover(live: &Value, provider: &Provider) -> Value {
-        let (projection, _) = claude_contract(provider, "http://127.0.0.1:15721", &[], None, &[]);
+        let (projection, _) = claude_contract(
+            provider,
+            "http://127.0.0.1:15821",
+            &[],
+            true,
+            None,
+            &[],
+            PROXY_TOKEN_PLACEHOLDER,
+        );
         let mut doc = live.clone();
         direct_patch(None, &projection)
             .apply_to(Path::new("settings.json"), &mut doc)
@@ -2703,7 +2896,12 @@ mod mode_tests {
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let live = settings();
         assert_eq!(live["env"]["ANTHROPIC_BASE_URL"], proxy_url.as_str());
-        assert_eq!(live["env"]["ANTHROPIC_AUTH_TOKEN"], PROXY_TOKEN_PLACEHOLDER);
+        assert_eq!(
+            live["env"]["ANTHROPIC_AUTH_TOKEN"],
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
+        );
         assert_eq!(
             live["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"],
             "claude-sonnet-5"
@@ -2930,7 +3128,9 @@ mod mode_tests {
         assert_eq!(restarted.proxy_route.as_deref(), Some("b"));
         assert_eq!(
             settings()["env"]["ANTHROPIC_AUTH_TOKEN"],
-            PROXY_TOKEN_PLACEHOLDER
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
         );
         exit(&state, &AppType::Claude).await.expect("exit");
     }
@@ -2977,7 +3177,12 @@ mod mode_tests {
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let live = settings();
         assert_eq!(live["env"]["ANTHROPIC_BASE_URL"], proxy_url.as_str());
-        assert_eq!(live["env"]["ANTHROPIC_AUTH_TOKEN"], PROXY_TOKEN_PLACEHOLDER);
+        assert_eq!(
+            live["env"]["ANTHROPIC_AUTH_TOKEN"],
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
+        );
 
         exit(state, &AppType::Claude).await.expect("exit");
         assert_eq!(
@@ -3004,7 +3209,9 @@ mod mode_tests {
             .expect("sync");
         assert_eq!(
             settings()["env"]["ANTHROPIC_AUTH_TOKEN"],
-            PROXY_TOKEN_PLACEHOLDER
+            crate::aicli::local_auth::token_for(&state.db, "claude")
+                .unwrap()
+                .as_str()
         );
         exit(state, &AppType::Claude).await.expect("exit");
     }
@@ -3120,7 +3327,10 @@ mod mode_tests {
             crate::mode::operation::recover_on_startup(&state.db);
             let recovered = mode(&AppType::Claude);
             let live = settings();
-            let live_is_proxy = live["env"]["ANTHROPIC_AUTH_TOKEN"] == PROXY_TOKEN_PLACEHOLDER;
+            let live_is_proxy = live["env"]["ANTHROPIC_AUTH_TOKEN"]
+                == crate::aicli::local_auth::token_for(&state.db, "claude")
+                    .unwrap()
+                    .as_str();
             assert_eq!(recovered.is_proxy(), expect_proxy, "{point}");
             assert_eq!(recovered.attached, expect_proxy, "{point}");
             assert_eq!(live_is_proxy, expect_proxy, "{point}: file and state agree");
@@ -3172,7 +3382,7 @@ mod mode_tests {
         for enabled in [true, false] {
             let home = Home::new();
             seed_settings(
-                r#"{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:15721","ANTHROPIC_AUTH_TOKEN":"PROXY_MANAGED"},"hooks":{}}"#,
+                r#"{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:15821","ANTHROPIC_AUTH_TOKEN":"PROXY_MANAGED"},"hooks":{}}"#,
             );
             let state = state_with(
                 AppType::Claude,
@@ -3199,7 +3409,11 @@ mod mode_tests {
                 state.db.get_live_backup("claude").await.unwrap().is_none(),
                 "the old version would replay a leftover backup row after a downgrade"
             );
-            let drained = home.dir.path().join(".cc-switch/backups/proxy-live-backup");
+            let drained = home
+                .dir
+                .path()
+                .join(crate::config::APP_DIR_NAME)
+                .join("backups/proxy-live-backup");
             assert_eq!(
                 fs::read_dir(&drained).unwrap().count(),
                 1,
@@ -3249,7 +3463,7 @@ mod mode_tests {
         assert_eq!(
             fs::read_to_string(&env_path).unwrap(),
             format!(
-                "# my notes\nGEMINI_SANDBOX=true\nGEMINI_API_KEY=PROXY_MANAGED\nGOOGLE_GEMINI_BASE_URL={proxy_url}\n"
+                "# my notes\nGEMINI_SANDBOX=true\nGEMINI_API_KEY={}\nGOOGLE_GEMINI_BASE_URL={proxy_url}\n", crate::aicli::local_auth::token_for(&state.db, "gemini").unwrap()
             )
         );
         exit(&state, &AppType::Gemini).await.expect("exit");
@@ -3406,7 +3620,11 @@ mod mode_tests {
         enter(&state, &AppType::Codex, false).await.expect("enter");
         let third_party = fs::read_to_string(&config_path).unwrap();
         assert!(
-            third_party.contains(PROXY_TOKEN_PLACEHOLDER),
+            third_party.contains(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            ),
             "{third_party}"
         );
         assert_eq!(
@@ -3449,7 +3667,11 @@ mod mode_tests {
         let dormant = &doc["model_providers"]["custom"];
         assert_eq!(
             dormant["experimental_bearer_token"].as_str(),
-            Some(PROXY_TOKEN_PLACEHOLDER)
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            )
         );
         assert!(dormant.get("requires_openai_auth").is_none());
         assert!(!official_contract.contains("sk-relay"));
@@ -3457,7 +3679,11 @@ mod mode_tests {
 
         ProviderService::switch(&state, AppType::Codex, "relay").expect("route back");
         let third_party = fs::read_to_string(&config_path).unwrap();
-        assert!(third_party.contains(PROXY_TOKEN_PLACEHOLDER));
+        assert!(third_party.contains(
+            crate::aicli::local_auth::token_for(&state.db, "codex")
+                .unwrap()
+                .as_str()
+        ));
         assert!(!third_party.contains("openai_base_url"), "{third_party}");
         exit(&state, &AppType::Codex).await.expect("exit");
         assert_eq!(auth(), native_auth);
@@ -3824,12 +4050,16 @@ command = "fs-server"
         let dormant = &doc["model_providers"]["custom"];
         assert_eq!(
             dormant["base_url"].as_str(),
-            Some("http://127.0.0.1:15721/v1"),
+            Some("http://127.0.0.1:15821/v1"),
             "the dormant table points at the configured local proxy: {text}"
         );
         assert_eq!(
             dormant["experimental_bearer_token"].as_str(),
-            Some(PROXY_TOKEN_PLACEHOLDER)
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            )
         );
         assert!(dormant.get("name").is_some(), "Codex loads it: {text}");
         assert!(!text.contains("sk-a"), "no real key stays behind: {text}");
@@ -3925,7 +4155,7 @@ base_url = "https://c.example/v1"
 
 [model_providers.deepseek]
 name = "deepseek"
-base_url = "http://127.0.0.1:15721/v1"
+base_url = "http://127.0.0.1:15821/v1"
 experimental_bearer_token = "PROXY_MANAGED"
 
 [model_providers.ollama_local]
@@ -4357,7 +4587,14 @@ model_provider = "c"
         let state = state_with(AppType::Codex, &[a, b, c, d], "b").await;
         enter(&state, &AppType::Codex, false).await.expect("enter");
         let entered = codex_text();
-        assert!(entered.contains(PROXY_TOKEN_PLACEHOLDER), "{entered}");
+        assert!(
+            entered.contains(
+                crate::aicli::local_auth::token_for(&state.db, "codex")
+                    .unwrap()
+                    .as_str()
+            ),
+            "{entered}"
+        );
         assert!(!entered.contains("sk-b"), "{entered}");
         let mtime = fs::metadata(codex_config_path())
             .unwrap()
@@ -4411,7 +4648,13 @@ model_provider = "c"
         let back = codex_text();
         assert_eq!(codex_doc()["model"].as_str(), Some("gpt-b"));
         assert!(
-            back.contains("sk-b") && !back.contains(PROXY_TOKEN_PLACEHOLDER),
+            back.contains("sk-b")
+                && !back.contains(PROXY_TOKEN_PLACEHOLDER)
+                && !back.contains(
+                    crate::aicli::local_auth::token_for(&state.db, "codex")
+                        .unwrap()
+                        .as_str()
+                ),
             "{back}"
         );
         assert_eq!(codex_user_parts(&back).len(), 6, "{back}");
@@ -5016,7 +5259,13 @@ model_provider = "c"
         enter(&state, &AppType::Gemini, false).await.expect("enter");
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let env = gemini_env();
-        assert!(env.contains("GEMINI_API_KEY=PROXY_MANAGED"), "{env}");
+        assert!(
+            env.contains(&format!(
+                "GEMINI_API_KEY={}",
+                crate::aicli::local_auth::token_for(&state.db, "gemini").unwrap()
+            )),
+            "{env}"
+        );
         assert!(
             env.contains(&format!("GOOGLE_GEMINI_BASE_URL={proxy_url}")),
             "{env}"
@@ -5064,6 +5313,14 @@ model_provider = "c"
         let env = gemini_env();
         assert!(env.contains("GEMINI_API_KEY=key-a"), "{env}");
         assert!(!env.contains(PROXY_TOKEN_PLACEHOLDER), "{env}");
+        assert!(
+            !env.contains(
+                crate::aicli::local_auth::token_for(&state.db, "gemini")
+                    .unwrap()
+                    .as_str()
+            ),
+            "{env}"
+        );
         assert_eq!(gemini_user_lines(&env), gemini_user_lines(GEMINI_USER_ENV));
     }
 
@@ -5330,7 +5587,14 @@ model_provider = "c"
         let proxy_url = state.proxy_service.build_proxy_urls().await.unwrap().0;
         let doc = grok_doc();
         let table = &doc["model"]["grok-4.5"];
-        assert_eq!(table["api_key"].as_str(), Some(PROXY_TOKEN_PLACEHOLDER));
+        assert_eq!(
+            table["api_key"].as_str(),
+            Some(
+                crate::aicli::local_auth::token_for(&state.db, "grokbuild")
+                    .unwrap()
+                    .as_str()
+            )
+        );
         assert_eq!(
             table["base_url"].as_str(),
             Some(format!("{proxy_url}/grokbuild/v1").as_str())
@@ -6587,7 +6851,7 @@ model_provider = "c"
         let old = crate::claude_desktop_config::route_profile(
             &state.db,
             &desktop_card("map", true),
-            "http://127.0.0.1:15721",
+            "http://127.0.0.1:15821",
             &[],
         )
         .expect("old profile");
@@ -6719,7 +6983,7 @@ model_provider = "c"
                 AppType::Claude,
                 "Claude",
                 "claude",
-                None,
+                crate::proxy::handler_context::RouteInput::None,
             )
         };
         let chain = |ctx: &crate::proxy::handler_context::RequestContext| {
@@ -7106,6 +7370,35 @@ model_provider = "c"
     async fn codex_proxy_preserves_explicit_remote_compaction_capability() {
         check_codex_proxy_compaction_preference("Relay", Some("v2")).await;
         check_codex_proxy_compaction_preference("OpenAI", Some("unsupported")).await;
+    }
+
+    /// AICLI 接管 Codex：路由表 id 仍是 custom（会话分桶不变），name 写 AICLI，Codex App
+    /// 左下角显示它；换回别家时恢复 custom。
+    #[tokio::test]
+    #[serial]
+    async fn codex_proxy_names_the_aicli_route_table_aicli() {
+        let _home = Home::new();
+        seed_codex("", None);
+        let relay = codex_native("relay", "https://relay.example/v1", "", None);
+        let mut aicli = codex_native("aicli-like", "https://aicli.example/v1", "", None);
+        aicli.category = Some("aicli".to_string());
+        let state = state_with(AppType::Codex, &[relay, aicli], "relay").await;
+        enter(&state, &AppType::Codex, false).await.expect("enter");
+        let name = || {
+            let doc = codex_doc();
+            assert_eq!(doc["model_provider"].as_str(), Some("custom"));
+            doc["model_providers"]["custom"]["name"]
+                .as_str()
+                .map(str::to_string)
+        };
+        assert_eq!(name().as_deref(), Some("custom"));
+        set_route(&state, &AppType::Codex, "aicli-like")
+            .await
+            .unwrap();
+        assert_eq!(name().as_deref(), Some("AICLI"));
+        set_route(&state, &AppType::Codex, "relay").await.unwrap();
+        assert_eq!(name().as_deref(), Some("custom"));
+        exit(&state, &AppType::Codex).await.unwrap();
     }
 
     #[tokio::test]
@@ -8904,5 +9197,127 @@ model_provider = "c"
         assert!(err.to_string().contains("requires_openai_auth"), "{err}");
         assert!(state.db.get_provider_by_id("c", "codex").unwrap().is_none());
         assert_eq!(codex_text(), before);
+    }
+
+    // ---------------------------------------------------------------
+    // C3-10 修正：AICLI 接管投影优先使用运行中代理的快照。
+    // ---------------------------------------------------------------
+
+    #[tokio::test]
+    #[serial]
+    async fn aicli_projection_prefers_the_running_runtime_snapshot() {
+        let _home = Home::new();
+        // 运行时构造时的 load_cached 需要从钥匙串读到绑定令牌；隔离 HOME 下
+        // KeyringStore 会退到 ~/.aicli-client/secrets.json。
+        use crate::aicli::secrets::SecretStore as _;
+        crate::aicli::secrets::KeyringStore::default()
+            .set("access-token", "synthetic-controller-fixture-token")
+            .expect("seed access token");
+        let db = Arc::new(Database::memory().expect("memory db"));
+        crate::aicli::seed::init(&db).expect("seed aicli providers");
+        let pricing_alpha = json!({
+            "auto_groups": ["fixture"],
+            "data": [{
+                "model_name": "alpha",
+                "enable_groups": ["fixture"],
+                "supported_endpoint_types": ["anthropic", "openai-response", "gemini"]
+            }]
+        });
+        {
+            let conn = db.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO aicli_account(id,user_id,username,user_group,selected_line_id)
+                 VALUES(1,1,'t','g','main')",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO aicli_takeover(app_type,state) VALUES('grokbuild','active')",
+                [],
+            )
+            .unwrap();
+            for (kind, value) in [
+                ("groups", json!({"data": {"fixture": {"ratio": 1}}})),
+                ("pricing", pricing_alpha),
+            ] {
+                conn.execute(
+                    "INSERT INTO aicli_cache(kind,fingerprint,fetched_at,body_json)
+                     VALUES(?1,'fixture',1,?2)",
+                    rusqlite::params![kind, value.to_string()],
+                )
+                .unwrap();
+            }
+        }
+        db.update_proxy_config(ProxyConfig {
+            listen_port: 0,
+            ..Default::default()
+        })
+        .await
+        .expect("ephemeral port");
+        let state = AppState::new(db.clone());
+        state.proxy_service.start().await.expect("start proxy");
+        let running = state
+            .proxy_service
+            .aicli_runtime()
+            .await
+            .expect("running runtime");
+        let running_fingerprint = running.snapshot().fingerprint.clone();
+        assert!(
+            !running_fingerprint.is_empty(),
+            "running snapshot must have compiled"
+        );
+
+        // 换掉缓存里的模型表：从数据库重新编译会得到不同的 fingerprint。
+        let pricing_beta = json!({
+            "auto_groups": ["fixture"],
+            "data": [{
+                "model_name": "beta",
+                "enable_groups": ["fixture"],
+                "supported_endpoint_types": ["openai-response"]
+            }]
+        });
+        db.conn
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE aicli_cache SET body_json=?1 WHERE kind='pricing'",
+                rusqlite::params![pricing_beta.to_string()],
+            )
+            .unwrap();
+        let fresh_fingerprint = crate::aicli::runtime::AicliRuntime::new(db.clone())
+            .cached_projection()
+            .expect("recompile")
+            .fingerprint
+            .clone();
+        assert_ne!(
+            fresh_fingerprint, running_fingerprint,
+            "fixture must make the two snapshots differ"
+        );
+
+        // 接管投影跟随运行中快照：默认模型仍是 alpha。
+        let projected = provider(&state, &AppType::GrokBuild, "aicli-main")
+            .expect("projection")
+            .expect("seeded provider");
+        let config = projected.settings_config["config"].as_str().unwrap();
+        assert!(
+            config.contains("alpha"),
+            "expected the running snapshot's model (alpha): {config}"
+        );
+        assert!(
+            !config.contains("beta"),
+            "recompiled model leaked in: {config}"
+        );
+
+        // 代理停止后回退到按当前数据库重编译：默认模型变成 beta。
+        state.proxy_service.stop().await.expect("stop proxy");
+        assert!(state.proxy_service.aicli_runtime_now().is_none());
+        let fallback = provider(&state, &AppType::GrokBuild, "aicli-main")
+            .expect("projection")
+            .expect("seeded provider");
+        let config = fallback.settings_config["config"].as_str().unwrap();
+        assert!(
+            config.contains("beta"),
+            "expected the recompiled model (beta): {config}"
+        );
     }
 }

@@ -223,11 +223,7 @@ export function useSettings(): UseSettingsResult {
         );
         const sanitizedPiDir = sanitizeDir(mergedSettings.piConfigDir);
         const sanitizedOmpDir = sanitizeDir(mergedSettings.ompConfigDir);
-        const {
-          webdavSync: _ignoredWebdavSync,
-          s3Sync: _ignoredS3Sync,
-          ...restSettings
-        } = mergedSettings;
+        const restSettings = { ...mergedSettings };
 
         const payload: Settings = {
           ...restSettings,
@@ -369,11 +365,7 @@ export function useSettings(): UseSettingsResult {
         const previousOpenclawDir = sanitizeDir(data?.openclawConfigDir);
         const previousPiDir = sanitizeDir(data?.piConfigDir);
         const previousOmpDir = sanitizeDir(data?.ompConfigDir);
-        const {
-          webdavSync: _ignoredWebdavSync,
-          s3Sync: _ignoredS3Sync,
-          ...restSettings
-        } = mergedSettings;
+        const restSettings = { ...mergedSettings };
 
         const payload: Settings = {
           ...restSettings,

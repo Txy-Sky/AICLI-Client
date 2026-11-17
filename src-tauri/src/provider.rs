@@ -404,6 +404,29 @@ pub enum ClaudeDesktopMode {
     Proxy,
 }
 
+/// AICLI 接管 Claude Code 时 `/model` 的内容（见 [`ProviderMeta::aicli_claude_picker`]）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AicliClaudePicker {
+    /// 按厂商分组再按名字排好的行（`aicli::picker`）。
+    pub options: Vec<AicliPickerOption>,
+    /// 保留 Claude Code 自带的 Opus / Sonnet / Haiku 等行（排在前面）。
+    pub keep_builtin: bool,
+}
+
+/// `/model` 的一行。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AicliPickerOption {
+    /// 写给 Claude Code 的模型 id：C2-02 的别名 `aicli-claude-<模型>`。
+    pub id: String,
+    /// 显示名：配置集的公开模型名。
+    pub label: String,
+    /// 名字下面那行：首选分组与倍率、可回退分组数、能力标签。
+    pub description: String,
+    /// 后台窗口标签给出的上下文窗口（token）；没有标签是 `None`，按 Claude Code 默认窗口。
+    /// 1M 及以上时 `id` 末尾带 `[1M]`。
+    pub window: Option<u64>,
+}
+
 /// Claude Desktop 本地路由模式下暴露给 Desktop 的安全模型路由。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -504,6 +527,10 @@ pub struct ProviderMeta {
         skip_serializing_if = "HashMap::is_empty"
     )]
     pub claude_desktop_model_routes: HashMap<String, ClaudeDesktopModelRoute>,
+    /// AICLI 接管 Claude Code 时 `/model` 要列的配置集模型。只在接管投影时由
+    /// `aicli::takeover::prepare_projection` 临时补上，从不落库。
+    #[serde(skip)]
+    pub aicli_claude_picker: Option<AicliClaudePicker>,
     /// 用量查询脚本配置
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage_script: Option<UsageScript>,

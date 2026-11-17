@@ -1,0 +1,33 @@
+F-11 配置集名称与配置集页验收记录（2026-11-09）
+
+状态：[x] 完成
+提交：4d42b520 feat(aicli): F-11 translate preset names and redo the profile page as cards
+CI：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42619719523（4d42b520，四 job 及汇总
+    `Checklist acceptance (Linux)` 全 success；前端 275 文件 / 3485 测试；Rust 4722 passed / 12 skipped）
+
+来由：负责人 2026-11-09 反馈中文界面下配置集名称不显示中文、配置集模块太素、文字太多。
+
+原因：后端 src-tauri/src/aicli/profiles.rs::preset() 把系统预设的 name 设为 id，前端直接显示
+profile.name，所以出现 recommended / low_cost；原组件测试的夹具写成「推荐」，掩盖了这一点。
+
+实现
+1. src/components/aicli/profiles/profileName.ts：aicliProfileName / aicliPresetDescription，
+   预设 id → aicli.profiles.presets.<id>.name / desc（中文「推荐」「低成本」及一句说明，五种语言），
+   用户配置集用自己的名字。首页配置集卡片、客户端页（当前配置集与表格列）、配置集页（卡片、
+   副本名、删除与差异标题）、请求详情的服务端账单（用户配置集按本机配置集取名）统一使用。
+2. 配置集页改为卡片网格：图标（推荐 Sparkles、低成本 PiggyBank、用户配置集取首字）、名称、预设
+   说明、模型数与分组数、分组胶囊（悬停显示分组说明与倍率，超过 4 个显示 +N）、默认 / 只读 /
+   正在使用的客户端徽标；每张卡一个主操作（预设「从预设新建」、用户配置集「编辑」），其余操作
+   （查看差异、设为默认、用于客户端、删除）收进「更多」菜单，「用于客户端」由原生下拉改为菜单
+   里的勾选项；本机存储说明由顶部提示条改为页脚小字；无用户配置集时显示空状态。
+3. 编辑器：复选框换成界面 Checkbox 组件；未选分组做成虚线胶囊；分组行显示服务端分组说明和倍率
+   胶囊；模型表改用 usageTable 样式（表头底色、行高、分隔线）；冲突处理的下拉保持原生 select、
+   改用与输入框一致的 fieldClass 外观（表格内与 jsdom 中更稳，行为不变）。
+
+测试（CI 同一 run）
+- AicliProfilesPanel.test.tsx 17 passed：夹具改为后端真实返回的 name "recommended"；新增「预设按
+  翻译名称显示、不显示 id；用户配置集用自己的名字」；查看差异、设为默认、用于客户端、删除改为经
+  「更多」菜单操作，原断言（调用参数、确认后才删除、修复提示）不变；编辑器冲突 / 保存 / 校验用例不变。
+- AicliClientPage.test.tsx 13 passed、AicliHome.test.tsx 9 passed：夹具改为 "recommended"，断言显示
+  翻译键。
+- RequestDetailPanel.test.tsx 13 passed：账单配置集显示翻译名称、不显示 id。

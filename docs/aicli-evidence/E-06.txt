@@ -1,0 +1,216 @@
+E-06 中间件接入验收记录（2026-11-08）
+
+状态：[x] 完成
+代码：src-tauri/src/aicli/privacy/layer.rs（约 700 行 + 7 个单元测试）、
+proxy/server.rs 接线、tests/aicli_privacy_e2e.rs（11 个端到端）、
+stream.rs 共享引擎化、placeholder/runtime/commands 配套
+
+一、结构（对照交接说明 [验收] 项）
+1. 引擎共享与借用：PlaceholderEngine 挂在 AicliRuntime 的 PrivacyGate 上
+   （Arc<RwLock<…>>，懒构造一次），StreamRestorer 改为 EngineSource
+   （Borrowed/Shared）——'static 的 SSE 流持有 Arc，push/finish 内短读锁
+   （restore 只读），不跨 .await、不在流生命周期内持锁。并发测试
+   （只挂隐私中间件的 mini app）：SSE 流挂着时另一请求 5s 内完成遮盖
+   （masked_values 增加）
+2. 引擎只构造一次：首次使用时 from_store 读一次钥匙串；失败置
+   engine_failed，按模式处理，不反复重试（C4-03 教训）
+3. 设置缓存：PrivacyGate 内 (修订号, 快照)；aicli_set_privacy 提交后
+   bump 全局修订号（静态原子量，命令与代理无需同一运行时实例），
+   热路径修订号未变不读库
+4. 层顺序：.layer(privacy) 写在 local_auth 之前（axum 后加在外层 →
+   鉴权先执行）。测试固定：错误令牌请求 401 且 bodies_read 计数不变
+   （隐私层未读 body）、上游零捕获
+
+二、行为（对照清单条款）
+- 隐私关闭：直接 next.run(req)，不读 body（计数断言）；关闭时上游
+  body 与重复请求逐字节相同；开启但正文无敏感值时也逐字节相同
+- AI 路径 POST（messages/chat/completions/responses/generateContent
+  系列/app/alpha/search）；图片生成与编辑接口：block → 400
+  privacy_media_unsupported，pass → 放行计数
+- 请求：读 body → Content-Encoding 解压并移除头 → mask_json →
+  content-length 重建 + Accept-Encoding: identity；不支持编码/非 UTF-8
+  按模式处理
+- 含 data:/file_data 媒体：block 且未放行 → 422 privacy_media_blocked
+  （错误信息说明如何放行）；放行时文本照遮、data: 原样（E-04 keepIn）
+  并计数
+- 响应：SSE → RestoreStream 包装（RestoreStream/finish、panic 处理）；
+  其他整体 restore_json（含错误响应）；上游压缩流式：block → 502
+  privacy_compressed_stream（fail-closed），pass → 原样透传
+- 引擎异常：mask/restore_json 在 catch_unwind 内（AssertUnwindSafe，
+  中毒锁 into_inner）；故障注入（test-hooks）3 位置 × 2 模式全过：
+  block → privacy_engine_failed / 流立即结束（不透传后续字节）；
+  pass → 原文放行 / 占位符透传，均计数降级
+- 日志：只记数量（masked_values/degraded/media_passed/bodies_read），
+  捕获 logger 断言不含敏感值；PlaceholderEngine/Held/StreamRestorer
+  无 Debug
+
+三、端到端（tests/aicli_privacy_e2e.rs，11 个）
+四协议（Claude/Chat/Responses/Gemini）非流式：上游原始字节无敏感值、
+含占位符；客户端完全还原。SSE 占位符拆两事件拼齐还原。关闭逐字节
+相同（录制比较）。Claude→Responses 转换（本地 provider meta 强制
+openai_responses）：上游 /v1/responses 收到占位符、客户端还原。重启
+（同 db+store 新运行时/代理）：上游 body 逐字节相同（提示缓存前缀
+不变）。故障注入 6 组。层顺序。并发遮盖。媒体 3 组。压缩流
+fail-closed。日志捕获断言。
+
+四、单元（layer::tests，7 个）
+路径/媒体形态识别、设置缓存与修订号失效、引擎懒构造一次、
+遮盖-还原闭环与计数、故障注入被 catch、未绑定默认关闭。
+
+五、偏差与观察（第 12 节同步记录）
+1. 全链路（forwarder/usage 记录，与隐私无关）对流式响应与并发请求
+   存在串行化：关闭隐私后同样双请求同样阻塞（本机诊断复现）。隐私层
+   并发 [验收] 项因此以 mini app 直测；全链路并发化留给后续阶段
+2. alpha/search 计入遮盖路径（清单未列；它是文本搜索入参）
+3. mask 计数只有总数无类别分布（mask_json 只返回总数；清单「只记录
+   类别和数量」按上限理解）
+4. 故障注入 panic 的默认 hook 会打印注入消息（被 catch_unwind 捕获，
+   属预期测试行为）
+5. 已知旧问题未动：dateword.rs:281、ids.rs:253/255 clippy 测试告警；
+   本机（Windows）环境相关的 8 个既有失败（含 C4-02 两个 bind 测试，
+   经基线 a5ba08be 复现确认非本次引入）
+
+六、CI
+- 提交：47df2aba（rebase 于审查的 28b1680e 之上）；item E-06-unit（lib）/
+  E-06-e2e（test-hooks）/E-03-fuzz（fuzz_tests 单列）已加入
+  scripts/aicli-item-tests.sh
+- 运行：https://github.com/Txy-Sky/AICLI-Client/actions/runs/42390385298
+  （五 job 全 success）
+
+七、验收打回修正（2026-11-08，第二轮）
+1. 媒体识别补齐（必须修 1）：contains_unscannable_media 增补 Claude
+   source{type:"base64","data":…}（image 与 document 同形，按路径
+   *.source.data 判定）与 Gemini inlineData/inline_data.data；e2e 新增
+   claude_and_gemini_media_shapes_block_and_pass（两种格式 × block/pass，
+   block 未放行 → 422 privacy_media_blocked 且上游零新增捕获）
+2. pass 模式明文回退（必须修 2）：mask 失败/非 UTF-8 时发**解压后的明文**
+   （content-encoding 已删，不再发压缩字节）；e2e 新增
+   pass_mode_mask_failure_forwards_decompressed_plaintext（gzip 请求 +
+   FAULT_MASK + pass：上游收到可解析明文 JSON、无 content-encoding 头）
+3. 流式 pass 缓存字节放出（必须修 3）：StreamRestorer 新增
+   take_pending_raw（扣留事件原文 + 未切帧 buf）；RestoreStream panic 后
+   先放 buffered+当前块再透传（注入点在第 N 块才触发，N>1）。e2e
+   stream_pass_mode_fault_at_nth_chunk_keeps_frames_intact：块 1 留半个
+   占位符被扣留，第 2 块故障 → 客户端收到的 SSE 与上游原文逐字节一致
+   （不重不漏）
+4. 流式 block 可见失败（必须修 4）：panic 后返回 Err 断开连接（或截断），
+   客户端能看出失败；block 不计入 degraded，新增 engine_blocked 计数，
+   日志文案按模式区分（note_engine_failure）。e2e
+   stream_block_mode_fault_at_nth_chunk_is_visible_failure 断言 degraded=0、
+   engine_blocked≥1
+5. refresh 语义（必须修 5）：修订号查库**前**读；查不到行=未绑定=关闭；
+   其他查库错误保留上一次成功快照（推进缓存修订号避免反复打库）；
+   无快照 fail-closed 开启+block。单元测试
+   refresh_error_keeps_last_good_settings / without_snapshot_fails_closed /
+   unbound_row_means_disabled（互斥量中毒模拟查库错误）
+6. 全链路串行化（核实 6）：**multi_thread(4 workers) 下复现**（关闭隐私、
+   真实代理 + 真实 mock）。定位（逐级探针）：
+   - mock 并发正常：SSE 挂着时直接打 mock 的 JSON 请求立即返回；
+   - 排队请求的**上游往返已完成**（mock 已捕获并响应、响应头已收到），
+     之后卡在 RequestForwarder::forward 成功分支的
+     prepare_success_response_for_failover_with_timeouts →
+     ProxyResponse::bytes_with_limit（读上游响应体，chat 类经共享连接池
+     http_client::direct_client()，Anthropic 类经 hyper raw 连接，两条
+     路径都复现），直到前一个流式响应结束才放行；
+   - 影响：同一上游任一流式响应进行中，后续请求的响应体读取排队——
+     Claude Code 多个子代理并发时第二个请求要等第一个流结束。
+   按验收指示**未修，报给负责人**；隐私层并发 [验收] 项以 mini app 直测
+   （不跨 .await 持锁），第 12 节偏差行已更新
+7. 顺手项（7/8）：bind/unbind 成功后 bump_revision；RestoreStream 上游
+   错误分支先发 finish 尾部再传播错误（注释与行为一致）；删 let _ = gate；
+   contains_unscannable_media 只调用一次
+- 测试：e2e 15 个（+4）、layer 单元 10 个（+3）、privacy 合计 145，全过；
+  clippy -D warnings（lib）与 --all-targets --features test-hooks 干净
+- CI：提交 3d355820；
+  run https://github.com/Txy-Sky/AICLI-Client/actions/runs/42398338922
+  （五 job 全 success）
+
+八、验收打回修正（2026-11-08，第三轮）
+1. 流式 panic 恢复改为 **restorer 内部逐事件 catch_unwind**（修正第二轮
+   「注入在 push 之前」的局限）：
+   - StreamRestorer.push 全程字节（Vec<u8>）：本次 push 中已还原的事件
+     照常输出；出错事件、之前被扣留的事件（Held.raw）与 buf 剩余字节
+     按原始字节放出；restorer 置 passthrough（后续 push 原样返回）+ 
+     failed 粘滞标志。不再有「已处理事件随局部变量丢失」「当前块重复」
+     「from_utf8(chunk).unwrap_or("") 丢块」「lossy 产生 U+FFFD」的问题
+     （多字节跨块的字节留在 buf，不经任何有损转换）
+   - 注入点挪到事件还原内部（set_stream_fault_event(N)，restorer 计
+     事件数；FAULT_STREAM 上膛才生效，默认第一个事件）
+   - RestoreStream 不再外层 catch：push 后按 restorer.engine_failed()
+     处理——block：先发已还原部分再返回 Err 断流（计数一次）；pass：
+     restorer 已透传，字节照走
+   - e2e stream_fault_mid_event_keeps_restored_prefix_and_raw_suffix：
+     一个块内含完整事件（emoji 文本）+ 出错事件 + 下一事件开头，块边界
+     切在 😀 与中文字节中间；断言客户端收到的字节 = 已还原事件 + 其后
+     上游原始字节（逐字节相等）、无 U+FFFD、degraded=1。原有 pass/block
+     第 N 块两测改用事件级注入，帧完整断言不变
+2. PrivacyGate::refresh 出错语义修正：出错时**本次按 fail-closed（开启 +
+   block）处理，不更新缓存修订号**（修正第二轮「保留快照到新修订号」会
+   把关闭固化的问题）；下次请求自动重试；持续出错按 1s 最短重试间隔
+   限频（期间仍 fail-closed）。单元测试
+   refresh_error_fails_closed_and_recovers：缓存关闭 → 开启（bump）→
+   DROP 表出错 → settings()=开启+block；重建表后 bump → 返回真实设置；
+   再改 pass → 跟随真实值
+- 测试：e2e 16（+1，另 2 个改造）、layer 单元 10、privacy 合计 146
+  （--features test-hooks），全过；clippy -D warnings（lib 与
+  --all-targets --features test-hooks）干净；aicli_routing 11 回归通过
+- E-05 侧配套：stream/tests.rs 与 fuzz_tests.rs 适配字节 API（15+6 通过）
+- 提交：fb0eb392；run
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/42437323264
+  （五 job 全 success）
+
+九、统一验收（2026-11-08，审查方修正后验收）
+第三轮余留问题由审查方直接修正（1a9dc56d）：
+1. 扣留事件在引擎真实 panic 时丢失：event() 在调用引擎之前就取走
+   pending，panic 发生在 walk 内时，扣留事件的输出只在局部变量里随
+   panic 丢失。修正：push 在每个事件前记下扣留事件的原始字节，panic
+   后放出这份记录；注入点挪到引擎调用内部（扣留已被取走之后，与真实
+   panic 位置一致）。变异验证：去掉记录后
+   fault_after_held_event_releases_its_raw_bytes 失败，恢复后通过
+2. finish() 的剩余缓冲还原放进 catch_unwind：pass 按原始字节放出，
+   并报告失败；RestoreStream 在 finish 之后同样检查失败，block 以错误
+   结束
+3. 隐私优先失败后不再放出任何上游字节（set_fail_closed）：此前 block
+   模式会先发出失败事件与缓冲的原始字节再断流；现在扣留、出错事件、
+   缓冲与后续块一律丢弃，只发已还原前缀后以错误断开。block e2e 断言
+   加强为客户端收不到被扣留事件的任何部分
+4. 删除无调用方的 take_pending_raw
+- 新增 item E-06-stream-faults（--features test-hooks --lib，3 个：扣留
+  + 故障、fail-closed、finish 故障）；带 test-hooks 的单元测试此前没有
+  CI 组会运行
+- CI：run https://github.com/Txy-Sky/AICLI-Client/actions/runs/42438798416
+  （五 job 全 success）：E-06-unit 9、E-06-e2e 16、E-06-stream-faults 3、
+  E-05-unit、E-03-fuzz 6 passed；Rust 全量 4697 passed / 11 skipped
+
+验收结论：E-06 [x] 通过。交接说明标 [验收] 的各项（引擎共享与短锁、
+层顺序、故障注入 3 位置 × 2 模式、item 登记）与清单验收条款均已核对。
+遗留（不属于 E-06）：第 12 节「全链路串行化」——同一上游有流式响应
+进行中时，后续请求读响应体排队；与隐私层无关，另行立项定位修复。
+首页显示降级计数属 F 阶段首页条目（stats() 尚未对外暴露）。
+
+十、全链路并发复核（2026-11-08，统一验收）
+执行端第二轮记录的「全链路串行化（同一上游有流式响应时，后续请求读
+响应体排队）」经复核**不成立**：
+- 原诊断未入库；当时的 mock 由全局 UpstreamMode 决定回什么。并发诊断
+  用的 SseHeld 模式下，第二个请求同样拿到「首块后挂起、等 release」
+  的 SSE，响应头已到而响应体要等 release——这正是记录里「上游往返已
+  完成、卡在 bytes_with_limit 直到前一个流结束」的现象。代码排查也没有
+  跨请求的锁：代理到上游走 HTTP/1（direct_client 连接池 / hyper 原始
+  连接，各请求独立连接），response_processor 的异步锁是每个流各自的
+  事件收集器
+- 新增 mock 模式 HeldStreamOrJson（按请求的 stream 字段决定挂起 SSE 或
+  立即回 JSON），e2e second_request_completes_while_stream_is_open_full_chain：
+  真实代理、multi_thread(4)，OpenAI chat（共享连接池）与 Claude
+  messages（hyper 原始连接）× 隐私关/开，流挂着时第二个请求完成，
+  隐私开启时上游收到占位符、masked_values 增加，放行后流正常结束
+- 诊断 run 42439950021（临时分支 diag/stream-concurrency，只跑该测试；
+  测试步骤 success，失败的是 setup-node 的缓存收尾步骤，因诊断任务未
+  安装 pnpm 依赖）：
+    privacy=off path=/v1/chat/completions: second request finished after 40.36ms
+    privacy=off path=/v1/messages: second request finished after 40.12ms
+    privacy=on path=/v1/chat/completions: second request finished after 43.45ms
+    privacy=on path=/v1/messages: second request finished after 40.17ms
+- 删除不再使用的 SseHeld 模式；masking_works_while_stream_is_open（mini
+  app 直测隐私层）保留，注释改为指向第 17 个测试
+- 第 12 节偏差行改为「已核实无串行化」；第九节「遗留」中的串行化一项
+  就此关闭

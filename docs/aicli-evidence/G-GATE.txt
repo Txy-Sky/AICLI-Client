@@ -1,0 +1,138 @@
+G-GATE 阶段 G 门禁（2026-11-11；最终结论见文末：第 2、3 项通过，第 1 项按负责人决定跳过）
+
+基准提交：51902c11（其上 21639e55 为最后一个改代码的提交，之后只有文档提交）。
+
+## 第 2 项：主链路测试 —— 通过
+
+- CI run 42998746287（AICLI Acceptance，headSha 21639e55，五个 job 全部 success）
+  https://github.com/Txy-Sky/AICLI-Client/actions/runs/42998746287
+- 核对命令：gh run view 42998746287 -R Txy-Sky/AICLI-Client --log，去掉颜色码后
+  grep -cE "PASS .*aicli_routing" => 13，FAIL => 0
+  grep -cE "PASS .*aicli_privacy_e2e" => 21，FAIL => 0
+- 同一 run 的 A3-01 基线：4537 tests run: 4537 passed, 9 skipped。
+- 本机（2 GB 内存）未重跑。
+
+## 第 3 项：赞助与第三方中转名称扫描 —— 前半通过，后半按字面不通过
+
+- grep -rn 'sponsor\|赞助' src src-tauri/src => 无结果（通过）。
+- 名单：G-01 删除前一个提交（7070fb2f^）的 src/config/*ProviderPresets.ts 中全部
+  name: "..." 去重，共 373 个，存 G-GATE-names.txt。
+- 逐个 grep -rnF -- "<name>" src src-tauri/src：266 个名称仍有命中，计数存
+  G-GATE-name-hits.txt。
+- 名单本身混有三类不可能清零的名称：模型名（Claude Opus 5、DeepSeek、GLM-5 …）、
+  客户端名（Codex、Kimi …）、通用词（Auto、meta、together、cloudflare）。
+- 真正的第三方中转名称（PackyCode、AiHubMix、RightCode、SSSAiCode、88API、Cubence、
+  DMXAPI、AIGoCode、SiliconFlow、OpenRouter 等）仍在 39 个文件里出现。用 11 个代表性
+  名称（不分大小写）统计的文件分布：
+
+  79 src-tauri/src/codex_history_migration.rs
+  45 src-tauri/src/proxy/providers/claude.rs
+  37 src-tauri/src/services/balance.rs
+  32 src/icons/extracted/metadata.ts
+  23 src-tauri/src/proxy/providers/mod.rs
+  23 src-tauri/src/proxy/providers/codex.rs
+  21 src-tauri/src/services/provider/gemini_auth.rs
+  20 src-tauri/src/hermes_config.rs
+  16 src-tauri/src/proxy/providers/transform_codex_chat.rs
+  13 src/icons/extracted/index.ts
+  12 src-tauri/src/proxy/handlers.rs
+  11 src-tauri/src/proxy/providers/streaming.rs
+  10 src-tauri/src/provider.rs
+   9 src-tauri/src/services/model_fetch.rs
+   6 src/utils/providerConfigUtils.test.ts
+   6 src-tauri/src/codex_config.rs
+   5 src-tauri/src/services/provider/mod.rs
+   5 src-tauri/src/omp_config.rs
+   4 src-tauri/src/services/usage_stats.rs
+   4 src-tauri/src/proxy/usage/parser.rs
+   4 src-tauri/src/gemini_config.rs
+   3 src/types.ts
+   3 src-tauri/src/proxy/providers/transform_responses.rs
+   3 src-tauri/src/proxy/forwarder.rs
+   2 src/icons/extracted/sssaicode.svg
+   2 src-tauri/src/services/provider/claude_editor.rs
+   2 src-tauri/src/database/schema.rs
+   2 src-tauri/src/commands/model_fetch.rs
+   1 src/icons/extracted/packycode.svg
+   1 src/icons/extracted/openrouter.svg
+   1 src/icons/extracted/aihubmix-color.svg
+   1 src-tauri/src/services/proxy.rs
+   1 src-tauri/src/proxy/usage/logger.rs
+   1 src-tauri/src/proxy/providers/transform.rs
+   1 src-tauri/src/proxy/opaque_state_rectifier.rs
+   1 src-tauri/src/mode/stack.rs
+   1 src-tauri/src/commands/settings.rs
+   1 src-tauri/src/codex_startup_tests.rs
+   1 src-tauri/src/claude_desktop_config.rs
+
+- 归类：
+  a. 负责人决定保留的模块：codex_history_migration.rs（B-06 决定完整保留 48 项旧
+     provider 列表）、services/balance.rs 与 services/provider/gemini_auth.rs（G-03
+     2026-11-10 决定保留官方账号与余额后端）。
+  b. G-03 条款写明不得删除的代理兼容代码及其测试：proxy/providers/{claude,codex,mod,
+     streaming,transform*}.rs、proxy/handlers.rs、forwarder.rs、usage/parser.rs。
+  c. 各客户端配置写入器和通用后端里的注释、环境变量名（OPENROUTER_API_KEY）、测试样例：
+     hermes_config.rs、omp_config.rs、codex_config.rs、gemini_config.rs、provider.rs、
+     services/provider/mod.rs、model_fetch.rs、usage_stats.rs、schema.rs 等。
+  d. 前端：src/icons/extracted/（图标库 metadata.ts、index.ts 和 4 个 svg，G-01 保留
+     ProviderIcon 的连带）、src/types.ts（reasoning 枚举 "openrouter"）、
+     src/utils/providerConfigUtils.test.ts。
+- 界面文案（src/i18n）里没有任何第三方中转名称；命中的只有模型名、客户端名，以及
+  AWS Bedrock Converse、Ollama、LM Studio 三处协议和本机运行时名称。
+- 附带发现（未处理）：五种语言的翻译文件里仍有大量供应商增删改的键（如 zh.json 的
+  provider.addProvider「添加供应商」、editProvider、deleteProvider、oauthTitle）。
+  B-07 白名单只放行了已列出的命名空间，这些键没有被删；是否仍被界面引用未逐条核对。
+
+## 第 1 项：界面无供应商增删改入口、无官方登录入口 —— 未做
+
+- 需要 [HUMAN] 或 UI 自动化截图。本机是无图形界面的 2 GB Linux，没有 xvfb，
+  F-GATE 的走查是在 Windows 执行机上做的。
+- 静态核对（仅供参考，不替代截图）：
+  grep -rnoE 'invoke\("(copilot|codex_oauth|xai|kimi_oauth|claude_account|agy_account|auth_|subscription|coding_plan|balance|add_provider|update_provider|delete_provider)[a-z_]*"' src
+  => 无结果，前端不再调用任何官方账号或供应商增删改命令。
+
+---------------------------------------------------------------------------
+2026-11-11 负责人决定后的更新
+
+负责人决定：① 第 3 项名称扫描只查用户可见部分（src/i18n 与前端界面字符串）；
+② 残留的供应商翻译键清掉；③ OAuth 认证模式文案保留。
+
+## 翻译键清理（提交 09fa60cc）
+
+- 五种语言各删 214 个未被代码引用的键（tr.json 原本缺 23 个，实删 191 个），并删掉
+  因此变空的 10 个对象（tr 为 8 个）。删除与保留明细及判定方法见 G-GATE-i18n-keys.txt。
+- 保留 59 个：仍被前端引用 23 个；src/lib/query/proxy.ts 仍引用或后端 notice 返回的
+  provider.* 20 个；动态键前缀 11 个（profiles.switcherTooltip.*、
+  profiles.createDescription.*、omp.errors.*）；路径含 oauth 的 5 个（负责人保留：
+  provider.form.gemini.oauthTitle / oauthHint、kimi.oauth.description / removeConfirm / help）。
+- B-07 工作流白名单改为从 scripts/aicli-b07-removed-keys.txt 读取（172 条路径，变空的
+  对象记其根路径）。本机把工作流里的 B-07 脚本原样抽出运行：
+  "B-07: PASS"，五种语言 removed namespaces=36 keys=184。
+- 测试：被删键在 tests/ 中只有一处引用，是 tests/integration/App.test.tsx:342 的反向断言
+  （页头不应出现 provider.addProvider 按钮），不受影响。
+- 本机没有 node，prettier、typecheck、前端单测未在本地运行，以 CI 为准：CI run 43004625557（09fa60cc，五个 job 全部 success）https://github.com/Txy-Sky/AICLI-Client/actions/runs/43004625557
+
+## 第 3 项按收窄后的范围重跑 —— 通过
+
+- grep -rn 'sponsor\|赞助' src src-tauri/src => 无结果。
+- 373 个名称逐个 grep -rnF 于 src/i18n，仍有命中的只有 15 个，全部是模型名、客户端名、
+  协议或本机运行时名称、通用词：
+  AWS Bedrock(4) Auto(30) Claude Opus 5(5) Codex(410) DeepSeek(90) Kimi(93) LM Studio(5)
+  MiniMax(40) Ollama(5) claude-opus-5(5) cloudflare(5) kimi(5) llama.cpp(5) meta(12) together(4)
+- 前端界面字符串（src 下 .tsx 中带引号的整串，排除 icons/extracted 与测试）：
+  Codex(4) Kimi(1) MiniMax(1) deepseek(2) kimi(15)，同样只有客户端名和模型名。
+- 第三方中转名称在用户可见范围内命中为 0。
+- 清理后 zh.json 仍有 37 行含「供应商」，都属于仍被引用的键（高级设置说明、会话与用量
+  提示、Pi / OpenClaw / Hermes / Kimi 页面文案等），不是增删改入口，未改写。
+
+## 第 1 项 —— 仍未做
+
+需要在有图形界面的机器上走查截图。
+
+---------------------------------------------------------------------------
+2026-11-11 负责人第二条决定：第 1 项的界面走查截图先跳过
+
+- 门禁按第 2、3 项通过放行，清单标 [x] 并写明例外。
+- 第 1 项没有做：没有人在真实界面里确认过「找不到供应商增删改入口和官方登录入口」，
+  也没有截图。现有依据只有上文的静态核对（前端 invoke 扫描无结果）。
+- 该项须在 K-04 的交付摘要里列为未完成项。
