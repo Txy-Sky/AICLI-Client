@@ -102,9 +102,14 @@ export function useSettingsForm(): UseSettingsFormResult {
     [i18n],
   );
 
-  // 初始化设置数据
+  // 已经铺进表单的那份服务端数据。react-i18next 16.6 起语言一变 `i18n` 就换新对象，
+  // 两个回调随之换引用；不记住这份数据，改语言就会用服务端数据冲掉表单里没保存的修改。
+  const appliedDataRef = useRef<Settings | undefined>(undefined);
+
+  // 初始化设置数据（只在服务端数据本身变化时）
   useEffect(() => {
-    if (!data) return;
+    if (!data || appliedDataRef.current === data) return;
+    appliedDataRef.current = data;
 
     const normalizedLanguage = normalizeLanguage(
       data.language ?? readPersistedLanguage(),
