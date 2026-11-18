@@ -38,10 +38,7 @@ const ACCEPTED_TYPES: Record<string, string> = {
 export const CUSTOM_ICON_ACCEPT = Object.keys(ACCEPTED_TYPES).join(",");
 
 export type CustomIconErrorCode =
-  | "unsupported"
-  | "tooLarge"
-  | "decodeFailed"
-  | "dimensions";
+  "unsupported" | "tooLarge" | "decodeFailed" | "dimensions";
 
 export class CustomIconError extends Error {
   constructor(public readonly code: CustomIconErrorCode) {

@@ -73,11 +73,7 @@ export interface AicliCachedValue<T = unknown> {
 }
 
 export type AicliCompatibility =
-  | "full"
-  | "partial"
-  | "text_only"
-  | "unavailable"
-  | "unverified";
+  "full" | "partial" | "text_only" | "unavailable" | "unverified";
 
 export interface AicliCatalogGroup {
   description: string;
@@ -312,10 +308,7 @@ export interface AicliPrivacySummary {
 }
 
 export type AicliPrivacyOutcome =
-  | "masked"
-  | "degraded"
-  | "blocked"
-  | "media_passed";
+  "masked" | "degraded" | "blocked" | "media_passed";
 
 export interface AicliPrivacyEvent {
   id: number;
