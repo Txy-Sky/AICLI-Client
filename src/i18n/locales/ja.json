@@ -3260,16 +3260,8 @@
       "failed": "操作に失敗しました：{{message}}",
       "columns": {
         "model": "モデル",
-        "compat": "互換レベル",
         "capabilities": "機能",
         "group": "使うグループ"
-      },
-      "compat": {
-        "full": "完全互換",
-        "partial": "部分互換",
-        "text_only": "テキストのみ",
-        "unavailable": "利用不可",
-        "unverified": "未検証"
       },
       "takeOverPoint1": "リクエストはこのコンピューターを経由して AICLI に送られます",
       "takeOverPoint2": "現在の設定は先にすべてバックアップされます",
@@ -3294,8 +3286,6 @@
       "restoreNow": "現在の設定",
       "restoreHint": "引き継ぐ前にすべてバックアップし、停止すると元どおりに戻します",
       "modelsHint": "{{app}} でモデル名を入力すれば使えます",
-      "filterAll": "すべて {{count}}",
-      "filterCompat": "{{label}} {{count}}",
       "openSessions": "セッションを見る",
       "openUsage": "使用量を見る"
     },
