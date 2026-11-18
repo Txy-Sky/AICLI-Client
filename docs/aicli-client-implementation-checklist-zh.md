@@ -1070,25 +1070,28 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
 - [ ] 完成
 - 修改：`scripts/aicli-poc/account_probe.py` 增加钱包只读接口（`topup/info`、`topup/self`、`subscription/plans`、`subscription/self`），报告新增 `wallet` 段：各接口 HTTP 状态、是否开启在线充值与兑换码、支付方式标识、套餐数量。**不探测任何下单、兑换、划转接口**。
 - 验收：`python3 -m unittest test_account_probe` 通过；用 `AICLI_TEST_ACCESS_TOKEN` 在隔离 HOME 下运行，四个接口均为 200，报告不含订单号、套餐名与令牌。
-- 状态：脚本与单测已完成（4 passed）。开发机没有测试令牌，线上探测未运行。
+- 状态：脚本与单测已完成（4 passed）。开发机没有测试令牌，线上探测未运行。2026-11-17 复查：开发机仍无 `AICLI_TEST_ACCESS_TOKEN`，待负责人提供令牌后在本机运行。
 
 ### W-01 接口与校验
-- [ ] 完成
+- [x] 完成
 - 修改：`aicli/newapi.rs` 增加钱包接口。读接口沿用 `request`（可换线路）；写接口只发往当前线路一次，不换线路重试，避免重复下单或重复兑换；两种返回格式都能识别，被服务端拒绝时带回服务端给出的一句原因（限 160 字符、去控制字符）。新增 `aicli/wallet.rs`：充值设置、套餐、订阅、充值记录的类型与解析；金额、支付方式、兑换码、订单号校验；收银台地址检查（只接受 https、不带账号密码、不是自家线路域名）。
 - 验收：`scripts/aicli-item-tests.sh` 的 `W-01-unit`（`aicli::wallet::tests`）与 `W-01-api`（`aicli::newapi::tests::wallet_`）通过。
+- 证据：ab1af4ff（实现 6acaff10）| job `Rust item tests (Linux)`：`scripts/aicli-item-tests.sh` 的 W-01-unit（`aicli::wallet::tests`）、W-01-api（`--features test-hooks aicli::newapi::tests::wallet_`）| wallet 单测全部 PASS，`wallet_` 3 项 PASS（固定路径与请求体、写接口不换线路、两种返回格式带回服务端原因）；job `A3-01 baseline (Linux)` 的 Rust 全量 4586 passed / 9 skipped | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937
 
 ### W-02 支付窗口
-- [ ] 完成
+- [x] 完成
 - 修改：`commands/aicli/wallet.rs` 的支付窗口（标签 `aicli-pay`）只加载易支付收银台；不在任何 capability 里，所以没有 IPC，访问令牌不进入该窗口；无痕模式，不保留第三方页面的数据。导航规则（`wallet::classify_navigation`）：http(s) 放行；支付宝、微信的唤起协议交给系统；其余协议拒绝；回到 AICLI 三条线路的域名即视为支付结束并关闭窗口，唯一放行的是 `/api/subscription/epay/return`（该请求由服务端完成订阅订单后再跳转）。窗口结束或被用户关闭时向主窗口发 `aicli-pay-finished`。`lib.rs`：支付窗口不走「关闭到托盘 / 关闭即退出」，也不记窗口位置。已有支付窗口时不再下单。
 - 验收：`aicli::wallet::tests::navigation_policy`、`checkout_target_requires_an_external_https_gateway` 通过；CI 三平台编译通过。
+- 证据：ab1af4ff（实现 6acaff10）| job `A3-01 baseline (Linux)`：`cargo nextest run`（全量） | `navigation_policy`、`checkout_target_requires_an_external_https_gateway` PASS | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937；三平台编译：Release run 44089282303（v0.1.3，3ca803f8）全部 success
 
 ### W-03 命令
-- [ ] 完成
+- [x] 完成
 - 修改：新增命令 `aicli_wallet_get`、`aicli_wallet_quote`、`aicli_wallet_pay`、`aicli_wallet_redeem`、`aicli_wallet_history`、`aicli_wallet_order_status`、`aicli_subscription_buy`、`aicli_aff_transfer`。钱包数据实时读取，不写 `aicli_cache`；兑换、余额购买、划转成功或订单到账后刷新 `account` 缓存。下单前重新读取线上充值设置并校验。
 - 验收：CI 编译与 `commands::aicli::tests` 通过。
+- 证据：ab1af4ff（实现 6acaff10）| job `A3-01 baseline (Linux)`：`cargo nextest run`（全量） | `commands::aicli::tests` 25 项 PASS，全量 4586 passed / 9 skipped | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937
 
 ### W-04 钱包页
-- [ ] 完成
+- [x] 完成
 - 修改：侧栏在「用量」后增加「钱包」，行尾写余额；首页余额下增加「充值」按钮。钱包页按负责人 2026-11-15 定稿的设计稿（https://claude.ai/artifact/MUhqqN4EobSRMZR1wRLurW，「有订阅」「无订阅」两版）：
   - 上排左栏（负责人 2026-11-16 调整，随有无生效订阅而不同，使两栏高度接近）：余额卡（剩余额度、已用额度、近 7 天日均、按近 7 天估算的可用天数）；没有生效订阅时接兑换码、邀请返利（竖排）；有生效订阅时接「我的订阅」（套餐名、到期日、重置周期、已用进度）、兑换码，邀请返利改到订阅套餐下面独占一行。邀请返利含链接 `https://aicliapi.com/sign-up?aff=…`、待划转、累计获得、已邀请人数、划转到余额。
   - 上排右栏：在线充值。预设档位取服务端 `amount_options`，每档写服务端算出的实付金额，配置了折扣才显示折扣角标；「其他数量」整行输入，与预设互斥；支付方式带色块标记；结算小票三行（到账额度、支付方式、实付金额）加通栏「去支付 ¥x」按钮，等待支付时变为「支付进行中…」。实付金额只显示服务端返回的数字。
@@ -1096,29 +1099,34 @@ A5-01 另允许 `GET /api/token/` 和 `POST /api/token/batch/keys`，仅用于�
   - 充值记录（状态用胶囊标签，分页）。new-api 不会把没付款的订单改成过期，服务端一直是 `pending`；客户端按下单时间判断，过了 5 分钟有效期加 45 秒余量仍未付款的显示为「已超时」（只影响显示）。
   - 未开启易支付时充值区改为「前往网页充值」。等待支付时每 3 秒确认一次并显示倒计时；易支付订单 5 分钟超时，到点自动关闭支付窗口（`aicli_wallet_close_pay`），「取消支付」也会关窗；窗口结束后再确认 45 秒。支付宝、微信用官方标志（Simple Icons，CC0）。文案写入 5 种语言。
 - 验收：`tests/components/aicli/AicliWalletPage.test.tsx`（8 项）、`tests/lib/aicliWallet.test.ts`（5 项）通过；`tsc --noEmit` 通过；语言文件覆盖检查通过。
+- 证据：ab1af4ff（实现 6acaff10，0.1.1 超时与倒计时 55d5e487）| job `A3-01 baseline (Linux)`：`pnpm typecheck`（`tsc --noEmit`）、`pnpm test:unit`（`scripts/aicli-check.sh`） | tsc 通过；`AicliWalletPage.test.tsx` 9 项、`aicliWallet.test.ts` 6 项（55d5e487 比原定 8/5 各加 1 项）、`localeCoverage.test.ts` 12 项通过；前端 135 文件 1362 项全部通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937
 
 ### W-GATE 阶段 W 门禁 `[HUMAN]`
 - [ ] 完成
 - 验收：`scripts/aicli-check.sh` 全过；负责人用测试账号实付一笔最小金额（会产生真实订单和扣款），核对：支付窗口能打开收银台（确认网关接受 GET 方式提交；只接受 POST 时改为窗口内提交表单）、付款后窗口自动关闭、余额与充值记录更新；Windows、macOS、Linux 各看一次扫码页；兑换码、余额购买套餐、邀请划转各走一次。记录存 `docs/aicli-evidence/W-GATE.txt`，不含订单签名参数。
+- 状态：负责人 2026-11-17 告知钱包页已对外开放。验收所列的实付、扫码页三平台、兑换码、余额购买套餐、邀请划转是否逐项走过，待负责人确认后填 `docs/aicli-evidence/W-GATE.txt`。
 
 ## M. 阶段 M：发现栏卡片视图（负责人 2026-11-16 新增）
 
 范围（负责人 2026-11-16 确认）：参考 Magpie 的 MCP / Skills「发现」页，在发现栏加入响应式卡片网格，并用视图切换按钮在列表与卡片之间切换；MCP 页新增「发现」段，内容为精选清单加官方 MCP Registry 搜索；卡片图标沿用 Magpie 的做法（GitHub 头像、Registry 给的图标）；需要密钥的 MCP 点「添加…」先填写再写入。不涉及 new-api。
 
 ### M-01 共用部件
-- [ ] 完成
+- [x] 完成
 - 修改：新增 `src/components/discover/`：`DiscoverViewToggle`（列表 / 卡片图标分段控件，选择按页面记在 localStorage：`cc-switch.skills.discoverView` 默认列表、`cc-switch.mcp.discoverView` 默认卡片）、`DiscoverCard`（固定高 148：图标 + 名称 / 副行 → 两行描述 → 底部附注与操作）、`DiscoverGrid`（每列至少 240、间距 12，按行虚拟化，仍是 `<ul>/<li>`）、`DiscoverLogo`（白底圆角图标，只加载 https 图片，失败显示首字母）。图标本地缓存（负责人 2026-11-16 要求）：先用 `get_cached_discover_icon` 读 `~/.aicli-client/cache/discover-icons/`；没有缓存时界面直接从图标地址加载，加载成功后 `cache_discover_icon` 由后端下载一份（https、不带账号密码、单个 ≤1MB、按文件头只收 PNG/JPEG/GIF/WebP/ICO/SVG，先写临时文件再改名），以后不再请求网络。`useRememberedChoice` 移到 `src/lib/rememberedChoice.ts`（用量页原导出保留）；分段控件新增 `tip`，纯图标项用悬停提示。
 - 验收：`tests/components/DiscoverLogo.test.tsx`（3 项：读缓存、网络加载成功后保存、失败回退首字母）；`commands::discover_icon::tests`（4 项，本机用桩 crate 跑过）；其余见 M-02、M-03。
+- 证据：ab1af4ff（实现 2670bd45、480a3b73）| job `A3-01 baseline (Linux)`：`pnpm test:unit`（`scripts/aicli-check.sh`）、`cargo nextest run`（全量） | `DiscoverLogo.test.tsx` 3 项通过；`commands::discover_icon::tests` 4 项 PASS | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937
 
 ### M-02 Skills 发现栏
-- [ ] 完成
+- [x] 完成
 - 修改：`SkillsPage.tsx` 第二行最右加视图切换（两个来源都有）；卡片显示仓库所有者头像、名称、`owner/repo`、描述（skills.sh 没有描述则留空）、下载量或目录名、与列表行共用的安装 / 已安装 / 目录占用按钮。
 - 验收：`tests/components/SkillsPageInstall.test.tsx` 新增「切到卡片后从卡片安装」用例。
+- 证据：ab1af4ff（实现 2670bd45）| job `A3-01 baseline (Linux)`：`pnpm test:unit`（`scripts/aicli-check.sh`） | `SkillsPageInstall.test.tsx` 11 项通过，含「shows results as cards after switching the view and installs from a card」 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937
 
 ### M-03 MCP 发现段
-- [ ] 完成
+- [x] 完成
 - 修改：`UnifiedMcpPanel` 新增「已安装 / 发现」页签（原矩阵为「已安装」）。`src/config/mcpCatalog.ts` 精选 27 条（取 Magpie featured 的第三方条目，不含 Magpie 自家与依赖 Magpie Memory 的 EverMe、Nowledge），描述译文在 `mcpCatalog.<id>`。`src/lib/mcpRegistry.ts` 把 Registry 记录转换成配置：远程优先（streamable-http → sse，须 https 且地址不含占位），其次 npm（npx）/ PyPI（uvx），docker 镜像不支持；必填或保密的环境变量、请求头和必填位置参数变成「添加…」表单里的输入项，请求头按模板（如 `Bearer {}`）写入；非 active 的记录、重复的服务器去掉。搜索输入停顿 320ms 或回车时请求，结果为匹配的精选加 Registry（按名字相关度排序，最多 100 条）；Registry 失败时精选照常显示并提示重试。已在列表里的（按远程地址或命令 + 包名判断）显示「已添加 ›」，点它回到已安装并按键名搜索。「添加」直接写入界面上显示的全部应用（SSE 时去掉 Pi、Antigravity），「添加…」对话框可改写入的应用。新增命令 `search_mcp_registry`：只取数（`/v0/servers?search=&limit=100&version=latest`，超时 60 秒，5xx 重试一次，响应上限 8MB），不写本地配置。
 - 验收：`tests/lib/mcpRegistry.test.ts`（11 项）、`tests/components/McpDiscover.test.tsx`（6 项）、`tests/components/UnifiedMcpPanel.test.tsx` 新增页签切换用例；`tsc --noEmit` 通过；Rust 新命令由 CI 编译。
+- 证据：ab1af4ff（实现 2670bd45，修正 480a3b73）| job `A3-01 baseline (Linux)`：`pnpm typecheck`、`pnpm test:unit`（`scripts/aicli-check.sh`）、`cargo nextest run`（全量，含 `search_mcp_registry` 编译） | tsc 通过；`mcpRegistry.test.ts` 11 项、`McpDiscover.test.tsx` 6 项、`UnifiedMcpPanel.test.tsx` 24 项（含「switches between the installed matrix and the discover section」）通过 | https://github.com/Txy-Sky/AICLI-Client/actions/runs/44086426937；界面真机走查不在本项验收内
 - 状态：本地 vitest 全量 1359 项中 1358 项通过；另一项 `SessionManagerPage` 是与 tsc 同时运行时 5 秒超时，单独重跑 19 项全部通过。prettier、`rustfmt --check` 通过；本机 `tsc` 因内存不足被系统终止，类型检查以 CI 为准（首次 CI run 43894404680 查出 `mcpRegistry.ts` 一处 TS2322，已修正）。10f26f9d 的 CI run 43901121640 五个 job 全部 success（格式与类型、Rust 测试、桌面检查、测试环境、清单验收），Rust 新命令 `search_mcp_registry`、`get_cached_discover_icon`、`cache_discover_icon` 编译通过。界面还没在真机上走查。
 
 ---
