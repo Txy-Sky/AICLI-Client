@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+// 直接用 i18next 实例，不用 useTranslation() 给的 i18n：react-i18next 16.6 起那是语言一变
+// 就换新的包装对象，language 是创建时的快照，比较当前语言会读到旧值，回调也跟着换引用。
+import i18n from "i18next";
 import { useSettingsQuery } from "@/lib/query";
 import type { Settings } from "@/types";
 
@@ -73,7 +75,6 @@ export interface UseSettingsFormResult {
  * - 表单重置
  */
 export function useSettingsForm(): UseSettingsFormResult {
-  const { i18n } = useTranslation();
   const { data, isLoading } = useSettingsQuery();
 
   const [settingsState, setSettingsState] = useState<SettingsFormState | null>(
@@ -90,20 +91,16 @@ export function useSettingsForm(): UseSettingsFormResult {
       }
     }
     return normalizeLanguage(i18n.language);
-  }, [i18n]);
+  }, []);
 
-  const syncLanguage = useCallback(
-    (lang: Language) => {
-      const current = normalizeLanguage(i18n.language);
-      if (current !== lang) {
-        void i18n.changeLanguage(lang);
-      }
-    },
-    [i18n],
-  );
+  const syncLanguage = useCallback((lang: Language) => {
+    const current = normalizeLanguage(i18n.language);
+    if (current !== lang) {
+      void i18n.changeLanguage(lang);
+    }
+  }, []);
 
-  // 已经铺进表单的那份服务端数据。react-i18next 16.6 起语言一变 `i18n` 就换新对象，
-  // 两个回调随之换引用；不记住这份数据，改语言就会用服务端数据冲掉表单里没保存的修改。
+  // 已经铺进表单的那份服务端数据：同一份数据只铺一次，重渲染不会冲掉表单里没保存的修改。
   const appliedDataRef = useRef<Settings | undefined>(undefined);
 
   // 初始化设置数据（只在服务端数据本身变化时）
