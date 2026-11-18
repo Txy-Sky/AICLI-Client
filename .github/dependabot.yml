@@ -13,6 +13,10 @@ updates:
       frontend-deps:
         patterns:
           - "*"
+    ignore:
+      # 大版本升级要改代码（TypeScript tsconfig、hmac/getrandom API），单独迁移
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "cargo"
     directory: "/src-tauri"
@@ -27,6 +31,10 @@ updates:
       cargo-deps:
         patterns:
           - "*"
+    ignore:
+      # 大版本升级要改代码（TypeScript tsconfig、hmac/getrandom API），单独迁移
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
