@@ -342,7 +342,7 @@ describe("AicliClientPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lists the client's models with their group, compatibility and tags", async () => {
+  it("lists the client's models with their group and tags", async () => {
     respond();
     renderWithQueryClient(<AicliClientPage app="claude" />);
     const row = await screen.findByTestId("aicli-model-sonnet");
@@ -350,14 +350,12 @@ describe("AicliClientPage", () => {
     expect(cells[0]).toHaveTextContent("sonnet");
     // 首选分组和它的倍率
     await waitFor(() => expect(cells[1]).toHaveTextContent("vip ×1"));
-    expect(cells[2]).toHaveTextContent("aicli.client.compat.full");
-    expect(within(cells[3]).getByText("tools")).toBeInTheDocument();
-    expect(within(cells[3]).getByText("vision")).toBeInTheDocument();
-    expect(
-      within(screen.getByTestId("aicli-model-lite")).getByText(
-        "aicli.client.compat.partial",
-      ),
-    ).toBeInTheDocument();
+    expect(within(cells[2]).getByText("tools")).toBeInTheDocument();
+    expect(within(cells[2]).getByText("vision")).toBeInTheDocument();
+    // 兼容级别是内部验收标记，不进表，也没有按它筛选的按钮
+    expect(cells).toHaveLength(3);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+    expect(screen.getByTestId("aicli-model-lite")).toBeInTheDocument();
     // 配置集和线路对每一行都一样，放在上面的卡片里
     expect(
       within(screen.getByTestId("aicli-client-profile")).getByText(
@@ -369,22 +367,6 @@ describe("AicliClientPage", () => {
         "aicli.client.profileFollow",
       ),
     ).toBeInTheDocument();
-  });
-
-  it("filters the models by compatibility", async () => {
-    respond();
-    renderWithQueryClient(<AicliClientPage app="claude" />);
-    await screen.findByTestId("aicli-model-sonnet");
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "aicli.client.filterCompat" })[0],
-    );
-    // 第一个「完全兼容 / 部分兼容」按钮是完全兼容：只剩 sonnet
-    expect(screen.getByTestId("aicli-model-sonnet")).toBeInTheDocument();
-    expect(screen.queryByTestId("aicli-model-lite")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "aicli.client.filterAll" }),
-    );
-    expect(screen.getByTestId("aicli-model-lite")).toBeInTheDocument();
   });
 
   it("shows where requests go and what stopping restores once taken over", async () => {

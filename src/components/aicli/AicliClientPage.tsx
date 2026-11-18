@@ -41,7 +41,7 @@ export {
   type AicliTakeoverDisplay,
 } from "./takeover/useAicliTakeoverFlow";
 
-/** 客户端走的线协议（后端 takeover 投影同一映射），决定看哪一列兼容级别。 */
+/** 客户端走的线协议（后端 takeover 投影同一映射），决定 Claude Code 部分兼容提示看哪一列。 */
 export function protocolForApp(app: AppId): string {
   if (app === "claude" || app === "claude-desktop") return "anthropic";
   if (app === "gemini") return "gemini";
@@ -77,17 +77,6 @@ function capabilityTags(
     .filter(Boolean);
 }
 
-/** 兼容级别胶囊的颜色：完全兼容用品牌浅青，部分兼容用注意橙，其余灰。 */
-const COMPAT_PILL: Record<AicliCompatibility, string> = {
-  full: "bg-action-soft text-action-text",
-  partial: "bg-warning-soft text-warning-text",
-  text_only: "bg-subtle text-fg-2",
-  unavailable: "bg-danger-soft text-danger-text",
-  unverified: "bg-subtle text-fg-2",
-};
-
-type CompatFilter = "all" | "full" | "partial";
-
 export interface AicliClientPageProps {
   app: AppId;
   /** 「在首页看整条链路」 */
@@ -103,7 +92,8 @@ export interface AicliClientPageProps {
  * 客户端页（F-04，取代供应商列表；2026-11 改版，设计稿画板 7）：
  * - 顶部：接管状态胶囊与接管 / 停止接管按钮（确认对话框说明会还原配置）。
  * - 三张小卡：请求现在走哪里、用哪份配置集（可单独指定）、停止接管后回到什么。
- * - 本客户端可用模型表：模型、首选分组与倍率、兼容级别、能力标签；可按兼容级别筛选，可刷新模型目录。
+ * - 本客户端可用模型表：模型、首选分组与倍率、能力标签；可刷新模型目录。
+ *   兼容级别是内部验收标记，客户看了无从操作，不进表（2026-11-18 负责人决定）。
  * - 底部：会话、用量、配置目录、安装与升级的入口。
  */
 export function AicliClientPage({
@@ -149,7 +139,6 @@ export function AicliClientPage({
 
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<CompatFilter>("all");
   const [profilesOpen, setProfilesOpen] = useState(false);
 
   const { display, conflict, busy } = flow;
@@ -173,16 +162,9 @@ export function AicliClientPage({
   const lineName = lineId ? t(`aicli.lines.${lineId}`) : "";
   const protocol = protocolForApp(app);
   const models = profile?.routes ?? [];
-  const compatOfRoute = (route: AicliModelRoute) =>
-    compatOf(catalog.data, route, protocol);
-  const fullCount = models.filter((r) => compatOfRoute(r) === "full").length;
   const partialCount = models.filter(
-    (route) => compatOfRoute(route) === "partial",
+    (route) => compatOf(catalog.data, route, protocol) === "partial",
   ).length;
-  const shown =
-    filter === "all"
-      ? models
-      : models.filter((route) => compatOfRoute(route) === filter);
   const takenAt = takeover.data?.find(
     (entry) => entry.app === app,
   )?.taken_over_at;
@@ -233,23 +215,6 @@ export function AicliClientPage({
   const cardValue = "truncate text-title text-fg-1";
   const link =
     "self-start text-caption font-medium text-action-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm";
-
-  const chip = (value: CompatFilter, label: string) => (
-    <button
-      key={value}
-      type="button"
-      aria-pressed={filter === value}
-      onClick={() => setFilter(value)}
-      className={cn(
-        "inline-flex h-7 items-center rounded-full px-3 text-caption transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        filter === value
-          ? "bg-action-soft font-semibold text-action-text"
-          : "border border-border-strong bg-surface text-fg-1 hover:bg-subtle",
-      )}
-    >
-      {label}
-    </button>
-  );
 
   const links = [
     onOpenSessions && {
@@ -463,30 +428,6 @@ export function AicliClientPage({
                 </span>
               </div>
               <div className="ms-auto flex flex-wrap items-center gap-2">
-                {models.length > 0 && (
-                  <>
-                    {chip(
-                      "all",
-                      t("aicli.client.filterAll", { count: models.length }),
-                    )}
-                    {fullCount > 0 &&
-                      chip(
-                        "full",
-                        t("aicli.client.filterCompat", {
-                          label: t("aicli.client.compat.full"),
-                          count: fullCount,
-                        }),
-                      )}
-                    {partialCount > 0 &&
-                      chip(
-                        "partial",
-                        t("aicli.client.filterCompat", {
-                          label: t("aicli.client.compat.partial"),
-                          count: partialCount,
-                        }),
-                      )}
-                  </>
-                )}
                 <Button
                   type="button"
                   variant="quiet"
@@ -527,17 +468,13 @@ export function AicliClientPage({
                       <th className="border-b border-border px-3 py-2 text-start font-medium">
                         {t("aicli.client.columns.group")}
                       </th>
-                      <th className="border-b border-border px-3 py-2 text-start font-medium">
-                        {t("aicli.client.columns.compat")}
-                      </th>
                       <th className="border-b border-border px-4 py-2 text-start font-medium">
                         {t("aicli.client.columns.capabilities")}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {shown.map((route) => {
-                      const compat = compatOfRoute(route);
+                    {models.map((route) => {
                       const tags = capabilityTags(catalog.data, route);
                       return (
                         <tr
@@ -550,16 +487,6 @@ export function AicliClientPage({
                           </td>
                           <td className="px-3 py-2.5 tabular-nums text-fg-2">
                             {groupText(route)}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <span
-                              className={cn(
-                                "inline-flex h-5 items-center rounded-full px-2 text-badge font-medium",
-                                COMPAT_PILL[compat],
-                              )}
-                            >
-                              {t(`aicli.client.compat.${compat}`)}
-                            </span>
                           </td>
                           <td className="px-4 py-2.5 text-fg-2">
                             <span className="flex flex-wrap gap-1">

@@ -3260,16 +3260,8 @@
       "failed": "Action failed: {{message}}",
       "columns": {
         "model": "Model",
-        "compat": "Compatibility",
         "capabilities": "Capabilities",
         "group": "Group"
-      },
-      "compat": {
-        "full": "Full",
-        "partial": "Partial",
-        "text_only": "Text only",
-        "unavailable": "Unavailable",
-        "unverified": "Unverified"
       },
       "takeOverPoint1": "Its requests go through this computer, then on to AICLI",
       "takeOverPoint2": "Its current configuration is backed up in full first",
@@ -3294,8 +3286,6 @@
       "restoreNow": "The current configuration",
       "restoreHint": "Backed up in full before the takeover and restored as it was when you stop",
       "modelsHint": "Type the model name in {{app}} to use it",
-      "filterAll": "All {{count}}",
-      "filterCompat": "{{label}} {{count}}",
       "openSessions": "View its sessions",
       "openUsage": "View its usage"
     },

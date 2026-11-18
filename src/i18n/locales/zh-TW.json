@@ -3261,16 +3261,8 @@
       "failed": "操作失敗：{{message}}",
       "columns": {
         "model": "模型",
-        "compat": "相容等級",
         "capabilities": "能力",
         "group": "走哪個群組"
-      },
-      "compat": {
-        "full": "完全相容",
-        "partial": "部分相容",
-        "text_only": "僅文字",
-        "unavailable": "無法使用",
-        "unverified": "未驗證"
       },
       "takeOverPoint1": "它的請求改走這台電腦，再送往 AICLI",
       "takeOverPoint2": "現在的設定會先完整備份",
@@ -3295,8 +3287,6 @@
       "restoreNow": "現在的設定",
       "restoreHint": "接管前會先完整備份，停止時原樣還原",
       "modelsHint": "在 {{app}} 裡直接填模型名就能用",
-      "filterAll": "全部 {{count}}",
-      "filterCompat": "{{label}} {{count}}",
       "openSessions": "查看它的會話",
       "openUsage": "查看它的用量"
     },

@@ -3256,16 +3256,8 @@
       "failed": "İşlem başarısız: {{message}}",
       "columns": {
         "model": "Model",
-        "compat": "Uyumluluk",
         "capabilities": "Yetenekler",
         "group": "Grup"
-      },
-      "compat": {
-        "full": "Tam",
-        "partial": "Kısmi",
-        "text_only": "Yalnızca metin",
-        "unavailable": "Kullanılamıyor",
-        "unverified": "Doğrulanmadı"
       },
       "takeOverPoint1": "İstekleri bu bilgisayar üzerinden AICLI'ye gider",
       "takeOverPoint2": "Mevcut yapılandırması önce eksiksiz yedeklenir",
@@ -3290,8 +3282,6 @@
       "restoreNow": "Mevcut yapılandırma",
       "restoreHint": "Devralmadan önce eksiksiz yedeklenir, durdurunca olduğu gibi geri yüklenir",
       "modelsHint": "Kullanmak için {{app}} içinde model adını yazın",
-      "filterAll": "Tümü {{count}}",
-      "filterCompat": "{{label}} {{count}}",
       "openSessions": "Oturumlarını gör",
       "openUsage": "Kullanımını gör"
     },
