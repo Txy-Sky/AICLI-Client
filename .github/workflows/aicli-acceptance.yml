@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out the exact acceptance revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -99,7 +99,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out the exact acceptance revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -145,7 +145,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out the exact acceptance revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -419,7 +419,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out the exact acceptance revision
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0

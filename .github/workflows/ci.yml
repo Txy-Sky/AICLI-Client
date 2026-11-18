@@ -31,7 +31,7 @@ jobs:
       # on push it needs a local git history to diff against.
       - name: Checkout
         if: github.event_name == 'push'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Detect changed paths
         id: filter
@@ -68,10 +68,10 @@ jobs:
     if: needs.changes.outputs.frontend == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
 
@@ -89,7 +89,7 @@ jobs:
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -121,7 +121,7 @@ jobs:
         os: [ubuntu-22.04, windows-latest, macos-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # rust-toolchain.toml 是编译器版本的唯一来源：直接装它，免得先装 stable 再被 rustup 换掉
       - name: Read pinned Rust toolchain
@@ -153,7 +153,7 @@ jobs:
       # 只缓存依赖：本仓库的 crate 每次都要重编，缓存它只会让缓存变大、恢复变慢。
       # key 自带 OS、rustc 版本和 Cargo.lock；shared-key 让 WSL2 job 能读到 Windows 这份。
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: backend
@@ -188,7 +188,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read pinned Rust toolchain
         id: rust-toolchain
@@ -213,7 +213,7 @@ jobs:
       # 只恢复不保存：这里只编 lib 测试，若由它先存，同 key 的 Windows 缓存就只剩一小半。
       # 完整缓存由 backend 矩阵的 Windows job 保存（同一个 shared-key）。
       - name: Restore Rust dependencies
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: backend
