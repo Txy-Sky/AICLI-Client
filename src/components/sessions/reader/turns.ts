@@ -91,12 +91,7 @@ export interface MergedStep extends StepBase {
 }
 
 export type TimelineStep =
-  | ToolStep
-  | ThinkingStep
-  | NoteStep
-  | ImageStep
-  | EventStep
-  | MergedStep;
+  ToolStep | ThinkingStep | NoteStep | ImageStep | EventStep | MergedStep;
 
 export interface TurnEvent {
   id: string;

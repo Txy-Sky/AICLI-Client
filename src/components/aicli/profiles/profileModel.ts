@@ -12,11 +12,7 @@ import type {
  */
 
 export type AicliPreviewStatus =
-  | "single"
-  | "conflict"
-  | "confirmed"
-  | "bound"
-  | "excluded";
+  "single" | "conflict" | "confirmed" | "bound" | "excluded";
 
 export interface AicliPreviewRow {
   model: string;
@@ -98,9 +94,7 @@ export function confirmAllByGroupOrder(
 
 /** 冲突的处理方式：按分组顺序确认 / 指定来源分组 / 排除。 */
 export type AicliConflictChoice =
-  | { kind: "order" }
-  | { kind: "source"; group: string }
-  | { kind: "exclude" };
+  { kind: "order" } | { kind: "source"; group: string } | { kind: "exclude" };
 
 function without<T>(items: T[], predicate: (item: T) => boolean): T[] {
   return items.filter((item) => !predicate(item));
