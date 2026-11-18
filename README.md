@@ -2,7 +2,7 @@
 
 AICLI Client 是面向 AI 编程客户端的桌面应用，使用 Tauri 2、Rust、React 和 TypeScript。
 当前为预发布版本，下载见 [Releases](https://github.com/Txy-Sky/AICLI-Client/releases)，
-各版本改动见 [CHANGELOG](CHANGELOG.md)。钱包与充值（阶段 W）尚未完成，部分客户端仍在等真实环境验收。
+各版本改动见 [CHANGELOG](CHANGELOG.md)。部分客户端仍在等真实环境验收。
 
 应用使用独立目录 `~/.aicli-client`，本地代理默认端口为 `127.0.0.1:15821`。
 路线、账户绑定、隐私处理及客户端接管的目标和进度，分别见
