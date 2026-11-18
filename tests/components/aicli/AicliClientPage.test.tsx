@@ -261,8 +261,11 @@ describe("AicliClientPage", () => {
       aicli_release: undefined,
     });
     renderWithQueryClient(<AicliClientPage app="claude" />);
-    expect(await screen.findByTestId("aicli-takeover-state")).toHaveTextContent(
-      "aicli.client.status.active",
+    // 首帧先按「未接管」渲染，接管状态查询回来后才变；要等文字变过来再断言
+    await waitFor(() =>
+      expect(screen.getByTestId("aicli-takeover-state")).toHaveTextContent(
+        "aicli.client.status.active",
+      ),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "aicli.client.release" }),
@@ -295,8 +298,11 @@ describe("AicliClientPage", () => {
       ],
     });
     renderWithQueryClient(<AicliClientPage app="claude" />);
-    expect(await screen.findByTestId("aicli-takeover-state")).toHaveTextContent(
-      "aicli.client.status.pending",
+    // 首帧先按「未接管」渲染，接管状态查询回来后才变；要等文字变过来再断言
+    await waitFor(() =>
+      expect(screen.getByTestId("aicli-takeover-state")).toHaveTextContent(
+        "aicli.client.status.pending",
+      ),
     );
     expect(
       screen.getByRole("button", { name: "aicli.client.takeOver" }),
