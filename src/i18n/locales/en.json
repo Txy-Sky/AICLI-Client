@@ -3156,11 +3156,25 @@
     "deleteSessionHint": "Delete this session in DeepSeek Harness to keep its history consistent."
   },
   "aicli": {
+    "scopes": {
+      "missing": "The access token lacks these permissions: {{scopes}}. Create a new access token under Security & Access on the website, click Select all for Personal under Permissions, and bind again with the new token.",
+      "missingUnknown": "The access token lacks a permission AICLI needs. Create a new access token under Security & Access on the website, click Select all for Personal under Permissions, and bind again with the new token.",
+      "separator": ", ",
+      "labels": {
+        "profileRead": "Profile (View)",
+        "apiKeyRead": "API keys (View)",
+        "apiKeyWrite": "API keys (Edit)",
+        "apiKeyReveal": "API keys (Reveal full keys)",
+        "usageRead": "Usage (View)",
+        "walletRead": "Wallet (View)",
+        "walletWrite": "Wallet (Edit)"
+      }
+    },
     "bind": {
       "title": "System access token",
       "placeholder": "Paste your system access token (not an API key starting with sk-)",
-      "description": "Generate it under Security & Access → Access token on the website. The token is shown only once, so keep it safe; paste the same token when binding other devices.",
-      "warning": "Regenerating the token revokes the old one immediately; every bound device then needs the new token.",
+      "description": "Create it under Security & Access → Access tokens on the website, and click Select all for Personal under Permissions. The token is shown only once, so keep it safe; paste the same token when binding other devices.",
+      "warning": "Once the token expires or is revoked it stops working immediately; every bound device then needs a new token.",
       "skKeyError": "This is an API key. Paste the system access token from Security & Access → Access token on the website.",
       "openWeb": "Open the website to get a token",
       "submit": "Bind",

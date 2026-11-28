@@ -1,6 +1,10 @@
 import type { TFunction } from "i18next";
 import { WEBSITE_URL } from "@/config/branding";
-import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
+import {
+  aicliErrorCode,
+  aicliErrorMessage,
+  isAicliCommandError,
+} from "@/lib/api/aicli";
 import { DEFAULT_QUOTA_DISPLAY } from "@/lib/aicliQuota";
 import type { AicliPlan, AicliQuotaDisplay } from "@/types/aicli";
 
@@ -198,6 +202,7 @@ export function walletErrorText(error: unknown, t: TFunction): string {
   if (code === "wallet_declined" && isAicliCommandError(error)) {
     return error.message;
   }
+  if (code === "missing_scopes") return aicliErrorMessage(error, t);
   const key = code ? ERROR_KEYS[code] : undefined;
   return t(key ?? "aicli.wallet.errors.generic");
 }

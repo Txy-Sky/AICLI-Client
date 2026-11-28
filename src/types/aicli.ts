@@ -10,6 +10,8 @@
 export interface AicliCommandError {
   code: string;
   message: string;
+  /** 仅 missing_scopes：服务端拒绝的访问令牌权限（"resource:action"）；为空表示客户端不认识的权限。 */
+  scopes?: string[];
 }
 
 export type AicliBindingState = "not_bound" | "bound" | "needs_rebind";

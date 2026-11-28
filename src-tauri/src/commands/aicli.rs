@@ -33,6 +33,7 @@ use crate::aicli::profiles::{self, ModelRoute, Profile, ProfileError, ProfileSto
 use crate::aicli::runtime::{AicliRuntime, RoutesSnapshot, RuntimeError};
 use crate::aicli::secrets::SecretStore;
 use crate::aicli::takeover::{self, TakeoverError};
+use crate::aicli::tokens::TokenError;
 use crate::app_config::AppType;
 use crate::database::Database;
 use crate::store::AppState;
@@ -46,6 +47,10 @@ use crate::store::AppState;
 pub struct AicliCommandError {
     pub code: String,
     pub message: String,
+    /// `missing_scopes` only: the access-token scopes ("resource:action") the
+    /// server refused; empty when it named one this client does not know.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<&'static str>,
 }
 
 impl AicliCommandError {
@@ -53,30 +58,37 @@ impl AicliCommandError {
         Self {
             code: "invalid_input".into(),
             message: message.into(),
+            scopes: Vec::new(),
         }
     }
     fn not_bound() -> Self {
         Self {
             code: "not_bound".into(),
             message: "Bind an account first".into(),
+            scopes: Vec::new(),
         }
     }
     fn database() -> Self {
         Self {
             code: "database".into(),
             message: "Local AICLI storage is unavailable".into(),
+            scopes: Vec::new(),
         }
     }
     fn secret_store() -> Self {
         Self {
             code: "secret_store".into(),
             message: "The credential store is unavailable".into(),
+            scopes: Vec::new(),
         }
     }
 }
 
 impl From<AccountError> for AicliCommandError {
     fn from(error: AccountError) -> Self {
+        if let AccountError::Api(inner @ NewApiError::MissingScopes(_)) = error {
+            return inner.into();
+        }
         let code = match error {
             AccountError::WrongCredentialType => "wrong_credential_type",
             AccountError::NotBound => "not_bound",
@@ -88,6 +100,7 @@ impl From<AccountError> for AicliCommandError {
         Self {
             code: code.into(),
             message: error.to_string(),
+            scopes: Vec::new(),
         }
     }
 }
@@ -96,6 +109,7 @@ impl From<NewApiError> for AicliCommandError {
     fn from(error: NewApiError) -> Self {
         let code = match error {
             NewApiError::TokenInvalid => "token_invalid",
+            NewApiError::MissingScopes(_) => "missing_scopes",
             NewApiError::Http(_) => "http",
             NewApiError::RateLimited(_) => "rate_limited",
             NewApiError::Rejected => "rejected",
@@ -104,9 +118,14 @@ impl From<NewApiError> for AicliCommandError {
             NewApiError::InvalidInput => "invalid_input",
             NewApiError::UnknownLine => "unknown_line",
         };
+        let scopes = match error {
+            NewApiError::MissingScopes(missing) => missing.names(),
+            _ => Vec::new(),
+        };
         Self {
             code: code.into(),
             message: error.to_string(),
+            scopes,
         }
     }
 }
@@ -127,6 +146,7 @@ impl From<TakeoverError> for AicliCommandError {
         Self {
             code: code.into(),
             message: error.to_string(),
+            scopes: Vec::new(),
         }
     }
 }
@@ -147,6 +167,7 @@ impl From<ProfileError> for AicliCommandError {
         Self {
             code: code.into(),
             message: error.to_string(),
+            scopes: Vec::new(),
         }
     }
 }
@@ -158,9 +179,13 @@ impl From<RuntimeError> for AicliCommandError {
             RuntimeError::Api(inner) => inner.into(),
             RuntimeError::Profile(inner) => inner.into(),
             RuntimeError::Secret(_) => Self::secret_store(),
+            RuntimeError::Token(TokenError::Api(inner @ NewApiError::MissingScopes(_))) => {
+                inner.into()
+            }
             RuntimeError::Token(_) => Self {
                 code: "token".into(),
                 message: error.to_string(),
+                scopes: Vec::new(),
             },
         }
     }
@@ -417,6 +442,7 @@ fn backoff_seconds(failures: u32) -> i64 {
 fn probe_error_code(error: &NewApiError) -> &'static str {
     match error {
         NewApiError::TokenInvalid => "token_invalid",
+        NewApiError::MissingScopes(_) => "missing_scopes",
         NewApiError::Http(_) => "http",
         NewApiError::RateLimited(_) => "rate_limited",
         NewApiError::Rejected => "rejected",
@@ -1718,6 +1744,7 @@ impl AicliServices {
             return Err(AicliCommandError {
                 code: "privacy_engine_failed".into(),
                 message: "The privacy engine could not preview this text".into(),
+                scopes: Vec::new(),
             });
         };
         let scan = privacy_events::scan_kinds(&masked);

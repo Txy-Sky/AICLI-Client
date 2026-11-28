@@ -11,7 +11,7 @@ import {
   SettingsRow,
   SettingsSwitchRow,
 } from "@/components/settings/SettingsLayout";
-import { isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorMessage } from "@/lib/api/aicli";
 import { cn } from "@/lib/utils";
 import {
   useAicliPrivacy,
@@ -74,9 +74,7 @@ function CustomTerms({ privacy }: { privacy: AicliPrivacyView }) {
           setMessage({
             ok: false,
             text: t("aicli.settings.customInvalid", {
-              message: isAicliCommandError(failure)
-                ? failure.message
-                : String(failure),
+              message: aicliErrorMessage(failure, t),
             }),
           }),
       },

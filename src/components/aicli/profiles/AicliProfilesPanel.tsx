@@ -30,7 +30,7 @@ import {
   AICLI_TAKEOVER_APPS,
   takeoverDisplay,
 } from "@/components/aicli/AicliClientPage";
-import { isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorMessage } from "@/lib/api/aicli";
 import {
   useAicliCatalog,
   useAicliDeleteProfile,
@@ -110,9 +110,7 @@ export function AicliProfilesPanel({
   const fail = (failure: unknown) =>
     setError(
       t("aicli.profiles.errors.other", {
-        message: isAicliCommandError(failure)
-          ? failure.message
-          : String(failure),
+        message: aicliErrorMessage(failure, t),
       }),
     );
 

@@ -36,6 +36,7 @@ impl From<WalletApiError> for AicliCommandError {
             WalletApiError::Declined(reason) => Self {
                 code: "wallet_declined".into(),
                 message: reason,
+                scopes: Vec::new(),
             },
         }
     }
@@ -46,6 +47,7 @@ impl From<WalletInputError> for AicliCommandError {
         Self {
             code: error.code().into(),
             message: error.to_string(),
+            scopes: Vec::new(),
         }
     }
 }
@@ -230,6 +232,7 @@ fn ensure_no_pay_window(app: &AppHandle) -> Result<(), AicliCommandError> {
         return Err(AicliCommandError {
             code: "pay_window_open".into(),
             message: "A payment window is already open".into(),
+            scopes: Vec::new(),
         });
     }
     Ok(())
@@ -305,6 +308,7 @@ fn open_pay_window(
             AicliCommandError {
                 code: "pay_window".into(),
                 message: "The payment window could not be opened".into(),
+                scopes: Vec::new(),
             }
         })?;
 

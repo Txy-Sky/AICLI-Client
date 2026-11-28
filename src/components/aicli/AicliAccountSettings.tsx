@@ -17,7 +17,7 @@ import {
 } from "@/components/settings/SettingsLayout";
 import { cn } from "@/lib/utils";
 import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
-import { isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorMessage } from "@/lib/api/aicli";
 import {
   useAicliAccount,
   useAicliCachedValue,
@@ -78,9 +78,7 @@ export function AicliAccountSettings() {
         setConfirming(false);
         setError(
           t("aicli.accountSettings.unbindFailed", {
-            message: isAicliCommandError(failure)
-              ? failure.message
-              : String(failure),
+            message: aicliErrorMessage(failure, t),
           }),
         );
       },

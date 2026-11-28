@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Notice } from "@/components/ui/notice";
 import { APP_DISPLAY_NAME } from "@/components/shell/AppGlyph";
 import type { AppId } from "@/lib/api";
-import { aicliApi, isAicliCommandError } from "@/lib/api/aicli";
+import { aicliApi, aicliErrorMessage } from "@/lib/api/aicli";
 import { aicliKeys } from "@/hooks/aicliKeys";
 import { useAicliAccount } from "@/hooks/useAicliAccount";
 import { useSettingsQuery } from "@/lib/query";
@@ -129,9 +129,7 @@ export function AicliClientPage({
       await aicliApi.setClaudeKeepBuiltinModels(keep);
       await queryClient.invalidateQueries({ queryKey: ["settings"] });
     } catch (error) {
-      setBuiltinError(
-        isAicliCommandError(error) ? error.message : String(error),
-      );
+      setBuiltinError(aicliErrorMessage(error, t));
     } finally {
       setSavingBuiltin(false);
     }
@@ -195,9 +193,7 @@ export function AicliClientPage({
     } catch (failure) {
       setRefreshError(
         t("aicli.client.failed", {
-          message: isAicliCommandError(failure)
-            ? failure.message
-            : String(failure),
+          message: aicliErrorMessage(failure, t),
         }),
       );
     } finally {

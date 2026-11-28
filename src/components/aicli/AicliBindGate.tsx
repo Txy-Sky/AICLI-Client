@@ -25,7 +25,7 @@ import {
 import { WindowControlsContext } from "@/components/shell/AppPageHeader";
 import { useAicliAccount } from "@/hooks/useAicliAccount";
 import { DRAG_REGION_ATTR, DRAG_REGION_STYLE } from "@/lib/platform";
-import { isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorMessage } from "@/lib/api/aicli";
 import { AicliBindCard } from "./AicliBindCard";
 
 /** 主界面里「重新绑定」入口用：打开 Gate 的绑定对话框。 */
@@ -112,11 +112,7 @@ export function AicliBindGate({ bindRequest, children }: AicliBindGateProps) {
   }
 
   const bound = state === "bound" || state === "needs_rebind";
-  const loadError = account.error
-    ? isAicliCommandError(account.error)
-      ? account.error.message
-      : String(account.error)
-    : null;
+  const loadError = account.error ? aicliErrorMessage(account.error, t) : null;
 
   return (
     <BindGateContext.Provider value={openBind}>

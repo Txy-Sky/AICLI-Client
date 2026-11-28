@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppId } from "@/lib/api";
-import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorCode, aicliErrorMessage } from "@/lib/api/aicli";
 import {
   useAicliRelease,
   useAicliTakeOver,
@@ -80,7 +80,7 @@ export function useAicliTakeoverFlow(
 
   const failMessage = (failure: unknown) =>
     t("aicli.client.failed", {
-      message: isAicliCommandError(failure) ? failure.message : String(failure),
+      message: aicliErrorMessage(failure, t),
     });
 
   const runTakeOver = (confirmed: boolean) => {
