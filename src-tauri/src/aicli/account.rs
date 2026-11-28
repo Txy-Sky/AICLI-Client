@@ -75,7 +75,11 @@ impl AccountRemote for HttpRemote {
         access: &'a str,
         selected_line: &'a str,
     ) -> BoxFuture<'a, Result<Value, NewApiError>> {
-        Box::pin(async move { NewApiClient::new(access, selected_line)?.user_self().await })
+        Box::pin(async move {
+            NewApiClient::new(access, selected_line)?
+                .verify_binding()
+                .await
+        })
     }
     fn delete<'a>(
         &'a self,

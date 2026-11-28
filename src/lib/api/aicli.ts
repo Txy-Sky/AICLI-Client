@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { TFunction } from "i18next";
 import type {
   AicliAccountView,
   AicliBindResult,
@@ -54,6 +55,34 @@ export function isAicliCommandError(
 /** 取 AICLI 错误机器码；不是 AICLI 错误时返回 undefined。 */
 export function aicliErrorCode(error: unknown): string | undefined {
   return isAicliCommandError(error) ? error.code : undefined;
+}
+
+/** 客户端依赖的访问令牌权限（new-api rc.41+）对应的文案键，顺序同网页「个人」分组。 */
+const SCOPE_LABEL_KEYS: Record<string, string> = {
+  "profile:read": "profileRead",
+  "api_key:read": "apiKeyRead",
+  "api_key:write": "apiKeyWrite",
+  "api_key:reveal": "apiKeyReveal",
+  "usage:read": "usageRead",
+  "wallet:read": "walletRead",
+  "wallet:write": "walletWrite",
+};
+
+/**
+ * 命令失败时给用户看的一句话。访问令牌缺权限（missing_scopes）时列出缺少的权限，
+ * 并提示到网页新建令牌、「个人」权限全选；其余沿用后端给的说明。
+ */
+export function aicliErrorMessage(error: unknown, t: TFunction): string {
+  if (!isAicliCommandError(error)) return String(error);
+  if (error.code !== "missing_scopes") return error.message;
+  const labels = (error.scopes ?? [])
+    .map((scope) => SCOPE_LABEL_KEYS[scope])
+    .filter((key): key is string => key !== undefined)
+    .map((key) => t(`aicli.scopes.labels.${key}`));
+  if (labels.length === 0) return t("aicli.scopes.missingUnknown");
+  return t("aicli.scopes.missing", {
+    scopes: labels.join(t("aicli.scopes.separator")),
+  });
 }
 
 /** 对应 C3-11 的全部 AICLI 命令及 F-06 新增的自定义遮盖项（参数名按 Tauri 约定用 camelCase）。 */

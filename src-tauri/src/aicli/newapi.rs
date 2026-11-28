@@ -13,11 +13,98 @@ use super::lines::{line, LINES};
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const PAGE_SIZE: u64 = 100;
+/// rc.41+ answers a scoped access token that lacks a route's scope with HTTP 403 and this code.
+const SCOPE_DENIED_CODE: &str = "ACCESS_TOKEN_SCOPE_DENIED";
+
+/// An access-token scope (new-api rc.41+, "resource:action") the client relies on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessScope {
+    ProfileRead,
+    ApiKeyRead,
+    ApiKeyWrite,
+    ApiKeyReveal,
+    UsageRead,
+    WalletRead,
+    WalletWrite,
+}
+
+impl AccessScope {
+    /// Every scope a binding must carry, in the order the web console lists them.
+    pub const REQUIRED: [AccessScope; 7] = [
+        Self::ProfileRead,
+        Self::ApiKeyRead,
+        Self::ApiKeyWrite,
+        Self::ApiKeyReveal,
+        Self::UsageRead,
+        Self::WalletRead,
+        Self::WalletWrite,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ProfileRead => "profile:read",
+            Self::ApiKeyRead => "api_key:read",
+            Self::ApiKeyWrite => "api_key:write",
+            Self::ApiKeyReveal => "api_key:reveal",
+            Self::UsageRead => "usage:read",
+            Self::WalletRead => "wallet:read",
+            Self::WalletWrite => "wallet:write",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::REQUIRED
+            .into_iter()
+            .find(|scope| scope.as_str() == value)
+    }
+
+    fn bit(self) -> u8 {
+        1 << (self as u8)
+    }
+}
+
+/// Scopes the server refused. Empty means the server named a scope this client does not know.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ScopeSet(u8);
+
+impl ScopeSet {
+    pub fn of(scope: AccessScope) -> Self {
+        Self(scope.bit())
+    }
+    pub fn insert(&mut self, scope: AccessScope) {
+        self.0 |= scope.bit();
+    }
+    pub fn contains(self, scope: AccessScope) -> bool {
+        self.0 & scope.bit() != 0
+    }
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+    pub fn iter(self) -> impl Iterator<Item = AccessScope> {
+        AccessScope::REQUIRED
+            .into_iter()
+            .filter(move |scope| self.contains(*scope))
+    }
+    pub fn names(self) -> Vec<&'static str> {
+        self.iter().map(AccessScope::as_str).collect()
+    }
+}
+
+impl fmt::Display for ScopeSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            return f.write_str("unlisted");
+        }
+        f.write_str(&self.names().join(", "))
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum NewApiError {
     #[error("System access token is invalid; bind the account again")]
     TokenInvalid,
+    #[error("Access token lacks permissions ({0}); create one with every Personal permission selected and bind again")]
+    MissingScopes(ScopeSet),
     #[error("Account API returned HTTP {0}")]
     Http(u16),
     #[error("Account API rate limited the operation; retry after {0} seconds")]
@@ -124,6 +211,9 @@ impl NewApiClient {
             if status == reqwest::StatusCode::UNAUTHORIZED {
                 return Err(NewApiError::TokenInvalid);
             }
+            if status == reqwest::StatusCode::FORBIDDEN {
+                return Err(forbidden(response).await);
+            }
             // Reject every 4xx before interpreting a body; never change lines for auth/quota errors.
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 if let Some(delay) = response
@@ -177,6 +267,66 @@ impl NewApiClient {
 
     pub async fn user_self(&self) -> Result<Value, NewApiError> {
         self.request(Method::GET, "/api/user/self", &[], None).await
+    }
+
+    /// Binding check: `/api/user/self` plus one probe per required scope, so a
+    /// token missing any of them is refused with the full list at once. A
+    /// scoped token cannot read its own grant, and the server checks the scope
+    /// before the handler runs; every write probe sends a body the handler
+    /// cannot bind, so a granted scope ends in a rejection and nothing changes.
+    /// Only a scope denial counts as missing: older servers without scopes, or
+    /// a route they lack, pass.
+    pub async fn verify_binding(&self) -> Result<Value, NewApiError> {
+        let mut missing = ScopeSet::default();
+        let profile = match self.user_self().await {
+            Err(NewApiError::MissingScopes(_)) => {
+                missing.insert(AccessScope::ProfileRead);
+                None
+            }
+            other => Some(other?),
+        };
+        for scope in AccessScope::REQUIRED {
+            let (method, path, query, body) = match scope {
+                AccessScope::ProfileRead => continue,
+                AccessScope::ApiKeyRead => (Method::GET, "/api/token/auto-groups", vec![], None),
+                AccessScope::ApiKeyWrite => (Method::PUT, "/api/token/", vec![], Some(json!([]))),
+                AccessScope::ApiKeyReveal => (
+                    Method::POST,
+                    "/api/token/batch/keys",
+                    vec![],
+                    Some(json!({"ids": []})),
+                ),
+                AccessScope::UsageRead => {
+                    let now = chrono::Utc::now().timestamp();
+                    (
+                        Method::GET,
+                        "/api/log/self/stat",
+                        Self::time_query(now - 60, now)?,
+                        None,
+                    )
+                }
+                AccessScope::WalletRead => (Method::GET, "/api/user/topup/info", vec![], None),
+                AccessScope::WalletWrite => (
+                    Method::PUT,
+                    "/api/subscription/self/preference",
+                    vec![],
+                    Some(json!([])),
+                ),
+            };
+            match self.request(method, path, &query, body.as_ref()).await {
+                Err(NewApiError::MissingScopes(_)) => missing.insert(scope),
+                Err(
+                    error @ (NewApiError::TokenInvalid
+                    | NewApiError::Network
+                    | NewApiError::RateLimited(_)),
+                ) => return Err(error),
+                _ => {}
+            }
+        }
+        match profile {
+            Some(profile) if missing.is_empty() => Ok(profile),
+            _ => Err(NewApiError::MissingScopes(missing)),
+        }
     }
     pub async fn user_groups(&self) -> Result<Value, NewApiError> {
         self.request(Method::GET, "/api/user/self/groups", &[], None)
@@ -514,6 +664,9 @@ impl NewApiClient {
         if status == reqwest::StatusCode::UNAUTHORIZED {
             return Err(NewApiError::TokenInvalid.into());
         }
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(forbidden(response).await.into());
+        }
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
             if let Some(delay) = response
                 .headers()
@@ -648,6 +801,25 @@ impl NewApiClient {
             .await
             .map(|_| ())
     }
+}
+
+/// A 403 is a scope denial only when the body carries the rc.41+ code; only
+/// that code and the scope name are read, never the rest of the body.
+async fn forbidden(response: reqwest::Response) -> NewApiError {
+    let Ok(bytes) = response.bytes().await else {
+        return NewApiError::Http(403);
+    };
+    let Ok(body) = serde_json::from_slice::<Value>(&bytes) else {
+        return NewApiError::Http(403);
+    };
+    if body.get("code").and_then(Value::as_str) != Some(SCOPE_DENIED_CODE) {
+        return NewApiError::Http(403);
+    }
+    let scope = body
+        .pointer("/message_params/scope")
+        .and_then(Value::as_str)
+        .and_then(AccessScope::parse);
+    NewApiError::MissingScopes(scope.map(ScopeSet::of).unwrap_or_default())
 }
 
 fn retry_after_seconds(value: &str) -> Option<u64> {

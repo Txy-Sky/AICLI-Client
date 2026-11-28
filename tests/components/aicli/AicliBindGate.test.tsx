@@ -105,12 +105,12 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
     ).toHaveAttribute("type", "password");
     expect(
       screen.getByText(
-        "在网页「安全与访问」的「访问令牌」中生成。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
+        "在网页「安全与访问」的「访问令牌」中创建，「权限」里的「个人」请点「全选」。令牌只显示一次，请妥善保存；绑定其他设备时需要粘贴同一个令牌。",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "重新生成后旧令牌立即失效，所有已绑定的设备都要粘贴新令牌。",
+        "令牌过期或被撤销后立即失效，所有已绑定的设备都要粘贴新令牌。",
       ),
     ).toBeInTheDocument();
     // 未绑定时不进入应用，也不查账户快照与线路
@@ -154,6 +154,50 @@ describe("AicliBindGate — not bound (section 0.4 copy)", () => {
         accessToken: "access-value",
         line: "main",
       }),
+    );
+  });
+
+  it("refuses a token missing scopes and names every missing permission", async () => {
+    respond({
+      aicli_get_account: unbound,
+      aicli_bind: () => {
+        throw {
+          code: "missing_scopes",
+          message:
+            "Access token lacks permissions (api_key:reveal, wallet:write)",
+          scopes: ["api_key:reveal", "wallet:write"],
+        };
+      },
+    });
+    renderGate();
+    const input = await screen.findByPlaceholderText(
+      "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
+    );
+    fireEvent.change(input, { target: { value: "access-value" } });
+    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "绑定失败：访问令牌缺少以下权限：API 密钥（查看完整密钥）、钱包（编辑）。请在网页「安全与访问」新建访问令牌，「权限」里的「个人」点「全选」，再用新令牌重新绑定。",
+    );
+    expect(screen.queryByTestId("main-app")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the select-all hint for a scope it does not know", async () => {
+    respond({
+      aicli_get_account: unbound,
+      aicli_bind: () => {
+        throw { code: "missing_scopes", message: "unlisted", scopes: [] };
+      },
+    });
+    renderGate();
+    const input = await screen.findByPlaceholderText(
+      "粘贴系统访问令牌（不是 sk- 开头的 API 密钥）",
+    );
+    fireEvent.change(input, { target: { value: "access-value" } });
+    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "绑定失败：访问令牌缺少 AICLI 需要的权限。请在网页「安全与访问」新建访问令牌，「权限」里的「个人」点「全选」，再用新令牌重新绑定。",
     );
   });
 
@@ -223,6 +267,21 @@ describe("bind copy translations", () => {
         );
       }
     }
+  });
+});
+
+describe("missing-scope copy translations", () => {
+  const bundles = { en, ja, tr, "zh-TW": zhTW } as const;
+
+  it.each(Object.keys(bundles))("%s translates every scope string", (lng) => {
+    const scopes = bundles[lng as keyof typeof bundles].aicli.scopes;
+    expect(scopes.missing).toContain("{{scopes}}");
+    expect(scopes.missing).not.toBe(zh.aicli.scopes.missing);
+    expect(scopes.missingUnknown).not.toBe(zh.aicli.scopes.missingUnknown);
+    expect(scopes.separator).toBeTruthy();
+    expect(Object.keys(scopes.labels).sort()).toEqual(
+      Object.keys(zh.aicli.scopes.labels).sort(),
+    );
   });
 });
 

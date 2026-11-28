@@ -930,6 +930,36 @@ fn takeover_errors_carry_distinct_codes() {
     );
 }
 
+#[test]
+fn missing_scopes_keep_their_code_and_list_through_every_wrapper() {
+    use crate::aicli::newapi::{AccessScope, ScopeSet};
+    let mut missing = ScopeSet::of(AccessScope::WalletWrite);
+    missing.insert(AccessScope::ApiKeyReveal);
+    let error = NewApiError::MissingScopes(missing);
+    for converted in [
+        AicliCommandError::from(error),
+        AicliCommandError::from(AccountError::Api(error)),
+        AicliCommandError::from(RuntimeError::Api(error)),
+        AicliCommandError::from(RuntimeError::Token(TokenError::Api(error))),
+    ] {
+        assert_eq!(converted.code, "missing_scopes");
+        assert_eq!(converted.scopes, ["api_key:reveal", "wallet:write"]);
+        assert_eq!(
+            serde_json::to_value(&converted).unwrap()["scopes"],
+            json!(["api_key:reveal", "wallet:write"])
+        );
+    }
+    // Other errors keep their codes and never serialize an empty list.
+    let account = AicliCommandError::from(AccountError::Api(NewApiError::Network));
+    assert_eq!(account.code, "account_api");
+    assert!(serde_json::to_value(&account)
+        .unwrap()
+        .get("scopes")
+        .is_none());
+    let token = AicliCommandError::from(RuntimeError::Token(TokenError::Api(NewApiError::Network)));
+    assert_eq!(token.code, "token");
+}
+
 // ---------------------------------------------------------------------------
 // C4-02: automatic post-bind takeover of Tier 1 clients
 // ---------------------------------------------------------------------------

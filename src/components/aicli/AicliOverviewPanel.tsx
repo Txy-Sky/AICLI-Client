@@ -10,7 +10,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { APP_DISPLAY_NAME, AppGlyph } from "@/components/shell/AppGlyph";
 import type { AppId } from "@/lib/api";
 import { formatAicliQuota, readAccountQuota } from "@/lib/aicliQuota";
-import { aicliApi, isAicliCommandError } from "@/lib/api/aicli";
+import { aicliApi, aicliErrorMessage } from "@/lib/api/aicli";
 import { proxyApi } from "@/lib/api/proxy";
 import { proxyKeys, useProxyStatusQuery } from "@/lib/query/proxy";
 import { aicliKeys } from "@/hooks/aicliKeys";
@@ -612,9 +612,7 @@ function HomeAlert({
     failure ? (
       <span role="alert" className="block text-danger-text">
         {t("aicli.overview.alertFailed", {
-          message: isAicliCommandError(failure)
-            ? failure.message
-            : String(failure),
+          message: aicliErrorMessage(failure, t),
         })}
       </span>
     ) : null;

@@ -3152,11 +3152,25 @@
     "deleteSessionHint": "Geçmişin tutarlı kalması için bu oturumu DeepSeek Harness içinde silin."
   },
   "aicli": {
+    "scopes": {
+      "missing": "Erişim belirtecinde şu izinler eksik: {{scopes}}. Web sitesindeki «Güvenlik ve Erişim» bölümünde yeni bir erişim belirteci oluşturun, «İzinler» altında «Kişisel» için «Tümünü seç»e tıklayın ve yeni belirteçle yeniden bağlayın.",
+      "missingUnknown": "Erişim belirtecinde AICLI'nin ihtiyaç duyduğu bir izin eksik. Web sitesindeki «Güvenlik ve Erişim» bölümünde yeni bir erişim belirteci oluşturun, «İzinler» altında «Kişisel» için «Tümünü seç»e tıklayın ve yeni belirteçle yeniden bağlayın.",
+      "separator": ", ",
+      "labels": {
+        "profileRead": "Profil (Görüntüle)",
+        "apiKeyRead": "API anahtarları (Görüntüle)",
+        "apiKeyWrite": "API anahtarları (Düzenle)",
+        "apiKeyReveal": "API anahtarları (Tam anahtarları göster)",
+        "usageRead": "Kullanım (Görüntüle)",
+        "walletRead": "Cüzdan (Görüntüle)",
+        "walletWrite": "Cüzdan (Düzenle)"
+      }
+    },
     "bind": {
       "title": "Sistem erişim belirteci",
       "placeholder": "Sistem erişim belirtecini yapıştırın (sk- ile başlayan API anahtarı değil)",
-      "description": "Web sitesindeki «Güvenlik ve Erişim» > «Erişim belirteci» bölümünde oluşturulur. Belirteç yalnızca bir kez gösterilir, güvenli bir yerde saklayın; başka cihazları bağlarken aynı belirteci yapıştırın.",
-      "warning": "Yeniden oluşturulduğunda eski belirteç hemen geçersiz olur; bağlı tüm cihazlara yeni belirtecin yapıştırılması gerekir.",
+      "description": "Web sitesindeki «Güvenlik ve Erişim» > «Erişim belirteçleri» bölümünde oluşturun ve «İzinler» altında «Kişisel» için «Tümünü seç»e tıklayın. Belirteç yalnızca bir kez gösterilir, güvenli bir yerde saklayın; başka cihazları bağlarken aynı belirteci yapıştırın.",
+      "warning": "Belirtecin süresi dolduğunda veya iptal edildiğinde hemen geçersiz olur; bağlı tüm cihazlara yeni belirtecin yapıştırılması gerekir.",
       "skKeyError": "Bu bir API anahtarı. Web sitesindeki «Güvenlik ve Erişim» > «Erişim belirteci» bölümünden sistem erişim belirtecini yapıştırın.",
       "openWeb": "Belirteç almak için web sitesini aç",
       "submit": "Bağla",

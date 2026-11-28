@@ -4,7 +4,7 @@ import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { settingsApi } from "@/lib/api/settings";
-import { aicliErrorCode, isAicliCommandError } from "@/lib/api/aicli";
+import { aicliErrorCode, aicliErrorMessage } from "@/lib/api/aicli";
 import { useAicliBind } from "@/hooks/useAicliAccount";
 import type { AicliBindResult } from "@/types/aicli";
 
@@ -62,10 +62,9 @@ export function AicliBindCard({
             setError(t("aicli.bind.skKeyError"));
             return;
           }
-          const message = isAicliCommandError(failure)
-            ? failure.message
-            : String(failure);
-          setError(t("aicli.bind.failed", { message }));
+          setError(
+            t("aicli.bind.failed", { message: aicliErrorMessage(failure, t) }),
+          );
         },
       },
     );

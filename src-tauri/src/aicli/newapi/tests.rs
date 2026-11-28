@@ -648,3 +648,154 @@ async fn wallet_writes_never_move_to_another_line() {
     );
     assert_eq!(edge.requests.lock().unwrap().len(), 3);
 }
+
+fn denied(scope: &str) -> (u16, &'static str, String) {
+    (
+        403,
+        "application/json",
+        json!({
+            "success": false,
+            "code": "ACCESS_TOKEN_SCOPE_DENIED",
+            "message": format!("The access token lacks the required permission: {scope}"),
+            "message_params": {"scope": scope},
+        })
+        .to_string(),
+    )
+}
+
+fn handler_rejected() -> (u16, &'static str, String) {
+    (
+        200,
+        "application/json",
+        json!({"success":false,"message":"Invalid parameters"}).to_string(),
+    )
+}
+
+#[tokio::test]
+async fn scope_denials_name_the_scope_and_never_change_lines() {
+    for (reply, expected) in [
+        (
+            denied("api_key:reveal"),
+            NewApiError::MissingScopes(ScopeSet::of(AccessScope::ApiKeyReveal)),
+        ),
+        (
+            denied("account_security:write"),
+            NewApiError::MissingScopes(ScopeSet::default()),
+        ),
+        (
+            (
+                403,
+                "application/json",
+                json!({"success":false,"code":"AUTH_INSUFFICIENT_PRIVILEGE","message_params":{"scope":"api_key:reveal"}}).to_string(),
+            ),
+            NewApiError::Http(403),
+        ),
+    ] {
+        let first = mock(vec![reply.clone()]).await;
+        let second = mock(vec![ok(json!({}))]).await;
+        let api = client(&[first.origin.clone(), second.origin.clone()]);
+        assert_eq!(api.user_self().await.unwrap_err(), expected);
+        assert!(second.requests.lock().unwrap().is_empty());
+
+        let wallet = mock(vec![reply]).await;
+        let api = client(&[wallet.origin.clone()]);
+        assert_eq!(
+            api.redeem("synthetic-code").await.unwrap_err(),
+            WalletApiError::Api(expected)
+        );
+    }
+    assert_eq!(
+        NewApiError::MissingScopes(ScopeSet::default()).to_string(),
+        "Access token lacks permissions (unlisted); create one with every Personal permission selected and bind again"
+    );
+}
+
+#[tokio::test]
+async fn binding_probes_every_scope_with_requests_that_cannot_change_data() {
+    let server = mock(vec![
+        ok(json!({"id":7,"username":"alice","group":"vip"})),
+        ok(json!({})),
+        handler_rejected(),
+        handler_rejected(),
+        ok(json!({})),
+        ok(json!({})),
+        handler_rejected(),
+    ])
+    .await;
+    let api = client(&[server.origin.clone()]);
+    assert_eq!(api.verify_binding().await.unwrap()["data"]["id"], 7);
+    let requests = server.requests.lock().unwrap();
+    let expected = [
+        (Method::GET, "/api/user/self", Value::Null),
+        (Method::GET, "/api/token/auto-groups", Value::Null),
+        (Method::PUT, "/api/token/", json!([])),
+        (Method::POST, "/api/token/batch/keys", json!({"ids": []})),
+        (Method::GET, "/api/log/self/stat", Value::Null),
+        (Method::GET, "/api/user/topup/info", Value::Null),
+        (Method::PUT, "/api/subscription/self/preference", json!([])),
+    ];
+    assert_eq!(requests.len(), expected.len());
+    for ((method, url, _, body), (expected_method, path, expected_body)) in
+        requests.iter().zip(expected)
+    {
+        assert_eq!(method, &expected_method);
+        assert_eq!(url.path(), path);
+        assert_eq!(body, &expected_body);
+    }
+    let query: BTreeMap<_, _> = requests[4].1.query_pairs().into_owned().collect();
+    let start: i64 = query["start_timestamp"].parse().unwrap();
+    let end: i64 = query["end_timestamp"].parse().unwrap();
+    assert_eq!(end - start, 60);
+}
+
+#[tokio::test]
+async fn binding_lists_every_missing_scope_at_once() {
+    let server = mock(vec![
+        denied("profile:read"),
+        ok(json!({})),
+        denied("api_key:write"),
+        denied("api_key:reveal"),
+        ok(json!({})),
+        // An older server without this route still passes the probe.
+        (404, "text/plain", "not found".into()),
+        denied("wallet:write"),
+    ])
+    .await;
+    let api = client(&[server.origin.clone()]);
+    let NewApiError::MissingScopes(missing) = api.verify_binding().await.unwrap_err() else {
+        panic!("expected missing scopes");
+    };
+    assert_eq!(
+        missing.names(),
+        [
+            "profile:read",
+            "api_key:write",
+            "api_key:reveal",
+            "wallet:write"
+        ]
+    );
+    assert_eq!(server.requests.lock().unwrap().len(), 7);
+}
+
+#[tokio::test]
+async fn binding_stops_on_an_invalid_token_or_unreachable_account_api() {
+    let server = mock(vec![(401, "application/json", "{}".into())]).await;
+    let api = client(&[server.origin.clone()]);
+    assert_eq!(
+        api.verify_binding().await.unwrap_err(),
+        NewApiError::TokenInvalid
+    );
+    assert_eq!(server.requests.lock().unwrap().len(), 1);
+
+    let server = mock(vec![
+        ok(json!({"id":7})),
+        (401, "application/json", "{}".into()),
+    ])
+    .await;
+    let api = client(&[server.origin.clone()]);
+    assert_eq!(
+        api.verify_binding().await.unwrap_err(),
+        NewApiError::TokenInvalid
+    );
+    assert_eq!(server.requests.lock().unwrap().len(), 2);
+}
